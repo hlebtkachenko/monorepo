@@ -8,5 +8,6 @@ must remain true. Procedures belong in runbooks, rationale belongs in ADRs.
 - [`OIDC-TRUST.md`](OIDC-TRUST.md): GitHub Actions OIDC trust policy
 - [`SITEMAP.md`](SITEMAP.md): application information architecture
 - [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md): supply-chain security contract
+- [`api/`](api/): future public API contracts
 - [`accounting-schema.sql`](accounting-schema.sql): generated accounting schema snapshot
 - [`accounting-schema.dbml`](accounting-schema.dbml): generated DBML schema snapshot

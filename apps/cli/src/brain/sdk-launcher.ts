@@ -2,11 +2,10 @@
 //
 // This is the ONE place `@anthropic-ai/claude-agent-sdk` is imported anywhere in the repo. It lives in
 // `apps/cli` (`private: true`) so the Agent SDK never enters a published artifact and never becomes a
-// dependency of `@workspace/intake` (the harness seam stays SDK-free — see docs/runbooks/BRAIN-CC-HARNESS.md).
+// dependency of `@workspace/intake` (the harness seam stays SDK-free; see docs/brain/TECHNICAL.md).
 //
-// `runLiveBrainSession` (in @workspace/intake) fails closed on the creds + `BRAIN_RUNTIME_ACTIVE=1`
-// kill-switch BEFORE this launcher is ever consulted, so `launch()` only runs when the write lane is
-// deliberately ON and every cred is present. The launcher can only PROPOSE the capture write — the
+// `runLiveBrainSession` (in @workspace/intake) fails closed on required credentials before this launcher is
+// consulted. Server-side admission owns `BRAIN_RUNTIME_ACTIVE`. The launcher can only propose the capture write; the
 // server's three-way-AND gate holds every write at cold start; a client cannot force a green.
 //
 // UNTESTED-LIVE: the `query()` call + message walk are exercised only against a real Agent-SDK session and the

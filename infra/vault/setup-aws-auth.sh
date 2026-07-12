@@ -14,7 +14,7 @@
 #      operator-scoped admin token post-M3.5).
 #
 # This script is IDEMPOTENT — re-running it after a partial failure is safe.
-# Tracks: AFF-245 M3. Plan: docs/reference/SECRETS-MIGRATION-HISTORY.md § M3.
+# Tracks: AFF-245 M3. Runbook: docs/runbooks/VAULT-OPS.md § M3.
 
 set -euo pipefail
 

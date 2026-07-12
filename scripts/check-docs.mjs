@@ -9,36 +9,27 @@ const root = process.cwd()
 const docsRoot = join(root, "docs")
 const errors = []
 
-const allowedDocsDirectories = new Set([
-  "adr",
-  "api",
-  "compliance",
-  "conventions",
-  "plans",
-  "reference",
-  "runbooks",
-  "specs",
-])
-
-const indexedDirectories = [
-  "adr",
-  "api",
-  "compliance",
-  "conventions",
-  "plans",
-  "reference",
-  "runbooks",
-  "specs",
-]
-
 function repoPath(path) {
   return relative(root, path).replaceAll("\\", "/")
+}
+
+function stripCode(markdown) {
+  let fenced = false
+  const kept = []
+  for (const line of markdown.replaceAll("\r\n", "\n").split("\n")) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced
+      continue
+    }
+    if (!fenced) kept.push(line.replace(/`+[^`]*`+/g, ""))
+  }
+  return kept.join("\n")
 }
 
 function markdownTargets(markdown) {
   const targets = []
   const pattern = /!?\[[^\]]*\]\(([^)\n]+)\)/g
-  for (const match of markdown.matchAll(pattern)) {
+  for (const match of stripCode(markdown).matchAll(pattern)) {
     let target = match[1].trim()
     if (target.startsWith("<")) {
       target = target.slice(1, target.indexOf(">"))
@@ -83,16 +74,6 @@ function countHeadings(markdown) {
   return count
 }
 
-for (const entry of readdirSync(docsRoot, { withFileTypes: true })) {
-  if (entry.isDirectory()) {
-    if (!allowedDocsDirectories.has(entry.name)) {
-      errors.push(`docs/${entry.name}: unknown documentation category`)
-    }
-  } else if (entry.name !== "README.md") {
-    errors.push(`docs/${entry.name}: topic files must live in a category`)
-  }
-}
-
 const markdownFiles = execFileSync(
   "git",
   [
@@ -126,11 +107,19 @@ for (const file of markdownFiles) {
   }
 }
 
-for (const directory of indexedDirectories) {
-  const path = join(docsRoot, directory)
+function collectDirectories(path) {
+  return [
+    path,
+    ...readdirSync(path, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) => collectDirectories(join(path, entry.name))),
+  ]
+}
+
+for (const path of collectDirectories(docsRoot)) {
   const indexPath = join(path, "README.md")
   if (!existsSync(indexPath)) {
-    errors.push(`docs/${directory}/README.md: missing category index`)
+    errors.push(`${repoPath(indexPath)}: missing directory index`)
     continue
   }
 
@@ -146,9 +135,7 @@ for (const directory of indexedDirectories) {
     const child = join(path, entry.name)
     if (!entry.isDirectory() && !entry.isFile()) continue
     if (!linked.has(repoPath(child))) {
-      errors.push(
-        `${repoPath(child)}: missing from docs/${directory}/README.md`,
-      )
+      errors.push(`${repoPath(child)}: missing from ${repoPath(indexPath)}`)
     }
   }
 }
@@ -160,27 +147,21 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-function countDocuments(directory, categoryRoot = directory) {
+function countDocuments(directory) {
   return readdirSync(directory, { withFileTypes: true }).reduce(
     (total, entry) => {
       const child = join(directory, entry.name)
-      if (entry.isDirectory())
-        return total + countDocuments(child, categoryRoot)
+      if (entry.isDirectory()) return total + countDocuments(child)
       if (!entry.isFile()) return total
-      if (child === join(categoryRoot, "README.md")) return total
+      if (entry.name === "README.md") return total
       return total + 1
     },
     0,
   )
 }
 
-const classifiedDocuments = readdirSync(docsRoot, { withFileTypes: true })
-  .filter((entry) => entry.isDirectory())
-  .reduce(
-    (total, entry) => total + countDocuments(join(docsRoot, entry.name)),
-    0,
-  )
+const documentCount = countDocuments(docsRoot)
 
 process.stdout.write(
-  `Documentation check passed: ${markdownFiles.length} Markdown files, ${classifiedDocuments} classified documents.\n`,
+  `Documentation check passed: ${markdownFiles.length} Markdown files, ${documentCount} documents.\n`,
 )

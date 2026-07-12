@@ -1,5 +1,5 @@
 # Vault audit-log rotation. Lives at /etc/logrotate.d/vault-audit on the
-# Hostinger VPS. Tracks: AFF-245 M1 step 4. Plan: docs/reference/SECRETS-MIGRATION-HISTORY.md
+# Hostinger VPS. Tracks: AFF-245 M1 step 4. Runbook: docs/runbooks/VAULT-OPS.md
 # § "should-fix #10" (advisor Gate 0).
 #
 # Why: the file-based audit device at /srv/secrets/vault/audit/audit.log

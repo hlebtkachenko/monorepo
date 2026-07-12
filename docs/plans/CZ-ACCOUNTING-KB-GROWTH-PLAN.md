@@ -3,7 +3,7 @@
 **Owner:** Hleb Tkachenko
 **Created:** 2026-05-25
 **Status:** Plan — Wave 8+ execution map
-**Related:** `docs/reference/brain/README.md`
+**Related:** `docs/brain/README.md`
 
 This plan covers every vector to grow and optimize the Czech Accounting Knowledge Base (canonical artifact at `~/Documents/Obsidian Vault/accountingAfframe/`) that powers Afframe's AI Financial Agents. Wave 1–7 brought the KB from greenfield to Haiku-safe (10/10 validation). Wave 8+ takes it to "ultimate" — agent-native by default, drift-resistant, multi-tenant, with predictive capabilities on the horizon.
 
@@ -427,5 +427,5 @@ This plan is tracked as a GitHub issue in DEV/AI project with one subissue per g
 - `~/Documents/Obsidian Vault/accountingAfframe/_state/AGENT-NATIVE-PLAN.md` — Wave 7 deliverable + initial Wave 8 backlog
 - `~/Documents/Obsidian Vault/accountingAfframe/_state/WAVE-5-BACKLOG.md` — all open backlog items by wave
 - `~/Documents/Obsidian Vault/accountingAfframe/_state/STAGE-LOG.md` — append-only execution log
-- `docs/reference/brain/README.md` — consumer architecture and safety model
+- `docs/brain/README.md` — consumer architecture and safety model
 - `docs/adr/` — architectural decisions

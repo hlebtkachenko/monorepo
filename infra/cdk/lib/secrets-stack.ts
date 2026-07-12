@@ -24,14 +24,14 @@ import type { Construct } from "constructs"
  *      programmatic credentials, generated out-of-band by the operator via
  *      `aws iam create-access-key --user-name vault-unseal-vps` after the
  *      first deploy. Credentials live in macOS Keychain + offline escrow
- *      per `docs/reference/SECRETS-MIGRATION-HISTORY.md` § irreversible-ops register.
+ *      per `docs/runbooks/VAULT-OPS.md` § Irreversible operations register.
  *      Rotate the access key every 90 days.
  *
  * Deploy: `cdk deploy SecretsBootstrap` (manual; not part of the per-env
  * deploy workflow). Region eu-central-1, same as the rest of the AWS
  * footprint.
  *
- * See `docs/reference/SECRETS-MIGRATION-HISTORY.md` M1 + `docs/runbooks/VAULT-OPS.md`.
+ * See `docs/runbooks/VAULT-OPS.md` M1 and Irreversible operations register.
  */
 export class SecretsStack extends Stack {
   readonly vaultUnsealKey: Key
@@ -45,7 +45,7 @@ export class SecretsStack extends Stack {
     this.vaultUnsealKey = new Key(this, "VaultUnsealKey", {
       alias: "alias/monorepo-vault-unseal",
       description:
-        "Auto-unseals HashiCorp Vault on the Hostinger KVM 2 VPS. Annual rotation. Deletion is denied by resource policy — orphaning this key strands the Vault data. See docs/reference/SECRETS-MIGRATION-HISTORY.md.",
+        "Auto-unseals HashiCorp Vault on the Hostinger KVM 2 VPS. Annual rotation. Deletion is denied by resource policy — orphaning this key strands the Vault data. See docs/runbooks/VAULT-OPS.md.",
       enableKeyRotation: true,
       removalPolicy: RemovalPolicy.RETAIN,
     })

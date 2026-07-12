@@ -4,7 +4,7 @@
 # ask.ts HITL CLI. INGEST_SECRET is the SAME shared bearer as the app's
 # NOTIFY_SHARED_SECRET — source of truth is Vault at
 # platform/{env}/notify-shared-secret, synced to SSM at
-# /monorepo/{env}/notify-shared-secret (see docs/reference/ENVIRONMENT-VARIABLES.md). Defaults to
+# /monorepo/{env}/notify-shared-secret (see docs/ENVIRONMENT-VARIABLES.md). Defaults to
 # reading SSM directly (fast, no VPN); pass --source vault to read Vault
 # instead (needs `vault login` first, see docs/runbooks/VAULT-OPS.md).
 #

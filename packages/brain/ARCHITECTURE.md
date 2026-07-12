@@ -1,6 +1,6 @@
 # Architecture — `@workspace/brain`
 
-> **⚠️ Superseded — read [`docs/reference/brain/TECHNICAL.md`](../../docs/reference/brain/TECHNICAL.md).** The
+> **⚠️ Superseded — read [`docs/brain/TECHNICAL.md`](../../docs/brain/TECHNICAL.md).** The
 > "writes IN-PROCESS / no external MCP channel / dedicated Brain worker container" design described below was
 > **dropped**. Brain v1 shipped as an **unprivileged external MCP/HTTP client with NO Brain server**
 > (ADR-0025, amended 2026-07-01): writes go through the public REST API + the server-side write gate, driven

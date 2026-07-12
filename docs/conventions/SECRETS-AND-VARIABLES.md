@@ -7,7 +7,7 @@
 > — the add / change / delete / scope-a-teammate entrypoint. Day-to-day
 > Vault operations: [`VAULT-OPS.md`](../runbooks/VAULT-OPS.md). Rotation recipes:
 > [`SECRETS-ROTATION.md`](../runbooks/SECRETS-ROTATION.md). Plan and milestone
-> history: [`SECRETS-MIGRATION-HISTORY.md`](SECRETS-MIGRATION-HISTORY.md).
+> Current operations: [`VAULT-OPS.md`](../runbooks/VAULT-OPS.md).
 >
 > **Three storage tiers, by purpose:**
 >

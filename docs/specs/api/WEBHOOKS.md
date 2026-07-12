@@ -1,6 +1,6 @@
-# Webhooks — Contract + Design
+# Webhooks: Contract and Design
 
-> **[Concept]** Not implemented. Tracked under the developer-platform initiative ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
+> **[Concept]** Not implemented. Tracked under the developer-platform initiative ([`ADR-0023`](../../adr/0023-public-api-developer-platform.md)).
 
 The webhook contract for `api.afframe.com/v1`. Adopts the [Standard Webhooks](https://www.standardwebhooks.com/) spec (Svix-led; used by Resend, Lob, Brex). Consumers built against this contract are portable across whichever webhook backend Afframe runs.
 
@@ -20,7 +20,7 @@ The webhook contract for `api.afframe.com/v1`. Adopts the [Standard Webhooks](ht
 | Delivery                | At-least-once. Retry 1s, 2s, 4s, 8s, 16s, 32s, 1m, 4m, 16m, 1h, cap. 24h window. Dead-letter after. | Hookdeck-recommended curve with jitter                                       |
 | Subscription model      | Per-endpoint + per-event-type opt-in. One secret per endpoint.                                      | Stripe pattern. Rotatable, two active during rotation.                       |
 | Schema versioning       | Independent of REST. `api_version` field in envelope.                                               | Decouples webhook stability from REST evolution                              |
-| Local testing           | `afframe listen --forward-to http://localhost:3000/webhooks` ([CLI](./CLI.md))                      | Stripe-CLI clone                                                             |
+| Local testing           | `afframe listen --forward-to http://localhost:3000/webhooks` ([CLI](../../api/CLI.md))              | Stripe-CLI clone                                                             |
 | Force-trigger (sandbox) | `POST /v1/sandbox/fire_webhook`                                                                     | Plaid pattern, see [`SANDBOX.md`](./SANDBOX.md)                              |
 
 ---
@@ -233,7 +233,7 @@ $ afframe trigger invoice.paid
 - **Secret leak** → partner rotates via `POST /v1/webhook_endpoints/{id}/rotate_secret`. Old secret valid 24h to allow consumer config update.
 - **Replay attack** → 5-min timestamp window + consumer dedup on `webhook-id` defeats it.
 
-Operational runbook: [`docs/runbooks/INCIDENT.md`](../runbooks/INCIDENT.md) (concept extension for "webhook backlog").
+Operational runbook: [`docs/runbooks/INCIDENT.md`](../../runbooks/INCIDENT.md) (concept extension for "webhook backlog").
 
 ---
 
@@ -244,4 +244,4 @@ Operational runbook: [`docs/runbooks/INCIDENT.md`](../runbooks/INCIDENT.md) (con
 - [Hook0 documentation](https://documentation.hook0.com/) — self-host
 - [Stripe webhooks docs](https://docs.stripe.com/webhooks)
 - [Hookdeck retry guide](https://hookdeck.com/outpost/guides/outbound-webhook-retry-best-practices)
-- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`CLI.md`](./CLI.md), [`SANDBOX.md`](./SANDBOX.md), [`SDK.md`](./SDK.md)
+- [`ADR-0023`](../../adr/0023-public-api-developer-platform.md), [`CLI.md`](../../api/CLI.md), [`SANDBOX.md`](./SANDBOX.md), [`SDK.md`](../../api/SDK.md)

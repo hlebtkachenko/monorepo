@@ -3,7 +3,7 @@
 #
 # INGEST_SECRET: run `scripts/bot-dev-vars.sh` from the repo root instead of
 # filling this in by hand — it fetches the shared NOTIFY_SHARED_SECRET value
-# from SSM/Vault and writes the line for you. See docs/reference/ENVIRONMENT-VARIABLES.md.
+# from SSM/Vault and writes the line for you. See docs/ENVIRONMENT-VARIABLES.md.
 
 BOT_TOKEN=
 TELEGRAM_USER_ID=

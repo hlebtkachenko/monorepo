@@ -14,7 +14,7 @@ The auto-generated reference is necessary but not sufficient. A real public laun
 
 ## Decision
 
-1. **Developer portal — Markdown-first, OpenAPI-driven, Scalar for the reference**, all served under `api.afframe.com/docs` (narrative) + `api.afframe.com/v1/docs` (Scalar reference). Page map in [`docs/api/DEV-PORTAL.md`](../api/DEV-PORTAL.md). Universal pages (Get Started, Authentication, Errors, Rate limits, Pagination, Idempotency, Versioning, Webhooks, Sandbox, Changelog, SDKs, CLI, MCP) ship before the public launch; nice-to-have pages (Recipes, Migrations) are deferred until they have content.
+1. **Developer portal — Markdown-first, OpenAPI-driven, Scalar for the reference**, all served under `api.afframe.com/docs` (narrative) + `api.afframe.com/v1/docs` (Scalar reference). The narrative portal was later descoped by [ADR-0024's 2026-05-21 amendment](0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted).
 
 2. **CLI — TypeScript + oclif, distributed via Homebrew tap and GitHub Releases (signed binaries).** Lives at `apps/cli`, shares `@workspace/shared` types. v0 commands: `login / logout / whoami / config / api / open`. Webhook tooling (`listen / trigger`) ships with webhooks. No global `npm i -g`. Design: [`docs/api/CLI.md`](../api/CLI.md).
 
@@ -22,11 +22,11 @@ The auto-generated reference is necessary but not sufficient. A real public laun
 
 4. **SDK — TypeScript first, generated with `hey-api/openapi-ts`, published as `@afframe/sdk`** (semver independent of API path version). Python via Speakeasy on first paying-partner ask. No Go until requested. Design: [`docs/api/SDK.md`](../api/SDK.md).
 
-5. **Webhooks — adopt the Standard Webhooks spec** (HMAC-SHA256, `webhook-signature` / `webhook-id` / `webhook-timestamp` headers, 5-min replay window). Delivery via Svix Cloud free tier behind our own `/v1/webhook_endpoints` API surface; migrate to self-hosted Hook0 on the OVH/AWS infra at the ~€500/mo crossover. Standard-Webhooks signature contract keeps consumers portable across backends. Design: [`docs/api/WEBHOOKS.md`](../api/WEBHOOKS.md).
+5. **Webhooks — adopt the Standard Webhooks spec** (HMAC-SHA256, `webhook-signature` / `webhook-id` / `webhook-timestamp` headers, 5-min replay window). Delivery via Svix Cloud free tier behind our own `/v1/webhook_endpoints` API surface; migrate to self-hosted Hook0 on the OVH/AWS infra at the ~€500/mo crossover. Standard-Webhooks signature contract keeps consumers portable across backends. Design: [`docs/specs/api/WEBHOOKS.md`](../specs/api/WEBHOOKS.md).
 
 6. **Versioning — URL-path (`/v1` → `/v2`)** with [RFC 8594](https://www.rfc-editor.org/rfc/rfc8594.html) `Sunset` + IETF `Deprecation` headers on retiring endpoints. No date-pinned versioning à la Stripe — too expensive to maintain at single-engineer scale. 6-month deprecation minimum, 12-month parallel `/vN` operation. Policy: [`docs/api/VERSIONING.md`](../api/VERSIONING.md).
 
-7. **Sandbox — first-class.** Every signup gets an `affk_test_…` key against a logically-isolated `is_test` organization, seeded with VAT-registered fixtures + sample invoices. Force-trigger endpoints (`/v1/sandbox/*`) simulate error states and webhook events. Plaid-style. Design: [`docs/api/SANDBOX.md`](../api/SANDBOX.md).
+7. **Sandbox — first-class.** Every signup gets an `affk_test_…` key against a logically-isolated `is_test` organization, seeded with VAT-registered fixtures + sample invoices. Force-trigger endpoints (`/v1/sandbox/*`) simulate error states and webhook events. Plaid-style. Design: [`docs/specs/api/SANDBOX.md`](../specs/api/SANDBOX.md).
 
 8. **Error envelope — Plaid-shape extension of the current contract.** Adds `error_type`, `display_message`, `documentation_url`. Backwards-compatible with the existing `{ code, message, requestId }` shape from `DomainExceptionFilter`. Registry: [`docs/api/ERRORS.md`](../api/ERRORS.md).
 
@@ -52,8 +52,8 @@ Positive:
 
 Negative / trade-offs:
 
-- Five new surfaces (CLI, MCP, SDK, webhooks, sandbox) shipping in parallel is a lot. The roadmap in [`API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md) sequences them; not all land before GA.
-- Svix Cloud is a runtime dependency for webhooks. Acceptable on the free tier (50k msgs/mo); migration plan to Hook0 documented in [`WEBHOOKS.md`](../api/WEBHOOKS.md).
+- Five new surfaces (CLI, MCP, SDK, webhooks, sandbox) shipping in parallel is a lot. [`V1-LAUNCH-GATES.md`](../plans/V1-LAUNCH-GATES.md) defines current release criteria; not all surfaces need to land before GA.
+- Svix Cloud is a runtime dependency for webhooks. Acceptable on the free tier (50k msgs/mo); migration plan to Hook0 documented in [`WEBHOOKS.md`](../specs/api/WEBHOOKS.md).
 - Key prefix migration (`afk_` → `affk_`) requires AFF-73 work. Until then, the foundation's keys keep the `afk_` prefix.
 - The sandbox doubles the data-seeding surface (test org seeded on signup, force-trigger endpoints to maintain). Up-front cost; pays for itself the first time a partner asks "how do I test webhook delivery without a real bank feed".
 
@@ -61,7 +61,7 @@ Follow-up work required:
 
 - AFF-73 — admin dashboard for key management + key prefix migration.
 - A new GitHub Roadmap initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase.
-- Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/reference/SECRETS-AND-VARIABLES.md`](../reference/SECRETS-AND-VARIABLES.md) for context).
+- Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/conventions/SECRETS-AND-VARIABLES.md`](../conventions/SECRETS-AND-VARIABLES.md) for context).
 - Wire `/.well-known/security.txt` (web app responsibility, not the API). RFC 9116.
 - Update `SECURITY.md` with the `security@afframe.com` alias once the mailbox exists.
 
@@ -81,6 +81,6 @@ Follow-up work required:
 - [ADR-0013](0013-money-and-fx.md) — `Money<Currency>` and FX (SDK typing)
 - [ADR-0018](0018-three-layer-authz.md) — Cerbos + OpenFGA (MCP scope split rides on this)
 - [ADR-0022](0022-unified-opaque-tokens.md) — `affk_` prefix policy
-- [`docs/api/API-REFERENCE.md`](../api/API-REFERENCE.md), [`docs/plans/API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md), [`docs/api/DEV-PORTAL.md`](../api/DEV-PORTAL.md)
+- [`docs/api/API-REFERENCE.md`](../api/API-REFERENCE.md), [`docs/plans/V1-LAUNCH-GATES.md`](../plans/V1-LAUNCH-GATES.md)
 - [`SECURITY.md`](../../SECURITY.md) and [`CI-POLICY.md`](../conventions/CI-POLICY.md) — current repository hardening controls
 - [Standard Webhooks](https://www.standardwebhooks.com/), [RFC 8594 — Sunset](https://www.rfc-editor.org/rfc/rfc8594.html), [RFC 9116 — security.txt](https://www.rfc-editor.org/rfc/rfc9116), [IETF Idempotency-Key](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header)

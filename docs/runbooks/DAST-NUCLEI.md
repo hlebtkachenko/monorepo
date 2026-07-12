@@ -1,6 +1,6 @@
 # DAST — Nuclei scan
 
-> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
 > Tracker: GitHub issue DEV-47.
 
 `.github/workflows/nuclei-dast.yml` runs [ProjectDiscovery Nuclei](https://projectdiscovery.io)

@@ -54,4 +54,4 @@ Negative:
 
 - `mise.toml`
 - `.devcontainer/Dockerfile`
-- `docs/reference/SECRETS-AND-VARIABLES.md`
+- `docs/conventions/SECRETS-AND-VARIABLES.md`

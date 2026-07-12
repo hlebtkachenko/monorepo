@@ -1,6 +1,6 @@
 /**
  * Static inventory of the Afframe public-facing hostnames. Seeded from
- * `docs/reference/DOMAINS-AND-EMAIL.md` — that doc is the source of truth. When
+ * `docs/DOMAINS-AND-EMAIL.md` — that doc is the source of truth. When
  * Cloudflare DNS becomes API-readable from the admin task, this file
  * should be replaced by a live fetch + cache.
  */

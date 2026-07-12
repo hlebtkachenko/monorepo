@@ -21,7 +21,6 @@ Choose the narrowest runbook matching the task.
 - [`DB-ACCESS.md`](DB-ACCESS.md)
 - [`DEPLOY.md`](DEPLOY.md)
 - [`ENV-POWER.md`](ENV-POWER.md)
-- [`PROMOTE-TO-PRODUCTION.md`](PROMOTE-TO-PRODUCTION.md)
 - [`ROLLBACK.md`](ROLLBACK.md)
 - [`STAGING.md`](STAGING.md)
 - [`STATUS-PAGE.md`](STATUS-PAGE.md)
@@ -42,7 +41,6 @@ Choose the narrowest runbook matching the task.
 ## Agent and Brain operations
 
 - [`AGENT-HITL.md`](AGENT-HITL.md)
-- [`BRAIN-CC-HARNESS.md`](BRAIN-CC-HARNESS.md)
 - [`BRAIN-OPERATOR-SESSION.md`](BRAIN-OPERATOR-SESSION.md)
 - [`M2-OPERATOR-BOOTSTRAP-PROMPT.md`](M2-OPERATOR-BOOTSTRAP-PROMPT.md)
 - [`mlive.example.sh`](mlive.example.sh)

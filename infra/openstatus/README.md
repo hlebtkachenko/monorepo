@@ -1,6 +1,6 @@
 # infra/openstatus
 
-> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../../docs/reference/DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../../docs/DOMAINS-AND-EMAIL.md).
 
 **Deployed on the OVH VPS (WSL2 Ubuntu, Docker Compose) and fronted by Cloudflare Tunnel.
 NOT an AWS / CDK target — `cdk deploy`, `make deploy-cdk`, and `_deploy-aws.yml` never
@@ -37,7 +37,7 @@ and could be applied as-is — `regions` slug + the `dns` assertion shape would 
 
 ## Monitors
 
-> The table below enumerates OpenStatus monitoring targets only. The canonical inventory of every host afframe operates is [`docs/reference/DOMAINS-AND-EMAIL.md`](../../docs/reference/DOMAINS-AND-EMAIL.md).
+> The table below enumerates OpenStatus monitoring targets only. The canonical inventory of every host afframe operates is [`docs/DOMAINS-AND-EMAIL.md`](../../docs/DOMAINS-AND-EMAIL.md).
 
 | Key             | Target                                 | Check                                           | Public page?                         | Active?                       |
 | --------------- | -------------------------------------- | ----------------------------------------------- | ------------------------------------ | ----------------------------- |

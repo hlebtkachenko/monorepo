@@ -50,4 +50,4 @@ Production runs on AWS eu-central-1.
 - Customer-managed KMS keys per data domain.
 - CloudTrail org trail to S3 with Object Lock (Compliance, 7-year retention, MFA Delete).
 
-See `docs/specs/OIDC-TRUST.md` and `docs/reference/SECRETS-AND-VARIABLES.md` for details.
+See `docs/specs/OIDC-TRUST.md` and `docs/conventions/SECRETS-AND-VARIABLES.md` for details.

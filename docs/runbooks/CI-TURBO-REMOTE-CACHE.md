@@ -1,6 +1,6 @@
 # CI: Turborepo Remote Cache (Cloudflare R2 + Workers)
 
-> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
 
 Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers + R2.
 

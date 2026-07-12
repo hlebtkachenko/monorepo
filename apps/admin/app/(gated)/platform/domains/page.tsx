@@ -84,7 +84,7 @@ export default async function DomainsPage() {
     <div className="flex flex-col gap-6 p-6">
       <PageHeader
         title="Domains"
-        description="Public Afframe hostnames. Inventory is seeded from docs/reference/DOMAINS-AND-EMAIL.md; once Cloudflare API access lands in the admin runtime, this view will refresh live."
+        description="Public Afframe hostnames. Inventory is seeded from docs/DOMAINS-AND-EMAIL.md; once Cloudflare API access lands in the admin runtime, this view will refresh live."
         meta={
           <Text variant="small" className="text-muted-foreground">
             {DOMAINS.length} hostnames · source of truth: Cloudflare DNS

@@ -1,4 +1,4 @@
-# docs/plans
+# Plans
 
 **Bounded future-work context and cross-cutting acceptance criteria.**
 
@@ -26,8 +26,8 @@ Do NOT add a file here when:
 - It's an operational runbook — put it in [`docs/runbooks/`](../runbooks/) instead.
 - It's an architecture decision — put it in [`docs/adr/`](../adr/) instead.
 - It's a design spec for an upcoming feature — put it in [`docs/specs/`](../specs/) instead.
-- It's current explanatory material or completed implementation history — put
-  it in [`docs/reference/`](../reference/) instead.
+- It's current explanatory material: place it with the owning product area or
+  next to the cross-cutting docs index.
 
 ## Conventions
 
@@ -37,8 +37,8 @@ Do NOT add a file here when:
   - states the purpose in one sentence,
   - links the primary GitHub issue(s) the file backs,
   - dates the snapshot.
-- **Lifecycle:** when work completes, move useful implementation history to
-  `docs/reference/`. Move superseded or valueless material to `_junk/`.
+- **Lifecycle:** when work completes, move the document to `_junk/`. Git history
+  and linked GitHub issues preserve implementation history.
 - **No issue tracking in markdown:** progress, assignees, due dates, status
   belong in GitHub Issues and the Roadmap project. The file describes the
   territory, not the route.
@@ -47,14 +47,10 @@ Do NOT add a file here when:
 
 | File                                                                 | Backs                            | Notes                                                                                  |
 | -------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
-| [`API-PUBLIC-LAUNCH.md`](API-PUBLIC-LAUNCH.md)                       | Public API launch                | Cross-surface API launch sequencing and acceptance gates.                              |
 | [`CZ-ACCOUNTING-KB-GROWTH-PLAN.md`](CZ-ACCOUNTING-KB-GROWTH-PLAN.md) | Brain accounting-KB growth track | Research and staged expansion of the machine-readable Czech accounting knowledge base. |
-| [`LAUNCH-CHECKLIST.md`](LAUNCH-CHECKLIST.md)                         | v1 launch                        | Cross-system launch gates. GitHub Issues own task status and implementation work.      |
+| [`V1-LAUNCH-GATES.md`](V1-LAUNCH-GATES.md)                           | v1 launch                        | Stable cross-system go-live criteria. GitHub Issues own completion status.             |
 
 ## Archived
 
-Completed secrets and statutory-closing plans moved to `docs/reference/` as
-labelled implementation history. Superseded AFF-150, auth-outstanding,
-pre-reframe AI-agent, scripts-enablement, and public-repo setup material moved to
-`_junk/2026-07-12-docs-reclassification/` and remain in git history. Earlier
-archives remain under `_junk/2026-05-17-docs-plans-archive/`.
+Completed and superseded plans live under dated `_junk/` directories and remain
+available in git history. Active delivery status lives in GitHub Issues.

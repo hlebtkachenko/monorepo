@@ -322,7 +322,7 @@ Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` 
   | Public API | `api.afframe.com` | `api-staging.afframe.com` |
   | Admin | `admin.afframe.com` | `admin-staging.afframe.com` |
 
-  Status page (`status.afframe.com`) runs off AWS on the OVH VPS. Full inventory of every host + email address is at [`docs/reference/DOMAINS-AND-EMAIL.md`](docs/reference/DOMAINS-AND-EMAIL.md). Admin is its own per-env variable `ADMIN_DOMAIN`, not a subdomain of `APP_DOMAIN`.
+  Status page (`status.afframe.com`) runs off AWS on the OVH VPS. Full inventory of every host + email address is at [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-AND-EMAIL.md). Admin is its own per-env variable `ADMIN_DOMAIN`, not a subdomain of `APP_DOMAIN`.
 - See `docs/adr/` for the architectural decisions backing this layout.
 - `infra/openstatus/` (the `status.afframe.com` status page) is **not AWS**: it runs OpenStatus self-hosted on the OVH VPS and is never deployed by CDK / `make deploy-cdk` / `_deploy-aws.yml`. It lives in the monorepo as monitors-as-code only. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md) and `docs/runbooks/STATUS-PAGE.md`.
 
@@ -348,11 +348,13 @@ Rule: never format a Telegram message or hold the bot token anywhere but `apps/b
 - `docs/compliance/` — control mappings and audit evidence indexes
 - `docs/conventions/` — commit + CI conventions
 - `docs/plans/` — strategic execution plans
-- `docs/reference/` — current registries, explanatory guides, and implementation history
 - `docs/runbooks/` — operational runbooks
 - `docs/specs/` — design specifications
+- `docs/brain/` — cross-package Brain overview and technical architecture
+- `docs/DOMAINS-AND-EMAIL.md` — public host and email registry
+- `docs/ENVIRONMENT-VARIABLES.md` — environment-variable registry
 - `docs/compliance/ICT-ASSET-INVENTORY.md` — DORA Article 8 ICT asset register
-- `docs/reference/brain/README.md` — Afframe Brain landing doc (A-Z); `docs/reference/brain/TECHNICAL.md` (internals) + `docs/reference/brain/STATUS.md` (v1/v2 roadmap + open issues)
+- `docs/brain/README.md` — Afframe Brain landing doc; `docs/brain/TECHNICAL.md` contains internals, and GitHub epic #524 owns delivery status
 
 ## Endpoint Addition Rules
 

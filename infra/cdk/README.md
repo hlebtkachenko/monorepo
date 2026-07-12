@@ -1,6 +1,6 @@
 # CDK App Stacks
 
-> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../../docs/reference/DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../../docs/DOMAINS-AND-EMAIL.md).
 
 Application-layer infrastructure. Deployed per environment.
 

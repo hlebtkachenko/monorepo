@@ -7,7 +7,7 @@ names) — it names auth _mechanisms_ but never their values; agents working
 on the repo find the rest in the linked config files. The public inventory
 carries only what is already discoverable via DNS or in committed config.
 
-For decisions see [ADR-0008](../adr/0008-cloudflare-tunnel-and-email.md). For
+For decisions see [ADR-0008](adr/0008-cloudflare-tunnel-and-email.md). For
 operational procedures see the runbook linked under each entry.
 
 Each entry is a self-contained stanza headed by `### <host>`.
@@ -33,7 +33,7 @@ Hosts:
 A dedicated `docs.afframe.com` host was planned and reverted on
 2026-05-21. The Scalar API Reference mounted at `api.afframe.com/` IS
 the developer documentation. See
-[ADR-0024 Amendment 2026-05-21](../adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
+[ADR-0024 Amendment 2026-05-21](adr/0024-developer-platform-codegen-pipeline.md#amendment-2026-05-21--appsdocs-reverted)
 and the Roadmap project for the open question on if/when to revisit.
 
 Email:
@@ -58,8 +58,8 @@ Email:
 - Served by: AWS Fargate, `web` container
 - Behind: Cloudflare Tunnel
 - Source-of-URL var: `vars.APP_DOMAIN_PRODUCTION`
-- ADR: [0008](../adr/0008-cloudflare-tunnel-and-email.md)
-- Runbook: [AWS-SETUP.md](../runbooks/AWS-SETUP.md)
+- ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md)
+- Runbook: [AWS-SETUP.md](runbooks/AWS-SETUP.md)
 
 ### app-staging.afframe.com
 
@@ -67,8 +67,8 @@ Email:
 - Served by: AWS Fargate, `web` container
 - Behind: Cloudflare Tunnel
 - Source-of-URL var: `vars.APP_DOMAIN_STAGING`
-- ADR: [0008](../adr/0008-cloudflare-tunnel-and-email.md)
-- Runbook: [AWS-SETUP.md](../runbooks/AWS-SETUP.md)
+- ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md)
+- Runbook: [AWS-SETUP.md](runbooks/AWS-SETUP.md)
 
 ### api.afframe.com
 
@@ -77,7 +77,7 @@ Email:
 - Behind: Cloudflare Tunnel
 - Source-of-URL: tunnel route only (no env var; OpenAPI server URL in `apps/api/`)
 - Auth: API keys
-- ADR: [0008](../adr/0008-cloudflare-tunnel-and-email.md), [0020](../adr/0020-public-api-foundation.md)
+- ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md), [0020](adr/0020-public-api-foundation.md)
 
 ### api-staging.afframe.com
 
@@ -85,7 +85,7 @@ Email:
 - Served by: AWS Fargate, `api` container
 - Behind: Cloudflare Tunnel
 - Source-of-URL: tunnel route only
-- ADR: [0008](../adr/0008-cloudflare-tunnel-and-email.md), [0020](../adr/0020-public-api-foundation.md)
+- ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md), [0020](adr/0020-public-api-foundation.md)
 
 ### admin.afframe.com
 
@@ -95,7 +95,7 @@ Email:
 - Source-of-URL var: `vars.ADMIN_DOMAIN_PRODUCTION`
 - Cookies: host-scoped (independent of `app.afframe.com`)
 - Gating: in-app `ADMIN_WORKSPACE_ALLOWLIST` (no Cloudflare Access)
-- ADR: [0008 amendment](../adr/0008-cloudflare-tunnel-and-email.md)
+- ADR: [0008 amendment](adr/0008-cloudflare-tunnel-and-email.md)
 
 ### admin-staging.afframe.com
 
@@ -104,15 +104,15 @@ Email:
 - Behind: Cloudflare Tunnel
 - Source-of-URL var: `vars.ADMIN_DOMAIN_STAGING`
 - Gating: in-app `ADMIN_WORKSPACE_ALLOWLIST`
-- ADR: [0008 amendment](../adr/0008-cloudflare-tunnel-and-email.md)
+- ADR: [0008 amendment](adr/0008-cloudflare-tunnel-and-email.md)
 
 ### status.afframe.com
 
 - Role: public status page
 - Served by: OVH VPS (off AWS by design; independent failure domain)
 - Behind: Cloudflare Tunnel
-- ADR: [0019](../adr/0019-status-page-and-uptime-monitoring.md)
-- Runbook: [STATUS-PAGE.md](../runbooks/STATUS-PAGE.md)
+- ADR: [0019](adr/0019-status-page-and-uptime-monitoring.md)
+- Runbook: [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
 
 ### monitoring.afframe.com
 
@@ -120,8 +120,8 @@ Email:
 - Served by: OVH VPS
 - Behind: Cloudflare Tunnel
 - Auth: staff login
-- ADR: [0019](../adr/0019-status-page-and-uptime-monitoring.md)
-- Runbook: [STATUS-PAGE.md](../runbooks/STATUS-PAGE.md)
+- ADR: [0019](adr/0019-status-page-and-uptime-monitoring.md)
+- Runbook: [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
 
 ### cache.afframe.com
 
@@ -129,8 +129,8 @@ Email:
 - Served by: Cloudflare Worker
 - Source-of-URL var: `vars.TURBO_API`
 - Auth: bearer token
-- ADR: [0021](../adr/0021-turborepo-remote-cache-cloudflare.md)
-- Runbook: [CI-TURBO-REMOTE-CACHE.md](../runbooks/CI-TURBO-REMOTE-CACHE.md)
+- ADR: [0021](adr/0021-turborepo-remote-cache-cloudflare.md)
+- Runbook: [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - Config: `infra/cloudflare/wrangler.jsonc`
 
 ### bot.afframe.com
@@ -148,7 +148,7 @@ Email:
 
 - Provider: Cloudflare Email Routing
 - Routing: catch-all + specific rules configured in Cloudflare dashboard
-- ADR: [0008](../adr/0008-cloudflare-tunnel-and-email.md) → Email layer
+- ADR: [0008](adr/0008-cloudflare-tunnel-and-email.md) → Email layer
 - `support+feedback@afframe.com`: delivery target of the in-app feedback
   flow (`apps/api/src/v1/feedback/feedback.controller.ts`,
   `SUPPORT_INBOX`). It is served ONLY by the catch-all — an
@@ -173,7 +173,7 @@ Email:
 
 - Sent by: status-page stack on OVH VPS
 - Provider: Resend
-- Configured: OVH compose env (see [STATUS-PAGE.md](../runbooks/STATUS-PAGE.md))
+- Configured: OVH compose env (see [STATUS-PAGE.md](runbooks/STATUS-PAGE.md))
 - DKIM: signed by provider on the `afframe.com` zone
 
 ---
@@ -183,9 +183,9 @@ Email:
 Procedures live in the runbooks — they have the exact file-by-file steps and
 authorization gates. Pick by host class:
 
-- **AWS Fargate host** (web / api / admin): [AWS-SETUP.md](../runbooks/AWS-SETUP.md) §§ 8-9
-- **OVH-served host** (status / monitoring): [STATUS-PAGE.md](../runbooks/STATUS-PAGE.md)
-- **Cloudflare Worker host** (cache / future workers): [CI-TURBO-REMOTE-CACHE.md](../runbooks/CI-TURBO-REMOTE-CACHE.md)
+- **AWS Fargate host** (web / api / admin): [AWS-SETUP.md](runbooks/AWS-SETUP.md) §§ 8-9
+- **OVH-served host** (status / monitoring): [STATUS-PAGE.md](runbooks/STATUS-PAGE.md)
+- **Cloudflare Worker host** (cache / future workers): [CI-TURBO-REMOTE-CACHE.md](runbooks/CI-TURBO-REMOTE-CACHE.md)
 - **Inbound email alias**: Cloudflare dashboard → Email → Routing Rules
 - **Outbound sender**: add identity in Resend, update relevant container env
 

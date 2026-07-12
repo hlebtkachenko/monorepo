@@ -1,6 +1,6 @@
 // Regression tests for the LIVE-path wiring in `sdk-launcher.ts` — the one file that imports the Agent SDK
 // and is otherwise only exercised against a real Agent-SDK session (see the file's own "UNTESTED-LIVE" note
-// and docs/reference/brain/TECHNICAL.md §1.1). `query()` itself is not driven here (that needs a real session),
+// and docs/brain/TECHNICAL.md §1.1). `query()` itself is not driven here (that needs a real session),
 // but everything this file does BEFORE handing control to `query()` — resolving the local stdio MCP bridge
 // spawn descriptor (command/args, env overrides, fail-loud on a missing path) and building the default-deny
 // `canUseTool` gates for both lanes — is deterministic and is covered below.

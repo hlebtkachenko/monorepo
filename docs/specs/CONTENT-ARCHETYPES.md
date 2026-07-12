@@ -25,6 +25,11 @@ patterns; do not import demo code into production pages.
 - **Dashboard** — analytics: KPI tiles with sparklines, chart cards, a period filter, and a metrics-as-rows matrix (which is itself a selectable, sortable Table).
 - **Single** — one record on show as an editable document: side-by-side form panels + a full-width editable line-items grid + live totals.
 
+The admin app carries a static reference catalog of these archetypes at
+`/platform/archetypes` (`apps/admin/app/(gated)/platform/archetypes`) — each
+archetype's label, one-line description, and slot recipe. It documents the set;
+the buildable demos live in the web routes above.
+
 ## The shared foundation (every archetype uses this)
 
 A page is a **route** under `apps/web/app/[orgSlug]/<name>/page.tsx` that renders

@@ -198,6 +198,31 @@ export const config = [
       ],
     },
   },
+  // Block-internal imports are private. Consumer code (apps + other packages)
+  // must import a UI block via its index (`@workspace/ui/blocks/<block>`), never
+  // a deep internal module. This is the ENFORCEMENT BOUNDARY for the ContentBody
+  // archetype-blocker: the archetype minter/registry live in
+  // `content-panel/content-body/archetypes/*` and must stay unreachable, or the
+  // "only a branded Archetype can be a body" gate is bypassed by a deep import
+  // of `defineArchetype`. Block internals themselves use relative paths, so this
+  // (alias-only) rule never fires inside packages/ui.
+  {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@workspace/ui/blocks/*/*", "@workspace/ui/blocks/*/**"],
+              message:
+                "Import UI blocks from their index (@workspace/ui/blocks/<block>), not internal modules. Block internals (e.g. the archetype minter/registry) are private by design.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Type-checked promise-correctness rules. Excluded under lefthook to keep
   // the pre-commit hook fast (see typeCheckedOverride doc comment above).
   ...(process.env.LEFTHOOK ? [] : [typeCheckedOverride]),

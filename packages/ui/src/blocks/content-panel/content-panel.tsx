@@ -4,6 +4,8 @@ import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
 
+import { ContentBody } from "./content-body"
+import type { ArchetypeDescriptor } from "./content-body"
 import { Inspector } from "./inspector"
 import type { InspectorMode } from "./inspector"
 
@@ -45,8 +47,19 @@ export interface ContentPanelProps {
   inspectorTitle?: React.ReactNode
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string
-  /** The scrolling body content (table / cards / detail). */
-  children: React.ReactNode
+  /**
+   * The archetype-blocked body (the canonical path). When set, ContentPanel
+   * renders `<ContentBody body={body} />` in the scrolling region — the body can
+   * hold ONLY a branded archetype (e.g. `archetypeEmpty({...})`), never bespoke
+   * JSX. Mutually exclusive with the deprecated `children`.
+   */
+  body?: ArchetypeDescriptor
+  /**
+   * @deprecated Legacy free-JSX body. Frozen to the grandfather allowlist in
+   * `scripts/governance/archetype-body-allowlist.json`; the `check` CI job
+   * rejects any NEW file that passes `children`. Migrate to `body` + an archetype.
+   */
+  children?: React.ReactNode
 }
 
 /**
@@ -71,6 +84,7 @@ export function ContentPanel({
   onInspectorOpenChange,
   inspectorTitle,
   bodyClassName,
+  body,
   children,
 }: ContentPanelProps) {
   return (
@@ -78,12 +92,16 @@ export function ContentPanel({
       {toolbar}
       {filters}
       <div data-slot="content-row" className="flex min-h-0 flex-1">
-        <div
-          data-slot="content-body"
-          className={cn("min-w-0 flex-1 overflow-auto p-3", bodyClassName)}
-        >
-          {children}
-        </div>
+        {body != null ? (
+          <ContentBody body={body} className={bodyClassName} />
+        ) : (
+          <div
+            data-slot="content-body"
+            className={cn("min-w-0 flex-1 overflow-auto p-3", bodyClassName)}
+          >
+            {children}
+          </div>
+        )}
         <Inspector
           open={inspectorOpen ?? false}
           mode={inspectorMode}

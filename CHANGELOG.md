@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Add the archetype-body governance ratchet (`check:archetype-body`): a required CI check that AST-scans apps/web + apps/admin and fails when a new file renders a legacy `<ContentPanel>` body outside the archetype path, with a frozen shrink-only allowlist of the 47 grandfathered call sites.
 - AssistantPanel block (assistant-panel) and a first-class Inspector block extracted from ContentPanel (archetype-system P3)
 
 ### Changed

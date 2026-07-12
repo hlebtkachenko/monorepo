@@ -26,6 +26,7 @@ export { ContentPanel } from "./content-panel"
 export type { ContentPanelProps } from "./content-panel"
 export { Inspector } from "./inspector"
 export type { InspectorProps, InspectorMode } from "./inspector"
+export * from "./content-body"
 export { DetailField } from "./detail-field"
 export type { DetailFieldProps } from "./detail-field"
 

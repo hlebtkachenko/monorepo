@@ -24,9 +24,18 @@ export interface ContentPanelProps {
    * — filters can wrap / grow on their own row. Toggle by passing/omitting it.
    */
   filters?: React.ReactNode
-  /** The optional 24px status bar pinned at the bottom (a `ContentStatusBar`). */
+  /**
+   * The optional 24px status bar pinned at the bottom (a `ContentStatusBar`).
+   * @deprecated Leaving the Content Panel — the status bar is part of the Table
+   * section, not the CP. It relocates into the table section on the conform pass.
+   * See `.context/archetype-system/03-plan.md`.
+   */
   statusBar?: React.ReactNode
-  /** The floating bulk-action bar (an `ActionBar`). Rendered as-is. */
+  /**
+   * The floating bulk-action bar (an `ActionBar`). Rendered as-is.
+   * @deprecated Leaving the Content Panel — selection actions move to the sticky
+   * `ContentFooter`. `ActionBar` stays a component but is retired from the CP.
+   */
   actionBar?: React.ReactNode
   /**
    * The Inspector — detail of the element chosen in the body (an invoice, a

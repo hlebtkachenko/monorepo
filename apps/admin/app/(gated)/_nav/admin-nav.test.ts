@@ -79,6 +79,16 @@ describe("filterAdminModules", () => {
     expect(hrefs).toContain("/ops/sql")
   })
 
+  it("places Archetypes in Platform navigation", () => {
+    const platform = ADMIN_MODULES.find((module) => module.id === "platform")
+    expect(platform?.pages).toContainEqual(
+      expect.objectContaining({
+        href: "/platform/archetypes",
+        label: "Archetypes",
+      }),
+    )
+  })
+
   it("Now is the first module for every role that sees it", () => {
     for (const role of [
       "owner",

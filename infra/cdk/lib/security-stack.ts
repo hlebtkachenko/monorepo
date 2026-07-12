@@ -524,6 +524,12 @@ export class SecurityStack extends Stack {
     // └─ windows (a fixed-hours cron Rule), never an uptime TTL.
     //    See docs/runbooks/ENV-POWER.md § "Production after v1".
     const AUTO_STOP_ENVS = ["staging", "production"]
+    // Keep production continuously available from 2026-07-12 through
+    // 2026-07-26. The Lambda automatically resumes its 5h TTL at midnight
+    // Europe/Prague on 2026-07-27. Staging remains unchanged. The live rule
+    // was re-enabled after this gate deployed, so scheduled no-ops continue
+    // and expiry happens automatically. See docs/runbooks/ENV-POWER.md.
+    const PRODUCTION_AUTO_STOP_NOT_BEFORE = "2026-07-26T22:00:00Z"
     if (AUTO_STOP_ENVS.includes(props.envName)) {
       // SSM SecureString holding a Cloudflare API token (Zone:Read + Workers
       // Routes:Edit). Account-level, so one param is shared by both env stacks.
@@ -548,6 +554,11 @@ export class SecurityStack extends Stack {
           CLUSTER_NAME: props.appStack.cluster.clusterName,
           SERVICE_NAME: props.appStack.service.serviceName,
           MAX_UPTIME_HOURS: "5",
+          ...(props.envName === "production"
+            ? {
+                AUTO_STOP_NOT_BEFORE: PRODUCTION_AUTO_STOP_NOT_BEFORE,
+              }
+            : {}),
           RDS_INSTANCE_IDENTIFIER: dbInstanceId,
           OPS_TOPIC_ARN: this.killSwitchOpsTopic.topicArn,
           // Bind the afframe-sleeping Worker on auto-pause (best-effort).

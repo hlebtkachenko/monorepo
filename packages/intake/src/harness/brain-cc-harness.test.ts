@@ -276,7 +276,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     for (const envName of Object.values(BRAIN_HARNESS_REQUIRED_ENV)) {
       expect(message).toContain(envName)
     }
-    expect(message).toContain("docs/runbooks/BRAIN-CC-HARNESS.md")
+    expect(message).toContain("docs/runbooks/BRAIN-OPERATOR-SESSION.md")
     expect(message).toContain("@anthropic-ai/claude-agent-sdk")
   })
 

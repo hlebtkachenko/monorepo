@@ -1,0 +1,301 @@
+name: _power-environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      action:
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  resume-database:
+    if: inputs.action == 'resume'
+    name: Resume database (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing values
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging) echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-power-db-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Start RDS and wait until available
+        run: RDS_MAX_WAIT_SECONDS=2400 bash infra/scripts/rds-resume.sh
+
+  resume-application:
+    if: inputs.action == 'resume'
+    name: Prepare application (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing values
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging) echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-power-app-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Start application during final RDS phase
+        run: |
+          set -euo pipefail
+
+          CLUSTER="monorepo-${ENV_NAME}"
+          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
+            --query 'serviceArns[0]' --output text | xargs basename)"
+          SID="$(aws rds describe-db-instances --output json \
+            | jq -r --arg p "data-${ENV_NAME}" \
+              '[.DBInstances[] | select(.DBInstanceIdentifier | startswith($p)) | .DBInstanceIdentifier] | first // empty')"
+          TASK_DEF="$(aws ecs describe-services --cluster "$CLUSTER" \
+            --services "$SVC" --query 'services[0].taskDefinition' --output text)"
+          DB_WAIT="$(aws ecs describe-task-definition --task-definition "$TASK_DEF" --output json \
+            | jq -r '[.taskDefinition.containerDefinitions[] | select(.name == "db-migrate") | .environment[]? | select(.name == "DB_CONNECT_WAIT_SECONDS") | .value][0] // empty')"
+          if [ -z "$SID" ] || [ -z "$SVC" ] || [ "$SVC" = "None" ]; then
+            echo "::error::Could not resolve RDS and ECS resources for ${ENV_NAME}."
+            exit 1
+          fi
+
+          ECS_STARTED=false
+          READY=false
+          rollback() {
+            rc=$?
+            trap - EXIT
+            if [ "$rc" -ne 0 ] && [ "$ECS_STARTED" = true ] && [ "$READY" = false ]; then
+              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+                --desired-count 0 >/dev/null \
+                || echo "::warning::failed to roll ECS back to desired count 0"
+            fi
+            exit "$rc"
+          }
+          trap rollback EXIT
+
+          deadline=$(( $(date +%s) + 2400 ))
+          while :; do
+            STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+              --query 'DBInstances[0].DBInstanceStatus' --output text)"
+            echo "Application lane: RDS status=${STATUS}"
+
+            if [ "$STATUS" = "available" ]; then
+              break
+            fi
+            if [ "$STATUS" = "configuring-enhanced-monitoring" ] \
+              && [ -n "$DB_WAIT" ] && [ "$DB_WAIT" != "None" ]; then
+              echo "Task definition supports ${DB_WAIT}s DB wait; starting ECS in parallel."
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::RDS did not reach an application-safe start state within 2400s."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+            --desired-count 1 >/dev/null
+          ECS_STARTED=true
+          aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
+
+          health_deadline=$(( $(date +%s) + 300 ))
+          while :; do
+            TASK_ARNS="$(aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SVC" \
+              --desired-status RUNNING --query 'taskArns' --output text)"
+            if [ -n "$TASK_ARNS" ] && [ "$TASK_ARNS" != "None" ]; then
+              read -r -a TASK_ARRAY <<< "$TASK_ARNS"
+              TASK_JSON="$(aws ecs describe-tasks --cluster "$CLUSTER" \
+                --tasks "${TASK_ARRAY[@]}" --output json)"
+              jq -r '.tasks[] | "Application lane: task=" + (.taskArn | split("/") | last) + " health=" + (.healthStatus // "UNKNOWN") + " containers=[" + ([.containers[] | .name + ":" + (.healthStatus // "UNKNOWN") + "/" + (.lastStatus // "UNKNOWN")] | join(",")) + "]"' <<< "$TASK_JSON"
+              UNHEALTHY="$(jq '[.tasks[] | select(.healthStatus != "HEALTHY")] | length' <<< "$TASK_JSON")"
+              if [ "$UNHEALTHY" = "0" ]; then
+                READY=true
+                break
+              fi
+            fi
+            if [ "$(date +%s)" -ge "$health_deadline" ]; then
+              echo "::error::ECS service stabilized but tasks did not become healthy within 300s."
+              exit 1
+            fi
+            echo "Application lane: waiting for ECS task health."
+            sleep 5
+          done
+
+          echo "RESUMED: ${ENV_NAME} application is running and healthy."
+
+      - name: Remove sleeping page after health gate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bash infra/cloudflare-sleeping/scripts/routes.sh off "$ENV_NAME"
+
+  pause:
+    if: inputs.action != 'resume'
+    name: ${{ inputs.action }} (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      ENV_NAME: ${{ inputs.environment }}
+      ACTION: ${{ inputs.action }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing values
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
+          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
+
+      - name: Resolve role ARN
+        id: env
+        env:
+          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
+          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
+        run: |
+          case "$ENV_NAME" in
+            staging) echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
+            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Unknown environment: $ENV_NAME"; exit 1 ;;
+          esac
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ steps.env.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-power-pause-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - name: Pause environment
+        run: |
+          set -euo pipefail
+
+          CLUSTER="monorepo-${ENV_NAME}"
+          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
+            --query 'serviceArns[0]' --output text | xargs basename)"
+          SID="$(aws rds describe-db-instances --output json \
+            | jq -r --arg p "data-${ENV_NAME}" \
+              '[.DBInstances[] | select(.DBInstanceIdentifier | startswith($p)) | .DBInstanceIdentifier] | first // empty')"
+          ACCT="$(aws sts get-caller-identity --query Account --output text)"
+          echo "::add-mask::$ACCT"
+          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
+
+          aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
+            --desired-count 0 >/dev/null
+          case "$ACTION" in
+            warm-pause)
+              echo "WARM PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS left running."
+              ;;
+            cold-pause)
+              aws rds add-tags-to-resource --resource-name "$DB_ARN" \
+                --tags Key=cost-stop-requested,Value=true
+              STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
+                --query 'DBInstances[0].DBInstanceStatus' --output text)"
+              if [ "$STATUS" = "available" ]; then
+                aws rds stop-db-instance --db-instance-identifier "$SID" >/dev/null
+              fi
+              echo "COLD PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS stopping."
+              ;;
+            *)
+              echo "::error::Unknown action: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+      - name: Enable sleeping page
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: bash infra/cloudflare-sleeping/scripts/routes.sh on "$ENV_NAME"

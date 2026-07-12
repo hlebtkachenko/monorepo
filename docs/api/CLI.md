@@ -187,4 +187,4 @@ The binary is `pkg`-built and ships per-arch (`darwin-arm64`, `darwin-x64`, `lin
 - [Stripe CLI](https://docs.stripe.com/stripe-cli) — auth + listen + fixtures patterns
 - [gh CLI manual](https://cli.github.com/manual/) — JSON / jq / templates
 - [Command Line Interface Guidelines (clig.dev)](https://clig.dev/)
-- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`SDK.md`](./SDK.md), [`MCP.md`](./MCP.md), [`WEBHOOKS.md`](./WEBHOOKS.md)
+- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`SDK.md`](./SDK.md), [`MCP.md`](./MCP.md), [`WEBHOOKS.md`](../specs/api/WEBHOOKS.md)

@@ -89,6 +89,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform api keys platform api keys"
   },
   {
+    "href": "/platform/archetypes",
+    "label": "Archetypes",
+    "section": "Platform",
+    "keywords": "platform archetypes platform archetypes"
+  },
+  {
     "href": "/platform/domains",
     "label": "Domains",
     "section": "Platform",

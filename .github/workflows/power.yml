@@ -1,27 +1,8 @@
-# Env Power — manual on/off for an environment without a redeploy.
+# Env Power - manual on/off for an environment without a redeploy.
 #
-# resume / warm-pause / cold-pause are plain AWS API calls (ECS desiredCount +
-# RDS start/stop). NO image build, NO ECR scan, NO CDK — it reuses whatever is
-# already deployed. Use it to park an idle env and bring it back fast:
-#   - warm-pause : stop Fargate, leave RDS running   (~1.5 min to resume)
-#   - cold-pause : stop Fargate AND RDS              (~8 min to resume; RDS start)
-#   - resume     : start RDS if needed, scale Fargate to 1, wait healthy
-#
-# environment = staging | production | all. "all" fans out to BOTH envs as a
-# matrix — each leg runs as its own job with its own GitHub environment +
-# OIDC role (the deploy-role trust policy is exact-match per env, so a single
-# job cannot assume both; a matrix is the only correct way to do both at once).
-# GitHub workflow_dispatch has no multi-select checkbox input, so "all" is the
-# idiomatic "both".
-#
-# Trigger from the Actions tab (pick env + action) or one line:
-#   gh workflow run power.yml -f environment=production -f action=resume
-#   gh workflow run power.yml -f environment=all        -f action=cold-pause
-#
-# Secret hygiene: OIDC only — no static AWS keys. The account id + deploy-role
-# ARNs are ::add-mask::'d before any step can echo them, and neither is ever
-# printed. The job carries no DB creds / tunnel tokens / emails. See
-# docs/runbooks/ENV-POWER.md.
+# The caller matrix fans `all` out to staging + production. Each environment
+# calls a reusable workflow whose resume path runs database and application
+# lanes in parallel under one environment mutation lock.
 
 name: Env Power (resume / warm / cold)
 
@@ -48,165 +29,20 @@ on:
 permissions: {}
 
 jobs:
-  # Fan the single `environment` input into the list the power job matrixes
-  # over: "all" -> both envs, otherwise the one chosen.
-  setup:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions: {}
-    outputs:
-      envs: ${{ steps.fan.outputs.envs }}
-    steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
-        with:
-          egress-policy: audit
-      - id: fan
-        env:
-          SELECTED: ${{ inputs.environment }}
-        run: |
-          set -euo pipefail
-          case "$SELECTED" in
-            all)        echo 'envs=["staging","production"]' >> "$GITHUB_OUTPUT" ;;
-            staging|production) echo "envs=[\"$SELECTED\"]" >> "$GITHUB_OUTPUT" ;;
-            *) echo "Unknown environment: $SELECTED"; exit 1 ;;
-          esac
-
   power:
-    needs: setup
+    name: power (${{ matrix.environment }})
     strategy:
-      fail-fast: false # one env failing must not cancel the other
+      fail-fast: false
       matrix:
-        environment: ${{ fromJSON(needs.setup.outputs.envs) }}
-    runs-on: ubuntu-latest
-    # 55, not 20: `resume` of a multi-day-parked RDS can wait up to 40 min for
-    # the cold start (infra/scripts/rds-resume.sh) before the ECS scale-up +
-    # services-stable wait. Safety ceiling; a warm resume still finishes fast.
-    timeout-minutes: 55
-    # Per-env GitHub environment: scopes the deploy-role secret, applies the
-    # production protection rules, and makes the OIDC subject env-scoped so the
-    # exact-match deploy-role trust policy accepts it.
-    environment: ${{ matrix.environment }}
-    # One environment mutation per env at a time. _deploy-aws.yml uses the
-    # same group, preventing pause/resume from racing CDK, ECS, or RDS work.
-    # Keyed per matrix env so an `all` run keeps both environments parallel.
+        environment: ${{ fromJSON(inputs.environment == 'all' && '["staging","production"]' || format('["{0}"]', inputs.environment)) }}
     concurrency:
       group: env-mutation-${{ matrix.environment }}
       cancel-in-progress: false
     permissions:
-      id-token: write # OIDC federation to assume the deploy role
-      contents: read # checkout, to run the sleeping-page route toggle script
-    env:
-      ENV_NAME: ${{ matrix.environment }}
-      ACTION: ${{ inputs.action }}
-      AWS_REGION: ${{ vars.AWS_REGION }}
-    steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
-        with:
-          egress-policy: audit
-
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-
-      - name: Mask account-bearing secrets in logs
-        env:
-          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
-          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
-        run: |
-          echo "::add-mask::$ACCOUNT_ID"
-          if [ -n "$STAGING_ROLE" ]; then echo "::add-mask::$STAGING_ROLE"; fi
-          if [ -n "$PRODUCTION_ROLE" ]; then echo "::add-mask::$PRODUCTION_ROLE"; fi
-
-      - name: Resolve role ARN
-        id: env
-        env:
-          STAGING_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_STAGING }}
-          PRODUCTION_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_PRODUCTION }}
-        run: |
-          case "$ENV_NAME" in
-            staging)    echo "role=$STAGING_ROLE" >> "$GITHUB_OUTPUT" ;;
-            production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
-            *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
-          esac
-
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
-        with:
-          role-to-assume: ${{ steps.env.outputs.role }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: gha-power-${{ github.run_id }}
-          audience: sts.amazonaws.com
-          role-duration-seconds: 3600
-
-      - name: Power ${{ inputs.action }} → ${{ matrix.environment }}
-        run: |
-          set -euo pipefail
-
-          CLUSTER="monorepo-${ENV_NAME}"
-          SVC="$(aws ecs list-services --cluster "$CLUSTER" \
-                  --query 'serviceArns[0]' --output text | xargs basename)"
-          SID="$(aws rds describe-db-instances \
-                  --query "DBInstances[?starts_with(DBInstanceIdentifier,'data-${ENV_NAME}')].DBInstanceIdentifier | [0]" \
-                  --output text)"
-          ACCT="$(aws sts get-caller-identity --query Account --output text)"
-          echo "::add-mask::$ACCT"
-          DB_ARN="arn:aws:rds:${AWS_REGION}:${ACCT}:db:${SID}"
-
-          echo "env=${ENV_NAME} action=${ACTION} cluster=${CLUSTER} service=${SVC} db=${SID}"
-
-          case "$ACTION" in
-            resume)
-              # Resilient cold-resume — single source shared with
-              # _deploy-aws.yml. Re-asserts the cost-stop tag removal every
-              # iteration (defeats the RdsRestartWatcher race), tolerates all
-              # transitional states, and survives a multi-day-parked DB that the
-              # old single `aws rds wait` (~30 min cap) could not. See
-              # infra/scripts/rds-resume.sh.
-              RDS_MAX_WAIT_SECONDS=2400 bash "${GITHUB_WORKSPACE}/infra/scripts/rds-resume.sh"
-              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
-                --desired-count 1 >/dev/null
-              echo "Scaled to 1, waiting for the service to stabilize…"
-              aws ecs wait services-stable --cluster "$CLUSTER" --services "$SVC"
-              echo "RESUMED: ${ENV_NAME} is up and healthy."
-              ;;
-            warm-pause)
-              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
-                --desired-count 0 >/dev/null
-              echo "WARM PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS left running (resume ~1.5 min)."
-              ;;
-            cold-pause)
-              aws ecs update-service --cluster "$CLUSTER" --service "$SVC" \
-                --desired-count 0 >/dev/null
-              # Tag before stop so RdsRestartWatcher keeps it down past AWS's
-              # ~7-day forced restart.
-              aws rds add-tags-to-resource --resource-name "$DB_ARN" \
-                --tags Key=cost-stop-requested,Value=true
-              STATUS="$(aws rds describe-db-instances --db-instance-identifier "$SID" \
-                         --query 'DBInstances[0].DBInstanceStatus' --output text)"
-              if [ "$STATUS" = "available" ]; then
-                aws rds stop-db-instance --db-instance-identifier "$SID" >/dev/null
-              fi
-              echo "COLD PAUSE: ${ENV_NAME} Fargate scaled to 0; RDS stopping (resume ~8 min)."
-              ;;
-            *)
-              echo "Unknown action: ${ACTION}"; exit 1 ;;
-          esac
-
-      # Edge "app is asleep" page (infra/cloudflare-sleeping). Pausing binds
-      # the Worker routes for THIS env; resuming removes them. Resume runs
-      # only after the step above waited for services-stable, so the page
-      # stays up until the origin is actually healthy. No app redeploy — just
-      # Cloudflare API calls. See infra/cloudflare-sleeping/README.md.
-      - name: Toggle sleeping page (${{ inputs.action }} → ${{ matrix.environment }})
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          case "$ACTION" in
-            cold-pause|warm-pause)
-              bash infra/cloudflare-sleeping/scripts/routes.sh on "$ENV_NAME" ;;
-            resume)
-              bash infra/cloudflare-sleeping/scripts/routes.sh off "$ENV_NAME" ;;
-            *)
-              echo "no sleeping-page toggle for action: $ACTION" ;;
-          esac
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_power-environment.yml
+    with:
+      environment: ${{ matrix.environment }}
+      action: ${{ inputs.action }}
+    secrets: inherit

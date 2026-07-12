@@ -3,7 +3,7 @@
 > **Generated file — do not edit by hand.** Regenerate with `node scripts/gap-log/reindex.mjs`.
 > One line per gap; read the full entry in [`SYSTEM-GAP-LOG.md`](SYSTEM-GAP-LOG.md) by its number.
 
-Total gaps: **4**
+Total gaps: **7**
 
 | # | Title | Area | Sev | Status |
 | --- | --- | --- | --- | --- |
@@ -11,3 +11,6 @@ Total gaps: **4**
 | GAP-002 | A fresh document→booking needs a separate, pre-approved accounting event | accounting-capture | Medium | Open |
 | GAP-003 | No keep-warm for a live operator session (prod idle-auto-sleeps) | ops/infra | Medium | Open |
 | GAP-004 | Verify the received-invoice review surface is wired (data + filters + sort) | app-web | Medium | Open |
+| GAP-005 | Login-pack safety sections have no canonical authored source | brain-agent | High | Open |
+| GAP-006 | `canUseTool` default-deny gate shadowed by `allowedTools` (observed live) | brain-agent | Medium | Open |
+| GAP-007 | Single-shot run books a capture only; the Brain's account předkontace is untested | brain-intake / accounting-capture | High | Open |

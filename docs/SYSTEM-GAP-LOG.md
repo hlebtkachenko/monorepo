@@ -176,3 +176,93 @@ server-driven filter + sort; if it is intentionally distinct from the approvals 
 split.
 
 ---
+
+## GAP-005 — Login-pack safety sections have no canonical authored source
+
+- **Status:** Open
+- **Area:** brain-agent
+- **Severity:** High
+- **Type:** feat
+- **Discovered:** 2026-07-12, first live HELD booking run
+
+**Plain:** Every live Brain session must be handed four "safety framing" texts (the KB pointer, a law
+summary, a confidence protocol, an escalation policy). There is no canonical, versioned source for
+them — each operator hand-writes the Brain's law grounding per session, so two sessions can reason
+against different, unversioned rules.
+
+**Technical:** The login-pack assembler (`packages/brain/src/agent/assemble-sections.ts`) validates
+that `kb.{id,version}`, `lawSummary`, `confidenceProtocol`, `escalationPolicy` are present and
+non-blank and **fails closed** otherwise, but the authored homes for these are "README-only stubs,
+empty at M0". The KB pointer is a runtime `{id, version}` with no backing snapshot store (no
+`kb_snapshot` table). So the operator supplies free text; nothing pins or versions the grounding, and
+`kb.id/version` reference nothing enforceable.
+
+**Current workaround:** The operator supplies substantive-but-hand-authored sections per run (a CZ
+accounting digest, the server-scores confidence note, a propose-only escalation policy) and a nominal
+`kb` pointer.
+
+**Proper fix:** Canonical, versioned section content (a real law-summary/confidence/escalation source
++ a KB snapshot store the `kb` pointer resolves against), loaded by the operator flow rather than
+hand-typed each session.
+
+---
+
+## GAP-006 — `canUseTool` default-deny gate shadowed by `allowedTools` (observed live)
+
+- **Status:** Open <!-- tracked as issue #578 -->
+- **Area:** brain-agent
+- **Severity:** Medium
+- **Type:** fix
+- **Discovered:** 2026-07-12, first live run emitted the SDK warning
+
+**Plain:** The Brain sandbox is described as three independent layers. One of them (a per-call
+permission callback) never actually runs, because bare tool names in the allow-list auto-approve the
+whole tool before the callback is consulted. Not a live hole today, but the "3 layers" claim is really
+2.
+
+**Technical:** A live run emits `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` — "bare `allowedTools` entries
+auto-approve the whole tool before the callback is consulted" — so `canUseTool` is not invoked for the
+allow-listed MCP tools. The server gate + the allow-list still hold, so no tool escapes, but the
+default-deny `canUseTool` layer is inert. Already tracked as issue #578.
+
+**Current workaround:** None needed for safety (server gate + allow-list hold); accept 2 effective
+layers.
+
+**Proper fix:** Per #578 — gate every tool call via a PreToolUse hook, or drop the bare names from
+`allowedTools` so they fall through to `canUseTool`.
+
+---
+
+## GAP-007 — Single-shot run books a capture only; the Brain's account předkontace is untested
+
+- **Status:** Open
+- **Area:** brain-intake / accounting-capture
+- **Severity:** High
+- **Type:** feat
+- **Discovered:** 2026-07-12, scoring the first live batch against a real book
+
+**Plain:** Running one invoice through the Brain produces a *document capture* (the VAT breakdown) but
+**not the double-entry booking** (which cost account, e.g. `501` material vs `518` services, against
+`321`). Worse, the capture's VAT numbers are taken straight from the operator-supplied import, not
+reasoned by the Brain. So a batch of held captures proves the plumbing + import fidelity + the
+held-at-cold-start posture, but does **not** test the Brain's core booking intelligence (the account
+předkontace) against the real book.
+
+**Technical:** `packages/intake/src/ir-to-capture.ts` maps the IR to the capture **deterministically**
+— `baseAmount`/`vatAmount` come STRAIGHT from the source (`base_minor`/`tax_minor`), and `vatMode`
+/`vatJurisdiction` are hard-coded `STANDARD`/`DOMESTIC` defaults (the Brain's `classify` threading can
+only narrow them, never widen). `packages/accounting/src/capture.ts` is explicitly "pre-posting — no
+posting yet (§33/5); posting is UC-1 step 4". The account choice lives in `classify`'s `PostingDecision`
+(`EXPENSE_ACCOUNT[supplyKind]` + saldo `311/321`), but `classify` is a pure endpoint that logs nothing,
+and `create_accounting_posting` requires a **pre-existing `accounting_event`** (`eventId` FK — the
+2-stage flow of GAP-002). So the Brain's decision is not surfaced in any scoreable artifact.
+
+**Current workaround:** Score at capture / VAT-treatment level only (amounts reconcile vs the book);
+account-level předkontace is not yet compared.
+
+**Proper fix:** A full-booking harness mode where the Brain freely reasons the invoice and proposes
+event + capture + posting (with the předkontace accounts) as gated HELD writes, so the posting's
+`debit`/`credit` accounts can be scored against the real účetní deník. Resolve the eventId 2-stage
+dependency (GAP-002) as part of it.
+
+---

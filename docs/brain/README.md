@@ -1,18 +1,17 @@
-# Afframe Brain — A to Z
+# Afframe Brain: A to Z
 
 The single landing doc for Afframe Brain. If you are a new engineer or an external reviewer, start
 here: this explains what Brain is, how it is built, how it stays safe, how to run it, and where every
 detailed document lives. Everything below was verified against the tracked source (ADRs, the
 constitution, the write-gate code, the operator runbooks) — not against planning notes.
 
-> **Going deeper?** This page is the index. For the **debug-level technical reference** — the full request
-> trace, the gate/confidence/DB/transport/auth internals with `file:line` citations, and a troubleshooting
-> playbook — read [`docs/AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md).
+> **Going deeper?** This page is the index. For the **debug-level technical reference**, the full request
+> trace, the gate/confidence/DB/transport/auth internals with file and symbol citations, and a troubleshooting
+> playbook, read [`TECHNICAL.md`](TECHNICAL.md).
 
-> **Status (2026-07-08):** Brain v1 is **live-confirmed end-to-end on production** (pre-launch, no real
-> users). A real agent key drove the full loop to a real `202 HELD` write with a recorded shadow score.
-> Milestone **M1 is engineering-done**; the next phase (**M2**) is a human-review marathon, not code.
-> All Brain ADRs are still `Proposed` status — the design is settled in practice but not formally accepted.
+> Delivery status and open work live in GitHub epic
+> [#524](https://github.com/hlebtkachenko/monorepo/issues/524). Brain ADRs
+> 0025 through 0029 define the accepted architecture.
 
 ---
 
@@ -167,15 +166,15 @@ The definition of done for v1: an operator opens a Claude Code session, it conne
 and a real org's accounting flows through the HELD loop → human review (M2) → calibration fit from the
 reviewed runs (M3) → certification to auto-apply confident bookings (M4).
 
-> **Live status + open issues:** the authoritative, continuously-updated tracker is
-> [`docs/AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md) — the table below is a summary snapshot.
+GitHub epic [#524](https://github.com/hlebtkachenko/monorepo/issues/524) owns
+active status and open work. Milestones below define stable stage boundaries.
 
-| Milestone                                             | What                                                                                                                                                                                                                                                                        | Status                                            |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **M1** — Operator onramp + write-path instrumentation | Turnkey live loop, extract→book bridge, shadow-score persistence, one-command session.                                                                                                                                                                                      | **Engineering-done + live-confirmed on prod.**    |
-| **M2** — Supervised production marathon               | Run a real org's accounting through Brain, everything HELD, a human reviews/corrects each in `/approvals`, until ≥10 clean reviewed runs with zero confident-wrong.                                                                                                         | **Next — a human-review process, the long pole.** |
-| **M3** — Calibration fit + field-by-field lift        | Fit the calibration from the M2 shadow-scored runs; build server-side re-verification of every base-score fact; relax the cold-start floor **field-by-field**, each behind its own re-verification, so green becomes reachable only for genuinely server-verified evidence. | Data-triggered engineering (needs M2 data).       |
-| **M4** — Certification + go-live                      | Certification run (0 confident-wrong, Brier target on a held-out set), an operable mass-rollback path, then flip auto-apply ON.                                                                                                                                             | Final.                                            |
+| Milestone                                       | Definition                                                                                                                                                                           |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **M1: Operator onramp and instrumentation**     | Turnkey live loop, extract-to-book bridge, shadow-score persistence, and one-command session.                                                                                        |
+| **M2: Supervised production marathon**          | Run a real organization's accounting through Brain, hold every write, and have a human review each proposal until at least 10 clean reviewed runs with zero confident-wrong results. |
+| **M3: Calibration fit and field-by-field lift** | Fit calibration from reviewed M2 runs, re-verify every base-score fact server-side, then relax cold-start floors field by field only behind verified evidence.                       |
+| **M4: Certification and go-live**               | Certify on a held-out set, provide an operable mass-rollback path, then enable auto-apply.                                                                                           |
 
 **Invariants that gate every milestone (never weakened):** the server three-way-AND + the cold-start
 floor + the `BRAIN_RUNTIME_ACTIVE` kill-switch stay intact; no base-score field may be un-floored from a
@@ -212,28 +211,24 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
   default to explicit at launch. To force the lane off, deploy with `brain_runtime_active=0`.
 - **No hosted MCP server** exists; the transport is the local stdio bridge. A hosted Streamable-HTTP MCP
   (`mcp.afframe.com`) is a possible v2, not built.
-- **Known open follow-ups:** the generated MCP tool schema drops the `.uuid()` on `conversationId`
-  (server still enforces it); the nested SDK's `canUseTool` belt-and-braces gate is shadowed by
-  `allowedTools` (not a live hole — the allowlist + server gate still hold); the create-org wizard does not
-  always scaffold the accounting period/series.
-- `packages/brain/README.md` is **out of date** (describes the pre-reframe in-process orchestrator). This
-  doc is authoritative for the architecture; that README needs a rewrite.
+- **Open follow-ups belong in GitHub epic #524.** This document records current
+  architecture and operational constraints, not issue status.
 
 ---
 
 ## 10. Where everything lives (doc map)
 
-| Topic                                          | Source                                                                                                              |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| This overview (index)                          | `docs/AFFRAME-BRAIN.md`                                                                                             |
-| Deep technical reference (debug-level, cited)  | `docs/AFFRAME-BRAIN-TECHNICAL.md`                                                                                   |
-| Status / roadmap tracker (v1/v2 + open issues) | `docs/AFFRAME-BRAIN-STATUS.md`                                                                                      |
-| Constitution (I1–I10, LOCKED)                  | `packages/brain/.brain/constitution.md`                                                                             |
-| Architecture decisions                         | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
-| Run a live session                             | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |
-| Fresh-session bootstrap prompt                 | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md`                                                                     |
-| Harness internals (dry-run, sandbox)           | `docs/runbooks/BRAIN-CC-HARNESS.md`                                                                                 |
-| The server write gate                          | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                              |
-| The MCP bridge + nested launcher               | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts`                                                       |
-| Package + agent instructions                   | `packages/brain/CLAUDE.md` (README is stale — see §9)                                                               |
-| Operator DB access                             | `docs/runbooks/DB-ACCESS.md`                                                                                        |
+| Topic                                         | Source                                                                                                              |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| This overview (index)                         | `docs/brain/README.md`                                                                                              |
+| Deep technical reference (debug-level, cited) | `docs/brain/TECHNICAL.md`                                                                                           |
+| Status and open work                          | GitHub epic `#524`                                                                                                  |
+| Constitution (I1–I10, LOCKED)                 | `packages/brain/.brain/constitution.md`                                                                             |
+| Architecture decisions                        | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
+| Run a live session                            | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |
+| Fresh-session bootstrap prompt                | `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md`                                                                     |
+| Harness internals (dry-run, sandbox)          | `packages/intake/src/harness/brain-cc-harness.ts`                                                                   |
+| The server write gate                         | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                              |
+| The MCP bridge + nested launcher              | `apps/cli/src/brain/{command,session-config,sdk-launcher}.ts`                                                       |
+| Package + agent instructions                  | `packages/brain/CLAUDE.md` (README is stale — see §9)                                                               |
+| Operator DB access                            | `docs/runbooks/DB-ACCESS.md`                                                                                        |

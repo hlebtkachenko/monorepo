@@ -18,8 +18,7 @@
  * Probe strictness: by default the probe THROWS on missing GUC (local-dev
  * fast-fail). On AWS RDS the GUC cannot be persisted on the role via
  * `ALTER ROLE … SET app.app_user_role_name = …` — that statement requires
- * true SUPERUSER, and `rds_superuser` is not enough (AFF-150 finding,
- * documented in `docs/plans/AFF-150-AUDIT-CONTEXT.md` §5). On those
+ * true SUPERUSER, and `rds_superuser` is not enough (AFF-150 finding). On those
  * deploys the production paths set the GUC per-transaction via
  * `withAdminBypass` / `withOrganization` / `withWorkspace` (PR #142), so
  * a missing role-default is expected and the throw becomes pure log

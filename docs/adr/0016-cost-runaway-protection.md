@@ -105,7 +105,7 @@ management events.
 **Auto-cold-pause.** An AutoStop Lambda cold-pauses idle envs (ECS→0 +
 RDS stop) after a max-uptime TTL. `AUTO_STOP_ENVS` currently includes
 `production` as an explicit **pre-v1 exception** — it MUST be removed at
-v1 launch (see `docs/LAUNCH-CHECKLIST.md` and the in-code banner).
+v1 launch (see `docs/plans/V1-LAUNCH-GATES.md` and the in-code banner).
 
 ## Alternatives considered
 

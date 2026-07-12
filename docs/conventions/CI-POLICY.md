@@ -75,6 +75,7 @@ The required `check` context is the lightweight repo-governance gate. It runs on
 every PR and currently enforces:
 
 - paired-file rules from `.github/related-files.yml`
+- documentation taxonomy, category indexes, H1 structure, and local links
 - the changelog Unreleased rule: every non-release PR must add one bullet under
   `CHANGELOG.md` `## [Unreleased]` while preserving existing Unreleased entries
 

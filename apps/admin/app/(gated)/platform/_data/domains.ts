@@ -7,13 +7,7 @@
 
 type DomainEnv = "production" | "staging" | "shared"
 type DomainRole =
-  | "zone"
-  | "web"
-  | "api"
-  | "admin"
-  | "status"
-  | "monitoring"
-  | "cache"
+  "zone" | "web" | "api" | "admin" | "status" | "monitoring" | "cache"
 
 export interface DomainEntry {
   host: string

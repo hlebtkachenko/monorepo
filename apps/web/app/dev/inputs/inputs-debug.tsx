@@ -1033,19 +1033,16 @@ export function InputsDebug() {
       {/* ---------------- NativeSelect ---------------- */}
       <Section
         title="NativeSelect"
-        blurb="Real <select> styled to match (keeps native mobile picker). size: sm | default. Options via NativeSelectOption / NativeSelectOptGroup."
+        blurb="Real <select> styled to match (keeps the native OS picker). Single size (h-9). Options via NativeSelectOption / NativeSelectOptGroup."
       >
-        <Row name="<NativeSelect size='default'>" desc="standard height h-9">
+        <Row
+          name="<NativeSelect>"
+          desc="standard height h-9; the dropdown menu is the OS-native one"
+        >
           <NativeSelect defaultValue="cz">
             <NativeSelectOption value="cz">Czechia</NativeSelectOption>
             <NativeSelectOption value="sk">Slovakia</NativeSelectOption>
             <NativeSelectOption value="pl">Poland</NativeSelectOption>
-          </NativeSelect>
-        </Row>
-        <Row name="size='sm'" desc="compact height h-7">
-          <NativeSelect size="sm" defaultValue="a">
-            <NativeSelectOption value="a">Small A</NativeSelectOption>
-            <NativeSelectOption value="b">Small B</NativeSelectOption>
           </NativeSelect>
         </Row>
         <Row name="<NativeSelectOptGroup>" desc="grouped options">

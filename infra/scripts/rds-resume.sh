@@ -68,26 +68,34 @@ reenable_watcher() {
 }
 trap reenable_watcher EXIT
 echo "Disabling EventBridge rule ${WATCH_RULE} for the resume window…"
-aws events disable-rule --region "$AWS_REGION" --name "$WATCH_RULE" >/dev/null 2>&1 \
-  && echo "Disabled ${WATCH_RULE}." \
-  || echo "::warning::could not disable ${WATCH_RULE} (perm/missing) — relying on the per-iteration tag-removal fallback."
+WATCH_DISABLED=false
+if aws events disable-rule --region "$AWS_REGION" --name "$WATCH_RULE" >/dev/null 2>&1; then
+  WATCH_DISABLED=true
+  echo "Disabled ${WATCH_RULE}."
+else
+  echo "::warning::could not disable ${WATCH_RULE} (perm/missing) — relying on the per-iteration tag-removal fallback."
+fi
 
 untag() {
-  # Re-assert removal every iteration: the RdsRestartWatcher Lambda re-stops the
-  # DB whenever it observes `available` + tag cost-stop-requested=true. Tolerant
-  # on purpose — a missing perm or transient API blip must NOT abort the resume
-  # (the restop fingerprint below surfaces a genuinely-stuck DB clearly).
-  aws rds remove-tags-from-resource --region "$AWS_REGION" \
-    --resource-name "$DB_ARN" --tag-keys cost-stop-requested >/dev/null 2>&1 \
-    || echo "::warning::remove-tags cost-stop-requested failed (perm/transient) — continuing"
+  if aws rds remove-tags-from-resource --region "$AWS_REGION" \
+    --resource-name "$DB_ARN" --tag-keys cost-stop-requested >/dev/null 2>&1; then
+    TAG_REMOVED=true
+  else
+    echo "::warning::remove-tags cost-stop-requested failed (perm/transient) — continuing"
+  fi
 }
 
 echo "Ensuring RDS ${SID} is available (deadline ${MAX_WAIT}s)…"
 deadline=$(( $(date +%s) + MAX_WAIT ))
 restops=0
+TAG_REMOVED=false
 
 while :; do
-  untag
+  # Once both defenses succeed, further removals only add API latency. Keep
+  # retrying if either the watcher could not be disabled or tag removal failed.
+  if [ "$WATCH_DISABLED" = false ] || [ "$TAG_REMOVED" = false ]; then
+    untag
+  fi
   STATUS="$(aws rds describe-db-instances --region "$AWS_REGION" \
     --db-instance-identifier "$SID" \
     --query 'DBInstances[0].DBInstanceStatus' --output text)"

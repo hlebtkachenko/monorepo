@@ -547,6 +547,23 @@ describe("AppStack Fargate hardening", () => {
     ).toBe(false)
   })
 
+  it("lets db-migrate wait through the parallel RDS resume window", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    const dbMigrate = containers.find((c) => c.Name === "db-migrate")
+
+    expect(dbMigrate?.Environment).toContainEqual({
+      Name: "DB_CONNECT_WAIT_SECONDS",
+      Value: "120",
+    })
+  })
+
   it("TaskRole has ssm:PutParameter scoped to /monorepo/<env>/openfga/{store-id,model-id}", () => {
     const policies = template.findResources("AWS::IAM::Policy")
     const taskRolePolicy = Object.values(policies).find((p) => {

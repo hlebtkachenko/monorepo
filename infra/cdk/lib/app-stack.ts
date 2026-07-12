@@ -1302,6 +1302,9 @@ export class AppStack extends Stack {
         DB_HOST: props.database.dbInstanceEndpointAddress,
         DB_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
+        // Lets power.yml scale ECS while RDS is still starting. The workflow
+        // detects this marker before using the parallel resume path.
+        DB_CONNECT_WAIT_SECONDS: "120",
       },
       secrets: {
         DB_ADMIN_USER: EcsSecret.fromSecretsManager(

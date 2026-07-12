@@ -25,6 +25,9 @@
 #   DB_HOST, DB_PORT, DB_NAME
 #   DB_ADMIN_USER, DB_ADMIN_PASSWORD            (app_owner, from databaseSecret)
 #   APP_USER_PASSWORD                           (from appUserSecret 'password')
+# Optional env:
+#   DB_CONNECT_WAIT_SECONDS                      bounded RDS connection wait
+#   MIGRATIONS_DIR                               migration source (default /migrations)
 #
 # Exit codes:
 #   0 — every migration applied + password synced + openfga schema created
@@ -38,27 +41,42 @@ set -euo pipefail
 : "${DB_ADMIN_USER:?required}"
 : "${DB_ADMIN_PASSWORD:?required}"
 : "${APP_USER_PASSWORD:?required}"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-/migrations}"
 
 export PGPASSWORD="$DB_ADMIN_PASSWORD"
 # PGSSLMODE is the libpq connection parameter; --set=sslmode=require on the
 # psql command-line is a psql VARIABLE, not a TLS toggle. Force SSL on the
 # wire via the env var (matches pgbouncer SERVER_TLS_SSLMODE=require).
 export PGSSLMODE=require
+export PGCONNECT_TIMEOUT=5
 PSQL_BASE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --quiet --tuples-only --no-align --set=ON_ERROR_STOP=1)
 PSQL_VERBOSE=(psql --host="$DB_HOST" --port="$DB_PORT" --username="$DB_ADMIN_USER" --dbname="$DB_NAME" --no-psqlrc --set=ON_ERROR_STOP=1)
 
 echo "init: connecting to ${DB_HOST}:${DB_PORT}/${DB_NAME} as ${DB_ADMIN_USER}"
-"${PSQL_BASE[@]}" -c "SELECT 1" >/dev/null
+connect_wait="${DB_CONNECT_WAIT_SECONDS:-0}"
+if ! [[ "$connect_wait" =~ ^[0-9]+$ ]]; then
+  echo "init: ERROR - DB_CONNECT_WAIT_SECONDS must be a non-negative integer." >&2
+  exit 1
+fi
+deadline=$(( $(date +%s) + connect_wait ))
+until "${PSQL_BASE[@]}" -c "SELECT 1" >/dev/null 2>&1; do
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "init: ERROR - database did not accept connections within ${connect_wait}s." >&2
+    exit 1
+  fi
+  echo "init: database unavailable; retrying in 5s."
+  sleep 5
+done
 echo "init: connected."
 
-# 1. Apply pending SQL migrations from /migrations/.
+# 1. Apply pending SQL migrations.
 "${PSQL_BASE[@]}" -c "CREATE TABLE IF NOT EXISTS _app_migrations (filename text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())"
 
 # Sanity: at least one migration file must be COPY'd into the image. Drop
 # `2>/dev/null` so a missing /migrations directory fails loud (broken build).
-mig_files=$(find /migrations -maxdepth 1 -name '*.sql' | sort)
+mig_files=$(find "$MIGRATIONS_DIR" -maxdepth 1 -name '*.sql' | sort)
 if [ -z "$mig_files" ]; then
-  echo "init: ERROR — no migration files under /migrations. Broken image build?" >&2
+  echo "init: ERROR - no migration files under ${MIGRATIONS_DIR}. Broken image build?" >&2
   exit 1
 fi
 

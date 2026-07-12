@@ -20,8 +20,9 @@ Measured 2026-05-31 on staging: RDS stopped→available **6m 33s**; ECS scale
 
 ## Manual switch — the `power.yml` workflow
 
-`.github/workflows/power.yml` ("Env Power"). One job, OIDC auth (no static
-keys, no secrets printed). Power actions and AWS deploys share one
+`.github/workflows/power.yml` ("Env Power") calls
+`_power-environment.yml` once per selected environment. OIDC auth only: no
+static keys and no secrets printed. Power actions and AWS deploys share one
 per-environment concurrency group, preventing a pause/resume from racing CDK,
 ECS, or RDS work.
 
@@ -45,9 +46,14 @@ gh workflow run power.yml -f environment=staging    -f action=resume
 gh workflow run power.yml -f environment=all        -f action=cold-pause
 ```
 
-`resume` removes the `cost-stop-requested` tag first (so the RdsRestartWatcher
-won't re-stop RDS), starts RDS if needed, scales the service to 1, and waits
-for `services-stable`.
+`resume` runs two jobs in parallel. The database lane removes the
+`cost-stop-requested` tag, starts RDS, and waits for `available`. The application
+lane prepares independently and starts ECS during RDS's final
+`configuring-enhanced-monitoring` phase when the deployed `db-migrate`
+container advertises bounded connection-wait support. Older task definitions
+fall back to starting ECS only after RDS is available. The application lane
+waits for both `services-stable` and task health `HEALTHY` before removing the
+sleeping page. Failure before readiness scales ECS back to 0.
 
 ## Automatic — auto-cold-pause after 5h (uptime TTL)
 
@@ -63,6 +69,25 @@ resumed via `power.yml`.
 
 Gated by `AUTO_STOP_ENVS = ["staging", "production"]` in
 `infra/cdk/lib/security-stack.ts`.
+
+Production auto-stop is temporarily deferred from 2026-07-12 through
+2026-07-26. `AUTO_STOP_NOT_BEFORE=2026-07-26T22:00:00Z` makes scheduled checks
+no-op until 2026-07-27 00:00 Europe/Prague, then the 5h TTL resumes
+automatically. Staging remains on its normal 5h TTL. Manual power actions and
+cost-runaway kill-switches remain active for both environments.
+
+The production Security stack was deployed on 2026-07-12, the guard returned
+`temporarily-disabled` in a live invocation, and the
+`monorepo-production-autostop` EventBridge rule was re-enabled. It invokes the
+guarded Lambda during the window and resumes normal enforcement when the window
+expires. Verify the expected live state with:
+
+```bash
+aws events describe-rule --name monorepo-production-autostop --region eu-central-1 --query State --output text
+```
+
+Expected state: `ENABLED`. Re-enabling is safe during the window: the Lambda
+returns `temporarily-disabled` without reading or changing ECS or RDS.
 
 ## Production after v1 — REMOVE prod from auto-stop
 

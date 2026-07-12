@@ -183,8 +183,10 @@ jobs:
               --desired-status RUNNING --query 'taskArns' --output text)"
             if [ -n "$TASK_ARNS" ] && [ "$TASK_ARNS" != "None" ]; then
               read -r -a TASK_ARRAY <<< "$TASK_ARNS"
-              UNHEALTHY="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "${TASK_ARRAY[@]}" \
-                --query "length(tasks[?healthStatus!='HEALTHY'])" --output text)"
+              TASK_JSON="$(aws ecs describe-tasks --cluster "$CLUSTER" \
+                --tasks "${TASK_ARRAY[@]}" --output json)"
+              jq -r '.tasks[] | "Application lane: task=" + (.taskArn | split("/") | last) + " health=" + (.healthStatus // "UNKNOWN") + " containers=[" + ([.containers[] | .name + ":" + (.healthStatus // "UNKNOWN") + "/" + (.lastStatus // "UNKNOWN")] | join(",")) + "]"' <<< "$TASK_JSON"
+              UNHEALTHY="$(jq '[.tasks[] | select(.healthStatus != "HEALTHY")] | length' <<< "$TASK_JSON")"
               if [ "$UNHEALTHY" = "0" ]; then
                 READY=true
                 break
@@ -195,7 +197,7 @@ jobs:
               exit 1
             fi
             echo "Application lane: waiting for ECS task health."
-            sleep 10
+            sleep 5
           done
 
           echo "RESUMED: ${ENV_NAME} application is running and healthy."

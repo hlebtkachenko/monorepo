@@ -8,6 +8,7 @@ trap 'rm -rf "$work"' EXIT
 
 mkdir -p "$work/bin" "$work/migrations"
 printf '%s\n' 'SELECT 1;' > "$work/migrations/0001_test.sql"
+printf '%s\n' 'SELECT 2;' > "$work/migrations/0002_test.sql"
 
 cat > "$work/bin/psql" <<'MOCK'
 #!/usr/bin/env bash
@@ -18,6 +19,9 @@ if [[ "$*" == *"SELECT 1"* ]]; then
   if [ "$attempts" -lt 3 ]; then
     exit 1
   fi
+fi
+if [[ "$*" == *"SELECT filename FROM _app_migrations"* ]]; then
+  printf '%s\n' '0001_test.sql'
 fi
 MOCK
 
@@ -43,6 +47,9 @@ output=$(bash "$repo_root/infra/scripts/apply-migrations-init.sh" 2>&1)
 test "$(grep -c -- '-c SELECT 1$' "$PSQL_CALLS")" -eq 3
 test "$(grep -c 'database unavailable; retrying' <<< "$output")" -eq 2
 grep -q 'init: connected.' <<< "$output"
+test "$(grep -c -- '-f .*0001_test.sql' "$PSQL_CALLS" || true)" -eq 0
+test "$(grep -c -- '-f .*0002_test.sql' "$PSQL_CALLS")" -eq 1
+grep -q 'init: migrations applied=1 skipped=1' <<< "$output"
 grep -q 'init: done.' <<< "$output"
 
 if DB_CONNECT_WAIT_SECONDS=invalid \

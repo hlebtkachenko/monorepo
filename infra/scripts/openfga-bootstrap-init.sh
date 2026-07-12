@@ -19,6 +19,8 @@
 #   DB_HOST, DB_PORT, DB_NAME
 #   DB_ADMIN_USER, DB_ADMIN_PASSWORD     (app_owner, from databaseSecret)
 #   AWS_REGION
+# Optional env:
+#   OPENFGA_BOOTSTRAP_DIR                test override (default /app/openfga)
 #
 # Exit codes:
 #   0 — store + model written to SSM
@@ -34,9 +36,13 @@ set -euo pipefail
 : "${DB_ADMIN_PASSWORD:?required}"
 : "${AWS_REGION:?required}"
 
-OPENFGA_PORT=8080
-OPENFGA_GRPC_PORT=8081
+# Bootstrap and runtime OpenFGA run concurrently in one task network namespace.
+# Keep the one-shot server on private ports so neither process can win a bind
+# race and make the other fail or accidentally answer its health checks.
+OPENFGA_PORT=8180
+OPENFGA_GRPC_PORT=8181
 OPENFGA_URL="http://127.0.0.1:${OPENFGA_PORT}"
+OPENFGA_BOOTSTRAP_DIR="${OPENFGA_BOOTSTRAP_DIR:-/app/openfga}"
 
 echo "bootstrap: env=${MONOREPO_ENV} db=${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
@@ -52,6 +58,9 @@ export OPENFGA_HTTP_ADDR="127.0.0.1:${OPENFGA_PORT}"
 export OPENFGA_GRPC_ADDR="127.0.0.1:${OPENFGA_GRPC_PORT}"
 export OPENFGA_PLAYGROUND_ENABLED=false
 export OPENFGA_LOG_FORMAT=json
+# Runtime OpenFGA owns the default metrics port 2112. The one-shot bootstrap
+# server needs no metrics, so keep that listener disabled too.
+export OPENFGA_METRICS_ENABLED=false
 
 # Boot the server in the background; capture its PID so we can stop it
 # cleanly after the bootstrap exits.
@@ -92,7 +101,7 @@ done
 # write path triggers on its presence. MONOREPO_ENV is read as a fallback
 # when --env is absent — we keep --env explicit for log clarity.
 echo "bootstrap: running node bootstrap.mjs --env ${MONOREPO_ENV}"
-cd /app/openfga
+cd "$OPENFGA_BOOTSTRAP_DIR"
 OPENFGA_API_URL="${OPENFGA_URL}" node bootstrap.mjs --env "${MONOREPO_ENV}"
 
 echo "bootstrap: done"

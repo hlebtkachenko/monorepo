@@ -552,6 +552,10 @@ describe("AppStack Fargate hardening", () => {
       ContainerName: "pgbouncer",
       Condition: "HEALTHY",
     })
+    expect(byName["api"]).toContainEqual({
+      ContainerName: "openfga",
+      Condition: "START",
+    })
     // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
     // OPENFGA_* SSM params). Catches accidental over-wiring.
     expect(
@@ -560,6 +564,42 @@ describe("AppStack Fargate hardening", () => {
     expect(
       byName["admin"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
     ).toBe(false)
+  })
+
+  it("checks runtime health immediately without reducing failure tolerance", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | {
+          Properties?: {
+            ContainerDefinitions?: Array<{
+              Name?: string
+              HealthCheck?: {
+                Interval?: number
+                Retries?: number
+                StartPeriod?: number
+              }
+            }>
+          }
+        }
+      | undefined
+    const containers = taskDef?.Properties?.ContainerDefinitions ?? []
+    const byName = Object.fromEntries(
+      containers.map((container) => [container.Name ?? "", container]),
+    )
+
+    const expectedRetries: Record<string, number> = {
+      web: 9,
+      api: 9,
+      admin: 9,
+      pgbouncer: 9,
+      cerbos: 9,
+      openfga: 10,
+    }
+    for (const [name, retries] of Object.entries(expectedRetries)) {
+      expect(byName[name]?.HealthCheck?.Interval).toBe(5)
+      expect(byName[name]?.HealthCheck?.Retries).toBe(retries)
+      expect(byName[name]?.HealthCheck?.StartPeriod).toBeUndefined()
+    }
   })
 
   it("lets db-migrate wait through the parallel RDS resume window", () => {

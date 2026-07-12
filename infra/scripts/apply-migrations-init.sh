@@ -82,10 +82,19 @@ fi
 
 applied=0
 skipped=0
+applied_rows=$("${PSQL_BASE[@]}" -c "SELECT filename FROM _app_migrations")
+is_applied() {
+  while IFS= read -r applied_name; do
+    if [ "$applied_name" = "$1" ]; then
+      return 0
+    fi
+  done <<< "$applied_rows"
+  return 1
+}
+
 for f in $mig_files; do
   name=$(basename "$f")
-  already=$("${PSQL_BASE[@]}" -c "SELECT 1 FROM _app_migrations WHERE filename = '${name}'" || echo "")
-  if [ "$already" = "1" ]; then
+  if is_applied "$name"; then
     skipped=$((skipped + 1))
     continue
   fi

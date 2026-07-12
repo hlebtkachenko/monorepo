@@ -5,7 +5,7 @@ import * as React from "react"
 import {
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   type InspectorMode,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -98,7 +98,7 @@ export function DocumentsInboxBody({ rows }: { rows: InboxListRow[] }) {
       }}
       inspectorTitle={inspected ? toolLabel(inspected.tool_name) : undefined}
       toolbar={
-        <ContentToolbar
+        <ContentToolbarLegacy
           left={
             <>
               {statusColumn ? (

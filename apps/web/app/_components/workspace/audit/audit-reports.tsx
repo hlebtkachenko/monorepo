@@ -6,7 +6,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DetailField,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -55,7 +55,7 @@ export function AuditReports() {
   )
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <span className="text-xs text-muted-foreground">
           Reports, certificates, and working papers delivered by Afframe.

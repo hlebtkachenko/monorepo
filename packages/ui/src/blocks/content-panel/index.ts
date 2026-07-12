@@ -5,8 +5,21 @@ export type {
   ViewTabsConfigure,
   ContentHeaderBreadcrumbItem,
 } from "./content-header"
-export { ContentToolbar } from "./content-toolbar"
-export type { ContentToolbarProps } from "./content-toolbar"
+export { ContentToolbar, ContentToolbarLegacy } from "./content-toolbar"
+export type {
+  ContentToolbarProps,
+  ContentToolbarLegacyProps,
+  StatusFilterDescriptor,
+  StatusFilterOption,
+  SearchDescriptor,
+  FilterDescriptor,
+  ViewToolsDescriptor,
+  ActionDescriptor,
+  ActionVariant,
+  AddDescriptor,
+  AddVariant,
+  ModeToggleDescriptor,
+} from "./content-toolbar"
 export { ContentStatusBar } from "./content-status-bar"
 export type { ContentStatusBarProps } from "./content-status-bar"
 export { ContentPanel } from "./content-panel"

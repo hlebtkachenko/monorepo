@@ -8,7 +8,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ContentPanel } from "./content-panel"
 import { ContentStatusBar } from "./content-status-bar"
-import { ContentToolbar } from "./content-toolbar"
+import { ContentToolbarLegacy } from "./content-toolbar"
 import {
   DashboardChartCard,
   DashboardGrid,
@@ -102,7 +102,7 @@ function DemoTable() {
 // The Table archetype's chrome — a 36px toolbar (search + filter · add) and a
 // status bar (count + sum · export). Reused across the Table-family stories.
 const tableToolbar = (
-  <ContentToolbar
+  <ContentToolbarLegacy
     left={
       <>
         <Input placeholder="Search…" className="h-7 w-48" />

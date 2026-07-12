@@ -94,15 +94,15 @@ describe("ContentHeader", () => {
 })
 
 describe("ContentToolbar", () => {
-  it("renders both slots", () => {
+  it("renders controls from data descriptors", () => {
     wrap(
       <ContentToolbar
-        left={<span>12 dokladů</span>}
-        right={<button type="button">Přidat</button>}
+        search={{ value: "", onChange: () => {} }}
+        actions={[{ id: "export", label: "Export", onSelect: () => {} }]}
       />,
     )
-    expect(screen.getByText("12 dokladů")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Přidat" })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Search anything…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument()
   })
 })
 

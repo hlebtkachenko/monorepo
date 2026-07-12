@@ -6,7 +6,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
 } from "@workspace/ui/blocks/content-panel"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
@@ -90,7 +90,7 @@ export function TeamView({ members }: { members: TeamMember[] }) {
       <ContentPanel
         bodyClassName="flex min-h-0 flex-col p-0"
         toolbar={
-          <ContentToolbar
+          <ContentToolbarLegacy
             left={
               <ToolbarSearch
                 value={search}

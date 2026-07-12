@@ -5,7 +5,7 @@ import * as React from "react"
 import {
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DetailField,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -140,7 +140,7 @@ export function DenikBody({ rows }: { rows: JournalRow[] }) {
       }}
       inspectorTitle={inspected?.summaryDesignation}
       toolbar={
-        <ContentToolbar
+        <ContentToolbarLegacy
           left={
             <>
               {sideColumn ? (

@@ -16,7 +16,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   RecordWorkspace,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -955,7 +955,7 @@ export function SingleDemo() {
   const totals = React.useMemo(() => ledgerTotals(rows), [rows])
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-foreground">Editing</span>

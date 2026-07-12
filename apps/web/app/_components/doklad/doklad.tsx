@@ -15,7 +15,7 @@ import {
 import {
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   RecordWorkspace,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -787,7 +787,7 @@ function DokladBody() {
   const { header, party, rows, setRows, totals } = useDoklad()
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <div className="flex items-center gap-2 text-sm">
           <span className="font-medium text-foreground">Úpravy</span>

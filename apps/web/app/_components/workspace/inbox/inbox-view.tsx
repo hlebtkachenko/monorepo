@@ -6,7 +6,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   type ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
@@ -79,7 +79,7 @@ export function InboxView() {
   }))
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       right={
         <Button
           variant="ghost"

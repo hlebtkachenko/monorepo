@@ -23,7 +23,7 @@ import {
 import {
   ContentHeader,
   ContentPanel,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DashboardChartCard,
   DashboardGrid,
   type ViewTab,
@@ -361,7 +361,7 @@ export function DashboardDemo() {
   }))
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <>
           {/* Predefined-timeframe control FIRST — maps to the granularity

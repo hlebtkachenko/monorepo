@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault backup → restic → R2 (primary; B2 secondary deferred per AFF-246)
-Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/reference/SECRETS-MIGRATION-HISTORY.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
 After=docker.service
 Requires=docker.service
 

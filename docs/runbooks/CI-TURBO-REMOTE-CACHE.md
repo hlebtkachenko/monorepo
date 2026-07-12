@@ -1,6 +1,6 @@
 # CI: Turborepo Remote Cache (Cloudflare R2 + Workers)
 
-> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md).
 
 Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers + R2.
 
@@ -8,7 +8,7 @@ Operator runbook for the Turborepo Remote Cache deployed on Cloudflare Workers +
 - **Worker source (vendored)**: [`infra/cloudflare/`](../../infra/cloudflare/) (vendored from [AdiRishi/turborepo-remote-cache-cloudflare](https://github.com/AdiRishi/turborepo-remote-cache-cloudflare) v4.0.0 — see [SOURCE.md](../../infra/cloudflare/SOURCE.md))
 - **Deploy workflow**: [`deploy-cloudflare.yml`](../../.github/workflows/deploy-cloudflare.yml)
 - **Consumer composite step**: [`.github/actions/setup/action.yml`](../../.github/actions/setup/action.yml) — "Configure Turbo Remote Cache defaults"
-- **Asset inventory**: `CF-WORKER-TURBO`, `CF-R2-TURBO` in [`docs/INVENTORY.md`](../INVENTORY.md)
+- **Asset inventory**: `CF-WORKER-TURBO`, `CF-R2-TURBO` in [`docs/compliance/ICT-ASSET-INVENTORY.md`](../compliance/ICT-ASSET-INVENTORY.md)
 
 ---
 
@@ -159,7 +159,7 @@ Watch [Cloudflare Status](https://www.cloudflarestatus.com/). No CI-side interve
 
 ## 7. Disaster recovery
 
-Cache is non-business data. Tier-3 DR per [INVENTORY](../INVENTORY.md). Rebuild procedure:
+Cache is non-business data. Tier-3 DR per [INVENTORY](../compliance/ICT-ASSET-INVENTORY.md). Rebuild procedure:
 
 ```bash
 # Worst case: lost the entire R2 bucket + Worker. Re-deploy from scratch.

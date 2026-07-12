@@ -1,6 +1,6 @@
 # AWS Setup
 
-> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This runbook covers the operational steps; the inventory file is the source of truth for what each host is.
+> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md). This runbook covers the operational steps; the inventory file is the source of truth for what each host is.
 
 Single-account MVP deploy with Cloudflare front door + AWS-hosted compute and data. See ADR `docs/adr/0007-mvp-single-account-cdk-only.md` (parent decision) and `docs/adr/0008-cloudflare-tunnel-and-email.md` (network + email architecture).
 

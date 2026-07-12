@@ -52,7 +52,7 @@ Positive:
 
 Negative / trade-offs:
 
-- Five new surfaces (CLI, MCP, SDK, webhooks, sandbox) shipping in parallel is a lot. The roadmap in [`docs/api/PUBLIC-LAUNCH.md`](../api/PUBLIC-LAUNCH.md) sequences them; not all land before GA.
+- Five new surfaces (CLI, MCP, SDK, webhooks, sandbox) shipping in parallel is a lot. The roadmap in [`API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md) sequences them; not all land before GA.
 - Svix Cloud is a runtime dependency for webhooks. Acceptable on the free tier (50k msgs/mo); migration plan to Hook0 documented in [`WEBHOOKS.md`](../api/WEBHOOKS.md).
 - Key prefix migration (`afk_` → `affk_`) requires AFF-73 work. Until then, the foundation's keys keep the `afk_` prefix.
 - The sandbox doubles the data-seeding surface (test org seeded on signup, force-trigger endpoints to maintain). Up-front cost; pays for itself the first time a partner asks "how do I test webhook delivery without a real bank feed".
@@ -61,7 +61,7 @@ Follow-up work required:
 
 - AFF-73 — admin dashboard for key management + key prefix migration.
 - A new GitHub Roadmap initiative for the developer platform (CLI, MCP, SDK, webhooks, sandbox). Each ships as a separate phase.
-- Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) for context).
+- Update `.gitleaks.toml` (new file) with Czech finance rules + `affk_live_` rule. Done in this same change (see [`docs/reference/SECRETS-AND-VARIABLES.md`](../reference/SECRETS-AND-VARIABLES.md) for context).
 - Wire `/.well-known/security.txt` (web app responsibility, not the API). RFC 9116.
 - Update `SECURITY.md` with the `security@afframe.com` alias once the mailbox exists.
 
@@ -81,6 +81,6 @@ Follow-up work required:
 - [ADR-0013](0013-money-and-fx.md) — `Money<Currency>` and FX (SDK typing)
 - [ADR-0018](0018-three-layer-authz.md) — Cerbos + OpenFGA (MCP scope split rides on this)
 - [ADR-0022](0022-unified-opaque-tokens.md) — `affk_` prefix policy
-- [`docs/api/API-REFERENCE.md`](../api/API-REFERENCE.md), [`docs/api/PUBLIC-LAUNCH.md`](../api/PUBLIC-LAUNCH.md), [`docs/api/DEV-PORTAL.md`](../api/DEV-PORTAL.md)
-- [`docs/runbooks/PUBLIC-REPO-CHECKLIST.md`](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side hardening (separate concern)
+- [`docs/api/API-REFERENCE.md`](../api/API-REFERENCE.md), [`docs/plans/API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md), [`docs/api/DEV-PORTAL.md`](../api/DEV-PORTAL.md)
+- [`SECURITY.md`](../../SECURITY.md) and [`CI-POLICY.md`](../conventions/CI-POLICY.md) — current repository hardening controls
 - [Standard Webhooks](https://www.standardwebhooks.com/), [RFC 8594 — Sunset](https://www.rfc-editor.org/rfc/rfc8594.html), [RFC 9116 — security.txt](https://www.rfc-editor.org/rfc/rfc9116), [IETF Idempotency-Key](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header)

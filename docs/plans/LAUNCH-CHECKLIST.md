@@ -86,7 +86,7 @@ Legal and product blockers first, then infra/ops, then deferred tracks.
       decision either way.
 - [ ] **13. EMAIL_FROM / Resend posture re-confirm.** Sender
       `no-reply@afframe.com` must stay on the exact Resend-verified
-      domain (no parent-domain inheritance). `docs/DOMAINS-AND-EMAIL.md`.
+      domain (no parent-domain inheritance). `docs/reference/DOMAINS-AND-EMAIL.md`.
 
 ## CI / process
 

@@ -1,6 +1,6 @@
 # Promote to production
 
-> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md).
 
 How to move from "staging-only, internal access" to "production live at `app.afframe.com`, public access."
 

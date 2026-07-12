@@ -1,6 +1,6 @@
 # Afframe Brain — Technical Reference (A → Z)
 
-The **debug-level** companion to [`docs/AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md) (the one-page index). This
+The **debug-level** companion to [`README.md`](README.md) (the one-page index). This
 file is for an engineer or agent with **no prior Afframe context** who needs to understand, explain, and
 **troubleshoot** the Brain end to end. Every non-obvious claim carries a `file:line` citation — follow the
 citation, don't trust the prose. It was reconstructed by reading the **current code** (not the older
@@ -686,5 +686,6 @@ _(quick orientation — follow the section link for the full trace of each row)_
 ---
 
 _This document is generated from the current code; when the code changes, re-verify the cited `file:line`
-anchors. For the operator quickstart see [`docs/runbooks/BRAIN-OPERATOR-SESSION.md`](runbooks/BRAIN-OPERATOR-SESSION.md);
-for the one-page overview see [`docs/AFFRAME-BRAIN.md`](AFFRAME-BRAIN.md)._
+anchors. For the operator quickstart see
+[`BRAIN-OPERATOR-SESSION.md`](../../runbooks/BRAIN-OPERATOR-SESSION.md); for the
+one-page overview see [`README.md`](README.md)._

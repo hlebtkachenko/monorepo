@@ -1,6 +1,6 @@
 # Public API Launch Checklist
 
-> Master tracker for moving `api.afframe.com/v1` from "the foundation works" to "publicly documented + ready for paying partners". Pair with [`ADR-0023`](../adr/0023-public-api-developer-platform.md) (the platform decision) and [`docs/runbooks/PUBLIC-REPO-CHECKLIST.md`](../runbooks/PUBLIC-REPO-CHECKLIST.md) (repo-side hardening — different concern).
+> Master tracker for moving `api.afframe.com/v1` from "the foundation works" to "publicly documented + ready for paying partners". Pair with [`ADR-0023`](../adr/0023-public-api-developer-platform.md) and current repository controls in [`SECURITY.md`](../../SECURITY.md) and [`CI-POLICY.md`](../conventions/CI-POLICY.md).
 >
 > **2026-05-21 amendment:** Phase 1 narrative-docs surface (`apps/docs`)
 > was built and archived to `.context/archive/apps-docs-2026-05-21/` —
@@ -42,7 +42,7 @@ GA gate = phases 1, 4, 5, 6, 7, 8 done. CLI/MCP/SDK can lag by a release if they
 - **[Concept]** Surface `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` response headers + `Retry-After` on 429. Today the throttler returns a bare 429.
 - **[Concept]** Per-route tier overrides (lower limit on `/v1/journals/import` than `/v1/ping`). One-line `@Throttle()` decorator override per controller.
 
-Detail: [`RATE-LIMITS.md`](./RATE-LIMITS.md).
+Detail: [`RATE-LIMITS.md`](../api/RATE-LIMITS.md).
 
 ### 1.2 Idempotency — **[Concept]**
 
@@ -51,7 +51,7 @@ Detail: [`RATE-LIMITS.md`](./RATE-LIMITS.md).
 - 24-hour replay cache: `(key, route)` → `(status, body)`. Same key + different payload → 409. Per [IETF draft `draft-ietf-httpapi-idempotency-key-header`](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header).
 - **No idempotency on `GET` / `DELETE`** — semantics already idempotent.
 
-Contract: [`IDEMPOTENCY.md`](./IDEMPOTENCY.md).
+Contract: [`IDEMPOTENCY.md`](../api/IDEMPOTENCY.md).
 
 ### 1.3 Request limits — **[Concept]**
 
@@ -89,7 +89,7 @@ Wired via NestJS `bodyParser` options + helmet defaults.
 
 - Restricted keys per Stripe's pattern: `invoices:read`, `invoices:write`, `journals:write`, `webhooks:manage`, …
 - Default new keys to least privilege (read-only) at issuance.
-- Carry into MCP server (read / write / destructive bundles — see [`MCP.md`](./MCP.md)).
+- Carry into MCP server (read / write / destructive bundles — see [`MCP.md`](../api/MCP.md)).
 
 ### 1.9 IP allow-list per key — **[Concept]**
 
@@ -120,7 +120,7 @@ Wired via NestJS `bodyParser` options + helmet defaults.
 - Field-level deprecation via OpenAPI `deprecated: true` + `x-deprecated-since` + `x-sunset` extensions.
 - Endpoint removal requires changelog entry + at least one email blast.
 
-Policy: [`VERSIONING.md`](./VERSIONING.md).
+Policy: [`VERSIONING.md`](../api/VERSIONING.md).
 
 ### 2.3 Support SLO — **[Concept]**
 
@@ -167,7 +167,7 @@ Policy: [`VERSIONING.md`](./VERSIONING.md).
 
 ## 4. Versioning + change management
 
-See [`VERSIONING.md`](./VERSIONING.md). Summary:
+See [`VERSIONING.md`](../api/VERSIONING.md). Summary:
 
 - **[Live]** URL-path versioning (`/v1`).
 - **[Concept]** `Deprecation` + `Sunset` headers on retiring endpoints per RFC 8594 + IETF draft.
@@ -185,7 +185,7 @@ See [`VERSIONING.md`](./VERSIONING.md). Summary:
 - Per-entry stable URL.
 - Tag `feat:` / `fix:` / `breaking:` / `deprecated:`.
 
-Format: [`CHANGELOG.md`](./CHANGELOG.md).
+Format: [`CHANGELOG.md`](../api/CHANGELOG.md).
 
 ### 5.2 Email cadence — **[Concept]**
 
@@ -219,18 +219,18 @@ Format: [`CHANGELOG.md`](./CHANGELOG.md).
 - Sample VAT-registered org (DIČ `CZ12345678`, IČO `12345678`), 100 invoices, two bank accounts, one journal cycle.
 - No credit card required to test.
 
-Detail: [`SANDBOX.md`](./SANDBOX.md).
+Detail: [`SANDBOX.md`](../api/SANDBOX.md).
 
 ---
 
 ## 7. Surfaces (CLI, MCP, SDK, Webhooks)
 
-| Surface                                                        | Doc                            | Status        |
-| -------------------------------------------------------------- | ------------------------------ | ------------- |
-| `@afframe/sdk` (TypeScript, generated from OpenAPI)            | [`SDK.md`](./SDK.md)           | **[Concept]** |
-| `afframe` CLI (oclif, Homebrew + GitHub Releases)              | [`CLI.md`](./CLI.md)           | **[Concept]** |
-| `@afframe/mcp` (npx + hosted `mcp.afframe.com`)                | [`MCP.md`](./MCP.md)           | **[Concept]** |
-| Webhooks (Standard Webhooks, Svix Cloud backend → Hook0 later) | [`WEBHOOKS.md`](./WEBHOOKS.md) | **[Concept]** |
+| Surface                                                        | Doc                                 | Status        |
+| -------------------------------------------------------------- | ----------------------------------- | ------------- |
+| `@afframe/sdk` (TypeScript, generated from OpenAPI)            | [`SDK.md`](../api/SDK.md)           | **[Concept]** |
+| `afframe` CLI (oclif, Homebrew + GitHub Releases)              | [`CLI.md`](../api/CLI.md)           | **[Concept]** |
+| `@afframe/mcp` (npx + hosted `mcp.afframe.com`)                | [`MCP.md`](../api/MCP.md)           | **[Concept]** |
+| Webhooks (Standard Webhooks, Svix Cloud backend → Hook0 later) | [`WEBHOOKS.md`](../api/WEBHOOKS.md) | **[Concept]** |
 
 ---
 
@@ -253,7 +253,7 @@ Concrete pass/fail items, derived from the rest of this doc. The gate fires when
 - [ ] `.gitleaks.toml` custom rules merged + advisory CI green (done in this change).
 - [ ] `/.well-known/security.txt` live on `afframe.com`.
 - [ ] ToS / Privacy / DPA / Fair Use published.
-- [ ] Deprecation policy ([`VERSIONING.md`](./VERSIONING.md)) published.
+- [ ] Deprecation policy ([`VERSIONING.md`](../api/VERSIONING.md)) published.
 - [ ] Status page lists `Public API`, `Webhooks`, `Auth`, `Docs` components.
 - [ ] Changelog page + RSS + JSON feeds live.
 - [ ] Public launch rides on Scalar reference at `api.afframe.com/` + per-package npm READMEs (CLI, SDK, MCP). Narrative docs at a dedicated path are contingent on a future docs surface (per ADR-0024 amendment 2026-05-21).
@@ -279,9 +279,8 @@ Concrete pass/fail items, derived from the rest of this doc. The gate fires when
 ## 9. References
 
 - [`ADR-0023`](../adr/0023-public-api-developer-platform.md) — the platform decision
-- [`DEV-PORTAL.md`](./DEV-PORTAL.md), [`CLI.md`](./CLI.md), [`MCP.md`](./MCP.md), [`SDK.md`](./SDK.md), [`WEBHOOKS.md`](./WEBHOOKS.md)
-- [`ERRORS.md`](./ERRORS.md), [`RATE-LIMITS.md`](./RATE-LIMITS.md), [`IDEMPOTENCY.md`](./IDEMPOTENCY.md), [`VERSIONING.md`](./VERSIONING.md), [`SANDBOX.md`](./SANDBOX.md), [`CHANGELOG.md`](./CHANGELOG.md)
-- [`API-REFERENCE.md`](./API-REFERENCE.md) — the Scalar/`/v1/docs` rules
-- [`docs/runbooks/PUBLIC-REPO-CHECKLIST.md`](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side hardening (separate, already done)
+- [`DEV-PORTAL.md`](../api/DEV-PORTAL.md), [`CLI.md`](../api/CLI.md), [`MCP.md`](../api/MCP.md), [`SDK.md`](../api/SDK.md), [`WEBHOOKS.md`](../api/WEBHOOKS.md)
+- [`ERRORS.md`](../api/ERRORS.md), [`RATE-LIMITS.md`](../api/RATE-LIMITS.md), [`IDEMPOTENCY.md`](../api/IDEMPOTENCY.md), [`VERSIONING.md`](../api/VERSIONING.md), [`SANDBOX.md`](../api/SANDBOX.md), [`CHANGELOG.md`](../api/CHANGELOG.md)
+- [`API-REFERENCE.md`](../api/API-REFERENCE.md) — the Scalar/`/v1/docs` rules
 - [`SECURITY.md`](../../SECURITY.md) — vulnerability reporting
 - [Standard Webhooks](https://www.standardwebhooks.com/), [RFC 8594 — Sunset](https://www.rfc-editor.org/rfc/rfc8594.html), [RFC 9116 — security.txt](https://www.rfc-editor.org/rfc/rfc9116), [IETF Idempotency-Key](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header)

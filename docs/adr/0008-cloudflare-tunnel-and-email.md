@@ -1,6 +1,6 @@
 # 8. Cloudflare Tunnel front door + Cloudflare/SES email split
 
-> **Updated**: Live host + email inventory is in [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). This ADR is the decision record; the tables below capture state at decision time.
+> **Updated**: Live host + email inventory is in [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md). This ADR is the decision record; the tables below capture state at decision time.
 
 - Status: Accepted
 - Date: 2026-05-11
@@ -53,7 +53,7 @@ Chosen: **network = Option 4 (Cloudflare Tunnel), email = Option C (Cloudflare R
 
 ### Task topology
 
-> Live host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md). The tables below capture topology at decision time.
+> Live host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md). The tables below capture topology at decision time.
 
 One Fargate task per env, three containers:
 

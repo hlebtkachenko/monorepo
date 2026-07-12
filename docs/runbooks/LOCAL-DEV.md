@@ -4,7 +4,7 @@ Bring up the web app locally with a real Postgres + Better Auth wired in.
 
 ## Required environment
 
-The full env-var registry lives at `docs/env-vars.md` — that's the
+The full env-var registry lives at `docs/reference/ENVIRONMENT-VARIABLES.md` — that's the
 canonical list of every variable the app reads, what package consumes it,
 and what's required vs optional.
 

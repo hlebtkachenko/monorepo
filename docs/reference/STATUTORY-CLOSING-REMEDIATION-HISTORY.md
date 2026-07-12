@@ -1,4 +1,8 @@
-# Statutory Closing Remediation Plan
+# Statutory Closing Remediation History
+
+> **Status:** completed 2026-07-09 and issue
+> [#625](https://github.com/hlebtkachenko/monorepo/issues/625) closed. Read-only
+> cross-PR implementation and acceptance history.
 
 > **Purpose:** Define the implementation territory and acceptance criteria for [remediation issue #625](https://github.com/hlebtkachenko/monorepo/issues/625), correcting the statutory closing work introduced across [PR #593](https://github.com/hlebtkachenko/monorepo/pull/593), [PR #594](https://github.com/hlebtkachenko/monorepo/pull/594), [PR #598](https://github.com/hlebtkachenko/monorepo/pull/598), [PR #601](https://github.com/hlebtkachenko/monorepo/pull/601), [PR #605](https://github.com/hlebtkachenko/monorepo/pull/605), [PR #609](https://github.com/hlebtkachenko/monorepo/pull/609), and [PR #612](https://github.com/hlebtkachenko/monorepo/pull/612).
 >

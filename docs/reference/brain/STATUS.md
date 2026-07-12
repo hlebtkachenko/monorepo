@@ -1,12 +1,13 @@
 # Afframe Brain v1 — Status & Roadmap Tracker
 
-The **tracked, in-repo** source of truth for where Brain v1 stands: what's done, what's outstanding,
-what's deferred to v2, and the open GitHub issues that gate each piece. Companion to the
-[index](AFFRAME-BRAIN.md) and the [technical reference](AFFRAME-BRAIN-TECHNICAL.md).
+Detailed in-repo snapshot of where Brain v1 stands: what is done, what remains,
+what is deferred to v2, and the issues gating each piece. GitHub epic
+[#524](https://github.com/hlebtkachenko/monorepo/issues/524) owns active status.
+Companion to the [index](README.md) and [technical reference](TECHNICAL.md).
 
 > A more granular working board lives at `.context/afframe-brain/V1-REMAINING-MILESTONES.md`, but that is
-> gitignored (agent scratch). **This file is the durable, reviewable tracker** — keep it current when a
-> milestone or issue changes.
+> gitignored agent scratch. Update this snapshot when a milestone boundary
+> changes, without duplicating issue-level task status.
 
 **Last updated:** 2026-07-08 · **Umbrella epic:** [#524](https://github.com/hlebtkachenko/monorepo/issues/524)
 (Finish Afframe Brain v1).

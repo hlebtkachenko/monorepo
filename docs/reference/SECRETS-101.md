@@ -1,8 +1,8 @@
 # Secrets Management 101 — for a Fintech SaaS
 
 > **Migration status (2026-05-22 → 2026-06):** the Afframe secrets stack is
-> moving from AWS Secrets Manager (today) to Vault-on-VPS + AWS SSM SecureString.
-> See [`SECRETS-MIGRATION.md`](SECRETS-MIGRATION.md) for the active plan and
+> uses Vault-on-VPS + AWS SSM SecureString.
+> See [`SECRETS-MIGRATION-HISTORY.md`](SECRETS-MIGRATION-HISTORY.md) for the completed migration history and
 > [`../runbooks/VAULT-OPS.md`](../runbooks/VAULT-OPS.md) for the operational
 > runbook. Sections of this primer that reference SOPS+age describe a path the
 > repo evaluated but did NOT adopt; treat them as historical context, not
@@ -14,10 +14,10 @@
 >
 > See also:
 >
-> - [`SECRETS-MIGRATION.md`](SECRETS-MIGRATION.md) — the active 2026 migration plan
-> - [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) — the project's actual secrets convention
+> - [`SECRETS-MIGRATION-HISTORY.md`](SECRETS-MIGRATION-HISTORY.md) — completed 2026 migration history
+> - [`SECRETS-AND-VARIABLES.md`](SECRETS-AND-VARIABLES.md) — the project's actual secrets convention
 > - [`docs/runbooks/VAULT-OPS.md`](../runbooks/VAULT-OPS.md) — Vault operations runbook
-> - [`docs/env-vars.md`](../env-vars.md) — registry of every env var the app reads
+> - [`docs/reference/ENVIRONMENT-VARIABLES.md`](../reference/ENVIRONMENT-VARIABLES.md) — registry of every env var the app reads
 > - [`docs/runbooks/AWS-SETUP.md`](../runbooks/AWS-SETUP.md) — deploy wiring chain
 > - `.gitleaks.toml` — leak-detection rules at the repo root
 
@@ -234,5 +234,5 @@ Tracing this for every secret you have is the operational discipline. Infisical 
 - [OWASP Secrets Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)
 - [NIST SP 800-57](https://csrc.nist.gov/projects/cryptographic-key-management) — key management lifecycle (technical, dense)
 - [`.gitleaks.toml`](../../.gitleaks.toml) — practical view of what patterns matter to Afframe
-- [`docs/runbooks/SECRETS.md`](../runbooks/SECRETS.md) — what the project actually chose
-- [`docs/env-vars.md`](../env-vars.md) — the registry of every env var the app reads
+- [`SECRETS-AND-VARIABLES.md`](SECRETS-AND-VARIABLES.md) — what the project actually chose
+- [`ENVIRONMENT-VARIABLES.md`](ENVIRONMENT-VARIABLES.md) — the registry of every env var the app reads

@@ -57,7 +57,7 @@ each (done by `deploy-bot.yml`).
 ### Obtain / rotate INGEST_SECRET
 
 `INGEST_SECRET` is the same shared bearer as the app's `NOTIFY_SHARED_SECRET`
-(see `docs/env-vars.md`). It is not bot-specific — do not generate a new value
+(see `docs/reference/ENVIRONMENT-VARIABLES.md`). It is not bot-specific — do not generate a new value
 for the bot alone.
 
 - **Local dev**: run `scripts/bot-dev-vars.sh` from the repo root. It fetches

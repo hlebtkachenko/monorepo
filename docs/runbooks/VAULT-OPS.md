@@ -7,7 +7,7 @@
 > backlink workflow moved to GitHub's built-in token). Remaining:
 > M10 rotation drill + cost audit. DR drill and B2 secondary backup remain
 > deferred until the Roadmap project prioritizes them. Milestone
-> history: [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md).
+> history: [`docs/reference/SECRETS-MIGRATION-HISTORY.md`](../reference/SECRETS-MIGRATION-HISTORY.md).
 >
 > **Backs:** legacy AFF-245.
 >
@@ -258,7 +258,7 @@ vault audit disable file
 1. Operator writes to Vault: `vault kv put platform/data/${env}/${name} value=<v>`
 2. Operator extends `/usr/local/sbin/vault-to-ssm-sync` to include the new `(env, name)` tuple.
 3. Operator extends `infra/cdk/lib/app-stack.ts` to wire `EcsSecret.fromSsmParameter` to the new SSM path.
-4. Operator updates `docs/env-vars.md` with the new entry.
+4. Operator updates `docs/reference/ENVIRONMENT-VARIABLES.md` with the new entry.
 5. `pnpm verify` → PR → green CI → deploy.
 
 ### Deleting a secret
@@ -278,7 +278,7 @@ or a running task loses a secret it still references.
    `vault kv metadata delete platform/${env}/${name}` (full destroy incl.
    version history) — or `vault kv delete …` to soft-delete the latest
    version only.
-5. Update `docs/env-vars.md` + `SECRETS.md` decision matrix.
+5. Update `docs/reference/ENVIRONMENT-VARIABLES.md` + `SECRETS.md` decision matrix.
 
 Never delete the Vault value first — the sync would then write an empty/
 absent param and a still-referencing task would fail on next rollout.
@@ -487,7 +487,7 @@ sudo tail -200 /srv/secrets/vault/audit/audit.log | \
 
 ## Irreversible operations register
 
-See [`docs/plans/SECRETS-MIGRATION.md`](../plans/SECRETS-MIGRATION.md#irreversible-operations-register).
+See [`docs/reference/SECRETS-MIGRATION-HISTORY.md`](../reference/SECRETS-MIGRATION-HISTORY.md#irreversible-operations-register).
 Operations listed there are NEVER executed without:
 
 - Advisor confirmation;
@@ -507,7 +507,7 @@ Operations listed there are NEVER executed without:
 
 ## Related runbooks
 
-- [`SECRETS.md`](SECRETS.md) — secrets convention (post-migration form)
+- [`SECRETS-AND-VARIABLES.md`](../reference/SECRETS-AND-VARIABLES.md) — secrets convention
 - [`SECRETS-ROTATION.md`](SECRETS-ROTATION.md) — rotation playbooks per secret type
 - [`DR-DRILL.md`](DR-DRILL.md) — disaster recovery drill (Vault restore)
 - [`AWS-SETUP.md`](AWS-SETUP.md) — CDK deploy wiring chain

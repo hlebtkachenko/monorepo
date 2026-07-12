@@ -105,4 +105,4 @@ Partners should:
 - [IETF RateLimit headers draft](https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/)
 - [Stripe Rate Limits](https://docs.stripe.com/rate-limits) — the patterns we're cloning
 - Source: `apps/api/src/v1/api-key-throttler.guard.ts`, `apps/api/src/v1/v1.module.ts`
-- [`ERRORS.md`](./ERRORS.md), [`IDEMPOTENCY.md`](./IDEMPOTENCY.md), [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md)
+- [`ERRORS.md`](./ERRORS.md), [`IDEMPOTENCY.md`](./IDEMPOTENCY.md), [`API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md)

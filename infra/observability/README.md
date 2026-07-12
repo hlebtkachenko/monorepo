@@ -5,16 +5,16 @@ Sidecar configs ready to wire, **currently unwired in CDK**.
 Today the deployed log/trace pipeline is CloudWatch via the `awslogs` driver
 defined in `infra/cdk/lib/app-stack.ts` plus Sentry SDK init in `apps/api`
 and `apps/web`. That is the entire MVP observability surface. See
-[`.context/decision-observability-mvp.md`](../../.context/decision-observability-mvp.md)
-for the reasoning (CloudWatch + Sentry is Option 2; sidecars are deferred).
+[ADR-0002](../../docs/adr/0002-observability-honeycomb.md) for the decision;
+sidecars remain deferred.
 
 ## What is in this directory
 
-| File | Role | Wired? |
-|------|------|--------|
-| `otel-collector.yaml` | OTel Collector Contrib config: OTLP receivers, AWS resource detection, PII scrub, Honeycomb exporter. | No |
-| `firelens-fluentbit.conf` | Fluent Bit pipeline: CloudWatch always-on + OTel forward conditional. | No |
-| `parsers.conf` | `pino_json` parser for NestJS Logger stdout + generic JSON fallback. | No |
+| File                      | Role                                                                                                  | Wired? |
+| ------------------------- | ----------------------------------------------------------------------------------------------------- | ------ |
+| `otel-collector.yaml`     | OTel Collector Contrib config: OTLP receivers, AWS resource detection, PII scrub, Honeycomb exporter. | No     |
+| `firelens-fluentbit.conf` | Fluent Bit pipeline: CloudWatch always-on + OTel forward conditional.                                 | No     |
+| `parsers.conf`            | `pino_json` parser for NestJS Logger stdout + generic JSON fallback.                                  | No     |
 
 These mirror the pattern documented in `.context/research-lac-infra.md` (B.5
 verdict: ADOPT, defer wiring). The files are kept in lockstep with how the app
@@ -95,8 +95,6 @@ explicit in ADR-0002 and accepted at MVP scale.
 
 - [ADR-0002: Observability Honeycomb](../../docs/adr/0002-observability-honeycomb.md)
 - [ADR-0007: MVP single-account CDK only](../../docs/adr/0007-mvp-single-account-cdk-only.md)
-- [`.context/decision-observability-mvp.md`](../../.context/decision-observability-mvp.md)
-- [`.context/infra-review-synthesis.md`](../../.context/infra-review-synthesis.md) E.3
 - [`infra/cdk/lib/app-stack.ts`](../cdk/lib/app-stack.ts) — current awslogs
   driver wiring
 - [`infra/cdk/lib/observability-stack.ts`](../cdk/lib/observability-stack.ts)

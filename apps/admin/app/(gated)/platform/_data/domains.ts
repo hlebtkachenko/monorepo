@@ -1,19 +1,13 @@
 /**
  * Static inventory of the Afframe public-facing hostnames. Seeded from
- * `docs/DOMAINS-AND-EMAIL.md` — that doc is the source of truth. When
+ * `docs/reference/DOMAINS-AND-EMAIL.md` — that doc is the source of truth. When
  * Cloudflare DNS becomes API-readable from the admin task, this file
  * should be replaced by a live fetch + cache.
  */
 
 type DomainEnv = "production" | "staging" | "shared"
 type DomainRole =
-  | "zone"
-  | "web"
-  | "api"
-  | "admin"
-  | "status"
-  | "monitoring"
-  | "cache"
+  "zone" | "web" | "api" | "admin" | "status" | "monitoring" | "cache"
 
 export interface DomainEntry {
   host: string

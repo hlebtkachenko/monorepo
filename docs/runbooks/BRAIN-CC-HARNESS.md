@@ -208,7 +208,7 @@ genuinely deploy-gated and needs live inputs:
 - **M2** supervised-prod quarantine → promote, **M3** real ≥10-run calibration fit, **M4** autonomous
   certification.
 
-See [`AFFRAME-BRAIN-STATUS.md`](../AFFRAME-BRAIN-STATUS.md) for current delivery
+See [`Brain status`](../reference/brain/STATUS.md) for current delivery
 status and [`BRAIN-OPERATOR-SESSION.md`](BRAIN-OPERATOR-SESSION.md) for the
 operator workflow.
 

@@ -1,6 +1,6 @@
 # Public API Architecture
 
-> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../reference/DOMAINS-AND-EMAIL.md).
 
 `apps/api` (NestJS) serves two surfaces from a single `:3001` process:
 
@@ -63,7 +63,7 @@ Per-API-key, NOT per-IP. Behind the Cloudflare Tunnel, all requests share the si
 Default: 100 requests per 60 seconds per API key. Configure the limit with
 `V1_THROTTLE_LIMIT` and the window in milliseconds with
 `V1_THROTTLE_TTL_MS`. Production currently raises the limit through CDK. Both
-variables are registered in [`docs/env-vars.md`](../env-vars.md).
+variables are registered in [`docs/reference/ENVIRONMENT-VARIABLES.md`](../reference/ENVIRONMENT-VARIABLES.md).
 
 ## OpenAPI
 
@@ -131,21 +131,22 @@ already public via `/v1/openapi.json`.
 
 The Scalar reference is one surface. The public-launch story is broader — narrative docs, CLI, MCP, SDK, webhooks, sandbox. Each lives in its own file:
 
-| Doc                                      | Purpose                                                                   | Status                                |
-| ---------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
-| [`API-REFERENCE.md`](./API-REFERENCE.md) | Rules for the `/` Scalar surface                                          | Live                                  |
-| [`PUBLIC-LAUNCH.md`](./PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)                | Wip                                   |
-| [`DEV-PORTAL.md`](./DEV-PORTAL.md)       | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                               |
-| [`ERRORS.md`](./ERRORS.md)               | Error envelope + code registry                                            | Live + concept extension              |
-| [`RATE-LIMITS.md`](./RATE-LIMITS.md)     | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades               |
-| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)     | `Idempotency-Key` contract for money-mutating writes                      | Live (accounting) + concept           |
-| [`VERSIONING.md`](./VERSIONING.md)       | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling             |
-| [`SANDBOX.md`](./SANDBOX.md)             | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                               |
-| [`WEBHOOKS.md`](./WEBHOOKS.md)           | Standard Webhooks contract, Svix Cloud backend                            | Concept                               |
-| [`SDK.md`](./SDK.md)                     | `@afframe/sdk` TypeScript design (`openapi-typescript` + `openapi-fetch`) | Wip: implemented in-repo, unpublished |
-| [`CLI.md`](./CLI.md)                     | `afframe` CLI                                                             | Wip: implemented in-repo, unpublished |
-| [`MCP.md`](./MCP.md)                     | `@afframe/mcp` stdio server                                               | Wip: implemented in-repo, unpublished |
-| [`CHANGELOG.md`](./CHANGELOG.md)         | Public changelog format + entries                                         | Wip                                   |
+| Doc                                                     | Purpose                                                                   | Status                                |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| [`AGENT-STRUCTURE.md`](./AGENT-STRUCTURE.md)            | Programmatic application-navigation discovery for agents                  | Live                                  |
+| [`API-REFERENCE.md`](./API-REFERENCE.md)                | Rules for the `/` Scalar surface                                          | Live                                  |
+| [`API-PUBLIC-LAUNCH.md`](../plans/API-PUBLIC-LAUNCH.md) | Master launch checklist (security, legal, comms, surfaces)                | Wip                                   |
+| [`DEV-PORTAL.md`](./DEV-PORTAL.md)                      | Page map + sidebar IA for `api.afframe.com/docs`                          | Concept                               |
+| [`ERRORS.md`](./ERRORS.md)                              | Error envelope + code registry                                            | Live + concept extension              |
+| [`RATE-LIMITS.md`](./RATE-LIMITS.md)                    | Throttle contract, `RateLimit-*` headers, 429                             | Live + concept upgrades               |
+| [`IDEMPOTENCY.md`](./IDEMPOTENCY.md)                    | `Idempotency-Key` contract for money-mutating writes                      | Live (accounting) + concept           |
+| [`VERSIONING.md`](./VERSIONING.md)                      | URL-path versioning, RFC 8594 Sunset, deprecation policy                  | Live + concept signalling             |
+| [`SANDBOX.md`](./SANDBOX.md)                            | `affk_test_…` keys, seeded fixtures, force-trigger endpoints              | Concept                               |
+| [`WEBHOOKS.md`](./WEBHOOKS.md)                          | Standard Webhooks contract, Svix Cloud backend                            | Concept                               |
+| [`SDK.md`](./SDK.md)                                    | `@afframe/sdk` TypeScript design (`openapi-typescript` + `openapi-fetch`) | Wip: implemented in-repo, unpublished |
+| [`CLI.md`](./CLI.md)                                    | `afframe` CLI                                                             | Wip: implemented in-repo, unpublished |
+| [`MCP.md`](./MCP.md)                                    | `@afframe/mcp` stdio server                                               | Wip: implemented in-repo, unpublished |
+| [`CHANGELOG.md`](./CHANGELOG.md)                        | Public changelog format + entries                                         | Wip                                   |
 
 The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-public-api-developer-platform.md).
 
@@ -155,6 +156,6 @@ The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-publi
 - [ADR-0023](../adr/0023-public-api-developer-platform.md) — developer platform (pages, CLI, MCP, SDK, webhooks)
 - [ADR-0008](../adr/0008-cloudflare-tunnel-and-email.md) — Cloudflare tunnel + domain routing
 - [ADR-0018](../adr/0018-three-layer-authz.md) — three-layer authorization
-- [env-vars.md](../env-vars.md) — all environment variables
+- [env-vars.md](../reference/ENVIRONMENT-VARIABLES.md) — all environment variables
 - [AWS-SETUP.md](../runbooks/AWS-SETUP.md) — deploy procedure + tunnel config
-- [PUBLIC-REPO-CHECKLIST.md](../runbooks/PUBLIC-REPO-CHECKLIST.md) — repo-side public hardening (separate from API launch)
+- [SECURITY.md](../../SECURITY.md) — repository security policy

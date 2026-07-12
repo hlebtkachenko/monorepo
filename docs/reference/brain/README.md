@@ -7,12 +7,12 @@ constitution, the write-gate code, the operator runbooks) — not against planni
 
 > **Going deeper?** This page is the index. For the **debug-level technical reference** — the full request
 > trace, the gate/confidence/DB/transport/auth internals with `file:line` citations, and a troubleshooting
-> playbook — read [`docs/AFFRAME-BRAIN-TECHNICAL.md`](AFFRAME-BRAIN-TECHNICAL.md).
+> playbook, read [`TECHNICAL.md`](TECHNICAL.md).
 
 > **Status (2026-07-08):** Brain v1 is **live-confirmed end-to-end on production** (pre-launch, no real
 > users). A real agent key drove the full loop to a real `202 HELD` write with a recorded shadow score.
 > Milestone **M1 is engineering-done**; the next phase (**M2**) is a human-review marathon, not code.
-> All Brain ADRs are still `Proposed` status — the design is settled in practice but not formally accepted.
+> Brain ADRs 0025 through 0029 are accepted.
 
 ---
 
@@ -167,8 +167,9 @@ The definition of done for v1: an operator opens a Claude Code session, it conne
 and a real org's accounting flows through the HELD loop → human review (M2) → calibration fit from the
 reviewed runs (M3) → certification to auto-apply confident bookings (M4).
 
-> **Live status + open issues:** the authoritative, continuously-updated tracker is
-> [`docs/AFFRAME-BRAIN-STATUS.md`](AFFRAME-BRAIN-STATUS.md) — the table below is a summary snapshot.
+> **Live status + open issues:** GitHub epic
+> [#524](https://github.com/hlebtkachenko/monorepo/issues/524) owns active work.
+> [`STATUS.md`](STATUS.md) provides the detailed in-repo snapshot.
 
 | Milestone                                             | What                                                                                                                                                                                                                                                                        | Status                                            |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
@@ -225,9 +226,9 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 
 | Topic                                          | Source                                                                                                              |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| This overview (index)                          | `docs/AFFRAME-BRAIN.md`                                                                                             |
-| Deep technical reference (debug-level, cited)  | `docs/AFFRAME-BRAIN-TECHNICAL.md`                                                                                   |
-| Status / roadmap tracker (v1/v2 + open issues) | `docs/AFFRAME-BRAIN-STATUS.md`                                                                                      |
+| This overview (index)                          | `docs/reference/brain/README.md`                                                                                    |
+| Deep technical reference (debug-level, cited)  | `docs/reference/brain/TECHNICAL.md`                                                                                 |
+| Status / roadmap tracker (v1/v2 + open issues) | `docs/reference/brain/STATUS.md`                                                                                    |
 | Constitution (I1–I10, LOCKED)                  | `packages/brain/.brain/constitution.md`                                                                             |
 | Architecture decisions                         | `docs/adr/0025`–`0029` (runtime placement, confidence, learning store, admission/isolation, workspace-scoped state) |
 | Run a live session                             | `docs/runbooks/BRAIN-OPERATOR-SESSION.md`                                                                           |

@@ -87,11 +87,11 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
    non-production paths; throw on missing in production where
    appropriate.
 2. Declare in `turbo.json` `globalEnv`.
-3. Document in `docs/env-vars.md` under the section matching the
+3. Document in `docs/reference/ENVIRONMENT-VARIABLES.md` under the section matching the
    consumer (web / api / admin / db / auth / etc.).
 4. If CI / production needs it, add the corresponding GitHub Actions
    repo variable or Secrets Manager entry. Cross-reference from
-   `docs/runbooks/SECRETS.md` and `docs/runbooks/AWS-SETUP.md`.
+   `docs/reference/SECRETS-AND-VARIABLES.md` and `docs/runbooks/AWS-SETUP.md`.
 
 ## A new public host
 
@@ -99,7 +99,7 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
 2. Add an ECR repo + ECS container + LogGroup per
    `infra/cdk/lib/{data,app}-stack.ts` (clone the closest existing host
    block).
-3. `docs/DOMAINS-AND-EMAIL.md` — add an inventory entry.
-4. `docs/env-vars.md` — add the per-env `*_DOMAIN` row.
+3. `docs/reference/DOMAINS-AND-EMAIL.md` — add an inventory entry.
+4. `docs/reference/ENVIRONMENT-VARIABLES.md` — add the per-env `*_DOMAIN` row.
 5. `infra/cdk/bin/app.ts` — read the env var, pass to AppStack.
 6. `infra/cdk/tests/helper.ts` — add the test domain constant.

@@ -1,6 +1,6 @@
 # Infrastructure
 
-> Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../docs/DOMAINS-AND-EMAIL.md).
+> Public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](../docs/reference/DOMAINS-AND-EMAIL.md).
 
 Single-account AWS CDK v2 (TypeScript) for app stacks, plus a local Docker Compose stack for dev parity. One tool, one state system, one CI path.
 
@@ -32,7 +32,7 @@ infra/
   openstatus/               # status.afframe.com monitors-as-code (OVH VPS Docker Compose — NOT AWS/CDK; ADR-0019)
   scripts/                  # backup + restore + WAL archive scripts (Commit 11)
   Dockerfile.backup         # minimal image for the ECS Scheduled Task
-  secrets/                  # SOPS+age scaffold per docs/runbooks/SECRETS.md
+  secrets/                  # SOPS+age scaffold per docs/reference/SECRETS-AND-VARIABLES.md
 ```
 
 `openstatus/` is the one infra directory that is **not** AWS: the `status.afframe.com`

@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
+- Reclassify documentation into plans, runbooks, specifications, compliance, and reference material; archive obsolete files; and add automated documentation validation.
 - Restructure documentation entry points, define canonical source ownership, and correct stale API, sitemap, archetype, ADR, environment, and link references.
 
 ## [v0.17.7] — 2026-07-11

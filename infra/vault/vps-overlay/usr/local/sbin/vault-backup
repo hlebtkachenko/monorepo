@@ -7,7 +7,7 @@
 # runs the weekly B2 mirror + `restic check --read-data-subset=5%` integrity
 # pass (advisor Gate 0 should-fix #8).
 #
-# Tracks: AFF-245 M2. Plan: docs/plans/SECRETS-MIGRATION.md § M2 task 3.
+# Tracks: AFF-245 M2. Plan: docs/reference/SECRETS-MIGRATION-HISTORY.md § M2 task 3.
 #
 # Exit codes:
 #   0  — at least the primary R2 backup landed cleanly

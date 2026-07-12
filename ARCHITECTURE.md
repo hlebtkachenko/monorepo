@@ -109,7 +109,7 @@ Five primitives:
 
 Distinct from the (planned) in-app AI Safety Layer above: **Afframe Brain is the operator-driven accounting agent, and it is implemented + live** (pre-launch — every write HELDs at cold start; nothing auto-applies). It is an **unprivileged external client**, not a server-side worker (ADR-0025, amended 2026-07-01): a Claude Code session runs `afframe brain` commands that drive a nested, sandboxed Agent-SDK session through a **local stdio MCP bridge** (`@afframe/mcp` via `tsx`) to the public REST API — there is no Brain server. Every booking is gated **server-side** by `runGatedWrite` (`apps/api/src/v1/accounting/accounting-writes.gate.ts`): a three-way AND (client confidence · server veto · server-recomputed green score); at cold start an unconditional `extraction_failed` floor forces every write to `202 HELD` for human approval at `/{orgSlug}/accounting/approvals` (an agent key is 403 there). Confidence is infrastructure-gated + calibrated, never model-verbalized (ADR-0026); learned OCR-template state is workspace-scoped (ADR-0029); learning artifacts land only via PR (ADR-0027).
 
-Full reference: [`docs/AFFRAME-BRAIN.md`](docs/AFFRAME-BRAIN.md) (index) · [`docs/AFFRAME-BRAIN-TECHNICAL.md`](docs/AFFRAME-BRAIN-TECHNICAL.md) (internals + data-flow diagram) · [`docs/AFFRAME-BRAIN-STATUS.md`](docs/AFFRAME-BRAIN-STATUS.md) (roadmap) · ADRs 0025–0029.
+Full reference: [`docs/reference/brain/README.md`](docs/reference/brain/README.md) (index) · [`docs/reference/brain/TECHNICAL.md`](docs/reference/brain/TECHNICAL.md) (internals + data-flow diagram) · [`docs/reference/brain/STATUS.md`](docs/reference/brain/STATUS.md) (roadmap) · ADRs 0025–0029.
 
 ## Idempotency Contract
 
@@ -206,7 +206,7 @@ Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> De
 - **Production:** AWS eu-central-1 at `app.afframe.com` — **live** (deployed since v0.2.5, 2026-06). Stack: ECS Fargate web + worker + API, RDS Postgres 18 + RDS Proxy, S3, Cloudflare Tunnel, CloudWatch + OTel Collector sidecar.
 - **Status page:** `status.afframe.com` — OpenStatus self-hosted on the OVH VPS (Docker Compose + Cloudflare Tunnel), deliberately **off AWS** so it survives an AWS region outage. Monitors-as-code in `infra/openstatus/`; not deployed by CDK. See [ADR-0019](docs/adr/0019-status-page-and-uptime-monitoring.md).
 
-Full public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-AND-EMAIL.md).
+Full public host + email inventory: [`docs/reference/DOMAINS-AND-EMAIL.md`](docs/reference/DOMAINS-AND-EMAIL.md).
 
 ## Cost Protection
 

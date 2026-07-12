@@ -3,13 +3,7 @@
     "codegraph": {
       "type": "stdio",
       "command": "pnpm",
-      "args": ["exec", "codegraph", "serve", "--mcp"],
-      "env": {
-        "CODEGRAPH_TELEMETRY": "0",
-        "CODEGRAPH_MCP_TOOLS": "explore,node,search,status",
-        "CODEGRAPH_PARSE_WORKERS": "8",
-        "CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS": "1800000"
-      }
+      "args": ["-w", "exec", "node", "scripts/codegraph.mjs", "serve"]
     }
   }
 }

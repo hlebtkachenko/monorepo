@@ -516,7 +516,7 @@ describe("AppStack Fargate hardening", () => {
     }
   })
 
-  it("init chain: openfga-bootstrap dependsOn openfga-migrate; api dependsOn openfga-bootstrap", () => {
+  it("starts independent sidecars before migrations while keeping database consumers gated", () => {
     const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
     const taskDef = Object.values(taskDefs)[0] as
       { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
@@ -537,6 +537,25 @@ describe("AppStack Fargate hardening", () => {
       ContainerName: "openfga-bootstrap",
       Condition: "SUCCESS",
     })
+    for (const name of ["web", "admin", "openfga", "api"]) {
+      expect(byName[name]).toContainEqual({
+        ContainerName: "db-migrate",
+        Condition: "SUCCESS",
+      })
+    }
+    for (const name of ["pgbouncer", "cerbos"]) {
+      expect(byName[name]?.some((d) => d.ContainerName === "db-migrate")).toBe(
+        false,
+      )
+    }
+    expect(byName["web"]).toContainEqual({
+      ContainerName: "pgbouncer",
+      Condition: "HEALTHY",
+    })
+    expect(byName["api"]).toContainEqual({
+      ContainerName: "openfga",
+      Condition: "START",
+    })
     // Sanity: web/admin do NOT wait on openfga-bootstrap (they don't read
     // OPENFGA_* SSM params). Catches accidental over-wiring.
     expect(
@@ -545,6 +564,59 @@ describe("AppStack Fargate hardening", () => {
     expect(
       byName["admin"]?.some((d) => d.ContainerName === "openfga-bootstrap"),
     ).toBe(false)
+  })
+
+  it("checks runtime health immediately without reducing failure tolerance", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      | {
+          Properties?: {
+            ContainerDefinitions?: Array<{
+              Name?: string
+              HealthCheck?: {
+                Interval?: number
+                Retries?: number
+                StartPeriod?: number
+              }
+            }>
+          }
+        }
+      | undefined
+    const containers = taskDef?.Properties?.ContainerDefinitions ?? []
+    const byName = Object.fromEntries(
+      containers.map((container) => [container.Name ?? "", container]),
+    )
+
+    const expectedRetries: Record<string, number> = {
+      web: 9,
+      api: 9,
+      admin: 9,
+      pgbouncer: 9,
+      cerbos: 9,
+      openfga: 10,
+    }
+    for (const [name, retries] of Object.entries(expectedRetries)) {
+      expect(byName[name]?.HealthCheck?.Interval).toBe(5)
+      expect(byName[name]?.HealthCheck?.Retries).toBe(retries)
+      expect(byName[name]?.HealthCheck?.StartPeriod).toBeUndefined()
+    }
+  })
+
+  it("lets db-migrate wait through the parallel RDS resume window", () => {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const taskDef = Object.values(taskDefs)[0] as
+      { Properties?: { ContainerDefinitions?: unknown[] } } | undefined
+    const containers = (taskDef?.Properties?.ContainerDefinitions ??
+      []) as Array<{
+      Name?: string
+      Environment?: Array<{ Name?: string; Value?: string }>
+    }>
+    const dbMigrate = containers.find((c) => c.Name === "db-migrate")
+
+    expect(dbMigrate?.Environment).toContainEqual({
+      Name: "DB_CONNECT_WAIT_SECONDS",
+      Value: "120",
+    })
   })
 
   it("TaskRole has ssm:PutParameter scoped to /monorepo/<env>/openfga/{store-id,model-id}", () => {

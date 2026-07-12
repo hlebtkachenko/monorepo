@@ -13,6 +13,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Changed
 
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
+- ci: split environment resume into parallel database and application lanes, remove the setup runner, overlap ECS, API boot, independent sidecar preparation, and migration-journal reads, prevent the bootstrap/runtime OpenFGA metrics-port race, tighten readiness detection without reducing failure tolerance, and gate sleeping-page removal on ECS task health
+- infra: keep production continuously available through 2026-07-26 by temporarily deferring the 5h auto-cold-pause TTL; staging remains unchanged and production auto-stop resumes automatically at 2026-07-27 00:00 Europe/Prague
 
 ## [v0.17.7] — 2026-07-11
 

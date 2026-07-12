@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Restore the AI financial agents plan to docs/plans as durable reference for EPIC #485/#487; remaining active plan and public-API launch context migrated to GitHub issues #686/#687/#688 in the Roadmap v1 project.
 - Simplify documentation structure, archive obsolete material, and make documentation validation taxonomy-agnostic.
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.
 - Reclassify documentation into plans, runbooks, specifications, compliance, and reference material; archive obsolete files; and add automated documentation validation.

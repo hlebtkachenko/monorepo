@@ -134,6 +134,18 @@ export const ListAccountsQuerySchema = z
         "Filter to synthetic (`true`) or analytical (`false`) accounts only.",
       example: "false",
     }),
+    number: z
+      .string()
+      .min(1)
+      .max(20)
+      .optional()
+      .openapi({
+        description:
+          "Resolve accounts by exact number (e.g. `518`, `311.001`). Combine " +
+          "with `periodId` to get the single row for that period's chart — the " +
+          "ergonomic number→id lookup that avoids paging the whole chart.",
+        example: "518",
+      }),
   })
   .openapi({ description: "Filters for the chart-of-accounts list." })
 export type ListAccountsQuery = z.infer<typeof ListAccountsQuerySchema>

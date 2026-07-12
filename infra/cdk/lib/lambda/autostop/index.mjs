@@ -20,6 +20,8 @@
 //   SERVICE_NAME              ECS service name
 //   MAX_UPTIME_HOURS          stop once the oldest running task exceeds this
 // Optional env vars:
+//   AUTO_STOP_NOT_BEFORE     ISO instant before which scheduled auto-stop is
+//                            a no-op. Used for bounded always-on windows.
 //   RDS_INSTANCE_IDENTIFIER   RDS instance to stop alongside ECS
 //   OPS_TOPIC_ARN             SNS topic to notify on auto-stop
 //   ENV_NAME                  "staging" | "production" — picks which hosts to
@@ -58,6 +60,7 @@ const ssm = new SSMClient({})
 const CLUSTER_NAME = process.env.CLUSTER_NAME
 const SERVICE_NAME = process.env.SERVICE_NAME
 const MAX_UPTIME_HOURS = Number(process.env.MAX_UPTIME_HOURS ?? "5")
+const AUTO_STOP_NOT_BEFORE = process.env.AUTO_STOP_NOT_BEFORE
 const RDS_INSTANCE_IDENTIFIER = process.env.RDS_INSTANCE_IDENTIFIER
 const OPS_TOPIC_ARN = process.env.OPS_TOPIC_ARN
 
@@ -79,6 +82,19 @@ const SLEEPING_HOSTS = {
 
 function log(event, fields) {
   console.log(JSON.stringify({ event, ...fields }))
+}
+
+export function resolveDeferral(
+  notBefore = AUTO_STOP_NOT_BEFORE,
+  nowMs = Date.now(),
+) {
+  if (!notBefore) return null
+  const notBeforeMs = Date.parse(notBefore)
+  if (!Number.isFinite(notBeforeMs)) {
+    throw new Error("AUTO_STOP_NOT_BEFORE must be a valid ISO instant")
+  }
+  if (nowMs >= notBeforeMs) return null
+  return new Date(notBeforeMs).toISOString()
 }
 
 async function oldestRunningTaskAgeMs() {
@@ -205,6 +221,16 @@ export const handler = async () => {
     throw new Error(
       "staging-autostop: CLUSTER_NAME + SERVICE_NAME env vars are required.",
     )
+  }
+
+  const deferredUntil = resolveDeferral()
+  if (deferredUntil) {
+    log("auto-stop-temporarily-disabled", { deferredUntil })
+    return {
+      action: "noop",
+      reason: "temporarily-disabled",
+      deferredUntil,
+    }
   }
 
   const desc = await ecs.send(

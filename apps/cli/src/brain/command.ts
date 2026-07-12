@@ -22,10 +22,13 @@ import {
   BRAIN_HARNESS_REQUIRED_ENV,
   BrainHarnessNotWiredError,
   planBrainDryRun,
+  planForPosting,
   runLiveBrainSession,
   type BrainDryRunInputs,
   type BrainDryRunPlan,
+  type BrainSessionPlan,
   type OnboardingPlan,
+  type PostingSessionContext,
 } from "@workspace/intake"
 import { assembleLoginSections } from "@workspace/brain"
 import type {
@@ -81,23 +84,58 @@ export function registerBrainCommand(program: Command): void {
     )
     .requiredOption(
       "--inputs <path>",
-      "Path to a JSON file: { invoice, sections, captureContext }",
+      "Path to a JSON file. capture (default): { invoice, sections, captureContext }. posting: " +
+        "{ invoice, sections, posting } where posting = { periodId, summaryRecordId, accountingEventId, " +
+        "postingDate, conversationId }",
+    )
+    .option(
+      "--mode <mode>",
+      "capture (default): propose a capture write. posting: the model REASONS the double-entry účet " +
+        "předkontace (which cost account 501/518/… against 321 + 343) and proposes a posting — its account " +
+        "choice is the thing under test (GAP-007). Still HELD by the server gate at cold start.",
+      "capture",
     )
     .option(
       "--dry-run",
       "Build + print the tool-call plan only; contact no endpoint (no creds needed)",
     )
-    .action(async (opts: { inputs: string; dryRun?: boolean }) => {
-      const plan = planBrainDryRun(readInputs(opts.inputs))
+    .action(
+      async (opts: { inputs: string; mode?: string; dryRun?: boolean }) => {
+        const mode = opts.mode ?? "capture"
+        if (mode !== "capture" && mode !== "posting") {
+          output.write(
+            `brain run: unknown --mode "${mode}" (expected "capture" or "posting").\n`,
+          )
+          process.exit(1)
+        }
 
-      if (opts.dryRun) {
-        output.write(JSON.stringify(plan, null, 2) + "\n")
-        return
-      }
+        let plan: BrainSessionPlan
+        if (mode === "posting") {
+          const inp = readPostingInputs(opts.inputs)
+          plan = planForPosting(inp.invoice, inp.sections, inp.posting)
+        } else {
+          plan = planBrainDryRun(readInputs(opts.inputs))
+        }
 
-      // Drive the plan through the shared live loop (lazy-loads the SDK, fails closed as `brain run blocked`).
-      await runPlanLive(plan, "brain run")
-    })
+        if (opts.dryRun) {
+          // The posting plan carries the raw IR invoice, whose `_minor` money fields are `bigint` (which
+          // `JSON.stringify` cannot serialize) — render them as their exact string, the same wire form Money
+          // uses. Harmless for the capture plan (it carries no bigints).
+          output.write(
+            JSON.stringify(
+              plan,
+              (_key, value) =>
+                typeof value === "bigint" ? value.toString() : value,
+              2,
+            ) + "\n",
+          )
+          return
+        }
+
+        // Drive the plan through the shared live loop (lazy-loads the SDK, fails closed as `brain run blocked`).
+        await runPlanLive(plan, "brain run")
+      },
+    )
 
   brain
     .command("book")
@@ -685,7 +723,7 @@ function readHarnessEnv(name: string, resolved: BrainEnv): string | undefined {
  * response, instead of the raw 429 tool-result text.
  */
 async function runPlanLive(
-  plan: BrainDryRunPlan,
+  plan: BrainSessionPlan,
   command: string,
 ): Promise<void> {
   const { sdkAgentSessionLauncher } = await import("./sdk-launcher")
@@ -804,4 +842,26 @@ export function readInputs(path: string): BrainDryRunInputs {
       "captureContext",
     ]),
   ) as BrainDryRunInputs
+}
+
+/**
+ * Read + shallow-validate the operator-supplied POSTING (double-entry) plan inputs: `invoice` / `sections` /
+ * `posting`. The shared `readContextFile` picks EXACTLY those keys (any `policy` or other widening key is
+ * DROPPED, same as `readInputs`), and `withAssembledSections` stamps the LOCKED constitution + safety spine on.
+ * `posting` carries only the id + gate-correlation envelope (periodId / summaryRecordId / accountingEventId /
+ * postingDate / conversationId) the model stamps onto the write — never an account choice (the model reasons
+ * those). The money fields inside `invoice` survive as `bigint` via the shared `_minor` reviver.
+ */
+function readPostingInputs(path: string): {
+  invoice: Invoice
+  sections: LoginContextSections
+  posting: PostingSessionContext
+} {
+  return withAssembledSections(
+    readContextFile(path, "--inputs", ["invoice", "sections", "posting"]),
+  ) as {
+    invoice: Invoice
+    sections: LoginContextSections
+    posting: PostingSessionContext
+  }
 }

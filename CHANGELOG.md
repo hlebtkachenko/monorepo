@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- feat(brain): posting lane (`brain run --mode posting`) — the Brain reasons the double-entry účet předkontace (cost account vs 321 + 343) and proposes a HELD posting, so its account choice is testable against the real book (GAP-007)
+
 ### Changed
 
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.

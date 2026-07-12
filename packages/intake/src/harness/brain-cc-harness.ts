@@ -119,6 +119,54 @@ export interface BrainDryRunPlan {
 }
 
 /**
+ * The operator-supplied context a POSTING (double-entry) session needs. Unlike the capture lane, the model is
+ * NOT handed a verbatim write body — it reasons the předkontace and BUILDS the posting itself, so this carries
+ * only the id envelope it stamps onto `create_accounting_posting`, never an account choice. `periodId` is a
+ * REAL tenant účetní období; `summaryRecordId` / `accountingEventId` are operator-minted — a cold-start HELD
+ * write commits nothing, so no real doklad/event row exists to reference (the server never checks these FKs on
+ * the held path, and a held posting can never be applied with dangling FKs). `postingDate` is the účetní date
+ * (the invoice tax point); `conversationId` PINS the audit + offline-scoring correlation and MUST be a UUID.
+ */
+export interface PostingSessionContext {
+  /** REAL tenant účetní období id the posting is booked into. */
+  periodId: string
+  /** The doklad (summary_record) id the posting references — operator-minted on the cold-start held lane. */
+  summaryRecordId: string
+  /** The účetní případ (accounting_event) id the posting references — operator-minted on the held lane. */
+  accountingEventId: string
+  /** Datum (§5.2) — ISO date the posting is dated to (the invoice tax point). */
+  postingDate: string
+  /** The conversation_id = brain_run_id UUID; pins the audit + offline-scoring correlation. */
+  conversationId: string
+}
+
+/**
+ * A single-INVOICE POSTING session plan — the double-entry counterpart to `BrainDryRunPlan`. Where the capture
+ * plan embeds a deterministic `captureRequest` the model submits VERBATIM, the posting plan deliberately does
+ * NOT: it carries the raw `invoice` + the id envelope so the kickoff can ask the model to REASON the účet
+ * předkontace (which cost account 501/518/504… against 321, plus 343 input VAT) and construct the balanced
+ * `create_accounting_posting` body itself. That is the whole point of this lane (GAP-007): the model's account
+ * choice is the thing under test, so it can never be pre-embedded. Structurally discriminated from
+ * `BrainDryRunPlan` by the `posting` field (see `isPostingPlan`); the write is HELD by the SAME server gate as
+ * every other write at cold start.
+ */
+export interface BrainPostingPlan {
+  /** The WP-B login pack (system prompt + concrete allow/deny tool lists), same assembler as the capture lane. */
+  loginPack: LoginContextPack
+  /** The sandbox policy in force (the pinned per-TOOL accounting allowlist — already grants `list_accounts`). */
+  policy: ToolAllowlistPolicy
+  /** The ordered read → propose tool plan the live session executes (inspectable, creds-free). */
+  toolPlan: PlannedToolCall[]
+  /** The IR invoice the model must book — presented (curated) in the kickoff, NEVER a pre-chosen account. */
+  invoice: Invoice
+  /** The operator-supplied id + correlation envelope the model stamps onto the posting. */
+  posting: PostingSessionContext
+}
+
+/** Either Brain live-session plan shape. Discriminated structurally by `isPostingPlan` (`"posting" in plan`). */
+export type BrainSessionPlan = BrainDryRunPlan | BrainPostingPlan
+
+/**
  * The inputs a dry-run needs. `sections` are the WP-B login-pack section texts (the caller supplies the
  * provenance-checked texts; the pack assembler composes them). `captureContext` are the harness-supplied
  * uuids + the server-gate envelope the WP-A adapter needs (periodId / seriesId / eventId / confidence /
@@ -219,6 +267,62 @@ export function planBrainDryRun(inputs: BrainDryRunInputs): BrainDryRunPlan {
   )
 }
 
+/**
+ * Build the creds-free plan for a single-INVOICE POSTING (double-entry) session. PURE. It assembles the SAME
+ * login pack as the capture lane (`buildLoginContext` under the pinned `BRAIN_ACCOUNTING_POLICY`, which already
+ * allows `list_accounts` + `create_accounting_posting`), then returns the ordered tool plan the live session
+ * executes: confirm the structure, read the chart of accounts (to resolve each account number → its tenant id
+ * while reasoning the předkontace), then PROPOSE the posting. Unlike `planForCapture`, NO write body is
+ * pre-built — the invoice + id envelope ride in the plan and the model constructs the
+ * `create_accounting_posting` body itself (the whole point of this lane, GAP-007). The write is HELD/applied by
+ * the SERVER gate, never by the model; the client cannot force a green.
+ */
+export function planForPosting(
+  invoice: Invoice,
+  sections: LoginContextSections,
+  posting: PostingSessionContext,
+  policyOverride?: ToolAllowlistPolicy,
+): BrainPostingPlan {
+  const policy = policyOverride ?? BRAIN_ACCOUNTING_POLICY
+
+  // Same fail-closed login-pack assembler as the capture lane (throws on a self-contradictory policy).
+  const loginPack = buildLoginContext({ ...sections, toolPolicy: policy })
+
+  // The fixed read → propose plan. `list_accounts` resolves account number → id for the předkontace; the
+  // posting is the ONLY mutation and is subject to the SERVER gate. Every name is the real
+  // `mcp__afframe__<tool>` name so the sandbox verdict is asserted verbatim.
+  const toolPlan: PlannedToolCall[] = [
+    tool(
+      "mcp__afframe__get_structure",
+      "Confirm the accounting period + structure the posting is booked into.",
+      policy,
+      { as: "read" },
+    ),
+    tool(
+      "mcp__afframe__list_accounts",
+      "Read the chart of accounts (účtový rozvrh) to resolve each account number to its tenant id.",
+      policy,
+      { as: "read" },
+    ),
+    tool(
+      "mcp__afframe__create_accounting_posting",
+      "Propose the reasoned double-entry posting. The SERVER gate scores + holds/applies it; the client " +
+        "cannot force green.",
+      policy,
+      { as: "propose" },
+    ),
+  ]
+
+  return { loginPack, policy, toolPlan, invoice, posting }
+}
+
+/** True when `plan` is a POSTING session plan (structurally discriminated by the `posting` envelope). */
+export function isPostingPlan(
+  plan: BrainSessionPlan,
+): plan is BrainPostingPlan {
+  return "posting" in plan
+}
+
 /** Build one `PlannedToolCall`, tagging it with the sandbox verdict for `toolName`. */
 function tool<Input>(
   toolName: string,
@@ -246,9 +350,10 @@ export interface AgentSessionLaunchOptions {
    * The inspected dry-run plan the session executes against the real tools. The launcher reads the WP-B login
    * pack's system prompt + concrete allow/deny tool lists from `plan.loginPack.{system,allowedTools,
    * disallowedTools}` DIRECTLY — a single source of truth, so the safety-critical sandbox deny-list cannot
-   * diverge across the seam (the type makes a contradictory payload unrepresentable).
+   * diverge across the seam (the type makes a contradictory payload unrepresentable). Either lane's plan
+   * shape (capture `BrainDryRunPlan` or `BrainPostingPlan`) — both expose the `loginPack` the launcher reads.
    */
-  plan: BrainDryRunPlan
+  plan: BrainSessionPlan
   /** The deployed REST API base URL (e.g. https://api.afframe.com), consumed by the local stdio MCP bridge. */
   mcpEndpoint: string
   /** The Brain's server-authorized accounting API key (resolves org server-side; never a tool input). */
@@ -299,8 +404,8 @@ export interface AgentSessionLauncher {
  * already inspected — it never re-plans from untrusted document content.
  */
 export interface LiveBrainSessionInputs {
-  /** The dry-run plan (from `planBrainDryRun`) the live session executes against the real tools. */
-  plan: BrainDryRunPlan
+  /** The session plan (capture `planBrainDryRun` or `planForPosting`) the live session executes. */
+  plan: BrainSessionPlan
   /** The deployed REST API base URL (e.g. https://api.afframe.com), consumed by the local stdio MCP bridge. */
   mcpEndpoint: string
   /**

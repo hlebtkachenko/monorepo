@@ -25,19 +25,23 @@ import {
 } from "@anthropic-ai/claude-agent-sdk"
 import {
   applyClassifyToCapture,
+  isPostingPlan,
   parseClassifyThreading,
   type AgentSessionLaunchOptions,
   type AgentSessionLauncher,
   type BrainDryRunPlan,
+  type BrainPostingPlan,
   type ClassifyThreading,
   type LiveBrainSessionResult,
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
   CLASSIFY_ACCOUNTING_EVENT_TOOL,
+  CREATE_ACCOUNTING_POSTING_TOOL,
   buildBrainKickoff,
   buildBrainQueryOptions,
   buildBrainSessionEnv,
+  buildPostingKickoff,
   detectCaptureError,
   parseCaptureOutcome,
   parseCaptureResultText,
@@ -153,10 +157,94 @@ export function makeCanUseTool(
  * `tool_call_log.output_json.serverGate` verdict is audit-only and requires a separate operator read; that
  * correlation (session_id ↔ conversation_id/brain_run_id) is established at wire time.
  */
+/**
+ * The POSTING lane's default-deny gate: identical per-TOOL `isToolAllowed` decision as the capture lane, but
+ * with NO `updatedInput` rewriter — the posting lane never threads classify onto the write (the model authors
+ * the whole body, gated server-side). Everything off the pinned allowlist is denied.
+ */
+function makePostingCanUseTool(plan: BrainPostingPlan): CanUseTool {
+  return makeSandboxGate(
+    (toolName) => sandboxAllows(toolName, plan),
+    (toolName) =>
+      `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
+  )
+}
+
+/**
+ * Drive ONE double-entry POSTING session: the model reasons the předkontace and PROPOSES
+ * `create_accounting_posting` itself (no verbatim-embed, no classify threading). Watches for the posting
+ * tool_use + its result and maps the outcome into a `LiveBrainSessionResult` — the server gate HELDs it at cold
+ * start exactly like a capture. The `create_accounting_posting` response is the SAME `{ status, reviewId }`
+ * shape the capture parsers read, so `parseCaptureOutcome` / `detectCaptureError` are reused verbatim.
+ */
+async function launchPostingSession(
+  options: AgentSessionLaunchOptions,
+  plan: BrainPostingPlan,
+): Promise<LiveBrainSessionResult> {
+  const queryOptions = buildBrainQueryOptions(options, resolveMcpBridge())
+
+  let sessionId = ""
+  let postingToolUseId: string | undefined
+  let postingResultText: string | undefined
+  let postingIsError = false
+
+  for await (const message of query({
+    prompt: buildPostingKickoff(plan),
+    options: {
+      ...queryOptions,
+      canUseTool: makePostingCanUseTool(plan),
+      env: buildBrainSessionEnv(process.env, options.agentSdkAuth),
+    },
+  })) {
+    if (message.type === "assistant") {
+      for (const block of message.message.content) {
+        if (
+          block.type === "tool_use" &&
+          block.name === CREATE_ACCOUNTING_POSTING_TOOL
+        ) {
+          postingToolUseId = block.id
+        }
+      }
+    } else if (message.type === "user") {
+      const content = message.message.content
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block.type !== "tool_result") continue
+          if (block.tool_use_id === postingToolUseId) {
+            postingResultText = readToolResultText(block.content)
+            postingIsError = block.is_error === true
+          }
+        }
+      }
+    } else if (message.type === "result") {
+      sessionId = message.session_id
+    }
+  }
+
+  const outcome = parseCaptureOutcome(parseCaptureResultText(postingResultText))
+  const error = detectCaptureError(postingResultText, postingIsError)
+  return {
+    brainRunId: sessionId,
+    applied: outcome.applied,
+    status: outcome.status,
+    reviewId: outcome.reviewId,
+    isError: error.isError,
+    rateLimited: error.rateLimited,
+    retryAfterMs: error.retryAfterMs,
+    serverGate: outcome.raw,
+  }
+}
+
 export const sdkAgentSessionLauncher: AgentSessionLauncher = {
   async launch(
     options: AgentSessionLaunchOptions,
   ): Promise<LiveBrainSessionResult> {
+    // A POSTING plan drives the double-entry lane (model reasons the účet předkontace); everything else is the
+    // capture lane. Structural discrimination on the `posting` envelope narrows `options.plan` below.
+    if (isPostingPlan(options.plan)) {
+      return launchPostingSession(options, options.plan)
+    }
+
     const queryOptions = buildBrainQueryOptions(options, resolveMcpBridge())
 
     let sessionId = ""

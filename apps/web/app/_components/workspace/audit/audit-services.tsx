@@ -31,7 +31,6 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import {
   AUDIT_COMPANIES,
   AUDIT_PERIODS,
@@ -70,7 +69,7 @@ export function AuditServices() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Services" actions={<PageHeaderActions />} />
+        <ContentHeader title="Services" />
       </AppPageHeader>
       <ContentPanel statusBar={statusBar}>
         <div className="space-y-4">

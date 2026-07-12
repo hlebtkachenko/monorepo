@@ -10,7 +10,6 @@ import {
 } from "@workspace/ui/blocks/content-panel"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import { ANALYSE_CHARTS, buildAnalyseMetrics } from "./data"
 
 /**
@@ -38,7 +37,7 @@ export function AnalyseDashboard({
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title={workspaceName} actions={<PageHeaderActions />} />
+        <ContentHeader title={workspaceName} />
       </AppPageHeader>
       <ContentPanel>
         <DashboardGrid metrics={metrics} mode="chart">

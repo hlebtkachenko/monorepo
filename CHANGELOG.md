@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Close the ContentHeader API (remove actions/icon/tabs/manageTabs ReactNode holes; add breadcrumb + titleIcon; internal Favorite/Configure + data-driven manageViews); split into content-header-* sub-blocks (archetype-system P4/PR-3). Header-jammed content on companies/doklad/single-demo dropped behind TODO(archetype-redo).
 - Extract AppBody presentational panel-row component from AppShell; all shell state stays in AppShell (archetype-system P3)
 - Reshape content-panel block: move ContentHeader + ContentToolbar into subfolders with re-export (archetype-system P2, behavior-preserving)
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.

@@ -1020,61 +1020,9 @@ export function SingleDemo() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader
-          icon={
-            <IconButton
-              icon="ArrowLeft"
-              aria-label="Back"
-              tooltip="Back"
-              tooltipSide="bottom"
-              onClick={() => toast("Back to the list")}
-            />
-          }
-          title={RECORD_NUMBER}
-          actions={
-            <>
-              <Badge variant="destructive" className="h-5">
-                Overdue
-              </Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7"
-                onClick={() => toast("Deliveries")}
-              >
-                Deliveries
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7"
-                onClick={() => toast("Received orders")}
-              >
-                Received orders
-              </Button>
-              <IconButton
-                icon="ChevronUp"
-                aria-label="Previous record"
-                tooltip="Previous"
-                tooltipSide="bottom"
-                onClick={() => toast("Previous record")}
-              />
-              <IconButton
-                icon="ChevronDown"
-                aria-label="Next record"
-                tooltip="Next"
-                tooltipSide="bottom"
-                onClick={() => toast("Next record")}
-              />
-              <IconButton
-                icon="Settings2"
-                aria-label="Configure"
-                tooltip="Configure"
-                tooltipSide="bottom"
-              />
-            </>
-          }
-        />
+        {/* TODO(archetype-redo): a back-arrow IconButton lived in the header icon slot; relocate to the body on rebuild. */}
+        {/* TODO(archetype-redo): an Overdue badge, Deliveries/Received-orders buttons, prev/next record nav, and a Configure button lived in the header actions; relocate to the body on rebuild. */}
+        <ContentHeader title={RECORD_NUMBER} />
       </AppPageHeader>
       <ContentPanel
         bodyClassName="flex min-h-0 flex-col p-0"

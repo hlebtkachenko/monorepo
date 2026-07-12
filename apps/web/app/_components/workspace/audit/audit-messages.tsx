@@ -14,7 +14,6 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import { AUDIT_MESSAGES, formatDate, type AuditMessage } from "./data"
 
 /**
@@ -74,7 +73,7 @@ export function AuditMessages() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Messages" actions={<PageHeaderActions />} />
+        <ContentHeader title="Messages" />
       </AppPageHeader>
       <ContentPanel statusBar={statusBar}>
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-4">

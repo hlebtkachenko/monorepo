@@ -11,7 +11,7 @@ import type { ObligationRow } from "./data"
  * Shared UI state linking the Legislation page's two shell slots: the portaled
  * content-header (status tabs) and the body (toolbar + table + inspector). Same
  * seam the Companies table uses, trimmed to what this page actually consumes — the
- * favorite star lives in the shared `PageHeaderActions` cluster. The inspector
+ * favorite star is internal `ContentHeader` chrome (`ContentHeaderActions`). The inspector
  * mode switches to a `dialog` on mobile (a side panel doesn't fit a narrow
  * viewport) and stays a `panel` on desktop.
  */

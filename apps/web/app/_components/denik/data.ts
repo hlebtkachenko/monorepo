@@ -25,9 +25,9 @@ export interface JournalRow {
   counterpartyName: string | null
 }
 
-/** Tabs mirror the deník's natural cuts; `kind` filters the body rows.
- *  `label` is a plain string so the tab list feeds both `ContentHeader`
- *  (ReactNode labels) and `ManageTabsMenu` (string labels). */
+/** Views mirror the deník's natural cuts; `kind` filters the body rows.
+ *  `label` is a plain string, fed to `ContentHeader.viewTabs` and the
+ *  `manageViews` configure data. */
 export interface JournalTab {
   value: string
   label: string

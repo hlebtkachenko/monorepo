@@ -7,15 +7,11 @@ import {
   ContentPanel,
   getLaunchpadCounts,
   LaunchpadGrid,
-  type ContentTab,
   type LaunchpadView,
+  type ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 
-import {
-  ManageTabsMenu,
-  PageHeaderActions,
-  useTabVisibility,
-} from "../_shared/content-header-extras"
+import { useTabVisibility } from "../_shared/content-header-extras"
 import { AppPageHeader } from "../app-page-header"
 import { BASE_SECTIONS } from "./data"
 
@@ -84,7 +80,7 @@ export function LaunchpadDemo() {
     followed: counts.followed,
     unread: counts.unread,
   }
-  const tabs: ContentTab[] = visible.map((tab) => ({
+  const tabs: ViewTab[] = visible.map((tab) => ({
     value: tab.value,
     label: tab.label,
     badge: badges[tab.value],
@@ -95,17 +91,10 @@ export function LaunchpadDemo() {
       <AppPageHeader>
         <ContentHeader
           title="Overview"
-          tabs={tabs}
+          viewTabs={tabs}
           value={activeView}
           onValueChange={(value) => setView(value as LaunchpadView)}
-          manageTabs={
-            <ManageTabsMenu
-              tabs={[...TAB_DEFS]}
-              hidden={hidden}
-              onToggle={toggle}
-            />
-          }
-          actions={<PageHeaderActions />}
+          manageViews={{ tabs: [...TAB_DEFS], hidden, onToggle: toggle }}
         />
       </AppPageHeader>
       <ContentPanel>

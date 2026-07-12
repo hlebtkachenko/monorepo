@@ -20,7 +20,6 @@ import {
 import { useIcons, type IconName } from "@workspace/ui/icon-packs"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import {
   actionRequiredEngagements,
   AUDIT_ENGAGEMENTS,
@@ -57,7 +56,7 @@ export function AuditOverview() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Overview" actions={<PageHeaderActions />} />
+        <ContentHeader title="Overview" />
       </AppPageHeader>
       <ContentPanel statusBar={statusBar}>
         <div className="mx-auto flex max-w-5xl flex-col gap-6">

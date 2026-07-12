@@ -1,5 +1,10 @@
-export { ContentHeader } from "./content-header"
-export type { ContentHeaderProps, ContentTab } from "./content-header"
+export { ContentHeader, ContentHeaderActions } from "./content-header"
+export type {
+  ContentHeaderProps,
+  ViewTab,
+  ViewTabsConfigure,
+  ContentHeaderBreadcrumbItem,
+} from "./content-header"
 export { ContentToolbar } from "./content-toolbar"
 export type { ContentToolbarProps } from "./content-toolbar"
 export { ContentStatusBar } from "./content-status-bar"

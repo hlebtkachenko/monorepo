@@ -35,7 +35,6 @@ import {
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import { ToolbarSearch } from "../_shared/toolbar-search"
 
 export interface TeamMember {
@@ -86,7 +85,7 @@ export function TeamView({ members }: { members: TeamMember[] }) {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Members" actions={<PageHeaderActions />} />
+        <ContentHeader title="Members" />
       </AppPageHeader>
       <ContentPanel
         bodyClassName="flex min-h-0 flex-col p-0"

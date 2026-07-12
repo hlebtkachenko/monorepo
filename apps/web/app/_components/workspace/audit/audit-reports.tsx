@@ -25,7 +25,6 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import {
   AUDIT_REPORT_KIND_META,
   AUDIT_REPORTS,
@@ -89,7 +88,7 @@ export function AuditReports() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Reports" actions={<PageHeaderActions />} />
+        <ContentHeader title="Reports" />
       </AppPageHeader>
       <ContentPanel
         toolbar={toolbar}

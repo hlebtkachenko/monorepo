@@ -44,7 +44,7 @@ export function DetailTabsHeader({
     <AdminPageHeader>
       <ContentHeader
         title={title}
-        tabs={tabs.map((t) => ({ value: t.value, label: t.label }))}
+        viewTabs={tabs.map((t) => ({ value: t.value, label: t.label }))}
         value={active}
         onValueChange={(value) => {
           const tab = tabs.find((t) => t.value === value)

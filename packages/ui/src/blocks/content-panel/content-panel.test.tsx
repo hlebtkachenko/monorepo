@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { ContentHeader, type ContentTab } from "./content-header"
+import { ContentHeader, type ViewTab } from "./content-header"
 import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
@@ -14,7 +14,7 @@ import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
-const TABS: ContentTab[] = [
+const TABS: ViewTab[] = [
   { value: "all", label: "Všechny" },
   { value: "tax", label: "Daňové doklady" },
 ]
@@ -26,7 +26,7 @@ describe("ContentHeader", () => {
   })
 
   it("renders tabs as a tablist when tabs are provided", () => {
-    wrap(<ContentHeader title="Faktury" tabs={TABS} value="all" />)
+    wrap(<ContentHeader title="Faktury" viewTabs={TABS} value="all" />)
     expect(screen.getByRole("tablist")).toBeInTheDocument()
     expect(screen.getAllByRole("tab")).toHaveLength(2)
     expect(screen.getByRole("tab", { name: "Všechny" })).toHaveAttribute(
@@ -42,32 +42,54 @@ describe("ContentHeader", () => {
 
   it("shows the manage-tabs trigger only when a menu is passed", () => {
     const { rerender } = wrap(
-      <ContentHeader title="Faktury" tabs={TABS} value="all" />,
+      <ContentHeader title="Faktury" viewTabs={TABS} value="all" />,
     )
     expect(
-      screen.queryByRole("button", { name: /manage tabs/i }),
+      screen.queryByRole("button", { name: /manage views/i }),
     ).not.toBeInTheDocument()
     rerender(
       <ContentHeader
         title="Faktury"
-        tabs={TABS}
+        viewTabs={TABS}
         value="all"
-        manageTabs={<div>menu</div>}
+        manageViews={{ tabs: TABS, hidden: new Set(), onToggle: () => {} }}
       />,
     )
     expect(
-      screen.getByRole("button", { name: /manage tabs/i }),
+      screen.getByRole("button", { name: /manage views/i }),
     ).toBeInTheDocument()
   })
 
-  it("renders right-aligned page actions", () => {
+  it("renders the closed favorite + configure actions on every header", () => {
+    wrap(<ContentHeader title="Faktury" />)
+    expect(
+      screen.getByRole("button", { name: /favorite/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /configure/i }),
+    ).toBeInTheDocument()
+  })
+
+  it("renders a decorative titleIcon and keeps the title", () => {
+    const { container } = wrap(
+      <ContentHeader title="Faktury" titleIcon="Inbox" />,
+    )
+    expect(screen.getByText("Faktury")).toBeInTheDocument()
+    expect(container.querySelector("svg")).not.toBeNull()
+  })
+
+  it("renders the breadcrumb trail as links and inert pages", () => {
     wrap(
       <ContentHeader
-        title="Faktury"
-        actions={<button type="button">Oblíbené</button>}
+        title="Received"
+        breadcrumb={[{ label: "Accounting", href: "/acc" }, { label: "Docs" }]}
       />,
     )
-    expect(screen.getByRole("button", { name: "Oblíbené" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Accounting" })).toHaveAttribute(
+      "href",
+      "/acc",
+    )
+    expect(screen.getByText("Docs")).toBeInTheDocument()
   })
 })
 

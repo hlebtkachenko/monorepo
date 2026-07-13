@@ -4,18 +4,22 @@
 // The ContentPanel body may hold ONLY a branded archetype descriptor
 // (`<ContentPanel body={archetypeEmpty(...)} />`). The legacy free-JSX path
 // (`<ContentPanel>{jsx}</ContentPanel>`, or an explicit `children=` prop) is
-// frozen to a shrink-only grandfather allowlist. This check fails when:
+// grandfathered by a hand-maintained allowlist. This check fails when:
 //
 //   1. VIOLATION — a *new* file renders a <ContentPanel> that passes children
-//      and is NOT in the allowlist. Page #48 cannot be built the old way.
+//      and is NOT in the allowlist. Use the archetype path instead.
 //   2. STALE — an allowlist entry whose file is gone OR no longer renders a
-//      <ContentPanel> with children. The list is forced to only shrink; a
-//      migrated page must drop out of the JSON (surfaced in diff review).
+//      <ContentPanel> with children. Remove it from the JSON (caught in review).
 //
-// Detection is a TypeScript-compiler-API AST walk (not a regex) so unusual
-// formatting cannot evade it, mirroring scripts/check-nav.ts. The type brand +
-// dev runtime assert on ContentBody remain the primary gate; this is the
-// anti-regression ratchet over the known legacy call sites.
+// Enforcement note (honest): the allowlist is shrink-PREFERRED, not code-forced
+// shrink-only. This check does not compare against a base ref, so appending a
+// path to archetype-body-allowlist.json turns a new violation green — only diff
+// review (and the CRITICAL rule at the top of that file) stops the list from
+// growing. Adding entries is FORBIDDEN without Hleb's explicit approval, even in
+// full-auto mode. Detection is a TypeScript-compiler-API AST walk (not a regex)
+// so unusual formatting cannot evade it, mirroring scripts/check-nav.ts. The
+// type brand + dev runtime assert on ContentBody remain the primary gate; this
+// is the anti-regression ratchet over the known legacy call sites.
 import { readFileSync, readdirSync, statSync } from "node:fs"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -189,7 +193,11 @@ function collectTsxFiles(dir) {
 }
 
 function readAllowlist() {
-  return JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8"))
+  const parsed = JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8"))
+  // The file is `{ CRITICAL: "...", allowlist: [...] }`; the CRITICAL note is a
+  // read-for-agents banner forbidding hand-added entries. Tolerate a bare array
+  // too, in case the shape is ever simplified.
+  return Array.isArray(parsed) ? parsed : parsed.allowlist
 }
 
 function main() {
@@ -207,6 +215,9 @@ function main() {
       "\n[archetype-body] BLOCKED — new files render a legacy <ContentPanel> body\n" +
         "(children / free JSX). Use the archetype path instead:\n" +
         "  <ContentPanel body={archetypeEmpty({ ... })} />\n" +
+        "Do NOT silence this by appending to archetype-body-allowlist.json — that\n" +
+        "is FORBIDDEN without Hleb's explicit approval (see the CRITICAL note atop\n" +
+        "the file). Migrate the page.\n" +
         "See .context/archetype-system/specs/S8-content-body-blocker.md.\n" +
         violations.map((f) => `  - ${f}`).join("\n") +
         "\n",
@@ -216,8 +227,8 @@ function main() {
   if (stale.length > 0) {
     console.error(
       "\n[archetype-body] STALE allowlist entries — these no longer render a\n" +
-        "legacy <ContentPanel> body (migrated or deleted). The allowlist is\n" +
-        "shrink-only: remove them from\n" +
+        "legacy <ContentPanel> body (migrated or deleted). Remove them from the\n" +
+        "`allowlist` array in\n" +
         "  scripts/governance/archetype-body-allowlist.json\n" +
         stale.map((f) => `  - ${f}`).join("\n") +
         "\n",

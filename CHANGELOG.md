@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Archetype-body ratchet: make the allowlist claims honest (shrink-preferred + review-gated, not code-forced) and add a CRITICAL read-for-agents banner to archetype-body-allowlist.json forbidding hand-added entries without explicit approval; the BLOCKED/STALE messages now point at that rule.
 - Harden the archetype Content Panel after a thermo-review pass: close the governance ratchet's namespace-import blind spot (with pinned shim/createElement boundary fixtures), test ContentBody's prod no-leak backstop, make AddDescriptor a discriminated union so a variants dropdown can't ship without a handler, cover the ContentToolbar container + split-add path, trim dead content-header exports, drop orphaned favorite state from 5 page contexts, fix registry dep lists, and reconcile the archetype docs.
 - Register content-panel/sidebar-panel/assistant-panel blocks in the UI registry; reconcile the CONTENT-ARCHETYPES shared-foundation example to the closed ContentHeader/ContentToolbar/ContentBody/ContentFooter API (archetype-system P6/PR-7)
 - Close the ContentToolbar API: descriptor-only named slots (statusFilter/search/filter/viewTools/actions/add/modeToggle), rename the ReactNode left/right toolbar to ContentToolbarLegacy for not-yet-migrated pages, migrate demo-table as canonical (archetype-system P4/PR-4)

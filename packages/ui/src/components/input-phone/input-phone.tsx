@@ -12,6 +12,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@workspace/ui/components/command"
 import { Input } from "@workspace/ui/components/input"
 import {
@@ -28,6 +29,9 @@ import { cn } from "@workspace/ui/lib/utils"
 const ROOT_NAME = "PhoneInput"
 const COUNTRY_SELECT_NAME = "PhoneInputCountry"
 const FIELD_NAME = "PhoneInputField"
+
+/** Countries pinned to the top of the selector (in this order), above a separator. */
+const PINNED_COUNTRY_CODES = ["CZ", "SK"]
 
 /**
  * @see https://github.com/mukeshsoni/country-telephone-data/blob/master/country_telephone_data.js
@@ -462,7 +466,7 @@ function PhoneInput(props: PhoneInputProps) {
   const {
     value: valueProp,
     defaultValue,
-    defaultCountry,
+    defaultCountry = "CZ",
     country: countryProp,
     onValueChange,
     onCountryChange,
@@ -569,6 +573,15 @@ function PhoneInput(props: PhoneInputProps) {
 
     if (!shouldDetect) return
 
+    // Explicit selection wins. While the typed digits still begin with the
+    // selected country's dial code, keep that country and skip detection.
+    // Otherwise a pick among shared dial codes (+44 GB/GG, +1 US/CA/DO/PR,
+    // +39 IT/VA) is instantly reverted to the alphabetical / tiebreak default,
+    // since detection re-derives the country from the dial code alone.
+    // Detection still fires once the dial code no longer matches (a retype).
+    const current = countries.find((c) => c.code === country)
+    if (current && digits.startsWith(current.dialCode.slice(1))) return
+
     const detected = detectCountryFromNumber(value, countries)
     if (detected && detected.code !== country) {
       store.setState("country", detected.code)
@@ -613,7 +626,7 @@ function PhoneInput(props: PhoneInputProps) {
           id={rootId}
           {...rootProps}
           className={cn(
-            "relative flex h-8 w-full min-w-0 items-center rounded-lg border border-input bg-transparent transition-colors has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-3 has-[[aria-invalid=true]]:ring-destructive/20 has-[[data-slot=input-phone-field]:focus-visible]:border-ring has-[[data-slot=input-phone-field]:focus-visible]:ring-3 has-[[data-slot=input-phone-field]:focus-visible]:ring-ring/50 dark:bg-input/30 dark:has-[[aria-invalid=true]]:ring-destructive/40 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
+            "relative flex h-9 w-full min-w-0 items-center rounded-lg border border-input bg-transparent transition-colors has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-3 has-[[aria-invalid=true]]:ring-destructive/20 has-[[data-slot=input-phone-field]:focus-visible]:border-ring has-[[data-slot=input-phone-field]:focus-visible]:ring-3 has-[[data-slot=input-phone-field]:focus-visible]:ring-ring/50 dark:bg-input/30 dark:has-[[aria-invalid=true]]:ring-destructive/40 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
             className,
           )}
         >
@@ -664,6 +677,50 @@ function PhoneInputCountry(props: PhoneInputCountryProps) {
     [store, onOpenChangeRef],
   )
 
+  const selectCountry = React.useCallback(
+    (c: Country) => {
+      // Rewrite the value's dial code to the chosen country, keeping the local
+      // part. Without this the auto-detect effect re-derives the country from
+      // the old dial code and reverts the selection (and an empty field would
+      // show a flag with no +dial).
+      const state = store.getState()
+      const digits = state.value.replace(/\D/g, "")
+      const prev = countries.find((x) => x.code === state.country)
+      const prevDial = prev ? prev.dialCode.slice(1) : ""
+      const local =
+        prevDial && digits.startsWith(prevDial)
+          ? digits.slice(prevDial.length)
+          : digits
+      const nextDial = c.dialCode.slice(1)
+      store.setState("startsWithPlus", true)
+      store.setState("value", `+${nextDial}${local}`)
+      store.setState("country", c.code)
+      store.setState("open", false)
+      requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
+    },
+    [store, countries, inputRef],
+  )
+
+  const pinned = PINNED_COUNTRY_CODES.map((code) =>
+    countries.find((c) => c.code === code),
+  ).filter((c): c is Country => Boolean(c))
+  const rest = countries.filter((c) => !PINNED_COUNTRY_CODES.includes(c.code))
+
+  const renderCountryItem = (c: Country) => (
+    <CommandItem
+      key={c.code}
+      value={`${c.name} ${c.dialCode} ${c.code}`}
+      data-checked={country === c.code ? "true" : undefined}
+      onSelect={() => selectCountry(c)}
+    >
+      {showFlag && c.flag && <span className="text-base">{c.flag}</span>}
+      <span className="flex-1">{c.name}</span>
+      <span className="text-muted-foreground">{c.dialCode}</span>
+    </CommandItem>
+  )
+
   return (
     <Popover open={open} onOpenChange={onOpenChange} {...popoverProps}>
       <PopoverTrigger asChild>
@@ -697,30 +754,15 @@ function PhoneInputCountry(props: PhoneInputCountryProps) {
       <PopoverContent className="w-[300px] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search country..." />
-          <CommandList>
+          <CommandList className="max-h-(--radix-popover-content-available-height)">
             <CommandEmpty>No country found.</CommandEmpty>
-            <CommandGroup>
-              {countries.map((c) => (
-                <CommandItem
-                  key={c.code}
-                  value={`${c.name} ${c.dialCode} ${c.code}`}
-                  data-checked={country === c.code ? "true" : undefined}
-                  onSelect={() => {
-                    store.setState("country", c.code)
-                    store.setState("open", false)
-                    requestAnimationFrame(() => {
-                      inputRef.current?.focus()
-                    })
-                  }}
-                >
-                  {showFlag && c.flag && (
-                    <span className="text-base">{c.flag}</span>
-                  )}
-                  <span className="flex-1">{c.name}</span>
-                  <span className="text-muted-foreground">{c.dialCode}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {pinned.length > 0 ? (
+              <>
+                <CommandGroup>{pinned.map(renderCountryItem)}</CommandGroup>
+                <CommandSeparator />
+              </>
+            ) : null}
+            <CommandGroup>{rest.map(renderCountryItem)}</CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
@@ -768,13 +810,37 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
 
       const inputValue = event.target.value
 
+      // First digit into an empty field: auto-load the selected country's dial
+      // code so it sits before the national number the user types (the typed
+      // digit is kept, never swallowed). A leading "+" means the user is
+      // entering an international number by hand, so fall through and let them.
+      // Only single-character input takes this path, so pasting a full number
+      // still lands verbatim.
+      const prevValue = store.getState().value
+      if (
+        !prevValue &&
+        inputValue.length === 1 &&
+        !inputValue.startsWith("+")
+      ) {
+        const selected = countries.find(
+          (c) => c.code === store.getState().country,
+        )
+        const dial = selected ? selected.dialCode.slice(1) : ""
+        if (dial) {
+          const typed = inputValue.replace(/\D/g, "")
+          store.setState("startsWithPlus", true)
+          store.setState("value", `+${dial}${typed}`)
+          return
+        }
+      }
+
       const startsWithPlus = inputValue.startsWith("+")
       const digits = inputValue.replace(/\D/g, "")
       const newValue = digits ? `+${digits}` : startsWithPlus ? "+" : ""
       store.setState("startsWithPlus", startsWithPlus)
       store.setState("value", newValue)
     },
-    [store, onChangeRef, isDisabled, isReadOnly],
+    [store, onChangeRef, isDisabled, isReadOnly, countries],
   )
 
   const displayValue = React.useMemo(() => {

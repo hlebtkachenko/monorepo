@@ -74,13 +74,28 @@ function InputTagsItem({
       data-slot="input-tags-item"
       className={cn(
         "inline-flex max-w-[calc(100%-8px)] items-center gap-1.5 rounded-md border border-border bg-transparent px-2 py-0.5 text-sm focus:outline-none",
-        "data-editable:select-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        "data-editable:cursor-text data-editable:select-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
         "data-editing:bg-transparent data-editing:ring-1 data-editing:ring-ring",
         "[&:not([data-editing])]:pr-1",
         "[&[data-highlighted]:not([data-editing])]:bg-accent [&[data-highlighted]:not([data-editing])]:text-accent-foreground",
         className,
       )}
       {...props}
+      onClick={(event) => {
+        props.onClick?.(event)
+        // The primitive only enters edit mode on double-click. Promote a
+        // single click on an editable chip by re-dispatching it as a
+        // dblclick (skip clicks on the delete button and while editing).
+        const chip = event.currentTarget
+        const target = event.target as HTMLElement
+        if (target.closest('[data-slot="input-tags-item-delete"]')) return
+        if (
+          chip.hasAttribute("data-editable") &&
+          !chip.hasAttribute("data-editing")
+        ) {
+          chip.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+        }
+      }}
     >
       <TagsInputPrimitive.ItemText className="truncate">
         {children}

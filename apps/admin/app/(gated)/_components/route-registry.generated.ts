@@ -95,6 +95,18 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform archetypes platform archetypes"
   },
   {
+    "href": "/platform/debug",
+    "label": "Debug",
+    "section": "Platform",
+    "keywords": "platform debug platform debug"
+  },
+  {
+    "href": "/platform/debug/input-fields",
+    "label": "Input Fields · Debug",
+    "section": "Platform",
+    "keywords": "platform debug input fields platform debug input fields"
+  },
+  {
     "href": "/platform/domains",
     "label": "Domains",
     "section": "Platform",

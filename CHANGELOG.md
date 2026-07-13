@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Admin Platform Debug page with Input Fields subpage (blocked in production); the shared inputs debug board lives in packages/ui/src/blocks/inputs-debug and is rendered by that page
+- DatePicker component: shadcn calendar-with-presets in a Card, vertical (presets below) and horizontal (presets left) orientations, active-preset highlight, our rounded-lg surface radius
 - **brain**: calibration degenerate-fit guard (#569) — reject zero-variance / single-block / all-same-label fits, fail closed to the cold-start identity model; a degenerate fit can never raise a score
 - **api/brain**: wire the confidence gate to consult a (default-safe, cold-start-identity) calibration model + a guarded refit entry point (M3.2, #569 degenerate-fit/domain guards); cold-start stays HELD (the `extraction_failed` floor forces the block short-circuit regardless of the model). Preserve `serverGate` (incl. `.shadow`) forward across held-write resolve (F1) so a resolved row carries both `resolution` and the shadow score the M3.3 run-log ingestion pipeline needs.
 - **brain**: run-log ingestion pipeline (M3.3): shape reviewed held-writes (shadow score + human approve/reject outcome) into CalibrationSample rows for the M3.2 calibration refit; fail-closed, never fabricates a label
@@ -18,6 +20,19 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- ColorPicker: trigger height h-8 -> h-9 (matches form-control input height)
+- Toggle: default size now h-9 (matches input field), normalize focus ring to ring-3, drop redundant lg size
+- Combobox now shows a clear (X) on selection by default (ComboboxInput showClear defaults to true), so every combobox gets it; Autocomplete popup uses the ring-1 ring-foreground/10 floating-surface style instead of a hardcoded border
+- Mention chip has internal padding (pill wider than text) and its popup uses our ring/muted-label dropdown styling; Autocomplete disabled state matches Combobox (single opacity + bg-input fill); PhoneInput country list height uses the Radix available-height token instead of a fixed pixel value
+- InputSegmented is now single-size, inheriting the input line's h-9/rounded-lg (dropped the sm/lg size scale)
+- InputTags editable chips now enter edit mode on a single click (was double-click)
+- InputOTP default size is now separate rounded boxes matched to the input line (size-9/36px, rounded-lg) instead of the joined look; the old joined look moves to a new `connected` size, and `xl` is documented as needing containerClassName='w-full'
+- PasswordInput generator now forces a random 1–3 symbols (was exactly 1) into distinct slots, and the stale comment (claimed 4 groups/21 chars) now matches the real 3-group/20-char output
+- PasswordInput now type-requires `value` + `onValueChange` when `showGenerate` is set (discriminated union), so the generated password always has somewhere to land
+- SelectTrigger shows its ring only while the dropdown is open (data-[state=open]); removed the focus-visible ring that lingered on the closed trigger after a mouse selection
+- SelectTrigger `sm` size reverted to shadcn/ui original height (h-8, was our h-7) and dropped the sm-only radius override
+- InputGroup addon text (InputGroupText) and buttons (InputGroupButton) now match the input's own text size (text-base/md:text-sm) at medium weight and muted-foreground, instead of a fixed text-sm
+- Default form-control height bumped `h-8` → `h-9` across Input, Select trigger, NativeSelect, InputGroup (also lifts PasswordInput + Combobox), and the Autocomplete field so paired fields align; `sm` sizes unchanged
 - Redesigned the accounting approvals surface: business-facing table columns (counterparty, amount, confidence, doklad number, event date, added date, status) replacing the internal Operace/Popis/Aktér/Klíč set, with row-select checkboxes and bulk approve/reject straight from the ActionBar; a pinned Inspector action footer (approve/reject/edit stay put while the detail scrolls, via a new ContentPanel `inspectorFooter` slot); richer always-on detail lines (doklad number, účetní případ, supplier resolved server-side); and hardened i18n locale resolution so a session-fetch failure no longer 500s every page through the root layout's metadata
 - Harden and simplify the shadcn upstream audit script (unified fetch/retry with fail-fast 4xx, digest-only asset manifest, explicit registry tracking flag, review command fetches only what it records)
 - chore(agents): pin the brain-gate + thermo-review workflows to Opus 4.8 xhigh (two independent lenses); drop Fable 5 as the default advisor model
@@ -36,6 +51,18 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
 - fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
 - Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.
+
+### Removed
+
+- Dropped the unused `sm` size from NativeSelect (only the held-writes MD/Dal picker used it, now default h-9); NativeSelect is single-size
+
+### Fixed
+
+- PasswordInput generator now forces a lowercase letter, so every generated password satisfies PasswordSchema.mixedCase (previously ~1-in-2500 could be rejected by the app's own rule)
+- PhoneInput: explicit country pick no longer reverts to the default for shared dial codes (+44/+1/+39), and the first typed digit is no longer swallowed when it matches the dial code's leading digit
+- Combobox popup width matches the input (min-w anchor-width, was 28px wider); debug board Combobox demos use the required items + render-function filtering pattern; normal Combobox shows a clear (X) on selection; CreatableCombobox demo matches the standard input width, drops the debug readout, and gains a disabled variation
+- PhoneInput: h-9 height, country selection rewrites the dial code (no more revert), CZ/SK pinned atop a scrollable country list, dial code auto-loads on the first digit typed, and the country defaults to Czechia
+- i18n locale resolver no longer crashes page rendering when the auth/session backend is unavailable; it falls back to the cookie/default locale
 
 ## [v0.17.7] — 2026-07-11
 

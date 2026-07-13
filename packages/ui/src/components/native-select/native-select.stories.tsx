@@ -37,15 +37,6 @@ export const WithOptGroups: Story = {
   ),
 }
 
-export const Small: Story = {
-  render: () => (
-    <NativeSelect size="sm">
-      <NativeSelectOption value="a">Option A</NativeSelectOption>
-      <NativeSelectOption value="b">Option B</NativeSelectOption>
-    </NativeSelect>
-  ),
-}
-
 export const Disabled: Story = {
   render: () => (
     <NativeSelect disabled defaultValue="apple">

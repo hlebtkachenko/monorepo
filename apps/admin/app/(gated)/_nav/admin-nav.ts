@@ -98,6 +98,7 @@ export const ADMIN_MODULES: AdminModule[] = [
       },
       { label: "API keys", href: "/platform/api-keys", icon: "KeyRound" },
       { label: "Archetypes", href: "/platform/archetypes", icon: "Shapes" },
+      { label: "Debug", href: "/platform/debug", icon: "Bug" },
       {
         label: "Utility pages",
         href: "/platform/utility-pages",

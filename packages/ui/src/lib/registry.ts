@@ -516,6 +516,16 @@ export const registry: Record<string, ComponentMeta> = {
     ],
     packages: ["@tanstack/react-table"],
   },
+  "date-picker": {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/base/calendar",
+    description:
+      "Calendar-with-presets date picker in a Card: controlled month so presets navigate, fixedWeeks, flex-1 preset footer; controllable selected date",
+    categories: ["forms"],
+    dependencies: ["button", "calendar", "card"],
+    packages: ["date-fns"],
+  },
   dialog: {
     source: "shadcn",
     sourceType: "vanilla",

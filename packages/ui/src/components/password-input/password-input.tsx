@@ -43,35 +43,55 @@ function pick(charset: string, rand: number): string {
 }
 
 /**
- * Apple-style suggested password: four hyphen-separated groups,
- * readable mixed alphanumeric, with guaranteed uppercase, lowercase,
- * digit, and symbol to satisfy app password rules.
+ * Apple-style suggested password: three hyphen-separated groups of six
+ * readable alphanumeric characters (20 chars total).
  *
- *   abcdEF-12gh3K-mnPq45-xy!Z67    (18 chars + 3 hyphens, 21 total)
+ *   ab!dEF-12gh3K-mn#q45   (three groups of six, 20 chars)
  *
- * Hyphens count toward the rules-checker's length (>=12) but are not
- * treated as symbols by Zod's symbol class. We inject one explicit
- * symbol into a random slot so PasswordSchema.symbol passes.
+ * The readable set excludes ambiguous glyphs (l/1/o/0/i). We force one
+ * uppercase, one lowercase, and one digit into distinct random slots so
+ * PasswordSchema's mixed-case rule always passes. Its symbol rule
+ * (/[^A-Za-z0-9]/) is already satisfied by the group hyphens; we additionally
+ * inject 1–3 in-group symbols for strength (Apple's own format is
+ * alphanumeric-only, so this is a deliberate divergence). Hyphens also count
+ * toward the length check.
  */
 function generatePassword(): string {
   const groupSize = 6
   const groupCount = 3
   const total = groupSize * groupCount
-  const rand = randomBytes(total + 4)
+  // Budget: `total` readable fills + one draw for the symbol count + two draws
+  // (index + char) for each forced placement (1 uppercase, 1 lowercase, 1
+  // digit, 1–3 symbols = up to 6). `total + 20` covers the worst case with
+  // headroom.
+  const rand = randomBytes(total + 20)
+  let cursor = 0
+  const next = () => rand[cursor++ % rand.length]!
 
   const chars: string[] = new Array(total)
   for (let i = 0; i < total; i++) {
-    chars[i] = pick(READABLE, rand[i]!)
+    chars[i] = pick(READABLE, next())
   }
 
-  // Guarantee at least one of each required class.
-  chars[rand[total]! % total] = pick(UPPER, rand[total + 1]!)
-  chars[rand[total + 2]! % total] = pick(DIGIT, rand[total + 3]!)
-  // Force one symbol slot (overrides one readable char). PasswordSchema
-  // requires at least one symbol; without this the readable charset
-  // alone would never satisfy it.
-  const symIdx = rand[total + 1]! % total
-  chars[symIdx] = pick(SYMBOL, rand[total + 3]!)
+  // Place one uppercase, one lowercase, one digit, and 1–3 symbols at distinct
+  // slots so no forced class clobbers another. Lowercase is forced too because
+  // PasswordSchema requires mixed case — a rare all-uppercase readable fill
+  // would otherwise fail our own rule. Linear-probe on collision.
+  const symbolCount = 1 + (next() % 3)
+  const used = new Set<number>()
+  const placeAt = (charset: string) => {
+    let idx = next() % total
+    while (used.has(idx)) idx = (idx + 1) % total
+    used.add(idx)
+    chars[idx] = pick(charset, next())
+  }
+
+  placeAt(UPPER)
+  placeAt(LOWER)
+  placeAt(DIGIT)
+  for (let s = 0; s < symbolCount; s++) {
+    placeAt(SYMBOL)
+  }
 
   const groups: string[] = []
   for (let g = 0; g < groupCount; g++) {
@@ -80,19 +100,35 @@ function generatePassword(): string {
   return groups.join("-")
 }
 
-export interface PasswordInputProps extends Omit<
+type PasswordInputBaseProps = Omit<
   React.ComponentProps<"input">,
   "type" | "onChange"
-> {
-  value?: string
-  onValueChange?: (next: string) => void
-  showGenerate?: boolean
+> & {
   onGenerate?: (pw: string) => void
   autoComplete?: "new-password" | "current-password"
   inputSize?: "default" | "xl"
   visible?: boolean
   onVisibleChange?: (visible: boolean) => void
 }
+
+/**
+ * `showGenerate` requires a wired-up value. The generate button hands the new
+ * password out through `onValueChange` (it never stores it internally), so both
+ * `value` and `onValueChange` are mandatory when `showGenerate` is set —
+ * otherwise the generated password has nowhere to land. TypeScript enforces
+ * this via the discriminated union below.
+ */
+export type PasswordInputProps =
+  | (PasswordInputBaseProps & {
+      showGenerate: true
+      value: string
+      onValueChange: (next: string) => void
+    })
+  | (PasswordInputBaseProps & {
+      showGenerate?: false
+      value?: string
+      onValueChange?: (next: string) => void
+    })
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   (

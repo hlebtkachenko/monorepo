@@ -9,7 +9,7 @@ export default meta
 type Story = StoryObj<typeof EnvEditor>
 
 const sample = [
-  { key: "DATABASE_URL", value: "postgres://user:pass@localhost:5432/app" },
+  { key: "DATABASE_URL", value: "postgres://localhost:5432/app" },
   { key: "API_KEY", value: "sk_live_abc123" },
   { key: "NODE_ENV", value: "production" },
 ]

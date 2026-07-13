@@ -16,13 +16,13 @@ export function InputOTPDemo() {
       <div className="flex flex-col gap-2">
         <span className="text-xs text-muted-foreground">6-digit code</span>
         <InputOTP maxLength={6} value={value} onChange={setValue}>
-          <InputOTPGroup>
+          <InputOTPGroup size="connected">
             <InputOTPSlot index={0} />
             <InputOTPSlot index={1} />
             <InputOTPSlot index={2} />
           </InputOTPGroup>
           <InputOTPSeparator />
-          <InputOTPGroup>
+          <InputOTPGroup size="connected">
             <InputOTPSlot index={3} />
             <InputOTPSlot index={4} />
             <InputOTPSlot index={5} />

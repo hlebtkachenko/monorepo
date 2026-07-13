@@ -49,6 +49,23 @@ From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askC
 
 Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally, materialized via `scripts/bot-dev-vars.sh`).
 
+## Conductor Cloud GitHub Access
+
+In a Conductor **cloud** workspace (Vercel Sandbox) the Conductor GitHub app
+brokers `git` — clone / push / PR through `git` work. The interactive `gh` CLI is
+a separate context and may print `auth broker has no GitHub token for this
+context (context: terminal)` and run unauthenticated. This is expected, not a
+break.
+
+- Use `git` (push, fetch) and the normal PR flow for GitHub work in a cloud
+  workspace. `git push` is authorized via the broker.
+- Do NOT run `gh auth login` in a cloud workspace or loop on `gh auth status` —
+  the terminal `gh` cannot be authenticated interactively there; fall back to
+  `git`.
+- Locally, `gh` uses your machine keyring as usual — no change.
+
+Full model + snapshot script: `docs/runbooks/CONDUCTOR.md`.
+
 ## Architecture
 
 - **Monorepo**: Turborepo + pnpm workspaces

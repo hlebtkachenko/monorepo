@@ -207,7 +207,7 @@ function ColorPicker({
           data-slot="color-picker-trigger"
           variant="outline"
           className={cn(
-            "w-[200px] justify-start gap-2 px-2 text-left font-normal",
+            "h-9 w-[200px] justify-start gap-2 px-2 text-left font-normal",
             className,
           )}
         >

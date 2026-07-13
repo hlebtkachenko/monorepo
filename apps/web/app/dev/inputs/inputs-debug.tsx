@@ -526,7 +526,7 @@ function ImageCropperDemo() {
 
   return (
     <div className="flex items-center gap-4">
-      <Button variant="outline" size="sm" onClick={pick}>
+      <Button variant="outline" onClick={pick}>
         Edit avatar
       </Button>
       {url ? (

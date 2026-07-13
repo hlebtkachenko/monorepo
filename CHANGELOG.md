@@ -13,6 +13,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- ColorPicker: trigger height h-8 -> h-9 (matches form-control input height)
 - Toggle: default size now h-9 (matches input field), normalize focus ring to ring-3, drop redundant lg size
 - Combobox now shows a clear (X) on selection by default (ComboboxInput showClear defaults to true), so every combobox gets it; Autocomplete popup uses the ring-1 ring-foreground/10 floating-surface style instead of a hardcoded border
 - Mention chip has internal padding (pill wider than text) and its popup uses our ring/muted-label dropdown styling; Autocomplete disabled state matches Combobox (single opacity + bg-input fill); PhoneInput country list height uses the Radix available-height token instead of a fixed pixel value

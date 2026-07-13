@@ -24,4 +24,16 @@ describe("SectionTitleRenderer", () => {
     const heading = screen.getByRole("heading", { name: "Company" })
     expect(heading.tagName).toBe("H2")
   })
+
+  it("draws a top rule only when `topRule` is set", () => {
+    const { container: ruled } = render(
+      <SectionTitleRenderer props={{ title: "Company", topRule: true }} />,
+    )
+    expect(ruled.firstElementChild).toHaveClass("border-t")
+
+    const { container: plain } = render(
+      <SectionTitleRenderer props={{ title: "Company" }} />,
+    )
+    expect(plain.firstElementChild).not.toHaveClass("border-t")
+  })
 })

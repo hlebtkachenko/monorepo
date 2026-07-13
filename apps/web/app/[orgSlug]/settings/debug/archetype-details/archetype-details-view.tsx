@@ -82,7 +82,7 @@ export function ArchetypeDetailsView() {
       title="Archetype Details"
       sections={[
         sectionSpace(),
-        sectionTitle({ title: "Company", anchor: "company" }),
+        sectionTitle({ title: "Company", anchor: "company", topRule: true }),
         legalIdentity("a", "legal-identity"),
         legalIdentity("b", "legal-identity-2"),
       ]}

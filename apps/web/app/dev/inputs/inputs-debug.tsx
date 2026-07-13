@@ -1470,6 +1470,26 @@ export function InputsDebug() {
             </Autocomplete>
           </div>
         </Row>
+        <Row name="disabled" desc="field dimmed, not interactive">
+          <div className="w-full max-w-sm">
+            <Autocomplete items={FRAMEWORKS} mode="list" disabled>
+              <AutocompleteInput
+                placeholder="Search frameworks..."
+                showTrigger
+              />
+              <AutocompletePopup>
+                <AutocompleteList>
+                  {(fw: string) => (
+                    <AutocompleteItem key={fw} value={fw}>
+                      {fw}
+                    </AutocompleteItem>
+                  )}
+                </AutocompleteList>
+                <AutocompleteEmpty>No frameworks found.</AutocompleteEmpty>
+              </AutocompletePopup>
+            </Autocomplete>
+          </div>
+        </Row>
       </Section>
 
       {/* ---------------- Combobox ---------------- */}

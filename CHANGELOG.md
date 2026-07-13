@@ -13,6 +13,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Mention chip has internal padding (pill wider than text) and its popup uses our ring/muted-label dropdown styling; Autocomplete disabled state matches Combobox (single opacity + bg-input fill); PhoneInput country list height uses the Radix available-height token instead of a fixed pixel value
 - InputSegmented is now single-size, inheriting the input line's h-9/rounded-lg (dropped the sm/lg size scale)
 - InputTags editable chips now enter edit mode on a single click (was double-click)
 - InputOTP default size is now separate rounded boxes matched to the input line (size-9/36px, rounded-lg) instead of the joined look; the old joined look moves to a new `connected` size, and `xl` is documented as needing containerClassName='w-full'

@@ -745,7 +745,7 @@ function PhoneInputCountry(props: PhoneInputCountryProps) {
       <PopoverContent className="w-[300px] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search country..." />
-          <CommandList className="max-h-[300px]">
+          <CommandList className="max-h-(--radix-popover-content-available-height)">
             <CommandEmpty>No country found.</CommandEmpty>
             {pinned.length > 0 ? (
               <>

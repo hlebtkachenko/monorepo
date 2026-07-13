@@ -1162,7 +1162,7 @@ export function InputsDebug() {
       >
         <Row
           name="<InputOTP> default 6-digit"
-          desc="six separate rounded boxes, no separator, numeric — the auth style at a normal size"
+          desc="six separate rounded boxes (size-9/36px, rounded-lg — same size + radius token as the input line), no separator, numeric — the auth style"
         >
           <InputOTP
             maxLength={6}

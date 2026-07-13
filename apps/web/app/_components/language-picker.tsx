@@ -1,11 +1,12 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useLocale } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
 import {
   locales,
   localeLabel,
+  LOCALE_CHANGE_EVENT,
   LOCALE_COOKIE,
   isLocale,
   type Locale,
@@ -37,17 +38,19 @@ import { Check, Globe } from "@workspace/ui/lib/icons"
 export function LanguagePicker() {
   const router = useRouter()
   const current = useLocale()
+  const t = useTranslations("common")
 
   function setLocale(next: Locale) {
     if (!isLocale(next)) return
     document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+    window.dispatchEvent(new CustomEvent(LOCALE_CHANGE_EVENT, { detail: next }))
     router.refresh()
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" aria-label="Change language">
+        <Button variant="outline" size="sm" aria-label={t("changeLanguage")}>
           <Globe aria-hidden="true" />
           <span className="uppercase">{current}</span>
         </Button>

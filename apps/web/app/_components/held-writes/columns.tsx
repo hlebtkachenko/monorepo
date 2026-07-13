@@ -1,11 +1,12 @@
 "use client"
 
 import * as React from "react"
-import type { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef, Row } from "@tanstack/react-table"
 
 import { DetailField } from "@workspace/ui/blocks/app-content"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Table,
   TableBody,
@@ -23,6 +24,9 @@ import {
   formatDecimal,
 } from "../_shared/accounting-format"
 import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
+
+/** The `resolveHeldWrite` server-action signature — injectable for previews/tests. */
+export type ResolveHeldWriteFn = typeof resolveHeldWrite
 import type { HeldWriteEdit } from "./edit-model"
 import {
   draftFromRow,
@@ -192,7 +196,40 @@ function InspectCell({
   )
 }
 
-/** TanStack column defs for the held-writes review queue. */
+/** Per-row select checkbox — drives the bulk-approve ActionBar. */
+function SelectCell({ row }: { row: Row<HeldWriteListRow> }) {
+  return (
+    <Checkbox
+      aria-label={`Vybrat ${row.original.header.documentNumber ?? row.original.header.counterpartyName ?? row.original.id}`}
+      checked={row.getIsSelected()}
+      onCheckedChange={(value) => row.toggleSelected(!!value)}
+    />
+  )
+}
+
+/** Review status of a queued write — every row here is held awaiting approval. */
+function StatusBadge({ row }: { row: HeldWriteListRow }) {
+  return (
+    <Badge variant="secondary" className="gap-1">
+      {row.hold_reasons.length > 0
+        ? `Zadrženo (${row.hold_reasons.length})`
+        : "Zadrženo"}
+    </Badge>
+  )
+}
+
+/** The counterparty (protistrana), falling back to the účetní-případ description. */
+function counterpartyText(header: HeldWriteHeader): string {
+  return header.counterpartyName ?? header.caseDescription ?? "—"
+}
+
+/**
+ * TanStack column defs for the held-writes review queue — business-facing:
+ * a select box (feeding the bulk-approve ActionBar), the counterparty, amount,
+ * confidence, doklad number, event date, when it was added, and its status.
+ * The internal Operace / Popis / Aktér / Klíč columns were dropped; the full
+ * detail (MD/D, VAT, rationale, key) lives in the Inspector.
+ */
 export function buildHeldWriteColumns({
   onInspect,
 }: {
@@ -200,50 +237,65 @@ export function buildHeldWriteColumns({
 }): ColumnDef<HeldWriteListRow>[] {
   return [
     {
-      accessorKey: "created_at",
-      header: "Vytvořeno",
-      size: 150,
+      id: "select",
+      size: 36,
+      minSize: 36,
+      maxSize: 36,
+      meta: { align: "center" },
+      header: ({ table }) => (
+        <Checkbox
+          aria-label="Vybrat vše"
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() ? "indeterminate" : false)
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        />
+      ),
+      cell: ({ row }) => <SelectCell row={row} />,
+      enableSorting: false,
+      enableHiding: false,
+      enableResizing: false,
+    },
+    {
+      id: "counterparty",
+      header: "Protistrana",
+      size: 240,
+      accessorFn: (row) => counterpartyText(row.header),
       cell: ({ row }) => (
-        <span className="tabular-nums">
-          {formatCreatedAt(row.original.created_at)}
+        <span
+          className="block truncate font-medium"
+          title={counterpartyText(row.original.header)}
+        >
+          {counterpartyText(row.original.header)}
         </span>
       ),
-      meta: { label: "Vytvořeno" },
+      meta: { label: "Protistrana" },
       enableSorting: true,
     },
     {
-      accessorKey: "tool_name",
-      header: "Operace",
-      size: 140,
+      id: "amount",
+      header: "Částka",
+      size: 130,
+      meta: { label: "Částka", align: "end" },
+      accessorFn: (row) =>
+        row.header.totalAmount ? Number(row.header.totalAmount) : 0,
       cell: ({ row }) => (
-        <Badge variant="secondary">{toolLabel(row.original.tool_name)}</Badge>
+        <span className="block text-right tabular-nums">
+          {row.original.header.totalAmount
+            ? formatCaseAmount(
+                row.original.header.totalAmount,
+                row.original.header.currency,
+              )
+            : "—"}
+        </span>
       ),
-      meta: {
-        label: "Operace",
-        variant: "multiSelect",
-        options: TOOL_OPTIONS,
-      },
-      enableColumnFilter: true,
-      filterFn: (row, columnId, value) => {
-        if (!Array.isArray(value) || value.length === 0) return true
-        return value.includes(row.getValue(columnId))
-      },
-      enableSorting: true,
-    },
-    {
-      accessorKey: "summary",
-      header: "Popis",
-      size: 260,
-      cell: ({ row }) => (
-        <span className="font-medium">{row.original.summary}</span>
-      ),
-      meta: { label: "Popis" },
       enableSorting: true,
     },
     {
       accessorKey: "confidence",
       header: "Jistota",
-      size: 100,
+      size: 96,
       cell: ({ row }) => (
         <ConfidenceBadge confidence={row.original.confidence} />
       ),
@@ -253,23 +305,51 @@ export function buildHeldWriteColumns({
         Number(a.original.confidence) - Number(b.original.confidence),
     },
     {
-      accessorKey: "actor_kind",
-      header: "Aktér",
-      size: 110,
-      cell: ({ row }) => actorLabel(row.original.actor_kind),
-      meta: { label: "Aktér" },
+      id: "document_number",
+      header: "Číslo dokladu",
+      size: 130,
+      accessorFn: (row) => row.header.documentNumber ?? "",
+      cell: ({ row }) => (
+        <span className="tabular-nums">
+          {row.original.header.documentNumber ?? "—"}
+        </span>
+      ),
+      meta: { label: "Číslo dokladu" },
       enableSorting: true,
     },
     {
-      accessorKey: "idempotency_key",
-      header: "Klíč",
-      size: 160,
+      id: "event_date",
+      header: "Datum",
+      size: 120,
+      accessorFn: (row) => row.header.date ?? "",
       cell: ({ row }) => (
-        <span className="block truncate font-mono text-xs text-muted-foreground">
-          {row.original.idempotency_key}
+        <span className="tabular-nums">
+          {row.original.header.date
+            ? formatDate(row.original.header.date)
+            : "—"}
         </span>
       ),
-      meta: { label: "Klíč" },
+      meta: { label: "Datum" },
+      enableSorting: true,
+    },
+    {
+      accessorKey: "created_at",
+      header: "Přidáno",
+      size: 150,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground tabular-nums">
+          {formatCreatedAt(row.original.created_at)}
+        </span>
+      ),
+      meta: { label: "Přidáno" },
+      enableSorting: true,
+    },
+    {
+      id: "status",
+      header: "Stav",
+      size: 130,
+      cell: ({ row }) => <StatusBadge row={row.original} />,
+      meta: { label: "Stav" },
       enableSorting: false,
     },
     {
@@ -299,11 +379,14 @@ function HeldWriteResolveActions({
   id,
   edit,
   onResolved,
+  resolveAction = resolveHeldWrite,
 }: {
   orgSlug: string
   id: string
   edit?: HeldWriteEdit
   onResolved: () => void
+  /** Injectable for previews/tests; defaults to the real server action. */
+  resolveAction?: ResolveHeldWriteFn
 }) {
   const [note, setNote] = React.useState("")
   const [error, setError] = React.useState<string | null>(null)
@@ -312,7 +395,7 @@ function HeldWriteResolveActions({
   const resolve = (action: "approve" | "reject") => {
     setError(null)
     startTransition(async () => {
-      const result = await resolveHeldWrite({
+      const result = await resolveAction({
         orgSlug,
         id,
         action,
@@ -328,7 +411,7 @@ function HeldWriteResolveActions({
   }
 
   return (
-    <div className="flex flex-col gap-2 border-t pt-4">
+    <div className="flex flex-col gap-2">
       <Textarea
         placeholder="Poznámka (nepovinná)"
         value={note}
@@ -388,14 +471,35 @@ function formatCaseAmount(amount: string, currency: string | null): string {
 function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
   return (
     <dl className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3">
-      <DetailField label="Protistrana" value={header.counterpartyName ?? "—"} />
       <DetailField
-        label="Datum"
-        value={header.date ? formatDate(header.date) : "—"}
+        label="Protistrana"
+        value={header.counterpartyName ?? header.caseDescription ?? "—"}
       />
       <DetailField
         label="Číslo dokladu"
-        value={header.documentNumber ?? "— (přiděleno až po schválení)"}
+        value={
+          header.documentNumber ? (
+            <span className="font-medium tabular-nums">
+              {header.documentNumber}
+            </span>
+          ) : (
+            "— (přiděleno až po schválení)"
+          )
+        }
+      />
+      <DetailField
+        label="Účetní případ"
+        value={
+          header.caseDesignation ? (
+            <span className="tabular-nums">{header.caseDesignation}</span>
+          ) : (
+            "—"
+          )
+        }
+      />
+      <DetailField
+        label="Datum"
+        value={header.date ? formatDate(header.date) : "—"}
       />
       <DetailField
         label="Celkem"
@@ -596,85 +700,36 @@ function CaseSiblingsList({ writes }: { writes: HeldWriteListRow[] }) {
  * state below is freshly initialized whenever a DIFFERENT write is
  * inspected — no reset effect needed.
  */
-export function HeldWriteDetail({
+/**
+ * Inspector BODY for a single held write — the scrolling detail (identity,
+ * header, VAT, MD/D preview, hold reasons, case siblings), OR the edit form
+ * when the reviewer opened it. The resolve controls + the "Upravit" toggle live
+ * in {@link HeldWriteDetailFooter}, pinned below this scroll region via the
+ * `ContentPanel` `inspectorFooter` slot. `editing` / `draft` are lifted to
+ * `HeldWritesBody` so both this body and the footer share one edit state.
+ */
+export function HeldWriteDetailBody({
   row,
   caseWrites,
-  orgSlug,
   accounts,
-  onResolved,
+  editing,
+  draft,
+  onDraftChange,
 }: {
   row: HeldWriteListRow
   caseWrites: HeldWriteListRow[]
-  orgSlug: string
   accounts: AccountOption[]
-  onResolved: () => void
+  editing: boolean
+  draft: HeldWriteEditDraft
+  onDraftChange: (draft: HeldWriteEditDraft) => void
 }) {
-  const [editing, setEditing] = React.useState(false)
-  const [draft, setDraft] = React.useState<HeldWriteEditDraft>(() =>
-    draftFromRow(row),
-  )
-  const icons = useIcons()
-  const EditIcon = icons.Pencil
-
   return (
     <div className="flex flex-col gap-4">
-      <dl className="flex flex-col gap-3">
-        <DetailField
-          label="Operace"
-          value={
-            <div className="flex items-center justify-between gap-2">
-              <Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditing((value) => !value)}
-              >
-                <EditIcon />
-                {editing ? "Zrušit úpravu" : "Upravit"}
-              </Button>
-            </div>
-          }
-        />
-        <DetailField label="Popis" value={row.summary} />
-        <DetailField
-          label="Jistota"
-          value={<ConfidenceBadge confidence={row.confidence} />}
-        />
-        <DetailField label="Aktér" value={actorLabel(row.actor_kind)} />
-        <DetailField
-          label="Vytvořeno"
-          value={
-            <span className="tabular-nums">
-              {formatCreatedAt(row.created_at)}
-            </span>
-          }
-        />
-        <DetailField
-          label="Klíč"
-          value={
-            <span className="font-mono text-xs break-all">
-              {row.idempotency_key}
-            </span>
-          }
-        />
-        <DetailField label="Zdůvodnění" value={row.rationale ?? "—"} />
-        {row.template_id ? (
-          <DetailField
-            label="OCR šablona"
-            value={
-              <OcrTemplateBadge
-                templateId={row.template_id}
-                confirmed={row.template_confirmed}
-              />
-            }
-          />
-        ) : null}
-      </dl>
       {editing ? (
         <HeldWriteEditFields
           toolName={row.tool_name}
           draft={draft}
-          onDraftChange={setDraft}
+          onDraftChange={onDraftChange}
           accounts={accounts}
         />
       ) : (
@@ -688,15 +743,99 @@ export function HeldWriteDetail({
             preview={row.mdd_preview}
             currency={row.header.currency}
           />
+          <dl className="flex flex-col gap-3">
+            <DetailField
+              label="Operace"
+              value={
+                <Badge variant="secondary">{toolLabel(row.tool_name)}</Badge>
+              }
+            />
+            <DetailField
+              label="Jistota"
+              value={<ConfidenceBadge confidence={row.confidence} />}
+            />
+            <DetailField label="Aktér" value={actorLabel(row.actor_kind)} />
+            <DetailField
+              label="Vytvořeno"
+              value={
+                <span className="tabular-nums">
+                  {formatCreatedAt(row.created_at)}
+                </span>
+              }
+            />
+            <DetailField label="Zdůvodnění" value={row.rationale ?? "—"} />
+            <DetailField
+              label="Klíč"
+              value={
+                <span className="font-mono text-xs break-all">
+                  {row.idempotency_key}
+                </span>
+              }
+            />
+            {row.template_id ? (
+              <DetailField
+                label="OCR šablona"
+                value={
+                  <OcrTemplateBadge
+                    templateId={row.template_id}
+                    confirmed={row.template_confirmed}
+                  />
+                }
+              />
+            ) : null}
+          </dl>
         </>
       )}
       <HoldReasonsList reasons={row.hold_reasons} />
       <CaseSiblingsList writes={caseWrites} />
+    </div>
+  )
+}
+
+/**
+ * Inspector FOOTER — the pinned action strip: the "Upravit" edit toggle plus
+ * the approve/reject controls (with the optional note). Rendered via the
+ * `ContentPanel` `inspectorFooter` slot so it stays put while
+ * {@link HeldWriteDetailBody} scrolls. `editing` / `draft` come from the shared
+ * state in `HeldWritesBody`; approving while `editing` sends the edited payload.
+ */
+export function HeldWriteDetailFooter({
+  row,
+  orgSlug,
+  editing,
+  onToggleEdit,
+  draft,
+  onResolved,
+  resolveAction,
+}: {
+  row: HeldWriteListRow
+  orgSlug: string
+  editing: boolean
+  onToggleEdit: () => void
+  draft: HeldWriteEditDraft
+  onResolved: () => void
+  /** Injectable for previews/tests; defaults to the real server action. */
+  resolveAction?: ResolveHeldWriteFn
+}) {
+  const icons = useIcons()
+  const EditIcon = icons.Pencil
+  return (
+    <div className="flex flex-col gap-3">
+      <Button
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={onToggleEdit}
+      >
+        <EditIcon />
+        {editing ? "Zrušit úpravu" : "Upravit"}
+      </Button>
       <HeldWriteResolveActions
         orgSlug={orgSlug}
         id={row.id}
         edit={editing ? draftToEdit(draft, row.tool_name) : undefined}
         onResolved={onResolved}
+        resolveAction={resolveAction}
       />
     </div>
   )

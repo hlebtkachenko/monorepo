@@ -2,7 +2,8 @@
 
 > **Who this is for.** Hleb, running a **live** Afframe Brain booking session from his Mac against the
 > deployed accounting MCP endpoint, pushing a real org's documents through the **HELD write loop**. This is the
-> operator counterpart to [`BRAIN-CC-HARNESS.md`](BRAIN-CC-HARNESS.md) (which documents the harness internals):
+> operator counterpart to the harness implementation in
+> `packages/intake/src/harness/brain-cc-harness.ts`:
 > this file is the exact "here is how you start a session and where the writes land" procedure.
 
 The whole point of a cold-start session: **every write is HELD.** The Brain (an `actor_kind='agent'` API key)
@@ -189,6 +190,38 @@ afframe brain book ./acme-exports/ --context ./book-context.json --dry-run
 afframe brain book ./acme-exports/ --context ./book-context.json --yes
 ```
 
+### 4c. The posting lane (`brain run --mode posting`)
+
+`brain run` has a second mode that proposes a **double-entry posting** (`create_accounting_posting`) instead of a
+capture — the counterpart used to exercise the Brain's **account předkontace** directly (GAP-007 / PR #685).
+Unlike capture (which embeds an operator-supplied body verbatim), the model **reasons the předkontace itself**
+from a curated invoice fact block and builds the posting — its account choice is the thing under test, so it is
+never pre-supplied. It is HELD by the same cold-start gate; the proposed lines land in
+`tool_call_log.input_json.entry.lines` (readable for offline scoring), and the row sits in
+[`/approvals`](#6-review-the-held-writes) for your human review exactly like a capture. There is no interactive
+confirm on `brain run` — live is "not `--dry-run`" (like capture-mode run), so always dry-run once first.
+
+```bash
+# dry-run (no creds) — prints the plan; the invoice's bigint money renders as strings
+afframe brain run --mode posting --inputs ./posting-inputs.json --dry-run
+
+# live (server write lane must be ON) — one HELD posting per run
+afframe brain run --mode posting --inputs ./posting-inputs.json
+```
+
+The `--inputs` file is `{ invoice, sections, posting }` (the capture mode's `{ invoice, sections, captureContext }`
+still applies when `--mode` is omitted):
+
+- **`invoice`** — the IR Invoice (`record_type:"invoice"`; money as integer minor-unit strings). Feed only the
+  honest source facts (supplier, amounts, VAT, dates); **never** a source předkontace / account hint
+  (`posting_hint`, line-item accounts, cost centre) — the account under test must not leak.
+- **`sections`** — the same login-pack spine as capture (constitution auto-assembled; you supply kb / lawSummary
+  / confidenceProtocol / escalationPolicy).
+- **`posting`** — `{ periodId, summaryRecordId, accountingEventId, postingDate, conversationId }`. `periodId` is
+  the real open period; `summaryRecordId` / `accountingEventId` are **operator-minted** (a cold-start HELD
+  posting commits nothing, so no real doklad/event row exists to reference; the server never checks these FKs on
+  the held path, and a held posting can never be applied with dangling FKs). `conversationId` **must be a UUID**.
+
 ### The `--context` files
 
 All operator JSON files fail loud at the boundary: a missing required key names the flag + the exact key list,
@@ -303,8 +336,8 @@ unchanged; only its transport moved to a 4xx at the request boundary.
 
 ## Cross-references
 
-- [`BRAIN-CC-HARNESS.md`](BRAIN-CC-HARNESS.md) — the harness internals (`planBrainDryRun` / `runLiveBrainSession`,
-  the sandbox, the dry-run inspector).
+- `packages/intake/src/harness/brain-cc-harness.ts` — harness internals
+  (`planBrainDryRun`, `runLiveBrainSession`, sandbox, and dry-run inspector).
 - `apps/cli/src/brain/command.ts` — the `brain extract` / `brain book` / `brain run` subcommands + flags.
 - `apps/api/src/v1/accounting/accounting-writes.gate.ts` — the server three-way-AND gate + the 422/403/429 legs.
 - `.brain/constitution.md` — the human-authorship-only invariant (the agent proposes and gates, never commits).

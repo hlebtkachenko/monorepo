@@ -8,27 +8,38 @@ import {
   ContentToolbar,
   type InspectorMode,
 } from "@workspace/ui/blocks/app-content"
+import {
+  ActionBar,
+  ActionBarGroup,
+  ActionBarItem,
+  ActionBarSelection,
+  ActionBarSeparator,
+} from "@workspace/ui/components/action-bar"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import {
   DataTableColumnManager,
-  DataTableFacetedFilter,
   DataTableMultiSort,
   useDataTable,
 } from "@workspace/ui/components/data-table"
 import { Input } from "@workspace/ui/components/input"
+import { toast } from "@workspace/ui/components/sonner"
+import { useIcons } from "@workspace/ui/icon-packs"
 import { Search } from "@workspace/ui/lib/icons"
 
 import { normalizeSearch } from "../_shared/accounting-format"
+import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
 import {
   actorLabel,
   buildHeldWriteColumns,
-  HeldWriteDetail,
-  TOOL_OPTIONS,
+  HeldWriteDetailBody,
+  HeldWriteDetailFooter,
   toolLabel,
   type AccountOption,
   type HeldWriteListRow,
+  type ResolveHeldWriteFn,
 } from "./columns"
+import { draftFromRow, type HeldWriteEditDraft } from "./edit-panel"
 
 /** Free-text search across the visible held-write fields. */
 function applySearch(
@@ -59,11 +70,14 @@ export function HeldWritesBody({
   rows,
   orgSlug,
   accounts,
+  resolveAction = resolveHeldWrite,
 }: {
   rows: HeldWriteListRow[]
   orgSlug: string
   /** [M1.7] Chart-of-accounts options for the edit-before-approve account picker. */
   accounts: AccountOption[]
+  /** Injectable resolve action — the dev preview passes an inert stub; production uses the real server action. */
+  resolveAction?: ResolveHeldWriteFn
 }) {
   const [search, setSearch] = React.useState("")
   const [inspected, setInspected] = React.useState<HeldWriteListRow | null>(
@@ -71,6 +85,20 @@ export function HeldWritesBody({
   )
   const [inspectorOpen, setInspectorOpen] = React.useState(false)
   const [inspectorMode] = React.useState<InspectorMode>("panel")
+
+  // [M1.7] Edit state is LIFTED here so the inspector body (edit form) and the
+  // pinned inspector footer (the "Upravit" toggle + approve/reject) share one
+  // draft. Reset synchronously when a DIFFERENT write is inspected — the
+  // "adjust state during render" pattern (React docs), replacing the old
+  // key-remount reset now that body + footer are separate slots.
+  const [editing, setEditing] = React.useState(false)
+  const [draft, setDraft] = React.useState<HeldWriteEditDraft | null>(null)
+  const [draftForId, setDraftForId] = React.useState<string | null>(null)
+  if (inspected && inspected.id !== draftForId) {
+    setDraftForId(inspected.id)
+    setDraft(draftFromRow(inspected))
+    setEditing(false)
+  }
 
   const openInspector = React.useCallback((row: HeldWriteListRow) => {
     setInspected(row)
@@ -103,32 +131,71 @@ export function HeldWritesBody({
     defaultColumn: { minSize: 56, size: 140, maxSize: 640 },
     initialState: {
       pagination: { pageIndex: 0, pageSize: 10 },
-      columnPinning: { right: ["inspect"] },
+      columnPinning: { left: ["select"], right: ["inspect"] },
     },
   })
 
   const visible = table.getFilteredRowModel().rows
-  const isFiltered =
-    search.trim() !== "" || table.getState().columnFilters.length > 0
-  const toolColumn = table.getColumn("tool_name")
+  const isFiltered = search.trim() !== ""
+  const selectedCount = table.getFilteredSelectedRowModel().rows.length
+
+  const icons = useIcons()
+  const CheckIcon = icons.Check
+  const RejectIcon = icons.X
+
+  // Bulk resolve the selected held writes straight from the ActionBar — no
+  // Inspector needed. Each replays through the same `resolveHeldWrite` action
+  // (approve books it, reject marks it); runs sequentially so one failure
+  // doesn't abort the rest, then reports the tally and clears the selection.
+  const [isBulkPending, startBulk] = React.useTransition()
+  const bulkResolve = (action: "approve" | "reject") => {
+    const ids = table
+      .getFilteredSelectedRowModel()
+      .rows.map((r) => r.original.id)
+    if (ids.length === 0) return
+    startBulk(async () => {
+      let ok = 0
+      let failed = 0
+      for (const id of ids) {
+        const result = await resolveAction({ orgSlug, id, action })
+        if (result.ok) ok += 1
+        else failed += 1
+      }
+      table.resetRowSelection()
+      const verb = action === "approve" ? "schváleno" : "zamítnuto"
+      if (failed === 0) toast.success(`${ok} ${verb}`)
+      else toast.error(`${ok} ${verb}, ${failed} se nezdařilo`)
+    })
+  }
 
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
       inspector={
-        inspected ? (
-          <HeldWriteDetail
-            // [M1.7] Remounts the edit/draft state below whenever a DIFFERENT
-            // write is inspected — see the HeldWriteDetail doc comment.
-            key={inspected.id}
+        inspected && draft ? (
+          <HeldWriteDetailBody
             row={inspected}
             caseWrites={caseWrites}
-            orgSlug={orgSlug}
             accounts={accounts}
+            editing={editing}
+            draft={draft}
+            onDraftChange={setDraft}
+          />
+        ) : null
+      }
+      inspectorFooter={
+        inspected && draft ? (
+          <HeldWriteDetailFooter
+            row={inspected}
+            orgSlug={orgSlug}
+            editing={editing}
+            onToggleEdit={() => setEditing((value) => !value)}
+            draft={draft}
             onResolved={() => {
               setInspectorOpen(false)
               setInspected(null)
             }}
+            resolveAction={resolveAction}
           />
         ) : null
       }
@@ -141,25 +208,15 @@ export function HeldWritesBody({
       toolbar={
         <ContentToolbar
           left={
-            <>
-              {toolColumn ? (
-                <DataTableFacetedFilter
-                  column={toolColumn}
-                  title="Operace"
-                  options={TOOL_OPTIONS}
-                  multiple
-                />
-              ) : null}
-              <div className="relative flex h-7 w-72 items-center">
-                <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
-                <Input
-                  placeholder="Hledat v položkách ke schválení…"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  className="h-7 w-full pl-8"
-                />
-              </div>
-            </>
+            <div className="relative flex h-7 w-72 items-center">
+              <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
+              <Input
+                placeholder="Hledat v položkách ke schválení…"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="h-7 w-full pl-8"
+              />
+            </div>
           }
           right={
             <>
@@ -191,6 +248,35 @@ export function HeldWritesBody({
             </span>
           }
         />
+      }
+      actionBar={
+        <ActionBar
+          open={selectedCount > 0}
+          onOpenChange={(open) => {
+            if (!open) table.resetRowSelection()
+          }}
+          aria-label="Hromadné schválení"
+          sideOffset="var(--app-statusbar-clearance, 16px)"
+        >
+          <ActionBarSelection>{selectedCount} vybráno</ActionBarSelection>
+          <ActionBarSeparator />
+          <ActionBarGroup>
+            <ActionBarItem
+              disabled={isBulkPending}
+              onSelect={() => bulkResolve("approve")}
+            >
+              <CheckIcon />
+              Schválit a zaúčtovat
+            </ActionBarItem>
+            <ActionBarItem
+              disabled={isBulkPending}
+              onSelect={() => bulkResolve("reject")}
+            >
+              <RejectIcon />
+              Zamítnout
+            </ActionBarItem>
+          </ActionBarGroup>
+        </ActionBar>
       }
     >
       <DataGridView table={table} className="min-h-0 flex-1" />

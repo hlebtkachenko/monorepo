@@ -97,6 +97,12 @@ export const ADMIN_MODULES: AdminModule[] = [
         icon: "Mail",
       },
       { label: "API keys", href: "/platform/api-keys", icon: "KeyRound" },
+      { label: "Archetypes", href: "/platform/archetypes", icon: "Shapes" },
+      {
+        label: "Utility pages",
+        href: "/platform/utility-pages",
+        icon: "AlertTriangle",
+      },
       { label: "Showcase", href: "/showcase", icon: "Shapes" },
       { label: "Storybook", href: "/storybook", icon: "Box" },
       { label: "Typography", href: "/typography", icon: "BaselineIcon" },

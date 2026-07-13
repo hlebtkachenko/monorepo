@@ -53,6 +53,12 @@ export function proxy(request: NextRequest): NextResponse {
     return response
   }
 
+  // Recovery pages must remain reachable when the session itself is missing
+  // or invalid. Their actions route back through the normal auth guards.
+  if (pathname.startsWith("/utility/")) {
+    return NextResponse.next()
+  }
+
   // Optimistic auth check on every other matched route.
   const sessionCookie = getSessionCookie(request)
   if (!sessionCookie) {
@@ -79,7 +85,8 @@ export function proxy(request: NextRequest): NextResponse {
  *   /auth/*          — hygiene headers
  *   /onboarding/*    — hygiene headers; wizard flows include pre-account
  *                      steps so no session-cookie gate fires here
- *   everything else  — optimistic session-cookie gate, redirect to /auth/login
+ *   /utility/*       — public recovery and error-state pages
+ *   everything else — optimistic session-cookie gate, redirect to /auth/login
  *
  * Excluded:
  *   /api/*           — Better Auth catchall + future route handlers

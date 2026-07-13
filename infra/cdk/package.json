@@ -24,9 +24,9 @@
     "cdk-monitoring-constructs": "10.1.0"
   },
   "devDependencies": {
-    "@aws-sdk/client-ecs": "^3.1079.0",
-    "@aws-sdk/client-rds": "^3.1079.0",
-    "@aws-sdk/client-sns": "^3.1079.0",
+    "@aws-sdk/client-ecs": "^3.1080.0",
+    "@aws-sdk/client-rds": "^3.1080.0",
+    "@aws-sdk/client-sns": "^3.1080.0",
     "@aws-sdk/client-ssm": "^3.1079.0",
     "@types/node": "^26.0.1",
     "@workspace/typescript-config": "workspace:*",
@@ -35,6 +35,6 @@
     "constructs": "^10.4.0",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }

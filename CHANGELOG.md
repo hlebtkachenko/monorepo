@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- UI: **Details** archetype (`ArchetypeDetails`) — ContentHeader (no view tabs), no toolbar, a body of as many stacked branded Sections as the page wants, and an optional Save/Discard ContentFooter; Settings → Debug → Archetype Details reference page shows two stacked Form sections + the footer
 - UI: Form section fields can carry an optional `hover` (HoverCard, not tooltip) shown over the CONTROL — rich data-driven explanation (title + description), label left undecorated; DIČ on the debug page explains it is FÚ-issued for every company incl. non-VAT payers
 - UI: Form section (`sectionForm`) — a two-column Content-Panel body section (title + description left, a 6-column field grid right, fields spanning 1–6 columns; text + select controls as data) plus a Settings → Debug → Section Form reference page
 - Add the ContentFooter block — the single sticky bottom action surface (selection + save modes, data-descriptor slots); replace ContentPanel's floating actionBar slot with a footer slot; migrate the 3 ActionBar pages (archetype-system P5/PR-6)

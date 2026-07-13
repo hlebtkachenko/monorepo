@@ -102,7 +102,7 @@ export const SizeXl: Story = {
   ),
 }
 
-export const Connected: Story = {
+export const SizeConnected: Story = {
   render: () => (
     <InputOTP maxLength={6}>
       <InputOTPGroup size="connected">

@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- chore(agents): pin the brain-gate + thermo-review workflows to Opus 4.8 xhigh (two independent lenses); drop Fable 5 as the default advisor model
 - Add an in-admin Platform Archetypes reference catalog at `/platform/archetypes` listing the content-panel archetypes and their slot recipes.
 - Restore the AI financial agents plan to docs/plans as durable reference for EPIC #485/#487; remaining active plan and public-API launch context migrated to GitHub issues #686/#687/#688 in the Roadmap v1 project.
 - Simplify documentation structure, archive obsolete material, and make documentation validation taxonomy-agnostic.

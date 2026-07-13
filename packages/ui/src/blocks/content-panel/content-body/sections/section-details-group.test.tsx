@@ -1,34 +1,34 @@
 import { render, screen } from "@testing-library/react"
 import { describe, it, expect } from "vitest"
 
-import { GroupFrame, sectionGroup } from "./section-group"
-import { sectionForm } from "./section-form"
+import { DetailsGroupFrame, sectionDetailsGroup } from "./section-details-group"
+import { sectionDetailsForm } from "./section-details-form"
 import { isSectionDescriptor } from "./section"
 
-describe("sectionGroup factory", () => {
-  it("mints a branded `group` descriptor holding nested sections", () => {
-    const descriptor = sectionGroup({
+describe("sectionDetailsGroup factory", () => {
+  it("mints a branded `details-group` descriptor holding nested sections", () => {
+    const descriptor = sectionDetailsGroup({
       title: "Company",
-      sections: [sectionForm({ title: "Legal identity", fields: [] })],
+      sections: [sectionDetailsForm({ title: "Legal identity", fields: [] })],
     })
-    expect(descriptor.kind).toBe("group")
+    expect(descriptor.kind).toBe("details-group")
     expect(isSectionDescriptor(descriptor)).toBe(true)
     expect(descriptor.props.sections).toHaveLength(1)
   })
 
   it("lifts `anchor` onto the descriptor", () => {
-    expect(sectionGroup({ sections: [], anchor: "company" }).anchor).toBe(
-      "company",
-    )
+    expect(
+      sectionDetailsGroup({ sections: [], anchor: "company" }).anchor,
+    ).toBe("company")
   })
 })
 
-describe("GroupFrame", () => {
+describe("DetailsGroupFrame", () => {
   it("renders the title as an h2, top + bottom rules, and its children", () => {
     const { container } = render(
-      <GroupFrame title="Company">
+      <DetailsGroupFrame title="Company">
         <span>nested</span>
-      </GroupFrame>,
+      </DetailsGroupFrame>,
     )
     expect(
       screen.getByRole("heading", { name: "Company", level: 2 }),
@@ -39,9 +39,9 @@ describe("GroupFrame", () => {
 
   it("omits the heading when no title is given", () => {
     render(
-      <GroupFrame>
+      <DetailsGroupFrame>
         <span>nested</span>
-      </GroupFrame>,
+      </DetailsGroupFrame>,
     )
     expect(screen.queryByRole("heading")).toBeNull()
   })

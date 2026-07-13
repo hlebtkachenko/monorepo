@@ -3,21 +3,24 @@ import { describe, it, expect } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { sectionForm } from "./section-form"
-import { SectionFormRenderer } from "./section-form-renderer"
+import { sectionDetailsForm } from "./section-details-form"
+import { SectionDetailsFormRenderer } from "./section-details-form-renderer"
 import { isSectionDescriptor } from "./section"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
-describe("sectionForm factory", () => {
-  it("mints a branded `form` descriptor the guard accepts", () => {
-    const descriptor = sectionForm({ title: "Legal identity", fields: [] })
-    expect(descriptor.kind).toBe("form")
+describe("sectionDetailsForm factory", () => {
+  it("mints a branded `details-form` descriptor the guard accepts", () => {
+    const descriptor = sectionDetailsForm({
+      title: "Legal identity",
+      fields: [],
+    })
+    expect(descriptor.kind).toBe("details-form")
     expect(isSectionDescriptor(descriptor)).toBe(true)
   })
 
   it("lifts `anchor` onto the descriptor, not into props", () => {
-    const descriptor = sectionForm({
+    const descriptor = sectionDetailsForm({
       title: "Legal identity",
       anchor: "legal-identity",
       fields: [],
@@ -27,10 +30,10 @@ describe("sectionForm factory", () => {
   })
 })
 
-describe("SectionFormRenderer", () => {
+describe("SectionDetailsFormRenderer", () => {
   it("renders the group title and description", () => {
     wrap(
-      <SectionFormRenderer
+      <SectionDetailsFormRenderer
         props={{
           title: "Legal identity",
           description: "How this účetní jednotka is named on filings.",
@@ -46,7 +49,7 @@ describe("SectionFormRenderer", () => {
 
   it("renders a text field with its label and value", () => {
     wrap(
-      <SectionFormRenderer
+      <SectionDetailsFormRenderer
         props={{
           title: "Legal identity",
           fields: [
@@ -65,7 +68,7 @@ describe("SectionFormRenderer", () => {
 
   it("renders a select field (Radix trigger) showing its default value", () => {
     wrap(
-      <SectionFormRenderer
+      <SectionDetailsFormRenderer
         props={{
           title: "Registered capital & size",
           fields: [
@@ -96,7 +99,7 @@ describe("SectionFormRenderer", () => {
 
   it("shows a '?' HoverCard trigger by the label (not on the control) when `hover` is set", () => {
     wrap(
-      <SectionFormRenderer
+      <SectionDetailsFormRenderer
         props={{
           title: "Legal identity",
           fields: [
@@ -121,7 +124,7 @@ describe("SectionFormRenderer", () => {
 
   it("maps span to a col-span class and defaults to a full row", () => {
     wrap(
-      <SectionFormRenderer
+      <SectionDetailsFormRenderer
         props={{
           title: "Legal identity",
           fields: [

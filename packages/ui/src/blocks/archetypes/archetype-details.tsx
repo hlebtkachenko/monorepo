@@ -19,7 +19,7 @@ export interface ArchetypeDetailsProps {
   /** Optional ancestor trail left of the title. */
   breadcrumb?: ContentHeaderBreadcrumbItem[]
   /**
-   * The body: any number of branded Sections (e.g. `sectionForm(...)`,
+   * The body: any number of branded Sections (e.g. `sectionDetailsForm(...)`,
    * `sectionSpace(...)`), rendered in order and stacked; the body scrolls.
    */
   sections: readonly SectionDescriptor[]

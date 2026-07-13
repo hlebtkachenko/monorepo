@@ -2,16 +2,16 @@ import type { Meta, StoryObj } from "@storybook/react"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { SectionFormRenderer } from "./section-form-renderer"
+import { SectionDetailsFormRenderer } from "./section-details-form-renderer"
 
 /**
- * `SectionForm` is a two-column form group: a title + description block on the
- * left, a 6-column field grid on the right. Fields declare their own span
+ * `SectionDetailsForm` is a two-column form group: a title + description block on
+ * the left, a 6-column field grid on the right. Fields declare their own span
  * (1–6) and wrap; the grid never constrains which control a field carries.
  */
 const meta = {
-  title: "Blocks/Content Panel/SectionForm",
-  component: SectionFormRenderer,
+  title: "Blocks/Content Panel/SectionDetailsForm",
+  component: SectionDetailsFormRenderer,
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
@@ -22,7 +22,7 @@ const meta = {
       </IconProvider>
     ),
   ],
-} satisfies Meta<typeof SectionFormRenderer>
+} satisfies Meta<typeof SectionDetailsFormRenderer>
 
 export default meta
 type Story = StoryObj<typeof meta>

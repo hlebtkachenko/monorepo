@@ -9,23 +9,30 @@ import type { ComponentType } from "react"
  */
 const SECTION_BRAND = Symbol("section-brand")
 
-/** The closed set of section kinds. Extending this is review-gated. */
+/**
+ * The closed set of section kinds. Extending this is review-gated.
+ *
+ * The `details-*` kinds are the section family the Details archetype composes
+ * (Form, Tabs, Table) plus its `details-group` container. `empty` and `space`
+ * are generic, archetype-agnostic utility sections.
+ */
 export const SECTION_KINDS = [
   "empty",
-  "form",
-  "tabs",
+  "details-form",
+  "details-tabs",
+  "details-table",
   "space",
-  "group",
+  "details-group",
 ] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
 
 /**
- * Kinds that can be nested inside a `group` — everything EXCEPT `group` itself.
- * Groups are one level deep (a group holds leaf sections, never other groups);
- * this is enforced at compile time by typing a group's children as
- * `LeafSectionDescriptor[]`.
+ * Kinds that can be nested inside a `details-group` — everything EXCEPT the
+ * group itself. Groups are one level deep (a group holds leaf sections, never
+ * other groups); this is enforced at compile time by typing a group's children
+ * as `LeafSectionDescriptor[]`.
  */
-export type LeafSectionKind = Exclude<SectionKind, "group">
+export type LeafSectionKind = Exclude<SectionKind, "details-group">
 export type LeafSectionDescriptor = SectionDescriptor<LeafSectionKind>
 
 /** Section-level metadata that every kind shares (not per-kind `props`). */

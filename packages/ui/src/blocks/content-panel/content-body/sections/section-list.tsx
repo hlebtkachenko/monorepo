@@ -6,20 +6,23 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { SECTION_REGISTRY } from "./registry"
 import { type SectionDescriptor, isSectionDescriptor } from "./section"
-import { GroupFrame, type SectionGroupPayload } from "./section-group"
+import {
+  DetailsGroupFrame,
+  type SectionDetailsGroupPayload,
+} from "./section-details-group"
 
 const FORGERY_MESSAGE =
   "SectionList: every `sections` entry must be a branded section descriptor " +
-  "from sections/* (e.g. sectionForm(...)). Do not cast or hand-build it."
+  "from sections/* (e.g. sectionDetailsForm(...)). Do not cast or hand-build it."
 
 /** Renders one already-guarded section's body — a group (recursing) or a leaf. */
 function SectionBody({ section }: { section: SectionDescriptor }) {
-  if (section.kind === "group") {
-    const payload = section.props as SectionGroupPayload
+  if (section.kind === "details-group") {
+    const payload = section.props as SectionDetailsGroupPayload
     return (
-      <GroupFrame title={payload.title}>
+      <DetailsGroupFrame title={payload.title}>
         <SectionList sections={payload.sections} />
-      </GroupFrame>
+      </DetailsGroupFrame>
     )
   }
   // `kind` is narrowed to a leaf kind here; the registry is leaf-only. The brand
@@ -34,7 +37,7 @@ function SectionBody({ section }: { section: SectionDescriptor }) {
 /**
  * SectionList — renders an ordered list of branded Section descriptors, each in
  * its own `content-section` wrapper (anchor id, scroll offset, fill/natural
- * height). Shared by `ContentBody` (top level) and `GroupFrame` (a group's
+ * height). Shared by `ContentBody` (top level) and `DetailsGroupFrame` (a group's
  * nested children), so the runtime brand guard runs at EVERY level. A `group`
  * recurses through this same renderer; the closed `SECTION_REGISTRY` stays
  * leaf-only (group is handled here), which keeps the registry free of a cycle.

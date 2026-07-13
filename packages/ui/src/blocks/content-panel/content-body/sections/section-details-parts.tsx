@@ -21,7 +21,11 @@ import {
 } from "@workspace/ui/components/select"
 import { cn } from "@workspace/ui/lib/utils"
 
-import type { FormField, FormFieldControl, FormFieldSpan } from "./section-form"
+import type {
+  DetailsFormField,
+  DetailsFormFieldControl,
+  DetailsFormFieldSpan,
+} from "./section-details-form"
 
 /**
  * Static span → col-span map, keyed on the SECTION container width (not the
@@ -30,7 +34,7 @@ import type { FormField, FormFieldControl, FormFieldSpan } from "./section-form"
  * is a full row; at `@xl`+ the field takes its requested span out of the 6-col
  * grid. Tailwind needs literal class names, so the six spans are enumerated.
  */
-const SPAN_CLASS: Record<FormFieldSpan, string> = {
+const SPAN_CLASS: Record<DetailsFormFieldSpan, string> = {
   1: "col-span-6 @xl/section:col-span-1",
   2: "col-span-6 @xl/section:col-span-2",
   3: "col-span-6 @xl/section:col-span-3",
@@ -46,7 +50,7 @@ function FormControl({
 }: {
   id: string
   name?: string
-  control: FormFieldControl
+  control: DetailsFormFieldControl
 }) {
   switch (control.kind) {
     case "text":
@@ -93,7 +97,7 @@ function FormControl({
  * associated with its control when the field carries no explicit `name`. An
  * optional `hover` surfaces a visible "?" (never the label) opening a HoverCard.
  */
-function FormFieldCell({ field }: { field: FormField }) {
+function FormFieldCell({ field }: { field: DetailsFormField }) {
   const generatedId = useId()
   const controlId = field.name ?? generatedId
   const control = (
@@ -134,8 +138,8 @@ function FormFieldCell({ field }: { field: FormField }) {
   )
 }
 
-/** The 6-column field grid shared by the Form and Tabs sections. */
-export function FieldGrid({ fields }: { fields: readonly FormField[] }) {
+/** The 6-column field grid shared by the Details Form and Details Tabs sections. */
+export function FieldGrid({ fields }: { fields: readonly DetailsFormField[] }) {
   return (
     <div className="grid grid-cols-6 gap-x-6 gap-y-6">
       {fields.map((field, index) => (
@@ -154,6 +158,7 @@ export function FieldGrid({ fields }: { fields: readonly FormField[] }) {
  * two columns stack (title above) until the panel is wide enough (`@3xl`, 48rem)
  * to place them side by side; the left column is capped (≤18rem) so the content
  * takes the remaining width. `px-6` (3× the panel header) / `py-8` padding.
+ * Shared by every `details-*` content section (Form, Tabs, Table).
  */
 export function SectionTwoCol({
   title,

@@ -235,6 +235,9 @@ regexes = [
   # form placeholder across the org-tier "new entity" pages). Not a real
   # account.
   '''CZ65[ ]?0800[ ]?0000[ ]?1920[ ]?0014[ ]?5399''',
+  # Second demo IBAN in the Section Details Table fixture (the "Fio banka" row
+  # in the archetype-details debug page + its story). Not a real account.
+  '''CZ12[ ]?2010[ ]?0000[ ]?0029[ ]?0148[ ]?1234''',
 ]
 
 stopwords = []

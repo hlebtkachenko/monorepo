@@ -7,19 +7,23 @@ import {
   TabsTrigger,
 } from "@workspace/ui/components/tabs"
 
-import { FieldGrid, SectionTwoCol } from "./section-form-parts"
-import type { SectionTabsPayload } from "./section-tabs"
+import { FieldGrid, SectionTwoCol } from "./section-details-parts"
+import type { SectionDetailsTabsPayload } from "./section-details-tabs"
 
 /**
- * SectionTabs — the Form section with its right column wrapped in Tabs (default
- * segmented variant). Each tab holds its own field grid; switching is Radix's
- * internal state seeded from `defaultTab`. `forceMount` keeps every tab's panel
- * mounted (hidden when inactive) so entered values survive a tab switch — they
- * only reset on reload / Discard, not on switching away and back. The left
- * title/description block and the field grid are the same shared parts the Form
- * section uses.
+ * SectionDetailsTabs — the Details Form section with its right column wrapped in
+ * Tabs (default segmented variant). Each tab holds its own field grid; switching
+ * is Radix's internal state seeded from `defaultTab`. `forceMount` keeps every
+ * tab's panel mounted (hidden when inactive) so entered values survive a tab
+ * switch — they only reset on reload / Discard, not on switching away and back.
+ * The left title/description block and the field grid are the same shared parts
+ * the Details Form section uses.
  */
-export function SectionTabsRenderer({ props }: { props: SectionTabsPayload }) {
+export function SectionDetailsTabsRenderer({
+  props,
+}: {
+  props: SectionDetailsTabsPayload
+}) {
   const defaultValue = props.defaultTab ?? props.tabs[0]?.id
   return (
     <SectionTwoCol title={props.title} description={props.description}>

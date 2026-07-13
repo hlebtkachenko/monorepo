@@ -3,29 +3,29 @@
 import {
   ContentHeader,
   ContentPanel,
-  sectionForm,
+  sectionDetailsForm,
   sectionSpace,
 } from "@workspace/ui/blocks/content-panel"
 import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 /**
- * Client view for the Section Form debug page. Branded section descriptors must
- * be minted AND consumed within the same client boundary — the `Symbol` brand
- * does not survive RSC serialisation, so a Server Component cannot build a
- * descriptor and pass it to the client `ContentPanel`. (This is the same seam
- * an archetype provides once one exists.) Reproduces the "Legal identity" group
- * from org settings.
+ * Client view for the Section Details Form debug page. Branded section
+ * descriptors must be minted AND consumed within the same client boundary — the
+ * `Symbol` brand does not survive RSC serialisation, so a Server Component cannot
+ * build a descriptor and pass it to the client `ContentPanel`. (This is the same
+ * seam an archetype provides once one exists.) Reproduces the "Legal identity"
+ * group from org settings.
  */
 export function SectionFormView() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Section Form" />
+        <ContentHeader title="Section Details Form" />
       </AppPageHeader>
       <ContentPanel
         sections={[
           sectionSpace(),
-          sectionForm({
+          sectionDetailsForm({
             anchor: "legal-identity",
             title: "Legal identity",
             description:

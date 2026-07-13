@@ -2,15 +2,15 @@ import type { Meta, StoryObj } from "@storybook/react"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { SectionTabsRenderer } from "./section-tabs-renderer"
+import { SectionDetailsTabsRenderer } from "./section-details-tabs-renderer"
 
 /**
- * `SectionTabs` is a Form section whose right column is a set of tabs (default
- * segmented variant); each tab holds its own field grid.
+ * `SectionDetailsTabs` is a Details Form section whose right column is a set of
+ * tabs (default segmented variant); each tab holds its own field grid.
  */
 const meta = {
-  title: "Blocks/Content Panel/SectionTabs",
-  component: SectionTabsRenderer,
+  title: "Blocks/Content Panel/SectionDetailsTabs",
+  component: SectionDetailsTabsRenderer,
   parameters: { layout: "fullscreen" },
   decorators: [
     (Story) => (
@@ -21,7 +21,7 @@ const meta = {
       </IconProvider>
     ),
   ],
-} satisfies Meta<typeof SectionTabsRenderer>
+} satisfies Meta<typeof SectionDetailsTabsRenderer>
 
 export default meta
 type Story = StoryObj<typeof meta>

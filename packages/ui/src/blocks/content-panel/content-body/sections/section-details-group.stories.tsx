@@ -1,17 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react"
 
-import { GroupFrame } from "./section-group"
+import { DetailsGroupFrame } from "./section-details-group"
 
 /**
- * `SectionGroup` brackets a set of sections with a top + bottom rule and an
- * optional `h2` heading. Its nested sections are rendered by `SectionList` and
- * passed to `GroupFrame` as children — shown here with placeholder content.
+ * `SectionDetailsGroup` brackets a set of sections with a top + bottom rule and
+ * an optional `h2` heading. Its nested sections are rendered by `SectionList` and
+ * passed to `DetailsGroupFrame` as children — shown here with placeholder content.
  */
 const meta = {
-  title: "Blocks/Content Panel/SectionGroup",
-  component: GroupFrame,
+  title: "Blocks/Content Panel/SectionDetailsGroup",
+  component: DetailsGroupFrame,
   parameters: { layout: "fullscreen" },
-} satisfies Meta<typeof GroupFrame>
+} satisfies Meta<typeof DetailsGroupFrame>
 
 export default meta
 type Story = StoryObj<typeof meta>

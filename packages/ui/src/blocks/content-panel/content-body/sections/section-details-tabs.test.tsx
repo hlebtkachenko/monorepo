@@ -3,28 +3,28 @@ import { describe, it, expect } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { sectionTabs } from "./section-tabs"
-import { SectionTabsRenderer } from "./section-tabs-renderer"
+import { sectionDetailsTabs } from "./section-details-tabs"
+import { SectionDetailsTabsRenderer } from "./section-details-tabs-renderer"
 import { isSectionDescriptor } from "./section"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
-describe("sectionTabs factory", () => {
-  it("mints a branded `tabs` descriptor", () => {
-    const descriptor = sectionTabs({
+describe("sectionDetailsTabs factory", () => {
+  it("mints a branded `details-tabs` descriptor", () => {
+    const descriptor = sectionDetailsTabs({
       title: "Addresses",
       tabs: [{ id: "sidlo", label: "Registered seat", fields: [] }],
     })
-    expect(descriptor.kind).toBe("tabs")
+    expect(descriptor.kind).toBe("details-tabs")
     expect(isSectionDescriptor(descriptor)).toBe(true)
     expect(descriptor.props.tabs).toHaveLength(1)
   })
 })
 
-describe("SectionTabsRenderer", () => {
+describe("SectionDetailsTabsRenderer", () => {
   it("renders the title, tab triggers, and the default tab's fields", () => {
     wrap(
-      <SectionTabsRenderer
+      <SectionDetailsTabsRenderer
         props={{
           title: "Addresses",
           tabs: [

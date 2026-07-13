@@ -5,7 +5,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ContentBody } from "./content-body"
 import { sectionEmpty } from "./sections/section-empty"
-import { sectionGroup } from "./sections/section-group"
+import { sectionDetailsGroup } from "./sections/section-details-group"
 import { sectionSpace } from "./sections/section-space"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
@@ -20,7 +20,7 @@ describe("ContentBody", () => {
     const { container } = wrap(
       <ContentBody
         sections={[
-          sectionGroup({
+          sectionDetailsGroup({
             title: "Company",
             sections: [sectionEmpty({ title: "Inside the group" })],
           }),

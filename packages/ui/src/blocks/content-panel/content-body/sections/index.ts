@@ -1,20 +1,37 @@
 export { sectionEmpty } from "./section-empty"
 export type { SectionEmptyProps } from "./section-empty"
-export { sectionForm } from "./section-form"
+export { sectionDetailsForm } from "./section-details-form"
 export type {
-  SectionFormProps,
-  FormField,
-  FormFieldControl,
-  FormFieldHover,
-  FormFieldSpan,
-  FormSelectOption,
-} from "./section-form"
-export { sectionTabs } from "./section-tabs"
-export type { SectionTabsProps, FormTab } from "./section-tabs"
+  SectionDetailsFormProps,
+  DetailsFormField,
+  DetailsFormFieldControl,
+  DetailsFormFieldHover,
+  DetailsFormFieldSpan,
+  DetailsFormSelectOption,
+} from "./section-details-form"
+export { sectionDetailsTabs } from "./section-details-tabs"
+export type {
+  SectionDetailsTabsProps,
+  DetailsFormTab,
+} from "./section-details-tabs"
+export { sectionDetailsTable } from "./section-details-table"
+export type {
+  SectionDetailsTableProps,
+  DetailsTableColumn,
+  DetailsTableColumnAlign,
+  DetailsTableCellDisplay,
+  DetailsTableCellValue,
+  DetailsTableEditControl,
+  DetailsTableBadgeTone,
+  DetailsTableRow,
+  DetailsTableAction,
+  DetailsTableActionIcon,
+  DetailsTableMode,
+} from "./section-details-table"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"
-export { sectionGroup } from "./section-group"
-export type { SectionGroupProps } from "./section-group"
+export { sectionDetailsGroup } from "./section-details-group"
+export type { SectionDetailsGroupProps } from "./section-details-group"
 export type {
   SectionDescriptor,
   SectionKind,

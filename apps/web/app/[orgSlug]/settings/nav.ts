@@ -277,7 +277,7 @@ export function settingsNav(base: string): SidebarNavEntry[] {
               href: `${base}/debug/archetype-details`,
             },
             {
-              label: "Section Form",
+              label: "Section Details Form",
               href: `${base}/debug/section-form`,
             },
           ],

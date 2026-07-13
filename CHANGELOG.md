@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Section Details Table — a data-driven content-panel section (Data Table on the right of a Details Form), with readonly (display + add editable rows) and editable (edit rows in place) modes; action buttons as data (add-row local state, link navigation).
 - UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)
 - UI: **Group** section (`sectionGroup`) — a titled, rule-bracketed container that nests other sections (one level); subsumes and replaces the standalone Title + Divider sections (its chrome = the h2 + top/bottom rules). ContentBody now delegates to a shared recursive `SectionList` so the brand guard runs at every level; the closed registry stays leaf-only (no import cycle)
 - UI: **Title** section (`sectionTitle`) — a standalone h2 group heading at the same left position as a Form title, used to group 2+ Form sections; wired into the Archetype Details debug page
@@ -21,6 +22,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Renamed the Details-archetype section family: Section Form/Tabs/Group → Section Details Form/Tabs/Table/Group (factories sectionDetailsForm/Tabs/Group, kinds details-form/tabs/table/group); Space and Empty stay generic.
 - UI: Tabs section keeps every tab panel mounted (`forceMount`) so entered values survive a tab switch (reset only on reload/Discard); +6px gap between the tab bar and the fields
 - UI: Group section gains 16px bottom breathing room (pb-4) before its bottom rule; Archetype Details demo gives each Addresses tab distinct fields so tab switching visibly swaps the form
 - UI: Archetype Details demo adds a 16px Space before the group's bottom divider (breathing room from the section above)

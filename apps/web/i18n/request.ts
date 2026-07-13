@@ -15,7 +15,13 @@ import { buildRequestConfig } from "@workspace/i18n/request"
  */
 export default buildRequestConfig({
   resolveUserLocale: async () => {
-    const session = await auth.api.getSession({ headers: await headers() })
-    return session?.user.locale ?? null
+    try {
+      const session = await auth.api.getSession({ headers: await headers() })
+      return session?.user.locale ?? null
+    } catch {
+      // Session lookup is best-effort: a transient auth/DB outage must not
+      // crash rendering. Fall through to the NEXT_LOCALE cookie / defaultLocale.
+      return null
+    }
   },
 })

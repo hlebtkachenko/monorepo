@@ -1,0 +1,219 @@
+"use client"
+
+import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@workspace/ui/lib/utils"
+import { ChevronRight } from "@workspace/ui/lib/icons"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@workspace/ui/components/collapsible"
+
+type AuditLogProps = React.ComponentProps<"ul">
+
+function AuditLog({ className, ...props }: AuditLogProps) {
+  return (
+    <ul
+      data-slot="audit-log"
+      className={cn(
+        "divide-y divide-border overflow-hidden rounded-md border border-border bg-card",
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+type AuditLogItemProps = Omit<React.ComponentProps<"li">, "onToggle"> & {
+  open?: boolean
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+function AuditLogItem({
+  open,
+  defaultOpen,
+  onOpenChange,
+  className,
+  children,
+  ...props
+}: AuditLogItemProps) {
+  return (
+    <Collapsible
+      asChild
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+    >
+      <li
+        data-slot="audit-log-item"
+        className={cn("flex flex-col", className)}
+        {...props}
+      >
+        {children}
+      </li>
+    </Collapsible>
+  )
+}
+
+type AuditLogTriggerProps = React.ComponentProps<typeof CollapsibleTrigger>
+
+function AuditLogTrigger({
+  className,
+  children,
+  ...props
+}: AuditLogTriggerProps) {
+  return (
+    <CollapsibleTrigger
+      data-slot="audit-log-trigger"
+      className={cn(
+        "group flex w-full items-center gap-3 px-4 py-3 text-start transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+        className,
+      )}
+      {...props}
+    >
+      <ChevronRight
+        aria-hidden
+        className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-150 group-data-[state=open]:rotate-90 rtl:group-data-[state=closed]:rotate-180"
+      />
+      {children}
+    </CollapsibleTrigger>
+  )
+}
+
+type AuditLogActorProps = React.ComponentProps<"span">
+
+function AuditLogActor({ className, ...props }: AuditLogActorProps) {
+  return (
+    <span
+      data-slot="audit-log-actor"
+      className={cn("shrink-0 text-sm font-medium text-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+type AuditLogActionProps = React.ComponentProps<"span">
+
+function AuditLogAction({ className, ...props }: AuditLogActionProps) {
+  return (
+    <span
+      data-slot="audit-log-action"
+      className={cn("truncate text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+type AuditLogTimeProps = React.ComponentProps<"time">
+
+function AuditLogTime({ className, ...props }: AuditLogTimeProps) {
+  return (
+    <time
+      data-slot="audit-log-time"
+      className={cn(
+        "ms-auto shrink-0 font-mono text-[10px] tracking-[0.1em] text-muted-foreground uppercase",
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+const auditLogStatusVariants = cva(
+  "inline-flex shrink-0 items-center rounded-sm border px-1.5 py-0.5 font-mono text-[10px] leading-none tracking-[0.08em] uppercase",
+  {
+    variants: {
+      tone: {
+        default: "border-border text-muted-foreground",
+        success: "border-success/30 bg-success/10 text-foreground",
+        warning: "border-warning/30 bg-warning/10 text-foreground",
+        danger: "border-destructive/30 bg-destructive/10 text-foreground",
+      },
+    },
+    defaultVariants: {
+      tone: "default",
+    },
+  },
+)
+
+type AuditLogStatusProps = React.ComponentProps<"span"> &
+  VariantProps<typeof auditLogStatusVariants>
+
+function AuditLogStatus({
+  tone = "default",
+  className,
+  ...props
+}: AuditLogStatusProps) {
+  return (
+    <span
+      data-slot="audit-log-status"
+      data-tone={tone}
+      className={cn(auditLogStatusVariants({ tone }), className)}
+      {...props}
+    />
+  )
+}
+
+type AuditLogDetailProps = React.ComponentProps<"dl">
+
+function AuditLogDetail({
+  className,
+  children,
+  ...props
+}: AuditLogDetailProps) {
+  return (
+    <CollapsibleContent asChild>
+      <dl
+        data-slot="audit-log-detail"
+        className={cn(
+          "grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 border-t border-border bg-muted/30 px-4 py-3 ps-11",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </dl>
+    </CollapsibleContent>
+  )
+}
+
+type AuditLogFieldProps = React.ComponentProps<"div"> & {
+  label: React.ReactNode
+}
+
+function AuditLogField({
+  label,
+  className,
+  children,
+  ...props
+}: AuditLogFieldProps) {
+  return (
+    <div
+      data-slot="audit-log-field"
+      className={cn("contents", className)}
+      {...props}
+    >
+      <dt className="font-mono text-[11px] tracking-[0.08em] text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="min-w-0 font-mono text-[12px] break-words text-foreground">
+        {children}
+      </dd>
+    </div>
+  )
+}
+
+export {
+  AuditLog,
+  AuditLogItem,
+  AuditLogTrigger,
+  AuditLogActor,
+  AuditLogAction,
+  AuditLogTime,
+  AuditLogStatus,
+  AuditLogDetail,
+  AuditLogField,
+}

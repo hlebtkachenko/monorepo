@@ -4,6 +4,25 @@ import { Inbox, Search } from "lucide-react"
 
 import { AspectRatio } from "@workspace/ui/components/aspect-ratio"
 import {
+  Attachment,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@workspace/ui/components/attachment"
+import {
+  AuditLog,
+  AuditLogAction,
+  AuditLogActor,
+  AuditLogDetail,
+  AuditLogField,
+  AuditLogItem,
+  AuditLogStatus,
+  AuditLogTime,
+  AuditLogTrigger,
+} from "@workspace/ui/components/audit-log"
+import {
   Avatar,
   AvatarFallback,
   AvatarGroup,
@@ -11,6 +30,11 @@ import {
   AvatarImage,
 } from "@workspace/ui/components/avatar"
 import { Badge } from "@workspace/ui/components/badge"
+import {
+  Bubble,
+  BubbleContent,
+  BubbleReactions,
+} from "@workspace/ui/components/bubble"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -37,6 +61,22 @@ import {
   EmptyTitle,
 } from "@workspace/ui/components/empty"
 import { Label } from "@workspace/ui/components/label"
+import { Marker, MarkerContent } from "@workspace/ui/components/marker"
+import {
+  Message,
+  MessageAvatar,
+  MessageContent,
+  MessageFooter,
+  MessageHeader,
+} from "@workspace/ui/components/message"
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@workspace/ui/components/message-scroller"
 import {
   Pagination,
   PaginationContent,
@@ -49,6 +89,12 @@ import {
 import { Progress } from "@workspace/ui/components/progress"
 import { Separator } from "@workspace/ui/components/separator"
 import { Spinner } from "@workspace/ui/components/spinner"
+import {
+  StatCard,
+  StatCardDelta,
+  StatCardLabel,
+  StatCardValue,
+} from "@workspace/ui/components/stat-card"
 import {
   Table,
   TableBody,
@@ -329,6 +375,105 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== ATTACHMENT ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Attachment</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Sizes, states, and orientation
+            </h3>
+            <AttachmentGroup>
+              <Attachment state="uploading">
+                <AttachmentMedia>
+                  <FileText />
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>bank-statement.pdf</AttachmentTitle>
+                  <AttachmentDescription>Uploading</AttachmentDescription>
+                </AttachmentContent>
+              </Attachment>
+              <Attachment size="sm" state="processing">
+                <AttachmentMedia>
+                  <FileText />
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>invoice.pdf</AttachmentTitle>
+                  <AttachmentDescription>Processing</AttachmentDescription>
+                </AttachmentContent>
+              </Attachment>
+              <Attachment size="xs" state="error">
+                <AttachmentMedia>
+                  <FileText />
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>receipt.pdf</AttachmentTitle>
+                  <AttachmentDescription>Upload failed</AttachmentDescription>
+                </AttachmentContent>
+              </Attachment>
+              <Attachment orientation="vertical">
+                <AttachmentMedia>
+                  <FileText />
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>contract.pdf</AttachmentTitle>
+                  <AttachmentDescription>1.2 MB</AttachmentDescription>
+                </AttachmentContent>
+              </Attachment>
+            </AttachmentGroup>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== AUDITLOG ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">AuditLog</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Expandable events and semantic status tones
+            </h3>
+            <AuditLog>
+              <AuditLogItem defaultOpen>
+                <AuditLogTrigger>
+                  <AuditLogActor>Hleb</AuditLogActor>
+                  <AuditLogAction>approved invoice INV-1042</AuditLogAction>
+                  <AuditLogStatus tone="success">Approved</AuditLogStatus>
+                  <AuditLogTime dateTime="2026-07-13T10:30:00Z">
+                    10:30
+                  </AuditLogTime>
+                </AuditLogTrigger>
+                <AuditLogDetail>
+                  <AuditLogField label="Request">req_01JZ8</AuditLogField>
+                  <AuditLogField label="Source">Admin review</AuditLogField>
+                </AuditLogDetail>
+              </AuditLogItem>
+              <AuditLogItem>
+                <AuditLogTrigger>
+                  <AuditLogActor>Agent</AuditLogActor>
+                  <AuditLogAction>requested elevated access</AuditLogAction>
+                  <AuditLogStatus tone="warning">Review</AuditLogStatus>
+                </AuditLogTrigger>
+              </AuditLogItem>
+              <AuditLogItem>
+                <AuditLogTrigger>
+                  <AuditLogActor>System</AuditLogActor>
+                  <AuditLogAction>rejected an invalid request</AuditLogAction>
+                  <AuditLogStatus tone="danger">Denied</AuditLogStatus>
+                </AuditLogTrigger>
+              </AuditLogItem>
+              <AuditLogItem>
+                <AuditLogTrigger>
+                  <AuditLogActor>Worker</AuditLogActor>
+                  <AuditLogAction>queued a background export</AuditLogAction>
+                  <AuditLogStatus>Queued</AuditLogStatus>
+                </AuditLogTrigger>
+              </AuditLogItem>
+            </AuditLog>
+          </div>
+        </div>
+      </section>
+
       {/* ==================== AUTOCOMPLETE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6">Autocomplete</h2>
@@ -484,6 +629,42 @@ export default function ShowcasePage() {
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== BUBBLE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Bubble</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Visual variants, alignment, and reactions
+            </h3>
+            <div className="flex flex-col gap-4">
+              {(
+                [
+                  "default",
+                  "secondary",
+                  "muted",
+                  "tinted",
+                  "outline",
+                  "ghost",
+                  "destructive",
+                ] as const
+              ).map((variant) => (
+                <Bubble
+                  key={variant}
+                  variant={variant}
+                  align={variant === "secondary" ? "end" : "start"}
+                >
+                  <BubbleContent>{variant} message</BubbleContent>
+                  {variant === "tinted" ? (
+                    <BubbleReactions>Approved 2</BubbleReactions>
+                  ) : null}
+                </Bubble>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -1471,6 +1652,22 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== MARKER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Marker</h2>
+        <div className="flex flex-col gap-6">
+          <Marker>
+            <MarkerContent>Generating response...</MarkerContent>
+          </Marker>
+          <Marker variant="separator">
+            <MarkerContent>Today</MarkerContent>
+          </Marker>
+          <Marker variant="border">
+            <MarkerContent>Tool completed</MarkerContent>
+          </Marker>
+        </div>
+      </section>
+
       {/* ==================== MARQUEE ==================== */}
       <section className="mb-16">
         <h2 className="mb-6">Marquee</h2>
@@ -1553,6 +1750,73 @@ export default function ShowcasePage() {
                 </MenubarContent>
               </MenubarMenu>
             </Menubar>
+          </div>
+        </div>
+      </section>
+
+      {/* ==================== MESSAGE ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Message</h2>
+        <div className="flex flex-col gap-6">
+          <Message>
+            <MessageAvatar>
+              <Avatar size="sm">
+                <AvatarFallback>AF</AvatarFallback>
+              </Avatar>
+            </MessageAvatar>
+            <MessageContent>
+              <MessageHeader>Afframe</MessageHeader>
+              <Bubble variant="muted">
+                <BubbleContent>The review is ready.</BubbleContent>
+              </Bubble>
+              <MessageFooter>10:31</MessageFooter>
+            </MessageContent>
+          </Message>
+          <Message align="end">
+            <MessageContent>
+              <Bubble align="end">
+                <BubbleContent>Approve the booking.</BubbleContent>
+              </Bubble>
+              <MessageFooter>10:32</MessageFooter>
+            </MessageContent>
+          </Message>
+        </div>
+      </section>
+
+      {/* ==================== MESSAGESCROLLER ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">MessageScroller</h2>
+        <div className="flex flex-col gap-6">
+          <div>
+            <h3 className="mb-3 text-sm font-medium text-muted-foreground">
+              Anchored conversation with start and end controls
+            </h3>
+            <MessageScrollerProvider>
+              <MessageScroller className="h-72 max-w-xl rounded-lg border">
+                <MessageScrollerViewport>
+                  <MessageScrollerContent className="p-4">
+                    {Array.from({ length: 10 }, (_, index) => (
+                      <MessageScrollerItem
+                        key={index}
+                        messageId={`showcase-${index}`}
+                        scrollAnchor={index === 8}
+                      >
+                        <Bubble
+                          variant={index % 2 === 0 ? "muted" : "secondary"}
+                          align={index % 2 === 0 ? "start" : "end"}
+                        >
+                          <BubbleContent>
+                            Conversation item {index + 1}
+                          </BubbleContent>
+                        </Bubble>
+                      </MessageScrollerItem>
+                    ))}
+                  </MessageScrollerContent>
+                </MessageScrollerViewport>
+                <MessageScrollerButton direction="start" />
+                <MessageScrollerButton />
+              </MessageScroller>
+            </MessageScrollerProvider>
           </div>
         </div>
       </section>
@@ -2016,6 +2280,26 @@ export default function ShowcasePage() {
         </div>
       </section>
 
+      {/* ==================== STATCARD ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">StatCard</h2>
+        <div className="grid gap-4 sm:grid-cols-3">
+          {(
+            [
+              ["Open invoices", "128", "up", "12% this month"],
+              ["Overdue", "7", "down", "3 fewer"],
+              ["Approvals", "24", "flat", "No change"],
+            ] as const
+          ).map(([label, value, trend, delta]) => (
+            <StatCard key={label}>
+              <StatCardLabel>{label}</StatCardLabel>
+              <StatCardValue>{value}</StatCardValue>
+              <StatCardDelta trend={trend}>{delta}</StatCardDelta>
+            </StatCard>
+          ))}
+        </div>
+      </section>
+
       {/* ==================== STATEFULBUTTON ==================== */}
       <section className="mb-16">
         <h2 className="mb-6">StatefulButton</h2>
@@ -2331,6 +2615,30 @@ export default function ShowcasePage() {
             <TourDemo />
           </div>
         </div>
+      </section>
+
+      {/* ==================== TYPESET ==================== */}
+      <section className="mb-16">
+        <h2 className="mb-6">Typeset</h2>
+        <article className="typeset rounded-lg border p-6 [--typeset-flow:1em]">
+          <h3>Streaming-safe rendered content</h3>
+          <p>
+            Typeset applies Afframe fonts, semantic colors, and consistent
+            rhythm to plain HTML and rendered Markdown.
+          </p>
+          <blockquote>
+            New blocks can append without restyling content already on screen.
+          </blockquote>
+          <ul>
+            <li>Theme-aware typography</li>
+            <li>Responsive tables and code</li>
+            <li>Compact chat and roomy document presets</li>
+          </ul>
+          <p>
+            Inline <code>Money&lt;Currency&gt;</code> values keep technical
+            prose readable.
+          </p>
+        </article>
       </section>
 
       {/* ==================== WEBHOOKTESTER ==================== */}

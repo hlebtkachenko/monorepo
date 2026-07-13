@@ -1073,7 +1073,7 @@ export function InputsDebug() {
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Pick a fruit" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper">
               <SelectGroup>
                 <SelectLabel>Fruit</SelectLabel>
                 {FRUITS.map((f) => (
@@ -1085,12 +1085,15 @@ export function InputsDebug() {
             </SelectContent>
           </Select>
         </Row>
-        <Row name="SelectTrigger size='sm'" desc="compact trigger h-7">
+        <Row
+          name="SelectTrigger size='sm'"
+          desc="compact trigger h-8 (shadcn original)"
+        >
           <Select>
             <SelectTrigger size="sm" className="w-40">
               <SelectValue placeholder="Small" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper">
               <SelectItem value="a">Option A</SelectItem>
               <SelectItem value="b">Option B</SelectItem>
             </SelectContent>

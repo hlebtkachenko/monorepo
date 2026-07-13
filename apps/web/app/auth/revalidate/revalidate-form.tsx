@@ -9,6 +9,7 @@ import { Heading } from "@workspace/ui/components/heading"
 import { PasswordInput } from "@workspace/ui/components/password-input"
 import { Text } from "@workspace/ui/components/text"
 
+import { reportClientError } from "../../_lib/report-error"
 import { revalidateSessionAction } from "./revalidate-action"
 
 function sanitizeNext(raw: string | null): string {
@@ -33,6 +34,12 @@ export function RevalidateForm() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  function openUtilityState(state: string) {
+    const retry = `/auth/revalidate?next=${encodeURIComponent(next)}`
+    const query = new URLSearchParams({ next, retry })
+    router.replace(`/utility/${state}?${query.toString()}`)
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
@@ -40,16 +47,20 @@ export function RevalidateForm() {
     try {
       const result = await revalidateSessionAction(password)
       if (!result.ok) {
-        setError(
-          result.error === "invalidCredentials"
-            ? t("invalidCredentials")
-            : t("error"),
-        )
+        if (result.error === "invalidCredentials") {
+          setError(t("invalidCredentials"))
+        } else if (result.error === "noSession") {
+          openUtilityState("session_expired")
+        } else {
+          reportClientError(new Error("Reauthentication failed"))
+          openUtilityState("unexpected_server_error")
+        }
         return
       }
       router.push(next)
-    } catch {
-      setError(t("error"))
+    } catch (cause) {
+      reportClientError(cause)
+      openUtilityState("unexpected_server_error")
     } finally {
       setSubmitting(false)
     }

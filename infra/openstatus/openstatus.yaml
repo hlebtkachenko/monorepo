@@ -23,7 +23,7 @@
 # The distinguishing failure while parked is Cloudflare error 1033 / HTTP
 # 530 (tunnel dead, no sleeping route bound) — hence `statusCode not_eq 530`
 # on the staging monitors instead of `eq 200`. Production monitors stay
-# strict (`eq 200`): post-launch prod runs 24/7 (LAUNCH-CHECKLIST #2) and a
+# strict (`eq 200`): post-launch prod runs 24/7 (V1-LAUNCH-GATES #2) and a
 # sleeping page in a customer's face IS an incident. Until that un-park
 # happens, expect the prod monitors to read "down" while prod is
 # deliberately paused — pause them in the dashboard if the noise matters.

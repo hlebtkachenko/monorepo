@@ -178,4 +178,3 @@ A nightly worker (`packages/workers/src/jobs/prune-auth-tokens.ts`) deletes rows
 - [ADR-0011](../../../../docs/adr/0011-audit-log.md) — audit log (sibling pattern, redaction registry shared)
 - [ADR-0010](../../../../docs/adr/0010-multi-tenant-rls.md) — multi-tenant RLS (why mint/consume run under `withAdminBypass`)
 - Legacy AFF-198 — migration tracking
-- [`docs/plans/AFF-150-AUDIT-CONTEXT.md`](../../../../docs/plans/AFF-150-AUDIT-CONTEXT.md) — broader auth dependency graph

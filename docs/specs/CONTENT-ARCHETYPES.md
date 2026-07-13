@@ -1,28 +1,34 @@
 # Content-panel archetypes — pick one and build a page
 
-Four page shapes cover almost every org-app screen. Each is a reusable **block**
-(or block set) in `packages/ui/src/blocks/app-content` plus a thin **data demo**
-in `apps/web/app/_components/<name>-demo`. To build a new page you pick an
-archetype, mount the shared chrome, drop the block into a `ContentPanel`, and
-feed it data. Nothing here is bespoke per page — the blocks are the contract.
+Five page shapes cover almost every org-app screen. Four use reusable blocks
+from `packages/ui/src/blocks/app-content` plus thin data demos under
+`apps/web/app/_components/<name>-demo`. `Blank` is the intentional zero-slot
+case: page content renders directly in `ContentPanel` without archetype chrome.
 
-Issue #425 is the origin. The four demos below are **dev-only reference pages**
-(404 in production, hidden from nav via `scripts/check-nav.ts`); copy them, don't
-import them.
+Issue #425 is the origin. The four demo routes are dev-only reference pages
+(404 in production, hidden from nav via `scripts/check-nav.ts`). Copy their
+patterns; do not import demo code into production pages.
 
-| Archetype     | Route              | Demo source                              | Block(s)                                             |
-| ------------- | ------------------ | ---------------------------------------- | --------------------------------------------------- |
-| **Table**     | `/<org>/demo-table`     | `_components/table-demo/`           | `DataGridView` + `useDataTable` + `filter-bar`      |
-| **Launchpad** | `/<org>/demo-launchpad` | `_components/launchpad-demo/`       | `LaunchpadGrid`                                      |
-| **Dashboard** | `/<org>/demo-dashboard` | `_components/dashboard-demo/`       | `DashboardGrid` + `DashboardChartCard`              |
-| **Single**    | `/<org>/demo-single`    | `_components/single-demo/`          | `RecordWorkspace` (`formLayout="panels"`)           |
+| Archetype     | Route                   | Demo source                   | Block(s)                                       |
+| ------------- | ----------------------- | ----------------------------- | ---------------------------------------------- |
+| **Table**     | `/<org>/demo-table`     | `_components/table-demo/`     | `DataGridView` + `useDataTable` + `filter-bar` |
+| **Blank**     | None                    | None                          | `ContentPanel` body only                       |
+| **Launchpad** | `/<org>/demo-launchpad` | `_components/launchpad-demo/` | `LaunchpadGrid`                                |
+| **Dashboard** | `/<org>/demo-dashboard` | `_components/dashboard-demo/` | `DashboardGrid` + `DashboardChartCard`         |
+| **Single**    | `/<org>/demo-single`    | `_components/single-demo/`    | `RecordWorkspace` (`formLayout="panels"`)      |
 
 ## Which one?
 
 - **Table** — a dense list you filter, sort, page, and inspect (invoices, transactions, counterparties). Row selection + bulk actions + a per-row inspector.
+- **Blank** — a one-off body without toolbar, filters, status bar, inspector, or archetype block. Use only when shared panel chrome adds no value.
 - **Launchpad** — a folder / overview hub: a grid of cards linking to subpages, with follow-stars and a Followed group. No data table.
 - **Dashboard** — analytics: KPI tiles with sparklines, chart cards, a period filter, and a metrics-as-rows matrix (which is itself a selectable, sortable Table).
 - **Single** — one record on show as an editable document: side-by-side form panels + a full-width editable line-items grid + live totals.
+
+The admin app carries a static reference catalog of these archetypes at
+`/platform/archetypes` (`apps/admin/app/(gated)/platform/archetypes`) — each
+archetype's label, one-line description, and slot recipe. It documents the set;
+the buildable demos live in the web routes above.
 
 ## The shared foundation (every archetype uses this)
 
@@ -57,7 +63,7 @@ export default function MyPage() {
 Shared header helpers live in `apps/web/app/_components/_shared/content-header-extras.tsx`:
 
 - **`PageHeaderActions`** — the standard favorite-star + config cluster for `ContentHeader.actions`.
-- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Identical across all four archetypes; pass it to `ContentHeader.manageTabs`.
+- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Shared by every page that exposes managed tabs; pass it to `ContentHeader.manageTabs`.
 - **`useTabVisibility(tabs, active)`** — controlled show/hide state for the tabs, returning a `visible` list and an `activeValue` clamped to it (hiding the active tab falls back to the first visible one, derived in render — no header/body desync).
 
 `ContentToolbar` (36px, `left`/`right` slots) and `ContentStatusBar` (24px,
@@ -79,6 +85,16 @@ select-checkbox column + `DataTableColumnHeader`), `table-demo-body.tsx`
 `DataTableColumnManager` + a split "Add" button + the inspector-mode switch),
 `table-demo-header.tsx`, `data.ts`, and `context.tsx` (links the portaled header
 to the body). Swap `data.ts` for query results.
+
+## Blank
+
+The zero-slot case. Render the page body directly as `ContentPanel.children`
+without `toolbar`, `filters`, `statusBar`, `actionBar`, or `inspector`. Blank has
+no dedicated block and no demo route because its contract is the absence of
+additional panel structure.
+
+Use Blank for exceptional one-off content. If the page needs repeated list,
+navigation, analytics, or record-editing behavior, choose another archetype.
 
 ## Launchpad
 
@@ -144,7 +160,7 @@ the chart/table format toggle.
 Props: `children` (the panels / form), `aside`, `lineItems`, `footer`,
 `maxWidth`, `formLayout`. Mount in a `ContentPanel` with
 `bodyClassName="flex min-h-0 flex-col p-0"` so the workspace owns its own scroll
-+ footer.
+and footer.
 
 **Build it:** copy `single-demo/` — `single-demo.tsx` (the three panels + local
 tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
@@ -167,7 +183,8 @@ route/page.tsx
  └─ <ContentPanel>           the body frame (rows below the header)
       ├─ toolbar   ContentToolbar   (filters / search / add / view switches)
       ├─ filters   (optional band)
-      ├─ children  ← the ARCHETYPE BLOCK (DataGridView | LaunchpadGrid | DashboardGrid | RecordWorkspace)
+      ├─ children  ← body-only Blank or an archetype block
+      │               (DataGridView | LaunchpadGrid | DashboardGrid | RecordWorkspace)
       ├─ statusBar ContentStatusBar (counts / totals)
       ├─ inspector (Table only) resizable panel or dialog
       └─ actionBar (bulk selection)

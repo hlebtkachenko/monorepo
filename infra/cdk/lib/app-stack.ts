@@ -196,7 +196,7 @@ export class AppStack extends Stack {
     // Drift detection: `.github/workflows/secrets-drift.yml` runs daily
     // and fails on Vault ≠ SSM divergence (better-auth-secret + resend-api-key).
     //
-    // See docs/plans/SECRETS-MIGRATION.md § M4.
+    // See docs/runbooks/VAULT-OPS.md § Adding a new secret.
     const tunnelTokenParam =
       StringParameter.fromSecureStringParameterAttributes(
         this,
@@ -515,7 +515,7 @@ export class AppStack extends Stack {
         // │  TO FLIP: delete this line AND the matching line in the admin
         // │  container below — server.ts then falls back to a host-only
         // │  cookie per app. Operators re-login on admin once. Tracked as
-        // │  docs/LAUNCH-CHECKLIST.md #7. Telegram ask NOT yet sent (no
+        // │  docs/plans/V1-LAUNCH-GATES.md #7. Telegram ask NOT yet sent (no
         // │  secret in the Wave H workspace) — run the ask.ts command
         // └─ logged in .context/exec/wave-h.md, or decide at checklist #7.
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.domain),
@@ -616,10 +616,10 @@ export class AppStack extends Stack {
       // 503 to users while ECS reported it healthy. Node check returns
       // exit 1 unless statusCode === 200.
       //
-      // Timings tightened from 30s→10s interval + 20s→15s startPeriod so
-      // ECS sees HEALTHY at ~25s instead of ~110s. Next.js standalone
-      // server boots in <5s; /api/version is a cheap JSON return — three
-      // 10s-interval probes still gives ~30s before declaring unhealthy.
+      // Next.js standalone boots in <5s and /api/version is a cheap JSON
+      // return. Five-second probes surface readiness promptly; nine retries
+      // preserve the previous 45s bootstrap allowance without a start-period
+      // grace delaying health convergence on Fargate.
       // healthCheckGracePeriod (180s, see service config below) keeps
       // a wide safety margin over the new convergence time.
       healthCheck: {
@@ -627,10 +627,9 @@ export class AppStack extends Stack {
           "CMD-SHELL",
           "node -e \"require('http').get('http://127.0.0.1:3000/api/version',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
         ],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(3),
-        retries: 3,
-        startPeriod: Duration.seconds(15),
+        retries: 9,
       },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("WebLinuxParams"),
@@ -763,10 +762,9 @@ export class AppStack extends Stack {
           "CMD-SHELL",
           "node -e \"require('http').get('http://127.0.0.1:3001/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
         ],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(3),
-        retries: 3,
-        startPeriod: Duration.seconds(15),
+        retries: 9,
       },
       memoryReservationMiB: 512,
       readonlyRootFilesystem: true,
@@ -833,7 +831,7 @@ export class AppStack extends Stack {
         // `admin.afframe.com`. See web container comment above.
         // H6 PREP: delete together with the web container's line to scope
         // cookies per-host (see the H6 PREP block above; flip is gated on
-        // Hleb's approval — docs/LAUNCH-CHECKLIST.md #7).
+        // Hleb's approval, docs/plans/V1-LAUNCH-GATES.md #7).
         BETTER_AUTH_COOKIE_DOMAIN: deriveCookieDomain(props.adminDomain),
         // Comma-separated workspace ids whose members may sign into admin.
         // Empty => nobody is authorized (the gate fails closed). Changing
@@ -905,10 +903,9 @@ export class AppStack extends Stack {
           "CMD-SHELL",
           "node -e \"require('http').get('http://127.0.0.1:3100/api/health',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})\"",
         ],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(3),
-        retries: 3,
-        startPeriod: Duration.seconds(15),
+        retries: 9,
       },
       memoryReservationMiB: 384,
       linuxParameters: linuxParams("AdminLinuxParams"),
@@ -1047,10 +1044,9 @@ export class AppStack extends Stack {
       // Drives apiContainer's addContainerDependencies HEALTHY gate below.
       healthCheck: {
         command: ["CMD-SHELL", "nc -z 127.0.0.1 6432 || exit 1"],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(5),
-        retries: 3,
-        startPeriod: Duration.seconds(15),
+        retries: 9,
       },
       memoryReservationMiB: 64,
       // readonlyRootFilesystem intentionally NOT set (defaults to false). See
@@ -1075,6 +1071,13 @@ export class AppStack extends Stack {
     // admin reaches the DB through pgbouncer too (the workspace-allowlist
     // gate query) — wait for the pool to be healthy before it starts.
     adminContainer.addContainerDependencies({
+      container: pgbouncerContainer,
+      condition: ContainerDependencyCondition.HEALTHY,
+    })
+    // web also uses pgbouncer. Starting the pool before db-migrate lets its
+    // listener become healthy during the migration window, while this gate
+    // still prevents web from accepting database work before the pool is ready.
+    webContainer.addContainerDependencies({
       container: pgbouncerContainer,
       condition: ContainerDependencyCondition.HEALTHY,
     })
@@ -1110,10 +1113,9 @@ export class AppStack extends Stack {
       // Cerbos ships an in-binary healthcheck subcommand; no shell needed.
       healthCheck: {
         command: ["CMD", "/cerbos", "healthcheck", "--insecure"],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(5),
-        retries: 3,
-        startPeriod: Duration.seconds(15),
+        retries: 9,
       },
       memoryReservationMiB: 64,
       readonlyRootFilesystem: true,
@@ -1191,10 +1193,9 @@ export class AppStack extends Stack {
           "/usr/local/bin/grpc_health_probe",
           "-addr=127.0.0.1:8081",
         ],
-        interval: Duration.seconds(10),
+        interval: Duration.seconds(5),
         timeout: Duration.seconds(5),
-        retries: 3,
-        startPeriod: Duration.seconds(20),
+        retries: 10,
       },
       memoryReservationMiB: 200,
       readonlyRootFilesystem: true,
@@ -1205,11 +1206,11 @@ export class AppStack extends Stack {
       sourceVolume: "tmp",
       readOnly: false,
     })
-    // api waits for openfga to be healthy too — the permissions-drain lane
-    // and the L2 AuthGuard layer both fail fast if the sidecar isn't ready.
+    // API startup does not call OpenFGA. Let Nest boot while OpenFGA converges;
+    // the resume health gate keeps the sleeping page active until both pass.
     apiContainer.addContainerDependencies({
       container: openfgaContainer,
-      condition: ContainerDependencyCondition.HEALTHY,
+      condition: ContainerDependencyCondition.START,
     })
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {
@@ -1302,6 +1303,9 @@ export class AppStack extends Stack {
         DB_HOST: props.database.dbInstanceEndpointAddress,
         DB_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
+        // Lets power.yml scale ECS while RDS is still starting. The workflow
+        // detects this marker before using the parallel resume path.
+        DB_CONNECT_WAIT_SECONDS: "120",
       },
       secrets: {
         DB_ADMIN_USER: EcsSecret.fromSecretsManager(
@@ -1496,21 +1500,22 @@ export class AppStack extends Stack {
 
     // Essential-container dependsOn wiring. Three init containers run in
     // a strict chain: db-migrate → openfga-migrate → openfga-bootstrap.
-    // Essentials wait on the appropriate prefix:
-    //   - All essentials need db-migrate (creates app_user role, schemas).
+    // Database consumers wait on the appropriate prefix:
+    //   - pgbouncer and cerbos start immediately. They do not query the
+    //     database during startup, so their health checks can overlap the init
+    //     chain. Their consumers remain gated on both health and migrations.
+    //   - Runtime database consumers need db-migrate (creates roles, schemas).
     //   - openfga + api need openfga-migrate (goose schema tables exist).
     //   - api alone needs openfga-bootstrap (its SSM-sourced OPENFGA_STORE_ID
     //     + OPENFGA_MODEL_ID must resolve to the freshly-written values,
     //     not the previous deploy's snapshot or the seed placeholders).
-    const allEssentials = [
-      pgbouncerContainer,
-      cerbosContainer,
+    const databaseConsumers = [
       openfgaContainer,
       apiContainer,
       webContainer,
       adminContainer,
     ]
-    for (const c of allEssentials) {
+    for (const c of databaseConsumers) {
       c.addContainerDependencies({
         container: dbMigrateContainer,
         condition: ContainerDependencyCondition.SUCCESS,

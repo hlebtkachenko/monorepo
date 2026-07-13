@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault → SSM sync timer — fires every 5 min
-Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m4--migrate-2-secrets-to-vault--aws-ssm-securestring-tunnel_token-direct-to-ssm
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/runbooks/VAULT-OPS.md#adding-a-new-secret
 
 [Timer]
 OnBootSec=2min

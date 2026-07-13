@@ -2,14 +2,14 @@
 export const meta = {
   name: "thermo-review",
   description:
-    "Thermo-nuclear code-quality review — Fable 5 high reviewers hunt structural simplification / code-judo / spaghetti / boundary problems in the branch diff",
+    "Thermo-nuclear code-quality review — Opus 4.8 xhigh reviewers hunt structural simplification / code-judo / spaghetti / boundary problems in the branch diff",
   whenToUse:
     "Strict maintainability audit of a branch diff. Pass the diff scope + file list as args.",
   phases: [
-    { title: "Review", detail: "Fable 5 high, 3 lenses, independent" },
+    { title: "Review", detail: "Opus 4.8 xhigh, 3 lenses, independent" },
     {
       title: "Synthesis",
-      detail: "Fable 5 high ranks high-conviction findings",
+      detail: "Opus 4.8 xhigh ranks high-conviction findings",
     },
   ],
 }
@@ -94,8 +94,8 @@ const [simpl, boundary, canon] = await parallel([
       {
         label: "thermo:simplify",
         phase: "Review",
-        model: "fable",
-        effort: "high",
+        model: "opus",
+        effort: "xhigh",
         schema: FINDING_SCHEMA,
       },
     ),
@@ -107,8 +107,8 @@ const [simpl, boundary, canon] = await parallel([
       {
         label: "thermo:spaghetti",
         phase: "Review",
-        model: "fable",
-        effort: "high",
+        model: "opus",
+        effort: "xhigh",
         schema: FINDING_SCHEMA,
       },
     ),
@@ -120,8 +120,8 @@ const [simpl, boundary, canon] = await parallel([
       {
         label: "thermo:canonical",
         phase: "Review",
-        model: "fable",
-        effort: "high",
+        model: "opus",
+        effort: "xhigh",
         schema: FINDING_SCHEMA,
       },
     ),
@@ -143,8 +143,8 @@ Return the final ranked must-fix list (blockers + strong first), each with a con
 remedy, plus an overall verdict.`,
   {
     label: "thermo:synthesis",
-    model: "fable",
-    effort: "high",
+    model: "opus",
+    effort: "xhigh",
     schema: {
       type: "object",
       additionalProperties: false,

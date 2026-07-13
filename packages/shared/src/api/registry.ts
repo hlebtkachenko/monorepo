@@ -1192,9 +1192,10 @@ registry.registerPath({
   description:
     "Returns the organization's chart-of-accounts entries (účtový rozvrh), " +
     "organization-scoped (FORCE RLS). Optionally filter by účetní období " +
-    "(`periodId`) and synthetic/analytical shape (`isSynthetic`). The chart " +
-    "exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs " +
-    "keep no chart and return an empty list.",
+    "(`periodId`), synthetic/analytical shape (`isSynthetic`), and exact " +
+    "account `number` (combine `periodId` + `number` for a single-row " +
+    "number→id lookup). The chart exists only for DOUBLE_ENTRY periods — " +
+    "SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.",
   tags: ["Accounts"],
   security: [{ [bearerAuth.name]: [] }],
   request: { query: ListAccountsQuerySchema },

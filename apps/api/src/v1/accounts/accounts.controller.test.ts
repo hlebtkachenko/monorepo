@@ -310,6 +310,37 @@ describe("AccountsController (/v1/accounts)", () => {
     expect(res.body.accounts[0].isSynthetic).toBe(false)
   })
 
+  it("filters by exact number", async () => {
+    verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+    const res = await supertest(app.getHttpServer())
+      .get("/v1/accounts")
+      .query({ number: "518" })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(200)
+    expect(res.body.accounts).toHaveLength(1)
+    expect(res.body.accounts[0].id).toBe(ACC_A_518)
+  })
+
+  it("resolves a single account by periodId + number (the number→id lookup)", async () => {
+    verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+    const hit = await supertest(app.getHttpServer())
+      .get("/v1/accounts")
+      .query({ periodId: PERIOD_A2, number: "518" })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(200)
+    expect(hit.body.accounts).toHaveLength(1)
+    expect(hit.body.accounts[0].id).toBe(ACC_A_518)
+
+    // The same number under a period whose chart doesn't carry it → empty,
+    // never a wrong-period match.
+    const miss = await supertest(app.getHttpServer())
+      .get("/v1/accounts")
+      .query({ periodId: PERIOD_A1, number: "518" })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(200)
+    expect(miss.body.accounts).toHaveLength(0)
+  })
+
   it("derives the tenant scope from the principal, never from query input", async () => {
     verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
     const res = await supertest(app.getHttpServer())

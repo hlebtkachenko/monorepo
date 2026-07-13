@@ -1,7 +1,7 @@
 # Vault config — lives at /srv/secrets/vault/config/vault.hcl on the Hostinger
 # VPS, mounted into the Vault container at /vault/config/vault.hcl:ro.
 #
-# Tracks: AFF-245 M1 step 4. Plan: docs/plans/SECRETS-MIGRATION.md § M1 task 4.
+# Tracks: AFF-245 M1 step 4. Runbook: docs/runbooks/VAULT-OPS.md § M1 as-built.
 # Runbook: docs/runbooks/VAULT-OPS.md.
 
 # ---- Storage --------------------------------------------------------------

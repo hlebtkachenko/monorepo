@@ -16,10 +16,13 @@ import { invoiceToCapture, type IrToCaptureContext } from "../ir-to-capture"
 import {
   BrainHarnessNotWiredError,
   BRAIN_HARNESS_REQUIRED_ENV,
+  isPostingPlan,
   planBrainDryRun,
   planForCapture,
+  planForPosting,
   runLiveBrainSession,
   type BrainDryRunInputs,
+  type PostingSessionContext,
 } from "./brain-cc-harness"
 
 // ── Shared fixtures ──────────────────────────────────────────────────────────
@@ -65,6 +68,14 @@ const captureContext: IrToCaptureContext = {
   eventId: "00000000-0000-4000-8000-000000000003",
   confidence: 0.95,
   rationale: "Standard domestic service invoice, VAT 21% deductible.",
+}
+
+const postingContext: PostingSessionContext = {
+  periodId: "00000000-0000-4000-8000-000000000001",
+  summaryRecordId: "00000000-0000-4000-8000-00000000000a",
+  accountingEventId: "00000000-0000-4000-8000-00000000000b",
+  postingDate: "2025-03-14",
+  conversationId: "00000000-0000-4000-8000-00000000000c",
 }
 
 const dryRunInputs = (
@@ -276,7 +287,7 @@ describe("runLiveBrainSession (creds-gated)", () => {
     for (const envName of Object.values(BRAIN_HARNESS_REQUIRED_ENV)) {
       expect(message).toContain(envName)
     }
-    expect(message).toContain("docs/runbooks/BRAIN-CC-HARNESS.md")
+    expect(message).toContain("docs/runbooks/BRAIN-OPERATOR-SESSION.md")
     expect(message).toContain("@anthropic-ai/claude-agent-sdk")
   })
 
@@ -393,5 +404,48 @@ describe("runLiveBrainSession (creds-gated)", () => {
       launcher: mockLauncher,
     })
     expect(result.brainRunId).toBe("run-2")
+  })
+})
+
+// ── planForPosting — the double-entry (GAP-007) lane: model reasons the account, no verbatim embed ──
+
+describe("planForPosting (double-entry posting lane)", () => {
+  it("builds a read→propose plan the model drives itself: get_structure → list_accounts → create_accounting_posting", () => {
+    const plan = planForPosting(invoice(), sections, postingContext)
+    expect(plan.toolPlan.map((t) => t.toolName)).toEqual([
+      "mcp__afframe__get_structure",
+      "mcp__afframe__list_accounts",
+      "mcp__afframe__create_accounting_posting",
+    ])
+    // Every tool the lane drives is inside the pinned accounting allowlist.
+    for (const call of plan.toolPlan) expect(call.allowed).toBe(true)
+  })
+
+  it("carries the invoice + id envelope but NO pre-built write body (the model constructs the posting)", () => {
+    const plan = planForPosting(invoice(), sections, postingContext)
+    // The whole point of this lane: the account choice is not pre-embedded.
+    expect("captureRequest" in plan).toBe(false)
+    expect(plan.invoice.number).toBe("FP-2025-0042")
+    expect(plan.posting).toEqual(postingContext)
+    // The login pack is assembled under the pinned policy (list_accounts + create_accounting_posting granted).
+    expect(plan.policy).toBe(BRAIN_ACCOUNTING_POLICY)
+    expect(isToolAllowed("mcp__afframe__list_accounts", plan.policy)).toBe(true)
+    expect(
+      isToolAllowed("mcp__afframe__create_accounting_posting", plan.policy),
+    ).toBe(true)
+    // The self-approval surface stays denied on this lane exactly as on the capture lane.
+    expect(
+      isToolAllowed("mcp__afframe__resolve_accounting_held_write", plan.policy),
+    ).toBe(false)
+  })
+
+  it("isPostingPlan discriminates the two lanes structurally", () => {
+    const posting = planForPosting(invoice(), sections, postingContext)
+    const capture = planForCapture(
+      invoiceToCapture(invoice(), captureContext),
+      sections,
+    )
+    expect(isPostingPlan(posting)).toBe(true)
+    expect(isPostingPlan(capture)).toBe(false)
   })
 })

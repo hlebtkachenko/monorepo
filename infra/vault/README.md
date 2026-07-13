@@ -2,7 +2,7 @@
 
 Files in this directory are deployed by hand to the Hostinger KVM 2 VPS at
 `secrets-admin.afframe.com` during milestones M1–M2 of the secrets-management
-migration. Plan: [`docs/plans/SECRETS-MIGRATION.md`](../../docs/plans/SECRETS-MIGRATION.md).
+migration. Plan: [`docs/runbooks/VAULT-OPS.md`](../../docs/runbooks/VAULT-OPS.md).
 Tracker: legacy AFF-245.
 
 ## File → VPS path mapping

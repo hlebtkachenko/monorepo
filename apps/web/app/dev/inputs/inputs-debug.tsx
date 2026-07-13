@@ -84,6 +84,12 @@ import {
   InputSegmented,
   InputSegmentedItem,
 } from "@workspace/ui/components/input-segmented"
+import { DatePicker } from "@workspace/ui/components/date-picker"
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@workspace/ui/components/popover"
 import {
   PhoneInput,
   PhoneInputCountry,
@@ -258,6 +264,87 @@ function TagsDemo({
         <InputTagsInput placeholder="Add tag..." />
       </InputTagsList>
     </InputTags>
+  )
+}
+
+/**
+ * InputSegmented used as a DD / MM / YYYY date entry. InputSegmented stays a
+ * generic joined-input primitive (it has no idea a cell is a day or a year), so
+ * the date semantics live here: the three segment values, and a right-click
+ * that opens our real `DatePicker` component (anchored on the segments) whose
+ * selection fills all three cells.
+ */
+function SegmentedDateDemo() {
+  const [open, setOpen] = React.useState(false)
+  const [date, setDate] = React.useState<Date | undefined>(undefined)
+  const [dd, setDd] = React.useState("")
+  const [mm, setMm] = React.useState("")
+  const [yyyy, setYyyy] = React.useState("")
+
+  const onlyDigits = (raw: string) => raw.replace(/\D/g, "")
+
+  const fill = (picked: Date | undefined) => {
+    setDate(picked)
+    if (!picked) return
+    setDd(String(picked.getDate()).padStart(2, "0"))
+    setMm(String(picked.getMonth() + 1).padStart(2, "0"))
+    setYyyy(String(picked.getFullYear()))
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div
+          className="inline-flex"
+          onContextMenu={(event) => {
+            event.preventDefault()
+            setOpen(true)
+          }}
+        >
+          <InputSegmented autoAdvance aria-label="Date">
+            <InputSegmentedItem
+              maxLength={2}
+              placeholder="DD"
+              inputMode="numeric"
+              value={dd}
+              onChange={(event) => setDd(onlyDigits(event.target.value))}
+              className="w-12 text-center"
+            />
+            <InputSegmentedItem
+              maxLength={2}
+              placeholder="MM"
+              inputMode="numeric"
+              value={mm}
+              onChange={(event) => setMm(onlyDigits(event.target.value))}
+              className="w-12 text-center"
+            />
+            <InputSegmentedItem
+              maxLength={4}
+              placeholder="YYYY"
+              inputMode="numeric"
+              value={yyyy}
+              onChange={(event) => setYyyy(onlyDigits(event.target.value))}
+              className="w-16 text-center"
+            />
+          </InputSegmented>
+        </div>
+      </PopoverAnchor>
+      {/* Frameless: the DatePicker's own Card provides the surface. */}
+      <PopoverContent
+        align="start"
+        sideOffset={8}
+        className="w-auto border-0 bg-transparent p-0 shadow-none"
+      >
+        <DatePicker
+          orientation="horizontal"
+          value={date}
+          onValueChange={(picked) => {
+            fill(picked)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -1243,44 +1330,13 @@ export function InputsDebug() {
       {/* ---------------- InputSegmented ---------------- */}
       <Section
         title="InputSegmented"
-        blurb="Multi-cell input (date / time / code) with per-cell focus. size: sm | default | lg. orientation: horizontal | vertical. autoAdvance jumps to the next cell when full; invalid paints the error ring."
+        blurb="Multi-cell input (date / time / code) with per-cell focus. Single size only — each cell is a real Input, so it inherits the h-9 / rounded-lg design of the input line (same rule as InputOTP connected). orientation: horizontal | vertical. autoAdvance jumps to the next cell when full; invalid paints the error ring."
       >
         <Row
           name="<InputSegmented autoAdvance>"
-          desc="DD / MM / YYYY — auto-advances between cells"
+          desc="DD / MM / YYYY — auto-advances between cells. Right-click for a date picker (presets + calendar) that fills all three cells."
         >
-          <InputSegmented autoAdvance aria-label="Date">
-            <InputSegmentedItem
-              maxLength={2}
-              placeholder="DD"
-              inputMode="numeric"
-              className="w-12 text-center"
-            />
-            <InputSegmentedItem
-              maxLength={2}
-              placeholder="MM"
-              inputMode="numeric"
-              className="w-12 text-center"
-            />
-            <InputSegmentedItem
-              maxLength={4}
-              placeholder="YYYY"
-              inputMode="numeric"
-              className="w-16 text-center"
-            />
-          </InputSegmented>
-        </Row>
-        <Row name="size='sm' / 'lg'" desc="cell height / padding per size">
-          <div className="flex items-center gap-4">
-            <InputSegmented size="sm" aria-label="small">
-              <InputSegmentedItem maxLength={2} className="w-10 text-center" />
-              <InputSegmentedItem maxLength={2} className="w-10 text-center" />
-            </InputSegmented>
-            <InputSegmented size="lg" aria-label="large">
-              <InputSegmentedItem maxLength={2} className="w-12 text-center" />
-              <InputSegmentedItem maxLength={2} className="w-12 text-center" />
-            </InputSegmented>
-          </div>
+          <SegmentedDateDemo />
         </Row>
         <Row
           name="orientation='vertical'"
@@ -1297,6 +1353,28 @@ export function InputsDebug() {
             <InputSegmentedItem maxLength={2} className="w-12 text-center" />
             <InputSegmentedItem maxLength={2} className="w-12 text-center" />
           </InputSegmented>
+        </Row>
+      </Section>
+
+      {/* ---------------- DatePicker ---------------- */}
+      <Section
+        title="DatePicker"
+        blurb="The shadcn 'Calendar with presets' picker as one component: a Card + Calendar with controlled month (presets navigate) and fixedWeeks. Our rounded-lg surface radius, 2px cell gap. Replaces the Button+Popover+Calendar composition that was copy-pasted per usage."
+      >
+        <Row
+          name="<DatePicker> (vertical)"
+          desc="default — presets stacked below the calendar"
+        >
+          <DatePicker />
+        </Row>
+        <Row
+          name='orientation="horizontal"'
+          desc="presets column to the left of the calendar"
+        >
+          <DatePicker orientation="horizontal" />
+        </Row>
+        <Row name="presets={[]}" desc="presets hidden, calendar only">
+          <DatePicker presets={[]} />
         </Row>
       </Section>
 

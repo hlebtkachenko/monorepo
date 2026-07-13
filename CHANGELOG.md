@@ -8,10 +8,12 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- DatePicker component: shadcn calendar-with-presets in a Card, vertical (presets below) and horizontal (presets left) orientations, active-preset highlight, our rounded-lg surface radius
 - Dev-only Input components debug board at /dev/inputs (blocked in production) with a dev-only proxy bypass for /dev/* routes
 
 ### Changed
 
+- InputSegmented is now single-size, inheriting the input line's h-9/rounded-lg (dropped the sm/lg size scale)
 - InputTags editable chips now enter edit mode on a single click (was double-click)
 - InputOTP default size is now separate rounded boxes matched to the input line (size-9/36px, rounded-lg) instead of the joined look; the old joined look moves to a new `connected` size, and `xl` is documented as needing containerClassName='w-full'
 - PasswordInput generator now forces a random 1–3 symbols (was exactly 1) into distinct slots, and the stale comment (claimed 4 groups/21 chars) now matches the real 3-group/20-char output
@@ -25,6 +27,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Removed
 
 - Dropped the unused `sm` size from NativeSelect (only the held-writes MD/Dal picker used it, now default h-9); NativeSelect is single-size
+
+### Fixed
+
+- i18n locale resolver no longer crashes page rendering when the auth/session backend is unavailable; it falls back to the cookie/default locale
 
 ## [v0.17.7] — 2026-07-11
 

@@ -21,10 +21,11 @@ export interface SectionDetailsGroupProps {
   readonly sections: readonly LeafSectionDescriptor[]
 }
 
-export interface SectionDetailsGroupPayload {
-  readonly title?: string
-  readonly sections: readonly LeafSectionDescriptor[]
-}
+/** What the renderer receives: the props minus the section-level `anchor`. */
+export type SectionDetailsGroupPayload = Omit<
+  SectionDetailsGroupProps,
+  "anchor"
+>
 
 /**
  * The sole constructor for a Details Group-section descriptor — a titled,

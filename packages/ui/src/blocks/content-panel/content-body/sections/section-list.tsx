@@ -57,15 +57,6 @@ export function SectionList({
           console.error(FORGERY_MESSAGE)
           return null
         }
-        // Two groups stacked directly (no Space between) would draw the first
-        // group's bottom rule AND the second's top rule — a 2px double seam.
-        // Pull the following group up 1px so the rules overlap into one hairline.
-        const prev = sections[index - 1]
-        const groupAfterGroup =
-          section.kind === "details-group" &&
-          prev != null &&
-          isSectionDescriptor(prev) &&
-          prev.kind === "details-group"
         return (
           <div
             // Stable-ish key: sections are a fixed per-archetype list today, so
@@ -78,12 +69,15 @@ export function SectionList({
             id={section.anchor}
             data-slot="content-section"
             data-section-anchor={section.anchor}
+            // The kind is stamped so ContentBody can collapse the double hairline
+            // between two adjacent groups with one CSS adjacent-sibling rule —
+            // keeping this generic loop free of any per-kind layout branch.
+            data-section-kind={section.kind}
             className={cn(
               "flex scroll-mt-16 flex-col",
               // Fill sections (Empty) grow to the remaining height; the rest
               // take their natural height and let the body scroll.
               section.fill ? "min-h-0 flex-1" : "shrink-0",
-              groupAfterGroup && "-mt-px",
             )}
           >
             <SectionBody section={section} />

@@ -121,19 +121,17 @@ export interface SectionDetailsTableProps {
   readonly name?: string
 }
 
-export interface SectionDetailsTablePayload {
-  readonly title: string
-  readonly description?: string
-  readonly mode: DetailsTableMode
-  readonly columns: readonly DetailsTableColumn[]
-  readonly rows: readonly DetailsTableRow[]
-  readonly addLabel?: string
-  readonly actions: readonly DetailsTableAction[]
-  readonly actionsHeader: string
-  readonly editHint?: DetailsTableEditHint
-  readonly emptyText?: string
-  readonly name?: string
-}
+/**
+ * What the renderer receives: the props minus the section-level `anchor`, with the
+ * fields the factory always fills (`mode`, `actions`, `actionsHeader`) flipped to
+ * required. Derived from the props so a new props field can't silently be dropped
+ * from what the renderer sees.
+ */
+export type SectionDetailsTablePayload = Omit<
+  SectionDetailsTableProps,
+  "anchor" | "mode" | "actions" | "actionsHeader"
+> &
+  Required<Pick<SectionDetailsTableProps, "mode" | "actions" | "actionsHeader">>
 
 /**
  * The sole constructor for a Details Table-section descriptor — the Details Form

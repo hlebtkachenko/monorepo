@@ -21,12 +21,8 @@ export interface SectionDetailsTabsProps {
   readonly defaultTab?: string
 }
 
-export interface SectionDetailsTabsPayload {
-  readonly title: string
-  readonly description?: string
-  readonly tabs: readonly DetailsFormTab[]
-  readonly defaultTab?: string
-}
+/** What the renderer receives: the props minus the section-level `anchor`. */
+export type SectionDetailsTabsPayload = Omit<SectionDetailsTabsProps, "anchor">
 
 /**
  * The sole constructor for a Details Tabs-section descriptor — a Details Form

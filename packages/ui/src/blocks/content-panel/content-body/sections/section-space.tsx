@@ -1,7 +1,7 @@
 import { type SectionDescriptor, defineSection } from "./section"
 
 export interface SectionSpaceProps {
-  /** Gap height in pixels. Default 16. */
+  /** Gap height in pixels. Default 32. */
   readonly size?: number
   /** Optional URL/scroll anchor slug applied as the section's DOM `id`. */
   readonly anchor?: string

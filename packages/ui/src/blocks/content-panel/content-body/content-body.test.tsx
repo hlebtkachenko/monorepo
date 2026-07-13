@@ -86,6 +86,40 @@ describe("ContentBody", () => {
     expect(root).toHaveClass("flex-1")
   })
 
+  it("stamps each section wrapper with its kind", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionSpace({ size: 16 }),
+          sectionDetailsGroup({
+            title: "Company",
+            sections: [sectionEmpty({ title: "Inside" })],
+          }),
+        ]}
+      />,
+    )
+    const root = container.querySelector('[data-slot="content-body"]')
+    const [space, group] = root!.querySelectorAll(
+      ':scope > [data-slot="content-section"]',
+    )
+    expect(space).toHaveAttribute("data-section-kind", "space")
+    expect(group).toHaveAttribute("data-section-kind", "details-group")
+  })
+
+  it("collapses the double hairline between adjacent groups via one CSS rule", () => {
+    // The seam is expressed as a single adjacent-sibling utility on the body root
+    // (verified to emit `> group + group { margin-top: -1px }` by Tailwind v4), so
+    // SectionList stays free of any per-kind layout branch. Lock the mechanism:
+    // dropping either the stamp (above) or this class silently regresses the seam.
+    const { container } = wrap(
+      <ContentBody sections={[sectionEmpty({ title: "x" })]} />,
+    )
+    const root = container.querySelector('[data-slot="content-body"]')
+    expect(root).toHaveClass(
+      "[&>[data-section-kind=details-group]+[data-section-kind=details-group]]:-mt-px",
+    )
+  })
+
   it("throws in non-production when given an unbranded section", () => {
     expect(() =>
       wrap(

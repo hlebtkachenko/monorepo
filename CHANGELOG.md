@@ -22,6 +22,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
 - Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).
 - Details Table polish: the per-row Edit icon toggles to an Apply (check) action that returns the row to read mode keeping its edits; read-only tables can show a 'to edit, go to <link> ↗' hint; two Details groups stacked with no Space now collapse to a single divider (no gap) via a 1px overlap.
 - Redesign Section Details Table: fixed 6-track grid layout, per-row inline Edit + destructive Delete confirmation, real controls (text / dropdown / tags), dynamic Add button + optional link actions, editable/read-only states, white inputs on the grey editing row. Drops the earlier badge/badge-or-dash cell.

@@ -38,6 +38,12 @@ export function ContentBody({ sections, className }: ContentBodyProps) {
       // `fill` section (Empty) claims the remaining space.
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto",
+        // Two groups stacked directly (no Space between) would draw the first
+        // group's bottom rule AND the second's top rule — a 2px double seam.
+        // Pull the following group up 1px so the rules overlap into one hairline.
+        // A direct-child (`>`) rule, so it only affects the top-level list
+        // (groups can't nest groups); the seam logic stays out of SectionList.
+        "[&>[data-section-kind=details-group]+[data-section-kind=details-group]]:-mt-px",
         className,
       )}
     >

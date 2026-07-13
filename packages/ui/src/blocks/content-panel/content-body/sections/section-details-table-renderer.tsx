@@ -236,6 +236,20 @@ function RowActions({
 const ROW_GRID = "grid grid-cols-6 items-center gap-x-6 px-3 py-2"
 
 /**
+ * One row of the editable list: a stable id, provenance flags (appended this
+ * session / currently showing inputs / tombstoned for delete), and its working
+ * cell values. This is the single piece of state the renderer reads and writes —
+ * display and input both read `cells`, so there is no seed/overlay asymmetry.
+ */
+type DraftRow = {
+  id: string
+  isNew: boolean
+  editing: boolean
+  deleted: boolean
+  cells: Record<string, DetailsTableCellValue>
+}
+
+/**
  * SectionDetailsTable — the Details Form section with its right column swapped
  * for a grid-based table that aligns to the same fixed 6-track grid as the form
  * fields (item 2). Two modes:
@@ -268,120 +282,108 @@ export function SectionDetailsTableRenderer({
 
   const editable = mode === "editable"
 
-  // Working values for every row currently in edit mode (existing or appended),
-  // keyed by row id then column id. Controls are controlled off this.
-  const [values, setValues] = React.useState<
-    Record<string, Record<string, DetailsTableCellValue>>
-  >({})
-  const [editingIds, setEditingIds] = React.useState<ReadonlySet<string>>(
-    () => new Set(),
+  // The whole editable list as one working snapshot, seeded once from props.rows.
+  // Each row owns its working cells plus its edit/new/deleted provenance — the
+  // single source both the display cell and the input read from. Edits persist
+  // across re-render until reload (item 6); wiring real Save/Discard (harvest
+  // appended→INSERT, deleted→DELETE, edited→UPDATE) is the footer's job and not
+  // connected yet.
+  const [draft, setDraft] = React.useState<readonly DraftRow[]>(() =>
+    rows.map((row) => ({
+      id: row.id,
+      isNew: false,
+      editing: false,
+      deleted: false,
+      cells: seedValues(columns, row.cells),
+    })),
   )
-  const [appended, setAppended] = React.useState<readonly string[]>([])
-  const [deletedIds, setDeletedIds] = React.useState<ReadonlySet<string>>(
-    () => new Set(),
-  )
-  // Row awaiting delete confirmation (existing rows only). New rows drop instantly.
+  // Existing row awaiting delete confirmation — a transient dialog id. A new row
+  // drops instantly; an existing row is tombstoned so Save can emit its DELETE.
   const [pendingDelete, setPendingDelete] = React.useState<string | null>(null)
   // Monotonic id source for appended rows — stable + collision-free, no randomness.
   const nextId = React.useRef(0)
 
-  const setCell = React.useCallback(
-    (rowId: string, colId: string, next: DetailsTableCellValue) => {
-      setValues((prev) => ({
-        ...prev,
-        [rowId]: { ...prev[rowId], [colId]: next },
-      }))
+  const patchRow = React.useCallback(
+    (id: string, patch: (row: DraftRow) => DraftRow) => {
+      setDraft((prev) => prev.map((row) => (row.id === id ? patch(row) : row)))
     },
     [],
   )
 
-  // Enter edit mode for a row. Seeds working values from `base` (a row's cells,
-  // or nothing for a new row) only once — re-editing an already-edited row keeps
-  // the values it was applied with, so no edit is ever clobbered.
-  const beginEdit = React.useCallback(
-    (id: string, base?: Readonly<Record<string, DetailsTableCellValue>>) => {
-      setValues((prev) => ({
-        ...prev,
-        [id]: prev[id] ?? seedValues(columns, base),
+  const setCell = React.useCallback(
+    (rowId: string, colId: string, next: DetailsTableCellValue) => {
+      patchRow(rowId, (row) => ({
+        ...row,
+        cells: { ...row.cells, [colId]: next },
       }))
-      setEditingIds((prev) => new Set(prev).add(id))
     },
-    [columns],
+    [patchRow],
   )
 
-  // Leave edit mode (the check / "apply" icon). Working values are kept, so the
+  const beginEdit = React.useCallback(
+    (id: string) => patchRow(id, (row) => ({ ...row, editing: true })),
+    [patchRow],
+  )
+
+  // Leave edit mode (the check / "apply" icon). Working cells are kept, so the
   // row's display now reflects the edit until reload / Discard.
-  const applyEdit = React.useCallback((id: string) => {
-    setEditingIds((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-  }, [])
+  const applyEdit = React.useCallback(
+    (id: string) => patchRow(id, (row) => ({ ...row, editing: false })),
+    [patchRow],
+  )
 
   const addRow = React.useCallback(() => {
     const id = `new-${nextId.current++}`
-    setValues((prev) => ({ ...prev, [id]: seedValues(columns) }))
-    setAppended((prev) => [...prev, id])
-    setEditingIds((prev) => new Set(prev).add(id))
+    setDraft((prev) => [
+      ...prev,
+      {
+        id,
+        isNew: true,
+        editing: true,
+        deleted: false,
+        cells: seedValues(columns),
+      },
+    ])
   }, [columns])
 
-  const removeAppended = React.useCallback((id: string) => {
-    setAppended((prev) => prev.filter((rowId) => rowId !== id))
-    setEditingIds((prev) => {
-      const next = new Set(prev)
-      next.delete(id)
-      return next
-    })
-    setValues((prev) => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }, [])
+  // Drop an appended row outright — it has no server row, so it needs no tombstone.
+  const removeNew = React.useCallback(
+    (id: string) => setDraft((prev) => prev.filter((row) => row.id !== id)),
+    [],
+  )
 
+  // Tombstone an existing row for deletion — it leaves the rendered list at once
+  // but stays in the draft so Save can emit the DELETE.
   const confirmDelete = React.useCallback(() => {
     if (pendingDelete == null) return
-    setDeletedIds((prev) => new Set(prev).add(pendingDelete))
-    setEditingIds((prev) => {
-      const next = new Set(prev)
-      next.delete(pendingDelete)
-      return next
-    })
+    patchRow(pendingDelete, (row) => ({
+      ...row,
+      deleted: true,
+      editing: false,
+    }))
     setPendingDelete(null)
-  }, [pendingDelete])
+  }, [pendingDelete, patchRow])
 
-  // One list for both existing (non-deleted) and appended rows, rendered
-  // uniformly. `base` is a row's original cells (undefined for a new row).
-  type RowBase = Readonly<Record<string, DetailsTableCellValue>> | undefined
-  const renderRows: { id: string; isNew: boolean; base: RowBase }[] = [
-    ...rows
-      .filter((row) => !deletedIds.has(row.id))
-      .map((row) => ({ id: row.id, isNew: false, base: row.cells as RowBase })),
-    ...appended.map((id) => ({ id, isNew: true, base: undefined as RowBase })),
-  ]
-  const isEmpty = renderRows.length === 0
+  const visible = draft.filter((row) => !row.deleted)
+  const isEmpty = visible.length === 0
   const showActionsCol = editable
   const inputName = (rowId: string, colId: string) =>
     name != null ? `${name}[${rowId}][${colId}]` : undefined
 
-  // True when a row's working values are all empty (blank text / empty tags).
-  const isRowBlank = (rowId: string) => {
-    const row = values[rowId]
-    if (row == null) return true
-    return columns.every((col) => {
-      const value = row[col.id]
+  // True when a row's working cells are all empty (blank text / empty tags).
+  const isRowBlank = (cells: Record<string, DetailsTableCellValue>) =>
+    columns.every((col) => {
+      const value = cells[col.id]
       return Array.isArray(value)
         ? value.length === 0
         : String(value ?? "").trim() === ""
     })
-  }
 
   // The check ("apply") button. Applying a NEW row that is still empty is a
   // discard — don't leave a blank "—" row behind; drop it like the X button.
-  const onApply = (id: string, isNew: boolean) => {
-    if (isNew && isRowBlank(id)) removeAppended(id)
-    else applyEdit(id)
+  const onApply = (row: DraftRow) => {
+    if (row.isNew && isRowBlank(row.cells)) removeNew(row.id)
+    else applyEdit(row.id)
   }
 
   const headerAlign = (col: DetailsTableColumn) =>
@@ -431,59 +433,54 @@ export function SectionDetailsTableRenderer({
                 </div>
               ) : null}
 
-              {renderRows.map(({ id, isNew, base }) => {
-                const isEditing = editingIds.has(id)
-                return (
-                  <div
-                    role="row"
-                    key={id}
-                    className={cn(
-                      ROW_GRID,
-                      "border-b border-border-subtle last:border-b-0",
-                      isEditing ? "bg-muted/40" : "hover:bg-muted/20",
-                    )}
-                  >
-                    {columns.map((col) => {
-                      // Display reads the applied working value if the row has
-                      // been edited, else its original cell.
-                      const value = values[id]?.[col.id] ?? base?.[col.id]
-                      return (
-                        <div
-                          role="cell"
-                          key={col.id}
-                          className={cn(
-                            "flex min-w-0 flex-col",
-                            COL_SPAN[col.span ?? 1],
-                          )}
-                        >
-                          {isEditing ? (
-                            <CellControl
-                              column={col}
-                              value={values[id]?.[col.id]}
-                              name={inputName(id, col.id)}
-                              onChange={(next) => setCell(id, col.id, next)}
-                            />
-                          ) : (
-                            <CellDisplay column={col} value={value} />
-                          )}
-                        </div>
-                      )
-                    })}
-                    {showActionsCol ? (
-                      <RowActions
-                        isEditing={isEditing}
-                        isNew={isNew}
-                        onToggle={() =>
-                          isEditing ? onApply(id, isNew) : beginEdit(id, base)
-                        }
-                        onRemove={() =>
-                          isNew ? removeAppended(id) : setPendingDelete(id)
-                        }
-                      />
-                    ) : null}
-                  </div>
-                )
-              })}
+              {visible.map((row) => (
+                <div
+                  role="row"
+                  key={row.id}
+                  className={cn(
+                    ROW_GRID,
+                    "border-b border-border-subtle last:border-b-0",
+                    row.editing ? "bg-muted/40" : "hover:bg-muted/20",
+                  )}
+                >
+                  {columns.map((col) => {
+                    const value = row.cells[col.id]
+                    return (
+                      <div
+                        role="cell"
+                        key={col.id}
+                        className={cn(
+                          "flex min-w-0 flex-col",
+                          COL_SPAN[col.span ?? 1],
+                        )}
+                      >
+                        {row.editing ? (
+                          <CellControl
+                            column={col}
+                            value={value}
+                            name={inputName(row.id, col.id)}
+                            onChange={(next) => setCell(row.id, col.id, next)}
+                          />
+                        ) : (
+                          <CellDisplay column={col} value={value} />
+                        )}
+                      </div>
+                    )
+                  })}
+                  {showActionsCol ? (
+                    <RowActions
+                      isEditing={row.editing}
+                      isNew={row.isNew}
+                      onToggle={() =>
+                        row.editing ? onApply(row) : beginEdit(row.id)
+                      }
+                      onRemove={() =>
+                        row.isNew ? removeNew(row.id) : setPendingDelete(row.id)
+                      }
+                    />
+                  ) : null}
+                </div>
+              ))}
             </div>
           </div>
         </div>

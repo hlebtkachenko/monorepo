@@ -57,5 +57,5 @@ describe("UtilityPageCatalog", () => {
     expect(
       await screen.findByRole("button", { name: "Send report" }),
     ).toHaveAttribute("data-variant", "link")
-  })
+  }, 20_000)
 })

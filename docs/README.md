@@ -51,8 +51,10 @@ For a fresh session:
 | [`specs/`](specs/)                         | Stable product, UI, security, and data contracts                                      | Runtime status or procedural instructions                        |
 
 Cross-cutting registries may live directly under `docs/` when no category owns
-them. Current examples: [`DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md) and
-[`ENVIRONMENT-VARIABLES.md`](ENVIRONMENT-VARIABLES.md).
+them. Current examples: [`DOMAINS-AND-EMAIL.md`](DOMAINS-AND-EMAIL.md),
+[`ENVIRONMENT-VARIABLES.md`](ENVIRONMENT-VARIABLES.md), and the append-only
+[`SYSTEM-GAP-LOG.md`](SYSTEM-GAP-LOG.md) with its generated
+[`SYSTEM-GAP-LOG-INDEX.md`](SYSTEM-GAP-LOG-INDEX.md).
 
 ## Canonical sources
 

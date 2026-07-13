@@ -92,12 +92,14 @@ All cloud config is one-time and account-level under Conductor **Settings → Cl
    brokers repo access into every cloud sandbox automatically. The alternative is
    to skip the app and use your own SSH/HTTPS auth.
 
-Gotcha: with the GitHub app connected, git + agent GitHub operations are brokered
-into the sandbox, but the **interactive `gh` CLI** in a cloud terminal can still
-report `auth broker has no GitHub token for this context (context: terminal)` and
-run unauthenticated. That is expected — it does not mean git is broken. Rely on
-brokered `git` / the agent's own GitHub flow rather than raw `gh` in a cloud
-terminal.
+Gotcha (verified): even with the GitHub app connected, the **cloud terminal has
+no GitHub credential** — both `git` (push/fetch of the remote) and `gh` run
+unauthenticated (`auth broker has no GitHub token for this context (context:
+terminal)`; `git credential fill` returns nothing). This is a deliberate
+Conductor boundary and cannot be bridged from the repo. Work with it: make local
+commits in the cloud workspace, then push / open the PR through **Conductor's own
+push / "Create PR" action** (the connected GitHub app runs in a separate,
+authorized context). Do not attempt terminal `git push` / `gh` in cloud.
 
 ## Settings precedence (why committed vs local matters)
 

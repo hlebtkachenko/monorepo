@@ -51,18 +51,22 @@ Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs
 
 ## Conductor Cloud GitHub Access
 
-In a Conductor **cloud** workspace (Vercel Sandbox) the Conductor GitHub app
-brokers `git` — clone / push / PR through `git` work. The interactive `gh` CLI is
-a separate context and may print `auth broker has no GitHub token for this
-context (context: terminal)` and run unauthenticated. This is expected, not a
-break.
+In a Conductor **cloud** workspace (Vercel Sandbox) the interactive terminal has
+**no GitHub credential at all**: both `git` (push / fetch of the remote) and the
+`gh` CLI run unauthenticated. The auth broker withholds a token for the
+`terminal` context (`auth broker has no GitHub token for this context (context:
+terminal)`), and `git credential fill` returns nothing — verified. This is a
+deliberate Conductor security boundary, not a misconfiguration, and it cannot be
+bridged from the repo (there is no token to forward).
 
-- Use `git` (push, fetch) and the normal PR flow for GitHub work in a cloud
-  workspace. `git push` is authorized via the broker.
-- Do NOT run `gh auth login` in a cloud workspace or loop on `gh auth status` —
-  the terminal `gh` cannot be authenticated interactively there; fall back to
-  `git`.
-- Locally, `gh` uses your machine keyring as usual — no change.
+- Do NOT attempt `git push`, `git fetch`/`pull`, `gh pr create`, or
+  `gh auth login` from a cloud workspace terminal — none can be authenticated
+  there. Do not loop on them.
+- Local commits are fine (`git commit` needs no network). Make your commits, then
+  get them to GitHub through **Conductor's own push / "Create PR" action** (the
+  connected Conductor GitHub app runs in a separate, authorized context).
+- Local (non-cloud) workspaces are unaffected: `git` + `gh` use your machine
+  keyring normally.
 
 Full model + snapshot script: `docs/runbooks/CONDUCTOR.md`.
 

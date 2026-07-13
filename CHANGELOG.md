@@ -22,6 +22,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).
 - Details Table polish: the per-row Edit icon toggles to an Apply (check) action that returns the row to read mode keeping its edits; read-only tables can show a 'to edit, go to <link> ↗' hint; two Details groups stacked with no Space now collapse to a single divider (no gap) via a 1px overlap.
 - Redesign Section Details Table: fixed 6-track grid layout, per-row inline Edit + destructive Delete confirmation, real controls (text / dropdown / tags), dynamic Add button + optional link actions, editable/read-only states, white inputs on the grey editing row. Drops the earlier badge/badge-or-dash cell.
 - Renamed the Details-archetype section family: Section Form/Tabs/Group → Section Details Form/Tabs/Table/Group (factories sectionDetailsForm/Tabs/Group, kinds details-form/tabs/table/group); Space and Empty stay generic.
@@ -56,6 +57,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.
 - fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
 - fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
 - Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.

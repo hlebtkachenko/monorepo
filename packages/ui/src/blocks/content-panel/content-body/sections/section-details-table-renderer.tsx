@@ -365,6 +365,25 @@ export function SectionDetailsTableRenderer({
   const inputName = (rowId: string, colId: string) =>
     name != null ? `${name}[${rowId}][${colId}]` : undefined
 
+  // True when a row's working values are all empty (blank text / empty tags).
+  const isRowBlank = (rowId: string) => {
+    const row = values[rowId]
+    if (row == null) return true
+    return columns.every((col) => {
+      const value = row[col.id]
+      return Array.isArray(value)
+        ? value.length === 0
+        : String(value ?? "").trim() === ""
+    })
+  }
+
+  // The check ("apply") button. Applying a NEW row that is still empty is a
+  // discard — don't leave a blank "—" row behind; drop it like the X button.
+  const onApply = (id: string, isNew: boolean) => {
+    if (isNew && isRowBlank(id)) removeAppended(id)
+    else applyEdit(id)
+  }
+
   const headerAlign = (col: DetailsTableColumn) =>
     col.align === "end" ? "justify-self-end text-right" : undefined
 
@@ -455,7 +474,7 @@ export function SectionDetailsTableRenderer({
                         isEditing={isEditing}
                         isNew={isNew}
                         onToggle={() =>
-                          isEditing ? applyEdit(id) : beginEdit(id, base)
+                          isEditing ? onApply(id, isNew) : beginEdit(id, base)
                         }
                         onRemove={() =>
                           isNew ? removeAppended(id) : setPendingDelete(id)

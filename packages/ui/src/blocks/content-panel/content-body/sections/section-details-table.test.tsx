@@ -157,6 +157,10 @@ describe("SectionDetailsTableRenderer — edit a row", () => {
     expect(
       screen.getByRole("button", { name: "Apply row changes" }),
     ).toBeInTheDocument()
+    // Enter a value so Apply keeps the row (an empty new row would be discarded).
+    fireEvent.change(screen.getByRole("textbox", { name: "IBAN" }), {
+      target: { value: "CZ00 0000" },
+    })
     fireEvent.click(screen.getByRole("button", { name: "Apply row changes" }))
     // Applied → the new row is read-only (Edit icon) but keeps its X remove.
     expect(
@@ -197,6 +201,19 @@ describe("SectionDetailsTableRenderer — add + remove new row", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add account" }))
     expect(screen.getAllByRole("textbox").length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole("button", { name: "Remove new row" }))
+    expect(screen.queryByRole("textbox")).toBeNull()
+  })
+
+  it("Apply on a still-empty new row discards it (no blank row left behind)", () => {
+    wrap(
+      <SectionDetailsTableRenderer props={base({ addLabel: "Add account" })} />,
+    )
+    const rowsBefore = screen.getAllByRole("row").length
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }))
+    expect(screen.getAllByRole("row").length).toBe(rowsBefore + 1)
+    // Nothing entered → Apply behaves like discard; the row is dropped.
+    fireEvent.click(screen.getByRole("button", { name: "Apply row changes" }))
+    expect(screen.getAllByRole("row").length).toBe(rowsBefore)
     expect(screen.queryByRole("textbox")).toBeNull()
   })
 })

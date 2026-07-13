@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Added a typed utility-page catalog and shared renderer for web and admin error, access, availability, connectivity, and recovery states.
 - Add the current shadcn chat primitives, Typeset typography, audit-log and stat-card components, showcase coverage, and pinned shadcn MCP agent discovery.
 - feat(brain): posting lane (`brain run --mode posting`) — the Brain reasons the double-entry účet předkontace (cost account vs 321 + 343) and proposes a HELD posting, so its account choice is testable against the real book (GAP-007)
 

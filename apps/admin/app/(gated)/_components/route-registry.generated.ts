@@ -113,6 +113,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform tls platform tls"
   },
   {
+    "href": "/platform/utility-pages",
+    "label": "Utility pages",
+    "section": "Platform",
+    "keywords": "platform utility pages platform utility pages"
+  },
+  {
     "href": "/profile",
     "label": "My profile",
     "section": "Profile",

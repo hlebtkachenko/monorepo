@@ -19,9 +19,17 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/app-shell",
     sourceType: "custom",
     description:
-      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and ErrorShell (error.tsx / not-found.tsx).",
+      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and a compatibility ErrorShell adapter.",
     categories: ["block", "layout", "app"],
     dependencies: ["button", "navigation-bottom-mobile", "sheet", "skeleton"],
+  },
+  "utility-page": {
+    source: "src/blocks/utility-page",
+    sourceType: "custom",
+    description:
+      "Block — single policy-driven renderer for navigation, identity, access, tenancy, availability, runtime, connectivity, client-capability, and capacity states. All supported copy, actions, HTTP semantics, recovery, telemetry, reference, surface, and indexing policy live in one exhaustive typed catalog. Feedback code is lazy-loaded only for catalog states that permit user feedback.",
+    categories: ["block", "feedback", "layout"],
+    dependencies: ["button"],
   },
   "app-header": {
     source: "src/blocks/app-header",

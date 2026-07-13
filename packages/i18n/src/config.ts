@@ -39,3 +39,4 @@ export function isLocale(value: string | undefined | null): value is Locale {
  * without a DB round-trip.
  */
 export const LOCALE_COOKIE = "NEXT_LOCALE"
+export const LOCALE_CHANGE_EVENT = "afframe:locale-change"

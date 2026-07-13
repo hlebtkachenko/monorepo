@@ -1,6 +1,8 @@
 import { fireEvent, render as rtlRender, screen } from "@testing-library/react"
 import { afterEach, describe, it, expect } from "vitest"
 
+import { NextIntlClientProvider } from "@workspace/i18n/client"
+import messages from "@workspace/i18n/messages/en.json"
 import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { AppShell } from "./app-shell"
@@ -11,7 +13,12 @@ import { ErrorShell } from "./skeletons/error-shell"
 // AppShell now renders IconButtons (useIcons), so every render needs the
 // IconProvider the app mounts at its root.
 const render = (ui: Parameters<typeof rtlRender>[0]) =>
-  rtlRender(ui, { wrapper: IconProvider })
+  rtlRender(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      {ui}
+    </NextIntlClientProvider>,
+    { wrapper: IconProvider },
+  )
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth
 
@@ -244,19 +251,14 @@ describe("ErrorShell", () => {
   it("renders 404 variant with default copy", () => {
     render(<ErrorShell variant="404" homeHref="/" />)
     expect(screen.getByText(/Page not found/i)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /go home/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /go back/i })).toHaveAttribute(
       "href",
       "/",
     )
   })
 
-  it("renders reset button only when onReset is provided", () => {
-    const { rerender } = render(<ErrorShell homeHref="/" />)
-    expect(
-      screen.queryByRole("button", { name: /try again/i }),
-    ).not.toBeInTheDocument()
-
-    rerender(<ErrorShell homeHref="/" onReset={() => undefined} />)
+  it("renders the catalog retry action", () => {
+    render(<ErrorShell homeHref="/" onReset={() => undefined} />)
     expect(
       screen.getByRole("button", { name: /try again/i }),
     ).toBeInTheDocument()
@@ -264,7 +266,7 @@ describe("ErrorShell", () => {
 
   it("renders forbidden variant", () => {
     const { container } = render(<ErrorShell variant="forbidden" />)
-    expect(container.querySelector("[data-variant='forbidden']")).toBeTruthy()
+    expect(container.querySelector("[data-state='access_denied']")).toBeTruthy()
     expect(screen.getByText(/Access denied/i)).toBeInTheDocument()
   })
 })

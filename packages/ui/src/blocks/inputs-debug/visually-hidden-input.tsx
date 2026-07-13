@@ -113,4 +113,3 @@ function VisuallyHiddenInput(props: VisuallyHiddenInputProps) {
 }
 
 export { VisuallyHiddenInput }
-export type { VisuallyHiddenInputProps }

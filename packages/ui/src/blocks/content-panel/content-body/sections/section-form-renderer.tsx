@@ -4,6 +4,11 @@ import { useId } from "react"
 
 import { Field, FieldLabel } from "@workspace/ui/components/field"
 import { Heading } from "@workspace/ui/components/heading"
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@workspace/ui/components/hover-card"
 import { Input } from "@workspace/ui/components/input"
 import {
   Select,
@@ -93,12 +98,33 @@ function FormControl({
 function FormFieldCell({ field }: { field: FormField }) {
   const generatedId = useId()
   const controlId = field.name ?? generatedId
+  // The control sits at the bottom of the (stretched) cell so a row's inputs
+  // align even when a neighbour's label wraps.
+  const control = (
+    <div className="mt-auto">
+      <FormControl id={controlId} name={field.name} control={field.control} />
+    </div>
+  )
   return (
     <Field className={cn("h-full", SPAN_CLASS[field.span ?? 6])}>
       <FieldLabel htmlFor={controlId}>{field.label}</FieldLabel>
-      <div className="mt-auto">
-        <FormControl id={controlId} name={field.name} control={field.control} />
-      </div>
+      {field.hover != null ? (
+        // Rich hover over the CONTROL (not the label — no underline). Opens on
+        // hover or keyboard focus; content is plain data, never a ReactNode.
+        <HoverCard openDelay={150} closeDelay={100}>
+          <HoverCardTrigger asChild>{control}</HoverCardTrigger>
+          <HoverCardContent align="start">
+            {field.hover.title != null ? (
+              <p className="mb-1 font-medium text-foreground">
+                {field.hover.title}
+              </p>
+            ) : null}
+            <p className="text-muted-foreground">{field.hover.description}</p>
+          </HoverCardContent>
+        </HoverCard>
+      ) : (
+        control
+      )}
     </Field>
   )
 }

@@ -94,6 +94,35 @@ describe("SectionFormRenderer", () => {
     expect(trigger).toHaveTextContent("CZK")
   })
 
+  it("wraps the control (not the label) in a HoverCard trigger when `hover` is set", () => {
+    wrap(
+      <SectionFormRenderer
+        props={{
+          title: "Legal identity",
+          fields: [
+            {
+              label: "DIČ",
+              name: "dic",
+              control: { kind: "text", disabled: true },
+              hover: { title: "DIČ", description: "Issued by the FÚ." },
+            },
+            { label: "IČO", name: "ico", control: { kind: "text" } },
+          ],
+        }}
+      />,
+    )
+    const trigger = screen
+      .getByLabelText("DIČ")
+      .closest('[data-slot="hover-card-trigger"]')
+    expect(trigger).not.toBeNull()
+    // The label is outside the trigger — hover lives on the control only.
+    expect(screen.getByText("DIČ")).not.toBe(trigger)
+    // A field without `hover` gets no trigger.
+    expect(
+      screen.getByLabelText("IČO").closest('[data-slot="hover-card-trigger"]'),
+    ).toBeNull()
+  })
+
   it("maps span to a col-span class and defaults to a full row", () => {
     wrap(
       <SectionFormRenderer

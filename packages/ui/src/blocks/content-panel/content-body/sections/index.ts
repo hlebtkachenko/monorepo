@@ -5,6 +5,7 @@ export type {
   SectionFormProps,
   FormField,
   FormFieldControl,
+  FormFieldHover,
   FormFieldSpan,
   FormSelectOption,
 } from "./section-form"

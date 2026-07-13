@@ -65,6 +65,11 @@ export function SectionFormView() {
                 name: "dic",
                 span: 2,
                 control: { kind: "text", placeholder: "—", disabled: true },
+                hover: {
+                  title: "DIČ — daňové identifikační číslo",
+                  description:
+                    "Issued by the finanční úřad for every company, even non-VAT payers, and required when dealing with the FÚ.",
+                },
               },
               {
                 label: "Person kind",

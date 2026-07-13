@@ -32,6 +32,16 @@ export type FormFieldControl =
       readonly disabled?: boolean
     }
 
+/**
+ * Rich hover explanation for a field, shown in a HoverCard over the CONTROL
+ * (never the label — the label is not decorated/underlined). Content is data,
+ * not a ReactNode: an optional bold lead line + a body paragraph.
+ */
+export interface FormFieldHover {
+  readonly title?: string
+  readonly description: string
+}
+
 /** One labelled field placed on the section's 6-column grid. */
 export interface FormField {
   readonly label: string
@@ -40,6 +50,8 @@ export interface FormField {
   readonly control: FormFieldControl
   /** Optional stable id — becomes the control's `id`/`name`. */
   readonly name?: string
+  /** Optional rich hover explanation shown over the control (HoverCard). */
+  readonly hover?: FormFieldHover
 }
 
 export interface SectionFormProps {

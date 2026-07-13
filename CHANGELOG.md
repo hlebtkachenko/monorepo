@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- **brain**: calibration degenerate-fit guard (#569) — reject zero-variance / single-block / all-same-label fits, fail closed to the cold-start identity model; a degenerate fit can never raise a score
 - **api/brain**: wire the confidence gate to consult a (default-safe, cold-start-identity) calibration model + a guarded refit entry point (M3.2, #569 degenerate-fit/domain guards); cold-start stays HELD (the `extraction_failed` floor forces the block short-circuit regardless of the model). Preserve `serverGate` (incl. `.shadow`) forward across held-write resolve (F1) so a resolved row carries both `resolution` and the shadow score the M3.3 run-log ingestion pipeline needs.
 - **brain**: run-log ingestion pipeline (M3.3): shape reviewed held-writes (shadow score + human approve/reject outcome) into CalibrationSample rows for the M3.2 calibration refit; fail-closed, never fabricates a label
 - **brain**: server-side extraction re-verifier (M3.1) — independently recomputes VAT arithmetic/sums/totals and OCR template-confirmation basis for a captured document, returning a structured field-by-field verdict. Standalone and unconsumed: the `extraction_failed` cold-start floor and `runGatedWrite` are untouched; the verdict feeds no decision path today (activation is data-gated on the M2.3 marathon + closing #565).

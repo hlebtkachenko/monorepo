@@ -87,6 +87,7 @@ export function ArchetypeDetailsView() {
         sectionTitle({ title: "Company", anchor: "company" }),
         legalIdentity("a", "legal-identity"),
         legalIdentity("b", "legal-identity-2"),
+        sectionSpace({ size: 16 }),
         sectionDivider(),
       ]}
       save={{

@@ -108,15 +108,17 @@ function FormFieldCell({ field }: { field: FormField }) {
  * 6-column field grid. It is a container-query context (`@container/section`):
  * the two columns stack (title above the fields) until the panel is wide enough
  * (`@3xl`, 48rem) to place them side by side, so a narrow panel never crams the
- * inputs. Both columns are fluid, not fixed. Fields declare their own span (1–6)
- * and wrap. Horizontal padding is 3× the panel header's (`px-6` = 24px).
+ * inputs. When side by side the left column is capped (≤18rem) so it never grows
+ * wider than the title/description need — the fields take all remaining width;
+ * below `@3xl` it shrinks and stacks. Fields declare their own span (1–6) and
+ * wrap. Horizontal padding is 3× the panel header's (`px-6` = 24px).
  */
 export function SectionFormRenderer({ props }: { props: SectionFormProps }) {
   return (
     <div className="@container/section px-6 py-4">
-      <div className="grid grid-cols-1 gap-y-6 @3xl/section:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @3xl/section:items-start @3xl/section:gap-x-12">
+      <div className="grid grid-cols-1 gap-y-6 @3xl/section:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] @3xl/section:items-start @3xl/section:gap-x-12">
         <div>
-          <Heading level={3}>{props.title}</Heading>
+          <Heading level={4}>{props.title}</Heading>
           {props.description != null ? (
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {props.description}

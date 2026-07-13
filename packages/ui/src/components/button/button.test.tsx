@@ -24,11 +24,19 @@ describe("Button", () => {
 
   it("applies variant data attribute", () => {
     render(<Button variant="destructive">Del</Button>)
-    expect(screen.getByRole("button")).toHaveAttribute("data-variant", "destructive")
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    )
   })
 
   it("buttonVariants returns expected classes for outline", () => {
     const cls = buttonVariants({ variant: "outline" })
     expect(cls).toContain("border-border")
+  })
+
+  it("applies the default hover treatment to buttons and links", () => {
+    expect(buttonVariants()).toContain("hover:bg-primary/80")
+    expect(buttonVariants()).not.toContain("[a]:hover:bg-primary/80")
   })
 })

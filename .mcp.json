@@ -4,6 +4,11 @@
       "type": "stdio",
       "command": "pnpm",
       "args": ["-w", "exec", "node", "scripts/codegraph.mjs", "serve"]
+    },
+    "shadcn": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": ["-w", "exec", "shadcn", "mcp", "-c", "packages/ui"]
     }
   }
 }

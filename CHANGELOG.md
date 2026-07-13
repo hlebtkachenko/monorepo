@@ -8,11 +8,14 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Added a typed utility-page catalog and shared renderer for web and admin error, access, availability, connectivity, and recovery states.
+- Add the current shadcn chat primitives, Typeset typography, audit-log and stat-card components, showcase coverage, and pinned shadcn MCP agent discovery.
 - feat(brain): posting lane (`brain run --mode posting`) — the Brain reasons the double-entry účet předkontace (cost account vs 321 + 343) and proposes a HELD posting, so its account choice is testable against the real book (GAP-007)
 
 ### Changed
 
 - Redesigned the accounting approvals surface: business-facing table columns (counterparty, amount, confidence, doklad number, event date, added date, status) replacing the internal Operace/Popis/Aktér/Klíč set, with row-select checkboxes and bulk approve/reject straight from the ActionBar; a pinned Inspector action footer (approve/reject/edit stay put while the detail scrolls, via a new ContentPanel `inspectorFooter` slot); richer always-on detail lines (doklad number, účetní případ, supplier resolved server-side); and hardened i18n locale resolution so a session-fetch failure no longer 500s every page through the root layout's metadata
+- Harden and simplify the shadcn upstream audit script (unified fetch/retry with fail-fast 4xx, digest-only asset manifest, explicit registry tracking flag, review command fetches only what it records)
 - chore(agents): pin the brain-gate + thermo-review workflows to Opus 4.8 xhigh (two independent lenses); drop Fable 5 as the default advisor model
 - Add an in-admin Platform Archetypes reference catalog at `/platform/archetypes` listing the content-panel archetypes and their slot recipes.
 - Restore the AI financial agents plan to docs/plans as durable reference for EPIC #485/#487; remaining active plan and public-API launch context migrated to GitHub issues #686/#687/#688 in the Roadmap v1 project.
@@ -25,6 +28,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Replace the false-green shadcn update check with an explicit reviewed upstream baseline and port compatible button, card, sidebar, and spinner fixes without changing Afframe theme tokens.
 - fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
 - fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
 - Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.

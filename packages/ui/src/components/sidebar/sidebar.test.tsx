@@ -47,6 +47,17 @@ describe("Sidebar", () => {
     expect(screen.getByText("Menu")).toBeInTheDocument()
   })
 
+  it("uses sidebar color tokens directly for outline shadows", () => {
+    render(
+      <SidebarProvider>
+        <SidebarMenuButton variant="outline">Outlined</SidebarMenuButton>
+      </SidebarProvider>,
+    )
+    const button = screen.getByRole("button", { name: "Outlined" })
+    expect(button.className).toContain("var(--sidebar-border)")
+    expect(button.className).not.toContain("hsl(var(--sidebar-border))")
+  })
+
   it("renders sidebar trigger and toggles sidebar", async () => {
     const user = userEvent.setup()
     render(
@@ -65,7 +76,7 @@ describe("Sidebar", () => {
             </SidebarGroup>
           </SidebarContent>
         </Sidebar>
-      </SidebarProvider>
+      </SidebarProvider>,
     )
     const trigger = screen.getByRole("button", { name: /toggle sidebar/i })
     expect(trigger).toBeInTheDocument()
@@ -80,7 +91,7 @@ describe("Sidebar", () => {
       return null
     }
     expect(() => render(<BadComponent />)).toThrow(
-      "useSidebar must be used within a SidebarProvider."
+      "useSidebar must be used within a SidebarProvider.",
     )
     console.error = originalError
   })

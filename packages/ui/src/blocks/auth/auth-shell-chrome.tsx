@@ -34,14 +34,14 @@ import { cn } from "@workspace/ui/lib/utils"
  */
 
 export interface AuthShellChromeFooterLabels {
-  privacy: string
-  terms: string
-  status: string
+  privacy: ReactNode
+  terms: ReactNode
+  status: ReactNode
 }
 
 export interface AuthShellChromeFooterProps {
   /** Localized brand name for the © line. */
-  brand: string
+  brand: ReactNode
   /** Build version string (pass `getBuildVersion()` from the server). */
   version: string
   /** Localized link labels (`layout.footer.*`). */

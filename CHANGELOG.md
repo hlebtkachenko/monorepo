@@ -17,6 +17,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- UI: Form field `hover` now surfaces as a visible '?' (CircleHelp) affordance next to the label instead of a hidden hover on the input — discoverable, opens the HoverCard on hover or keyboard focus; label still undecorated
 - UI: Form section layout pass — container-query responsive columns (stack the title above the fields on a narrow panel instead of cramming; when side-by-side the left title column is capped at 18rem so the fields take the remaining width), `px-6`/`py-4` padding (24px sides = 3× the panel header), h4 (`Heading level={4}`) title; new `sectionSpace` gap section + a section `fill` flag so Empty fills while Form/Space take natural height and the body scrolls
 - UI: Form section polish — desktop `select` now renders our Radix Select (not NativeSelect), controls pin to a shared baseline so a row's inputs never float, title/first-field top-aligned, and sections carry an optional `anchor` (DOM id via ContentBody) for URL/CLI/docs deep-links
 - Relocate reusable archetype surface into packages/ui (archetypes are shared across web + admin): ArchetypeBlank -> packages/ui/blocks/archetypes, and the AppPageHeader content-header portal seam -> packages/ui/blocks/app-shell; ~44 page importers repointed to the barrels. Only routes + nav config stay app-side.

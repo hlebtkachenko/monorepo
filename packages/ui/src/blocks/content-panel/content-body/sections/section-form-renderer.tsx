@@ -10,6 +10,7 @@ import {
   HoverCardTrigger,
 } from "@workspace/ui/components/hover-card"
 import { Input } from "@workspace/ui/components/input"
+import { CircleHelp } from "@workspace/ui/lib/icons"
 import {
   Select,
   SelectContent,
@@ -107,24 +108,34 @@ function FormFieldCell({ field }: { field: FormField }) {
   )
   return (
     <Field className={cn("h-full", SPAN_CLASS[field.span ?? 6])}>
-      <FieldLabel htmlFor={controlId}>{field.label}</FieldLabel>
-      {field.hover != null ? (
-        // Rich hover over the CONTROL (not the label — no underline). Opens on
-        // hover or keyboard focus; content is plain data, never a ReactNode.
-        <HoverCard openDelay={150} closeDelay={100}>
-          <HoverCardTrigger asChild>{control}</HoverCardTrigger>
-          <HoverCardContent align="start">
-            {field.hover.title != null ? (
-              <p className="mb-1 font-medium text-foreground">
-                {field.hover.title}
-              </p>
-            ) : null}
-            <p className="text-muted-foreground">{field.hover.description}</p>
-          </HoverCardContent>
-        </HoverCard>
-      ) : (
-        control
-      )}
+      <div className="flex items-center gap-1">
+        <FieldLabel htmlFor={controlId}>{field.label}</FieldLabel>
+        {field.hover != null ? (
+          // A visible "?" affordance next to the label — NOT on the control and
+          // NOT an underline. Opens on hover or keyboard focus; content is plain
+          // data, never a ReactNode.
+          <HoverCard openDelay={150} closeDelay={100}>
+            <HoverCardTrigger asChild>
+              <button
+                type="button"
+                aria-label={`About ${field.label}`}
+                className="inline-flex rounded-sm text-muted-foreground/70 transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+              >
+                <CircleHelp className="size-3.5" aria-hidden />
+              </button>
+            </HoverCardTrigger>
+            <HoverCardContent align="start">
+              {field.hover.title != null ? (
+                <p className="mb-1 font-medium text-foreground">
+                  {field.hover.title}
+                </p>
+              ) : null}
+              <p className="text-muted-foreground">{field.hover.description}</p>
+            </HoverCardContent>
+          </HoverCard>
+        ) : null}
+      </div>
+      {control}
     </Field>
   )
 }

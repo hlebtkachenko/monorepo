@@ -94,7 +94,7 @@ describe("SectionFormRenderer", () => {
     expect(trigger).toHaveTextContent("CZK")
   })
 
-  it("wraps the control (not the label) in a HoverCard trigger when `hover` is set", () => {
+  it("shows a '?' HoverCard trigger by the label (not on the control) when `hover` is set", () => {
     wrap(
       <SectionFormRenderer
         props={{
@@ -111,16 +111,12 @@ describe("SectionFormRenderer", () => {
         }}
       />,
     )
-    const trigger = screen
-      .getByLabelText("DIČ")
-      .closest('[data-slot="hover-card-trigger"]')
-    expect(trigger).not.toBeNull()
-    // The label is outside the trigger — hover lives on the control only.
-    expect(screen.getByText("DIČ")).not.toBe(trigger)
-    // A field without `hover` gets no trigger.
-    expect(
-      screen.getByLabelText("IČO").closest('[data-slot="hover-card-trigger"]'),
-    ).toBeNull()
+    // The trigger is a visible "?" button, keyed to the field, not the input.
+    const trigger = screen.getByRole("button", { name: "About DIČ" })
+    expect(trigger).toHaveAttribute("data-slot", "hover-card-trigger")
+    expect(trigger).not.toContainElement(screen.getByLabelText("DIČ"))
+    // Exactly one trigger — the field without `hover` gets none.
+    expect(screen.getAllByRole("button", { name: /^About / })).toHaveLength(1)
   })
 
   it("maps span to a col-span class and defaults to a full row", () => {

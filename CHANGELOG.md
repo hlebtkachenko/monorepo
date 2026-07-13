@@ -21,6 +21,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- UI: Tabs section keeps every tab panel mounted (`forceMount`) so entered values survive a tab switch (reset only on reload/Discard); +6px gap between the tab bar and the fields
 - UI: Group section gains 16px bottom breathing room (pb-4) before its bottom rule; Archetype Details demo gives each Addresses tab distinct fields so tab switching visibly swaps the form
 - UI: Archetype Details demo adds a 16px Space before the group's bottom divider (breathing room from the section above)
 - UI: replace the Title `topRule` flag with a standalone **Divider** section (`sectionDivider`) — a full-ContentBody-width hairline the page places explicitly above and below a group, so the last group gets a real bottom rule (a flag couldn't, since no section knows it is last)

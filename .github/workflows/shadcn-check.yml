@@ -14,6 +14,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
@@ -28,52 +29,43 @@ jobs:
 
       - name: Check for component updates
         id: diff
+        env:
+          SHADCN_REPORT_PATH: ${{ runner.temp }}/shadcn-report.md
         run: |
-          OUTPUT=$(pnpm shadcn diff 2>&1 || true)
-          echo "$OUTPUT"
-          if echo "$OUTPUT" | grep -qE "^[-+]"; then
-            echo "has_updates=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_updates=false" >> "$GITHUB_OUTPUT"
-          fi
+          pnpm check:shadcn-upstream
 
       - name: Ensure issue label exists
-        # DEP-01: `gh issue create --label X` fails when the label does not
-        # exist in the repo. Create idempotently — `|| true` swallows the
-        # "already exists" error.
         if: steps.diff.outputs.has_updates == 'true'
-        run: gh label create shadcn-update --color 0E8A16 --description "Upstream shadcn/ui component drift" --repo "$GITHUB_REPOSITORY" || true
+        run: gh label create shadcn-update --color 0E8A16 --description "Upstream shadcn/ui review required" --force --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for existing issue
-        if: steps.diff.outputs.has_updates == 'true'
         id: existing
         run: |
-          COUNT=$(gh issue list --label shadcn-update --state open --json number --jq length)
-          echo "exists=$COUNT" >> "$GITHUB_OUTPUT"
+          NUMBER=$(gh issue list --label shadcn-update --state open --json number --jq '.[0].number // ""')
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create issue
-        if: steps.diff.outputs.has_updates == 'true' && steps.existing.outputs.exists == '0'
+        if: steps.diff.outputs.has_updates == 'true' && steps.existing.outputs.number == ''
         run: |
           gh issue create \
-            --title "chore: shadcn/ui component updates available" \
+            --title "chore: shadcn upstream review required" \
             --label shadcn-update \
-            --body "$(cat <<'BODY'
-          Upstream shadcn/ui components have changes.
+            --body-file "${{ runner.temp }}/shadcn-report.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          Run locally to review:
-          ```sh
-          pnpm shadcn diff
-          ```
+      - name: Refresh issue
+        if: steps.diff.outputs.has_updates == 'true' && steps.existing.outputs.number != ''
+        run: gh issue edit "${{ steps.existing.outputs.number }}" --body-file "${{ runner.temp }}/shadcn-report.md"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          Update specific component:
-          ```sh
-          pnpm shadcn add <component-name> --overwrite
-          ```
-          BODY
-          )"
+      - name: Close resolved issue
+        if: steps.diff.outputs.has_updates == 'false' && steps.existing.outputs.number != ''
+        run: gh issue close "${{ steps.existing.outputs.number }}" --comment "The reviewed shadcn upstream baseline is current."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

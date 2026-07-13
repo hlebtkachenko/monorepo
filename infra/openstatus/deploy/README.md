@@ -111,7 +111,7 @@ Once configured, the workflow runs:
 - Manually via `gh workflow run deploy-statuspage.yml` or the Actions UI.
 
 Both paths gate on the `production` GitHub environment (5-minute wait timer +
-one required reviewer per `docs/runbooks/SECRETS.md`).
+one required reviewer per `docs/conventions/SECRETS-AND-VARIABLES.md`).
 
 ## Rotation
 

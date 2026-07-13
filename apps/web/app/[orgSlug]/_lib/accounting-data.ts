@@ -208,6 +208,12 @@ export interface HeldWriteRow {
    * `counterparty_id` is read here. Null when nothing resolves.
    */
   counterparty_name: string | null
+  /** Označení of the účetní případ this write books (`ae.designation`, e.g. `UC2025000005`). Null when no event resolves. */
+  case_designation: string | null
+  /** The účetní případ description (`ae.description`) — carries the supplier/context when no counterparty row is linked. Null for none. */
+  case_description: string | null
+  /** Označení of the doklad the posting books from (`sr.designation`, e.g. `FP20250005`). Only a posting references one; null otherwise. */
+  document_designation: string | null
 }
 
 /**
@@ -241,7 +247,10 @@ export async function fetchHeldWrites(
                  l.input_json, l.output_json,
                  (l.output_json->'serverGate'->>'templateId') as template_id,
                  (t.human_confirmed_at is not null) as template_confirmed,
-                 cp.name as counterparty_name
+                 cp.name as counterparty_name,
+                 ae.designation as case_designation,
+                 ae.description as case_description,
+                 sr.designation as document_designation
           from tool_call_log l
           left join ocr_extraction_template t
             on t.id = (l.output_json->'serverGate'->>'templateId')::uuid
@@ -251,6 +260,11 @@ export async function fetchHeldWrites(
                    then l.input_json->'lines'->0->>'eventId'
                  when 'createAccountingPosting'
                    then l.input_json->'entry'->>'accountingEventId'
+               end)::uuid
+          left join summary_record sr
+            on sr.id = (case l.tool_name
+                 when 'createAccountingPosting'
+                   then l.input_json->'entry'->>'summaryRecordId'
                end)::uuid
           left join counterparty cp
             on cp.id = coalesce(

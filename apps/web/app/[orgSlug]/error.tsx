@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
-import { ErrorShell } from "@workspace/ui/blocks/app-shell"
+import { useParams } from "next/navigation"
+import { UtilityPage } from "@workspace/ui/blocks/utility-page"
+
+import { LanguagePicker } from "../_components/language-picker"
 
 /**
  * Error boundary for `/[orgSlug]/*`. Sits inside the OrgLayout, so the
@@ -15,17 +17,27 @@ export default function OrgError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    console.error("[orgSlug/error] caught", error)
-  }, [error])
+  const { orgSlug } = useParams<{ orgSlug: string }>()
 
   return (
-    <ErrorShell
-      variant="error"
-      onReset={reset}
-      homeHref="/workspace"
-      homeLabel="Back to workspace"
-      errorId={error.digest}
+    <UtilityPage
+      state={
+        error.digest ? "unexpected_server_error" : "unexpected_client_error"
+      }
+      runtime={{
+        surface: "shell",
+        actionHrefs: { go_back: `/${encodeURIComponent(orgSlug)}` },
+        onRetry: reset,
+        referenceId: error.digest,
+        report: {
+          payload: {
+            message: error.message || "Unknown application error",
+            digest: error.digest,
+            source: "web",
+          },
+        },
+      }}
+      footerControl={<LanguagePicker />}
     />
   )
 }

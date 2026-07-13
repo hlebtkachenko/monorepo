@@ -2,7 +2,9 @@
 
 This is a closed-beta product. External contributions are not accepted yet. This document exists for the core team and any human or AI agent doing planned work in the repo.
 
-**Start here**: [`docs/START-HERE.md`](docs/START-HERE.md) is the canonical entry point. It indexes every runbook and convention you'll need.
+**Start here**: [`README.md`](README.md) introduces the monorepo. Use
+[`docs/README.md`](docs/README.md) to find the canonical runbook, convention,
+specification, or reference for a task.
 
 ## Hard Rules (project-wide)
 

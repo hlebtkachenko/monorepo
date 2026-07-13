@@ -6,7 +6,7 @@ export const meta = {
   whenToUse:
     "Before Hleb reviews any Brain / accounting-write-gate / safety-spine change. Pass the review brief (plan or diff + the exact questions) as args.",
   phases: [
-    { title: "Review", detail: "Fable 5 high + Opus 4.8 xhigh, independent" },
+    { title: "Review", detail: "Opus 4.8 xhigh ×2, independent lenses" },
     {
       title: "Synthesis",
       detail: "Opus 4.8 xhigh reconciles the two verdicts",
@@ -98,17 +98,17 @@ GO_WITH_CHANGES if safe only after your listed blocking issues are fixed. GO onl
 it preserves the spine.`
 
 phase("Review")
-const [fable, opus] = await parallel([
+const [spine, domain] = await parallel([
   () =>
     agent(
       prompt(
         "CONFIDENT-WRONG & safety-spine integrity — hunt any auto-apply/veto/gate weakening and any unverifiable/fake-runnable code.",
       ),
       {
-        label: "gate:fable5-high",
+        label: "gate:spine-opus-xhigh",
         phase: "Review",
-        model: "fable",
-        effort: "high",
+        model: "opus",
+        effort: "xhigh",
         schema: VERDICT_SCHEMA,
       },
     ),
@@ -118,7 +118,7 @@ const [fable, opus] = await parallel([
         "DOMAIN-CORRECTNESS & SECURITY — Czech-VAT correctness (KH/SH/§92), API-key capability soundness, tenancy, migration safety, test adequacy.",
       ),
       {
-        label: "gate:opus48-xhigh",
+        label: "gate:domain-opus-xhigh",
         phase: "Review",
         model: "opus",
         effort: "xhigh",
@@ -132,11 +132,11 @@ const synthesis = await agent(
   `Reconcile two independent adversarial verdicts on an Afframe Brain change into ONE ruling.
 ${SPINE}
 
-FABLE-5 (high) verdict:
-${JSON.stringify(fable, null, 2)}
+SPINE reviewer (Opus 4.8 xhigh) verdict:
+${JSON.stringify(spine, null, 2)}
 
-OPUS-4.8 (xhigh) verdict:
-${JSON.stringify(opus, null, 2)}
+DOMAIN reviewer (Opus 4.8 xhigh) verdict:
+${JSON.stringify(domain, null, 2)}
 
 THE CHANGE / PLAN:
 ${brief}
@@ -166,4 +166,4 @@ blocking issues into one deduped, prioritized must-fix list. Be terse.`,
   },
 )
 
-return { fable, opus, synthesis }
+return { spine, domain, synthesis }

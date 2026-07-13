@@ -1,10 +1,12 @@
 // ⚠ SAFETY SPINE — do not modify without brain-gate review
 
+import { type GateDecision, scoreProposal } from "@workspace/brain/gate"
 import {
-  type GateDecision,
-  scoreProposalColdStart,
-} from "@workspace/brain/gate"
-import { type ScoreInputs, TIER2_CAP_VALUES } from "@workspace/brain/confidence"
+  type CalibrationModel,
+  coldStartModel,
+  type ScoreInputs,
+  TIER2_CAP_VALUES,
+} from "@workspace/brain/confidence"
 import type { EvidenceSignals } from "@workspace/shared/api"
 
 /**
@@ -38,6 +40,18 @@ import type { EvidenceSignals } from "@workspace/shared/api"
  * references an unconfirmed OCR template. These only ADD a hold to the score; a
  * client cannot forge one (a Tier-3 kind is not a Tier-2 cap, so it is dropped if
  * asserted via `capSignals`).
+ *
+ * [M3.2] The scorer CONSULTS the live calibration model (`liveCalibrationModel`
+ * below) instead of being pinned to the cold-start identity map, so a calibrated
+ * mapping CAN apply once a real fit is blessed and set via
+ * `setCalibrationModel`. This changes NOTHING about cold-start safety: the
+ * structural `extraction_failed` block above forces `blocked = true` in
+ * `computeCRaw` regardless of the model, which forces `cFinal = 0` in
+ * `scoreProposal` regardless of the model (the block short-circuit dominates the
+ * calibration map — see gate.ts + gate.test.ts's "a block stays honest under a
+ * fitted model"). So consulting the model is a no-op while the floor is up; it
+ * only becomes load-bearing once M3.1 lifts the floor field-by-field (a
+ * separate, data-gated milestone this PR does not touch).
  */
 
 /**
@@ -108,8 +122,39 @@ export function buildScoreInputs(
 }
 
 /**
+ * [M3.2] The live calibration model the gate consults when scoring a proposal.
+ * DEFAULTS to the SAFE cold-start identity map — nothing in this codebase calls
+ * `setCalibrationModel` yet, so this is byte-equivalent to the pre-M3.2
+ * `scoreProposalColdStart` wiring until a human explicitly sets a blessed fit.
+ * Module-level, in-memory only (process-wide): never persisted, never read from
+ * a request body or env var — a client cannot influence it. Resets on every
+ * process restart (a fresh deploy starts back at cold-start, never inheriting a
+ * stale in-memory fit).
+ */
+let liveCalibrationModel: CalibrationModel = coldStartModel()
+
+/**
+ * [M3.2] Ops-only entry point to set the live calibration model. Intended input
+ * is a human-blessed `GuardedCalibrationResult.model` from
+ * `refitCalibrationGuarded` (`@workspace/brain/confidence`) — itself data-gated
+ * on >= MIN_CALIBRATION_RUNS distinct reviewed runs and the #569 degenerate-fit
+ * guard. NOT called anywhere in this codebase: the fit itself is gated on the
+ * M2.3 marathon's labeled ground truth (`M1-M3-OVERNIGHT-PLAN.md` §5). Exported
+ * for the future ops entrypoint (and tests) only.
+ */
+export function setCalibrationModel(model: CalibrationModel): void {
+  liveCalibrationModel = model
+}
+
+/** Test-only: reset the live calibration model back to the safe cold-start default. */
+export function resetCalibrationModelForTest(): void {
+  liveCalibrationModel = coldStartModel()
+}
+
+/**
  * Build `ScoreInputs` from the (optional) client envelope FAIL-CLOSED, then score
- * server-side against the cold-start model. Returns the honest server verdict.
+ * server-side against the live calibration model (cold-start identity by
+ * default — see `liveCalibrationModel`). Returns the honest server verdict.
  *
  * `serverDerivedSignals` are threaded through `buildScoreInputs` — SERVER-injected
  * infra signals (e.g. `novel_template`), never client claims. They can only lower
@@ -117,13 +162,15 @@ export function buildScoreInputs(
  *
  * The verdict's `isGreen` is the THIRD leg of the live auto-apply AND (the other
  * two being the client confidence threshold and the independent server veto).
- * With v1 degradation `isGreen` is always false — everything is HELD.
+ * With v1 degradation `isGreen` is always false — everything is HELD, regardless
+ * of the model consulted (see the module doc + gate.test.ts).
  */
 export function evaluateEvidence(
   envelope: EvidenceEnvelope | null | undefined,
   serverDerivedSignals: readonly string[] = [],
 ): GateDecision {
-  return scoreProposalColdStart(
+  return scoreProposal(
     buildScoreInputs(envelope, serverDerivedSignals),
+    liveCalibrationModel,
   )
 }

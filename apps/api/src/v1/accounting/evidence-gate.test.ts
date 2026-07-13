@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import {
   applyCalibration,
@@ -7,7 +7,12 @@ import {
 } from "@workspace/brain/confidence"
 import { scoreProposal } from "@workspace/brain/gate"
 
-import { buildScoreInputs, evaluateEvidence } from "./evidence-gate"
+import {
+  buildScoreInputs,
+  evaluateEvidence,
+  resetCalibrationModelForTest,
+  setCalibrationModel,
+} from "./evidence-gate"
 
 /**
  * [WP-D] Fail-closed evidence gate. These pin the load-bearing safety property:
@@ -140,5 +145,84 @@ describe("evidence gate — server-derived novel_template signal [WS-2]", () => 
     expect(d.isGreen).toBe(false)
     expect(d.needsReview).toBe(true)
     expect(d.firedSignals).toContain("novel_template")
+  })
+})
+
+describe("evaluateEvidence — [M3.2] consults the live calibration model, cold-start stays HELD", () => {
+  afterEach(() => {
+    // Never let a test's setCalibrationModel leak into a sibling test.
+    resetCalibrationModelForTest()
+  })
+
+  it("evaluateEvidence is byte-identical to the cold-start default (no model set yet)", () => {
+    // Load-bearing: wiring `evaluateEvidence` to consult `liveCalibrationModel`
+    // must be a no-op until a human explicitly calls `setCalibrationModel` —
+    // nothing in this codebase does, so this must still equal the pre-M3.2
+    // scoreProposalColdStart output.
+    const d = evaluateEvidence(undefined)
+    expect(d.blocked).toBe(true)
+    expect(d.cRaw).toBe(0)
+    expect(d.cFinal).toBe(0)
+    expect(d.isGreen).toBe(false)
+    expect(d.needsReview).toBe(true)
+  })
+
+  it("[LOAD-BEARING] cold-start floor stays HELD even once a FITTED model is set live", () => {
+    // A fitted (N>=10) model whose history says score 0 was always correct maps
+    // 0 -> ~1.0 (see gate.test.ts's "a block stays honest under a fitted model").
+    const pairs: CalibrationPair[] = Array.from({ length: 12 }, () => ({
+      score: 0,
+      correct: true,
+    }))
+    const model = fitCalibration(pairs, 12)
+    expect(model.fitted).toBe(true)
+    expect(applyCalibration(0, model)).toBeGreaterThan(0.95) // the map WOULD lift a 0...
+
+    setCalibrationModel(model)
+
+    // ...but every write is STILL held: the structural extraction_failed block
+    // forces `blocked=true` in computeCRaw regardless of the model, which forces
+    // cFinal=0 in scoreProposal regardless of the model. Consulting a live model
+    // changes NOTHING while the floor is up.
+    const noEnvelope = evaluateEvidence(undefined)
+    expect(noEnvelope.blocked).toBe(true)
+    expect(noEnvelope.cFinal).toBe(0)
+    expect(noEnvelope.isGreen).toBe(false)
+    expect(noEnvelope.needsReview).toBe(true)
+
+    // Even a maxed client-claimed envelope (every base-score + verify bonus at
+    // its best value) cannot green a write under the live fitted model.
+    const maxedClaim = evaluateEvidence({
+      kbRule: "constitution_safe",
+      extractionQuality: 1,
+      reconciliation: "full",
+      vatBaseMatchesNet: true,
+      rcChecklistPassesOrNA: true,
+      decree500Confirmed: true,
+      periodConsistent: true,
+      bankVsKsSsMatch: true,
+    })
+    expect(maxedClaim.isGreen).toBe(false)
+    expect(maxedClaim.blocked).toBe(true)
+    expect(maxedClaim.cFinal).toBe(0)
+
+    // A server-derived novel_template also stays sub-green under the live model.
+    const serverDerived = evaluateEvidence(undefined, ["novel_template"])
+    expect(serverDerived.isGreen).toBe(false)
+    expect(serverDerived.blocked).toBe(true)
+  })
+
+  it("resetCalibrationModelForTest restores the safe cold-start default", () => {
+    const pairs: CalibrationPair[] = Array.from({ length: 12 }, () => ({
+      score: 0,
+      correct: true,
+    }))
+    setCalibrationModel(fitCalibration(pairs, 12))
+    resetCalibrationModelForTest()
+    // Still held (as always), and provably back on the cold-start identity map:
+    // applyCalibration would be a no-op, so a below-cold-start-threshold score
+    // stays exactly itself rather than the fitted map's lift.
+    const d = evaluateEvidence(undefined)
+    expect(d.cFinal).toBe(d.cRaw)
   })
 })

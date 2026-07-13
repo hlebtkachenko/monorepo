@@ -6,6 +6,7 @@ import {
   type HumanReviewOutcome,
   MIN_CALIBRATION_RUNS,
   refitCalibration,
+  refitCalibrationGuarded,
   type RunLogEntry,
 } from "./calibration"
 import { firedHardClassSignals, HARD_CLASSES } from "./hard-class"
@@ -405,5 +406,109 @@ describe("refitCalibration — a degenerate fit cannot green a non-hard-class wr
     const d = scoreProposal(inputs, poisonedModel)
     expect(d.cFinal).toBe(1) // NOT clamped — vat_mismatch is not a hard class
     expect(d.isGreen).toBe(true) // the forged green the #569 guard prevents
+  })
+})
+
+// [M3.2 / #569] refitCalibrationGuarded — the reviewable entry point M3.2 wires. It wraps
+// refitCalibration (unchanged) with the degenerate-fit guard + an observed-domain report, and is
+// NEVER called automatically — it produces the artifact a human blesses before `setCalibrationModel`
+// (apps/api's evidence-gate.ts) is ever invoked.
+
+describe("refitCalibrationGuarded — under-N passthrough", () => {
+  it("fewer than MIN_CALIBRATION_RUNS distinct runs => cold-start, no rejection reason", () => {
+    const logs = correctLogs(9, 0.6, MIN_CALIBRATION_RUNS - 1)
+    const result = refitCalibrationGuarded(logs)
+    expect(result.model.fitted).toBe(false)
+    expect(result.rejected).toEqual([])
+    expect(result.domain).toBeUndefined()
+  })
+
+  it("empty logs => cold-start", () => {
+    const result = refitCalibrationGuarded([])
+    expect(result.model.fitted).toBe(false)
+    expect(result.rejected).toEqual([])
+  })
+})
+
+describe("refitCalibrationGuarded — [#569] degenerate-fit guard", () => {
+  it("rejects a fit whose logs are ALL booked_correct (single outcome class)", () => {
+    // >= MIN_CALIBRATION_RUNS distinct runs, but every outcome is positive — refitCalibration WOULD
+    // fit (PAV pools everything into one block at y=1.0), but the guard must reject it.
+    const logs = correctLogs(30, 0.5, MIN_CALIBRATION_RUNS)
+    // Post-#569: refitCalibration ITSELF now rejects this degenerate (single-score,
+    // single-label) fit closed to identity — the raw refit no longer fits either, so the
+    // guard is layered in BOTH the raw entry and the reviewable wrapper.
+    expect(refitCalibration(logs).fitted).toBe(false)
+
+    const result = refitCalibrationGuarded(logs)
+    expect(result.model.fitted).toBe(false) // rejected -> cold-start fallback
+    expect(result.rejected.length).toBeGreaterThan(0)
+    expect(result.rejected[0]).toContain("degenerate_fit")
+    expect(result.domain).toBeUndefined()
+  })
+
+  it("rejects a fit whose logs are ALL negative (human_rejected only)", () => {
+    const logs: RunLogEntry[] = Array.from(
+      { length: 30 },
+      (_, i): RunLogEntry => ({
+        runId: `run-${i % MIN_CALIBRATION_RUNS}`,
+        score: 0.5,
+        outcome: "human_rejected",
+      }),
+    )
+    // Post-#569: the inline guard rejects this all-negative single-score fit too.
+    expect(refitCalibration(logs).fitted).toBe(false)
+    const result = refitCalibrationGuarded(logs)
+    expect(result.model.fitted).toBe(false)
+    expect(result.rejected.length).toBeGreaterThan(0)
+  })
+
+  it("does NOT reject a fit with BOTH outcome classes present", () => {
+    const logs: RunLogEntry[] = []
+    let n = 0
+    for (const [s, rate] of [
+      [0.3, 0.4],
+      [0.7, 0.8],
+    ] as const) {
+      const total = 30
+      const correct = Math.round(rate * total)
+      for (let i = 0; i < total; i++) {
+        logs.push({
+          runId: `run-${n % MIN_CALIBRATION_RUNS}`,
+          score: s,
+          outcome: i < correct ? "booked_correct" : "human_rejected",
+        })
+        n++
+      }
+    }
+    const result = refitCalibrationGuarded(logs)
+    expect(result.model.fitted).toBe(true)
+    expect(result.rejected).toEqual([])
+  })
+})
+
+describe("refitCalibrationGuarded — [#569] observed-domain report", () => {
+  it("reports the [min,max] score actually observed in a non-degenerate fit", () => {
+    const logs: RunLogEntry[] = []
+    let n = 0
+    for (const [s, rate] of [
+      [0.2, 0.3],
+      [0.5, 0.5],
+      [0.9, 0.95],
+    ] as const) {
+      const total = 20
+      const correct = Math.round(rate * total)
+      for (let i = 0; i < total; i++) {
+        logs.push({
+          runId: `run-${n % MIN_CALIBRATION_RUNS}`,
+          score: s,
+          outcome: i < correct ? "booked_correct" : "human_corrected",
+        })
+        n++
+      }
+    }
+    const result = refitCalibrationGuarded(logs)
+    expect(result.model.fitted).toBe(true)
+    expect(result.domain).toEqual({ min: 0.2, max: 0.9 })
   })
 })

@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "pnpm exec codegraph prompt-hook"
+            "command": "pnpm -w exec node scripts/codegraph.mjs prompt-hook"
           }
         ]
       }

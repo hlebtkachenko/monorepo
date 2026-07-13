@@ -218,3 +218,84 @@ export function brierScore(pairs: readonly CalibrationPair[]): number {
   }
   return sum / pairs.length
 }
+
+// ─── [M3.2 / #569] Guarded refit — degenerate-fit + extrapolation safety ────────────────────────────
+//
+// #569 tracks two calibration-safety gaps a bare `refitCalibration` does not close on its own:
+//   - a DEGENERATE fit: the reviewed logs carry only ONE outcome class (all `booked_correct`, or none
+//     of them). PAV pools same-signed data into a single block spanning the WHOLE score range, so the
+//     "fit" would map a cRaw of 0.05 and 0.95 to the identical calibrated value — not a real
+//     discrimination, an artifact of an unrepresentative labeled sample.
+//   - EXTRAPOLATION: the fit has no evidence for scores outside the observed [min,max] of the training
+//     logs. `applyCalibration`'s ordinary clamp-to-nearest-block behavior is the correct, standard
+//     consumption for the ENFORCED live path (unchanged here) — but a human blessing an overnight fit
+//     needs the observed domain surfaced, so a narrow or lopsided fit is visible before it is ever set
+//     live via `setCalibrationModel` (evidence-gate.ts).
+//
+// This wraps `refitCalibration` (unchanged) with those two checks — it produces the REVIEWABLE result
+// for a human to bless, never applies itself, and never fabricates data (a rejected fit falls back to
+// `coldStartModel()`, exactly like an under-N fit already does).
+
+/** The result of a guarded refit — the reviewable artifact a human blesses before `setCalibrationModel`. */
+export interface GuardedCalibrationResult {
+  /** The model to use: `coldStartModel()` if under-N, degenerate, or otherwise rejected. */
+  model: CalibrationModel
+  /** Non-empty iff the guard rejected an otherwise-fitted map (`model` is the cold-start fallback). */
+  rejected: string[]
+  /**
+   * The [min,max] `score` actually observed in the logs that produced a fitted `model` — the fit's
+   * supported domain, for a human reviewer to judge how narrow/representative the sample is.
+   * `undefined` when `model` is unfitted (nothing was observed to report).
+   */
+  domain?: { min: number; max: number }
+}
+
+/**
+ * [#569] Degenerate-fit guard: `true` iff the logs carry only one outcome class (all `booked_correct`,
+ * or none of them — i.e. every entry is `human_corrected`/`human_rejected`).
+ */
+function isDegenerate(logs: readonly RunLogEntry[]): boolean {
+  let sawPositive = false
+  let sawNegative = false
+  for (const log of logs) {
+    if (isPositiveOutcome(log.outcome)) sawPositive = true
+    else sawNegative = true
+  }
+  return !sawPositive || !sawNegative
+}
+
+/**
+ * [M3.2 / #569] Re-fit the calibration map with the degenerate-fit guard + an observed-domain report.
+ * Wraps `refitCalibration` (which already gates on `MIN_CALIBRATION_RUNS` distinct runs, unchanged) with
+ * one ADDITIONAL safety check before a fitted model is ever returned as trustworthy: reject a fit whose
+ * input logs carry a single outcome class (falls back to `coldStartModel()`, `rejected` explains why).
+ * A non-degenerate fit's `domain` reports the observed score range for the human blessing this result.
+ *
+ * NEVER called automatically anywhere in this codebase — this is the entry point a future ops action
+ * (data-gated on the M2.3 marathon's reviewed runs, blessed by Hleb) will invoke, feeding its `.model`
+ * to `setCalibrationModel` (evidence-gate.ts) only after review. Nothing wires this to run on its own,
+ * and it never fits on fabricated data — it only reshapes/guards what `refitCalibration` produces.
+ */
+export function refitCalibrationGuarded(
+  logs: readonly RunLogEntry[],
+): GuardedCalibrationResult {
+  const model = refitCalibration(logs)
+  // [#569] A single-outcome-class history is degenerate. `refitCalibration`'s inline guard now already
+  // collapses it to cold-start, but the reviewable artifact must still SURFACE why — otherwise a
+  // poisoned-but-sufficient history is indistinguishable from a plain under-N passthrough. Gate on the
+  // same MIN_CALIBRATION_RUNS distinct-run floor so a genuine under-N case stays reason-free.
+  const distinctRuns = new Set(logs.map((log) => log.runId)).size
+  if (distinctRuns >= MIN_CALIBRATION_RUNS && isDegenerate(logs)) {
+    return {
+      model: coldStartModel(),
+      rejected: [
+        "degenerate_fit: the reviewed runs carry only one outcome class " +
+          "(all booked_correct, or none) — refusing to trust the fit's shape",
+      ],
+    }
+  }
+  if (!model.fitted) return { model, rejected: [] }
+  const scores = logs.map((log) => log.score)
+  const domain = { min: Math.min(...scores), max: Math.max(...scores) }
+  return { model, rejected: [], domain }
+}

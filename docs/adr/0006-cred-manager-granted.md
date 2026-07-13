@@ -26,6 +26,7 @@ Once AWS Identity Center lands (post-bootstrap), local CLI access to multiple ac
 Chosen: **Option 1, Granted.**
 
 Reasoning:
+
 - Identity Center support is first-class.
 - Firefox container isolation per profile prevents the "wrong account in another tab" mistake.
 - `assume <profile>` is a single-line UX win.
@@ -34,11 +35,13 @@ Reasoning:
 ## Consequences
 
 Positive:
+
 - One-line account switch.
 - Browser isolation reduces blast radius of "I clicked the wrong tab" mistakes.
 - OSS, no vendor lock-in.
 
 Negative:
+
 - Third-party tool. Pinned to a release in `mise.toml`.
 - Firefox container integration is Firefox-only; Chrome users lose that benefit (Hleb defaults to Firefox for AWS work, accepted).
 
@@ -51,4 +54,4 @@ Negative:
 
 - `mise.toml`
 - `.devcontainer/Dockerfile`
-- `docs/runbooks/SECRETS.md`
+- `docs/conventions/SECRETS-AND-VARIABLES.md`

@@ -12045,7 +12045,7 @@
       "get": {
         "operationId": "listAccounts",
         "summary": "List chart of accounts",
-        "description": "Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (`periodId`) and synthetic/analytical shape (`isSynthetic`). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.",
+        "description": "Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (`periodId`), synthetic/analytical shape (`isSynthetic`), and exact account `number` (combine `periodId` + `number` for a single-row number→id lookup). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.",
         "tags": [
           "Accounts"
         ],
@@ -12080,6 +12080,19 @@
             "required": false,
             "description": "Filter to synthetic (`true`) or analytical (`false`) accounts only.",
             "name": "isSynthetic",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20,
+              "description": "Resolve accounts by exact number (e.g. `518`, `311.001`). Combine with `periodId` to get the single row for that period's chart — the ergonomic number→id lookup that avoids paging the whole chart.",
+              "example": "518"
+            },
+            "required": false,
+            "description": "Resolve accounts by exact number (e.g. `518`, `311.001`). Combine with `periodId` to get the single row for that period's chart — the ergonomic number→id lookup that avoids paging the whole chart.",
+            "name": "number",
             "in": "query"
           }
         ],

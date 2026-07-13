@@ -159,8 +159,8 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 1. **Form-only pages.** Never add header/footer/aside in a page file.
 2. **Components only.** Use `packages/ui` components. Never hardcode HTML elements
    with raw Tailwind that duplicates what a component already provides.
-3. **If the design needs a variant that doesn't exist:** list it as a gap, implement
-   with the closest existing variant, and document in `AUTH-OUTSTANDING.md`.
+3. **If the design needs a variant that doesn't exist:** open a GitHub issue,
+   implement with the closest existing variant, and link the issue from the PR.
 4. **All copy from i18n.** Zero hardcoded strings. Keys under `auth.*` namespace.
 5. **Icons from re-export only.** `@workspace/ui/lib/icons`, never direct lucide import.
 6. **No raw CSS overrides on components.** If a component needs a new size/variant,
@@ -168,7 +168,7 @@ Each slot: `max-w-xl` (576px, ~2/3 of aside width).
 
 ## Outstanding (Not Yet Implemented)
 
-See `docs/plans/AUTH-OUTSTANDING.md` for remaining gaps:
+Known gaps, tracked through GitHub Issues:
 
 - ~~Real brand SVG~~ Done: `<Logo>` component shipped in `@workspace/ui/brand-assets` (4 variants × 9 tones)
 - Footer legal URLs (currently `href="#"`)

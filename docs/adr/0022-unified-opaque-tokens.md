@@ -22,7 +22,7 @@ Today the platform issues five distinct in-flight tokens, designed inconsistentl
 
 Two designs, one codebase. The JWT-based tokens lose revocation, lose audit trail at issue, require key-rotation infrastructure (`APP_TOKEN_SECRET`), and put PII (email, workspace name) directly into the URL/cookie payload. The opaque-DB invite design is strictly stronger on every dimension except per-verify CPU cost.
 
-The audit context dossier ([`docs/plans/AFF-150-AUDIT-CONTEXT.md`](../plans/AFF-150-AUDIT-CONTEXT.md)), the in-session token review, and a security-focused literature pass against NIST SP 800-107r1, RFC 4868, OWASP ASVS #2411, OWASP Session Management Cheat Sheet, and the [GitHub Engineering token-format publication](https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/) converged on a single answer: opaque + DB, with a published checksum format, no app-level signing secret.
+The May 2026 auth audit, the in-session token review, and a security-focused literature pass against NIST SP 800-107r1, RFC 4868, OWASP ASVS #2411, OWASP Session Management Cheat Sheet, and the [GitHub Engineering token-format publication](https://github.blog/engineering/platform-security/behind-githubs-new-authentication-token-formats/) converged on a single answer: opaque + DB, with a published checksum format, no app-level signing secret.
 
 This ADR formalizes that design and the migration path for all five token kinds.
 

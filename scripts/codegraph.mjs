@@ -10,16 +10,17 @@ const root = process.cwd()
 const indexDir = join(root, ".codegraph")
 
 function run(args, options = {}) {
+  const { env: extraEnv = {}, ...spawnOptions } = options
   const result = spawnSync("pnpm", ["exec", "codegraph", ...args], {
     cwd: root,
     stdio: "inherit",
+    ...spawnOptions,
     env: {
-      // Keep index build/sync in step with the MCP server config in .mcp.json.
-      CODEGRAPH_PARSE_WORKERS: "8",
       ...process.env,
       CODEGRAPH_TELEMETRY: "0",
+      CODEGRAPH_PARSE_WORKERS: "8",
+      ...extraEnv,
     },
-    ...options,
   })
 
   if (result.error) {
@@ -69,8 +70,21 @@ switch (command) {
     }
     run(["status", "."])
     break
+  case "serve":
+    run(["serve", "--mcp"], {
+      env: {
+        CODEGRAPH_MCP_TOOLS: "explore,node,search,status",
+        CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS: "1800000",
+      },
+    })
+    break
+  case "prompt-hook":
+    run(["prompt-hook"])
+    break
   default:
     error(`Unknown CodeGraph command: ${command}`)
-    error("Usage: node scripts/codegraph.mjs [ready|ensure|init|sync|status]")
+    error(
+      "Usage: node scripts/codegraph.mjs [ready|ensure|init|sync|status|serve|prompt-hook]",
+    )
     process.exit(1)
 }

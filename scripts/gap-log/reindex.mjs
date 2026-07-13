@@ -39,7 +39,15 @@ function scanForLeaks(text) {
 }
 
 function stripComment(value) {
-  return value.replace(/<!--.*?-->/g, "").trim()
+  // Strip HTML comments. `[\s\S]` (not `.`) so a comment spanning newlines is matched, and loop
+  // until stable so an overlapping/nested `<!-- <!-- -->` can never leave a dangling `<!--`.
+  let out = value
+  let prev
+  do {
+    prev = out
+    out = out.replace(/<!--[\s\S]*?-->/g, "")
+  } while (out !== prev)
+  return out.trim()
 }
 
 function parseEntries(text) {

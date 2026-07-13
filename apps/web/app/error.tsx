@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
-import { reportClientError } from "./_lib/report-error"
+import { UtilityPage } from "@workspace/ui/blocks/utility-page"
+
+import { LanguagePicker } from "./_components/language-picker"
 
 // Route-segment error boundary. Reports, then offers a retry.
 export default function Error({
@@ -11,16 +12,24 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    reportClientError(error, error.digest)
-  }, [error])
-
   return (
-    <div style={{ fontFamily: "system-ui, sans-serif", padding: "2rem" }}>
-      <h2>Something went wrong</h2>
-      <button type="button" onClick={() => reset()}>
-        Try again
-      </button>
-    </div>
+    <UtilityPage
+      state={
+        error.digest ? "unexpected_server_error" : "unexpected_client_error"
+      }
+      runtime={{
+        surface: "global",
+        onRetry: reset,
+        referenceId: error.digest,
+        report: {
+          payload: {
+            message: error.message || "Unknown application error",
+            digest: error.digest,
+            source: "web",
+          },
+        },
+      }}
+      footerControl={<LanguagePicker />}
+    />
   )
 }

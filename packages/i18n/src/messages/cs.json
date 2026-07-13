@@ -27,8 +27,264 @@
       "status": "Stav"
     }
   },
+  "utilityPage": {
+    "returnTo": "Zpět na {host}",
+    "actions": {
+      "go_back": "Jít zpět",
+      "choose_organization": "Vybrat organizaci",
+      "sign_in": "Přihlásit se",
+      "reauthenticate": "Přihlásit se znovu",
+      "retry": "Zkusit znovu",
+      "reload": "Načíst znovu",
+      "request_access": "Požádat o přístup",
+      "open_status": "Zobrazit stav služby",
+      "contact_support": "Kontaktovat podporu"
+    },
+    "feedback": {
+      "sectionTitle": "Nahlásit tento problém",
+      "description": "Pomozte nám problém prošetřit sdílením diagnostických údajů.",
+      "loading": "Načítání hlášení…",
+      "sending": "Odesílání…",
+      "sent": "Hlášení chyby odesláno",
+      "failed": "Zkusit odeslat znovu",
+      "send": "Odeslat hlášení"
+    },
+    "states": {
+      "route_not_found": {
+        "codeLabel": "404",
+        "title": "Stránka nenalezena",
+        "description": "Adresa může být nesprávná nebo byla stránka přesunuta."
+      },
+      "resource_not_found": {
+        "codeLabel": "404",
+        "title": "Položka nenalezena",
+        "description": "Tato položka neexistuje, byla přesunuta nebo k ní již nemáte přístup."
+      },
+      "resource_gone": {
+        "codeLabel": "410",
+        "title": "Položka již není dostupná",
+        "description": "Tato položka byla odstraněna a z této adresy ji nelze obnovit."
+      },
+      "invalid_link": {
+        "codeLabel": "Neplatný odkaz",
+        "title": "Tento odkaz není platný",
+        "description": "Zkontrolujte, že byl zkopírován celý odkaz, nebo se vraťte na stránku, kde byl vytvořen."
+      },
+      "expired_link": {
+        "codeLabel": "Odkaz vypršel",
+        "title": "Platnost tohoto odkazu vypršela",
+        "description": "Požádejte o nový odkaz a pokračujte."
+      },
+      "authentication_required": {
+        "codeLabel": "401",
+        "title": "Je vyžadováno přihlášení",
+        "description": "Pro pokračování na tuto stránku se přihlaste."
+      },
+      "session_expired": {
+        "codeLabel": "Relace vypršela",
+        "title": "Platnost vaší relace vypršela",
+        "description": "Pro bezpečné pokračování se znovu přihlaste."
+      },
+      "reauthentication_required": {
+        "codeLabel": "Vyžadováno ověření",
+        "title": "Potvrďte svou totožnost",
+        "description": "Tato akce vyžaduje nedávné přihlášení."
+      },
+      "mfa_required": {
+        "codeLabel": "Vyžadováno dvoufázové ověření",
+        "title": "Je vyžadováno další ověření",
+        "description": "Pro pokračování dokončete dvoufázové ověření."
+      },
+      "auth_link_invalid": {
+        "codeLabel": "Neplatný přihlašovací odkaz",
+        "title": "Tento přihlašovací odkaz není platný",
+        "description": "Odkaz již mohl být použit nebo nemusí být úplný."
+      },
+      "invite_invalid": {
+        "codeLabel": "Neplatná pozvánka",
+        "title": "Tuto pozvánku nelze použít",
+        "description": "Požádejte vlastníka organizace o zaslání nové pozvánky."
+      },
+      "account_locked": {
+        "codeLabel": "Účet uzamčen",
+        "title": "Váš účet je dočasně uzamčen",
+        "description": "Před dalším pokusem počkejte nebo kontaktujte podporu."
+      },
+      "account_disabled": {
+        "codeLabel": "Účet deaktivován",
+        "title": "Tento účet je deaktivován",
+        "description": "Kontaktujte podporu a požádejte o kontrolu stavu účtu."
+      },
+      "access_denied": {
+        "codeLabel": "403",
+        "title": "Přístup odepřen",
+        "description": "Váš účet nemá přístup do této části. Pokud přístup potřebujete, kontaktujte vlastníka."
+      },
+      "membership_required": {
+        "codeLabel": "Vyžadováno členství",
+        "title": "Je vyžadován přístup k organizaci",
+        "description": "Pro pokračování potřebujete aktivní členství v této organizaci."
+      },
+      "action_forbidden": {
+        "codeLabel": "Akce není povolena",
+        "title": "Tuto akci nemůžete provést",
+        "description": "Vaše aktuální oprávnění tuto operaci neumožňují."
+      },
+      "resource_access_denied": {
+        "codeLabel": "Přístup omezen",
+        "title": "Přístup k této položce je omezen",
+        "description": "Nemáte oprávnění tuto položku zobrazit."
+      },
+      "workspace_unavailable": {
+        "codeLabel": "Pracovní prostor není dostupný",
+        "title": "Pracovní prostor není dostupný",
+        "description": "Tento pracovní prostor neexistuje nebo již není pro váš účet dostupný."
+      },
+      "organization_unavailable": {
+        "codeLabel": "Organizace není dostupná",
+        "title": "Organizace není dostupná",
+        "description": "Tato organizace neexistuje nebo již není pro váš účet dostupná."
+      },
+      "organization_suspended": {
+        "codeLabel": "Organizace pozastavena",
+        "title": "Tato organizace je pozastavena",
+        "description": "Přístup je pozastaven. Podrobnosti získáte od vlastníka organizace nebo podpory."
+      },
+      "organization_archived": {
+        "codeLabel": "Organizace archivována",
+        "title": "Tato organizace je archivována",
+        "description": "Archivované organizace jsou pouze pro čtení a zde je nelze otevřít."
+      },
+      "feature_not_enabled": {
+        "codeLabel": "Funkce není dostupná",
+        "title": "Tato funkce není povolena",
+        "description": "Funkce není pro tuto organizaci nebo tarif dostupná."
+      },
+      "maintenance_scheduled": {
+        "codeLabel": "Plánovaná údržba",
+        "title": "Je naplánována údržba",
+        "description": "Během oznámeného období údržby bude služba dočasně nedostupná."
+      },
+      "maintenance_active": {
+        "codeLabel": "Údržba",
+        "title": "Probíhá údržba",
+        "description": "Služba je dočasně nedostupná. Průběh sledujte na stránce stavu služby."
+      },
+      "service_unavailable": {
+        "codeLabel": "503",
+        "title": "Služba je dočasně nedostupná",
+        "description": "Služba nyní nemůže dokončit požadavky. Zkuste to znovu za chvíli."
+      },
+      "service_degraded": {
+        "codeLabel": "Omezený provoz",
+        "title": "Některé funkce nejsou dostupné",
+        "description": "Neovlivněné části služby můžete používat, zatímco obnovujeme plný provoz."
+      },
+      "system_waking": {
+        "codeLabel": "Spouštění služby",
+        "title": "Služba se spouští",
+        "description": "Obvykle to trvá méně než minutu. Stránka pokus automaticky zopakuje."
+      },
+      "dependency_unavailable": {
+        "codeLabel": "Závislá služba není dostupná",
+        "title": "Požadovaná služba není dostupná",
+        "description": "Operace nemůže pokračovat, dokud se závislá služba neobnoví."
+      },
+      "read_only_mode": {
+        "codeLabel": "Režim pouze pro čtení",
+        "title": "Změny jsou dočasně pozastaveny",
+        "description": "Existující data můžete zobrazit, ale změny nyní nelze uložit."
+      },
+      "unexpected_server_error": {
+        "codeLabel": "500",
+        "title": "Stránku se nepodařilo načíst",
+        "description": "Došlo k neočekávané chybě serveru. Zkuste to znovu, a pokud problém přetrvá, odešlete diagnostické hlášení."
+      },
+      "unexpected_client_error": {
+        "codeLabel": "Chyba aplikace",
+        "title": "Tato stránka přestala fungovat",
+        "description": "Došlo k neočekávané chybě aplikace. Pro pokračování stránku načtěte znovu."
+      },
+      "request_timeout": {
+        "codeLabel": "408",
+        "title": "Požadavek trval příliš dlouho",
+        "description": "Operace nebyla dokončena včas. Zkuste to znovu."
+      },
+      "gateway_error": {
+        "codeLabel": "502",
+        "title": "Chyba nadřazené služby",
+        "description": "Služba vrátila neplatnou odpověď. Zkuste to znovu za chvíli."
+      },
+      "chunk_load_failed": {
+        "codeLabel": "Neshoda verze",
+        "title": "Aplikaci se nepodařilo načíst",
+        "description": "Může být dostupná novější verze aplikace. Načtěte stránku znovu."
+      },
+      "update_required": {
+        "codeLabel": "Vyžadována aktualizace",
+        "title": "Je dostupná novější verze",
+        "description": "Před pokračováním aplikaci načtěte znovu."
+      },
+      "offline": {
+        "codeLabel": "Offline",
+        "title": "Bez připojení k internetu",
+        "description": "Zkontrolujte připojení. Po obnovení připojení stránka pokus automaticky zopakuje."
+      },
+      "connection_lost": {
+        "codeLabel": "Připojení přerušeno",
+        "title": "Připojení bylo přerušeno",
+        "description": "Neuložené změny mohou být stále dostupné. Před pokračováním obnovte připojení."
+      },
+      "connection_restoring": {
+        "codeLabel": "Obnovování připojení",
+        "title": "Obnovujeme připojení",
+        "description": "Stránka bude pokračovat, jakmile bude připojení stabilní."
+      },
+      "unsupported_browser": {
+        "codeLabel": "Nepodporovaný prohlížeč",
+        "title": "Tento prohlížeč není podporován",
+        "description": "Použijte aktuální verzi prohlížeče Chrome, Safari, Firefox nebo Edge."
+      },
+      "javascript_required": {
+        "codeLabel": "Je vyžadován JavaScript",
+        "title": "JavaScript je vypnutý",
+        "description": "Povolte pro tento web JavaScript a stránku načtěte znovu."
+      },
+      "cookies_required": {
+        "codeLabel": "Jsou vyžadovány soubory cookie",
+        "title": "Soubory cookie jsou vypnuté",
+        "description": "Povolte pro tento web soubory cookie, abychom vás mohli bezpečně ponechat přihlášené."
+      },
+      "storage_unavailable": {
+        "codeLabel": "Úložiště není dostupné",
+        "title": "Úložiště prohlížeče není dostupné",
+        "description": "Zkontrolujte anonymní režim nebo nastavení úložiště webu a stránku načtěte znovu."
+      },
+      "rate_limited": {
+        "codeLabel": "429",
+        "title": "Příliš mnoho požadavků",
+        "description": "Před dalším pokusem chvíli počkejte."
+      },
+      "quota_exceeded": {
+        "codeLabel": "Kvóta vyčerpána",
+        "title": "Dosažen limit využití",
+        "description": "Tato organizace dosáhla svého aktuálního limitu využití."
+      },
+      "ai_budget_exhausted": {
+        "codeLabel": "Rozpočet AI vyčerpán",
+        "title": "Zpracování pomocí AI je pozastaveno",
+        "description": "Aktuální rozpočet AI byl vyčerpán. Zkontrolujte limit nebo pokračujte bez zpracování pomocí AI."
+      },
+      "cooldown_active": {
+        "codeLabel": "Počkejte prosím",
+        "title": "Tato akce je dočasně pozastavena",
+        "description": "Akce bude znovu dostupná po skončení ochranné lhůty."
+      }
+    }
+  },
   "common": {
     "back": "Zpět",
+    "changeLanguage": "Změnit jazyk",
     "continue": "Pokračovat",
     "cancel": "Zrušit",
     "submit": "Odeslat",
@@ -486,8 +742,7 @@
       "passwordLabel": "Heslo",
       "submit": "Potvrdit",
       "submitting": "Potvrzujeme…",
-      "invalidCredentials": "Nesprávné heslo. Zkuste to znovu.",
-      "error": "Něco se pokazilo. Zkuste to znovu."
+      "invalidCredentials": "Nesprávné heslo. Zkuste to znovu."
     },
     "errors": {
       "sessionExpired": "Vaše relace nastavení vypršela. Přihlaste se a pokračujte.",

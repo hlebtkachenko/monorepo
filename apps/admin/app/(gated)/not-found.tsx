@@ -1,17 +1,17 @@
-"use client"
-
-import { useParams } from "next/navigation"
+import { getBuildVersion } from "@workspace/ui/brand-assets"
 import { UtilityPage } from "@workspace/ui/blocks/utility-page"
 
 import { LanguagePicker } from "../_components/language-picker"
 
-export default function OrgNotFound() {
-  const { orgSlug } = useParams<{ orgSlug: string }>()
-
+export default function GatedNotFound() {
   return (
     <UtilityPage
       state="resource_not_found"
-      runtime={{ actionHrefs: { go_back: `/${encodeURIComponent(orgSlug)}` } }}
+      runtime={{
+        application: "admin",
+        surface: "shell",
+        buildVersion: getBuildVersion(),
+      }}
       footerControl={<LanguagePicker />}
     />
   )

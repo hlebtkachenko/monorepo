@@ -46,7 +46,7 @@ import {
 } from "@workspace/ui/components/table"
 import type { VatFilingPeriod, VatRegime } from "@workspace/accounting"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type {
   OssRow,
   TaxRepresentativeRow,

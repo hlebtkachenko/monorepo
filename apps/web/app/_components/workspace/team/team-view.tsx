@@ -34,7 +34,7 @@ import {
 } from "@workspace/ui/components/table"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { AppPageHeader } from "../../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { ToolbarSearch } from "../_shared/toolbar-search"
 
 export interface TeamMember {

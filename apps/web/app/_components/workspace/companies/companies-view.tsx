@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ContentHeader, type ViewTab } from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { AppPageHeader } from "../../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { CompaniesCards } from "./companies-cards"
 import { CompaniesTable } from "./companies-table"
 import { useCompanies } from "./context"

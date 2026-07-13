@@ -7,7 +7,7 @@ import {
 } from "@workspace/ui/blocks/content-panel"
 import type { ContentHeaderBreadcrumbItem } from "@workspace/ui/blocks/content-panel"
 
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 export interface ArchetypeBlankProps {
   /** Page title shown in the content header (no view tabs). */

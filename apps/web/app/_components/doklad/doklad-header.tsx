@@ -2,7 +2,7 @@
 
 import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { useDoklad } from "./context"
 
 /**

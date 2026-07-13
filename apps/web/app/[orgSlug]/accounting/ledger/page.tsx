@@ -8,7 +8,7 @@ import { LedgerBody } from "../../../_components/ledger/ledger-body"
 import { LedgerHeader } from "../../../_components/ledger/ledger-header"
 import { LedgerProvider } from "../../../_components/ledger/context"
 import type { LedgerRow } from "../../../_components/ledger/data"
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 export const metadata = { title: "General ledger" }
 

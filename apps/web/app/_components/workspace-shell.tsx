@@ -18,7 +18,10 @@ import {
 } from "./workspace-nav"
 import { AppBottomNav } from "./app-bottom-nav"
 import { AppRailNav } from "./app-rail-nav"
-import { AppContentHeaderSlot, AppPageHeaderProvider } from "./app-page-header"
+import {
+  AppContentHeaderSlot,
+  AppPageHeaderProvider,
+} from "@workspace/ui/blocks/app-shell"
 import { SidebarModuleTitle } from "./sidebar-module-title"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 

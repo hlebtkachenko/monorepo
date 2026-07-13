@@ -37,7 +37,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type { PeriodRow } from "../_lib/settings-data"
 import { rollForwardAction } from "../actions"
 

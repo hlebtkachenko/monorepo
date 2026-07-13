@@ -22,7 +22,7 @@ import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   AUDIT_ENGAGEMENT_TABS,
   AUDIT_ENGAGEMENTS,

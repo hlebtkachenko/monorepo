@@ -9,7 +9,7 @@ import {
   DashboardGrid,
 } from "@workspace/ui/blocks/content-panel"
 
-import { AppPageHeader } from "../../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { ANALYSE_CHARTS, buildAnalyseMetrics } from "./data"
 
 /**

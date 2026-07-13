@@ -4,7 +4,7 @@ import {
   RecordWorkspace,
 } from "@workspace/ui/blocks/content-panel"
 
-import { AppPageHeader } from "../../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type { PayrollObligationsResult } from "../_lib/payroll-data"
 import { ClosingStatusMessage } from "../../_components/closing-status-message"
 import { ObligationsTable } from "../../_components/obligations-table"

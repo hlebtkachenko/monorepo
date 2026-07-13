@@ -1,4 +1,4 @@
-import { ArchetypeBlank } from "../../../_components/archetypes/archetype-blank"
+import { ArchetypeBlank } from "@workspace/ui/blocks/archetypes"
 
 export const metadata = { title: "Debug" }
 

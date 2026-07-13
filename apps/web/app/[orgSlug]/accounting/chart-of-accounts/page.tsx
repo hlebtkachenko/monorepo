@@ -2,7 +2,7 @@ import { ChartBody } from "../../../_components/chart-of-accounts/chart-body"
 import { ChartHeader } from "../../../_components/chart-of-accounts/chart-header"
 import { ChartProvider } from "../../../_components/chart-of-accounts/context"
 import type { AccountRow } from "../../../_components/chart-of-accounts/data"
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   fetchChartAccounts,
   getOrgAccountingContext,

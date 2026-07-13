@@ -19,7 +19,7 @@ import {
 } from "@workspace/ui/components/card"
 import { useIcons, type IconName } from "@workspace/ui/icon-packs"
 
-import { AppPageHeader } from "../../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   actionRequiredEngagements,
   AUDIT_ENGAGEMENTS,

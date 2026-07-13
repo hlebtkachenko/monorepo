@@ -94,7 +94,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { LineItemsGrid, type LineRow } from "./line-items"
 import {
   COMPANIES,

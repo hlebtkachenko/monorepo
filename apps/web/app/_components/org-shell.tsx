@@ -17,7 +17,10 @@ import {
 } from "../[orgSlug]/_nav/org-nav"
 import { AppBottomNav } from "./app-bottom-nav"
 import { AppRailNav } from "./app-rail-nav"
-import { AppContentHeaderSlot, AppPageHeaderProvider } from "./app-page-header"
+import {
+  AppContentHeaderSlot,
+  AppPageHeaderProvider,
+} from "@workspace/ui/blocks/app-shell"
 import { OrgSidebar } from "./org-sidebar"
 import { SidebarModuleTitle } from "./sidebar-module-title"
 

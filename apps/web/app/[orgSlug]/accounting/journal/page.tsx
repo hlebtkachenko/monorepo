@@ -8,7 +8,7 @@ import { DenikBody } from "../../../_components/denik/denik-body"
 import { DenikHeader } from "../../../_components/denik/denik-header"
 import { DenikProvider } from "../../../_components/denik/context"
 import type { JournalRow } from "../../../_components/denik/data"
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 export const metadata = { title: "Journal" }
 

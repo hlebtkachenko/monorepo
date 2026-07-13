@@ -70,7 +70,7 @@ import {
   useTabVisibility,
   type ManageTab,
 } from "../_shared/content-header-extras"
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   ACCOUNT_OPTIONS,
   aggregate,

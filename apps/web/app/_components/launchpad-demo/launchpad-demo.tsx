@@ -12,7 +12,7 @@ import {
 } from "@workspace/ui/blocks/content-panel"
 
 import { useTabVisibility } from "../_shared/content-header-extras"
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { BASE_SECTIONS } from "./data"
 
 const TAB_DEFS = [

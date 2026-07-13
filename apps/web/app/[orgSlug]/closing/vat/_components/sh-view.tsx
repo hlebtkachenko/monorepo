@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { AppPageHeader } from "../../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { formatDecimal } from "../../../../_components/_shared/accounting-format"
 import type { VatEcSalesListResult } from "../_lib/vat-data"
 import { FilingPeriodSelector } from "./filing-period-selector"

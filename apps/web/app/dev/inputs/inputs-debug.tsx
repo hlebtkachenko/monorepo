@@ -71,7 +71,6 @@ import {
   INPUT_OTP_PATTERNS,
   InputOTP,
   InputOTPGroup,
-  InputOTPSeparator,
   InputOTPSlot,
 } from "@workspace/ui/components/input-otp"
 import {
@@ -1159,11 +1158,11 @@ export function InputsDebug() {
       {/* ---------------- InputOTP ---------------- */}
       <Section
         title="InputOTP"
-        blurb="Segmented one-time-code field. InputOTPGroup size: default | xl. Constrain characters with pattern={INPUT_OTP_PATTERNS.numeric | alphabetic | alphanumeric}. InputOTPSeparator draws a dash between groups."
+        blurb="Segmented one-time-code field. InputOTPGroup size: default (separate boxes, the auth style, matched to the input line) | xl (big boxes that fill width) | connected (old joined look). Constrain characters with pattern={INPUT_OTP_PATTERNS.numeric | alphabetic | alphanumeric}."
       >
         <Row
           name="<InputOTP> default 6-digit"
-          desc="two groups split by a separator, numeric pattern"
+          desc="six separate rounded boxes, no separator, numeric — the auth style at a normal size"
         >
           <InputOTP
             maxLength={6}
@@ -1171,38 +1170,52 @@ export function InputsDebug() {
             inputMode="numeric"
           >
             <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-            </InputOTPGroup>
-            <InputOTPSeparator />
-            <InputOTPGroup>
-              <InputOTPSlot index={3} />
-              <InputOTPSlot index={4} />
-              <InputOTPSlot index={5} />
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
         </Row>
         <Row
           name="size='xl'"
-          desc="large slots (h-14, rounded, big font) — set on InputOTPGroup"
+          desc="big boxes (h-14) that fill the container — needs containerClassName='w-full' + a width parent (exactly what auth does)"
         >
-          <InputOTP maxLength={4} pattern={INPUT_OTP_PATTERNS.numeric}>
-            <InputOTPGroup size="xl" className="gap-2">
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
+          <div className="w-full max-w-sm">
+            <InputOTP
+              maxLength={6}
+              pattern={INPUT_OTP_PATTERNS.numeric}
+              inputMode="numeric"
+              containerClassName="w-full"
+            >
+              <InputOTPGroup size="xl">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <InputOTPSlot key={i} index={i} />
+                ))}
+              </InputOTPGroup>
+            </InputOTP>
+          </div>
+        </Row>
+        <Row
+          name="size='connected' (alternate view)"
+          desc="the old joined look — all six slots share borders as one bar, no separator"
+        >
+          <InputOTP maxLength={6} pattern={INPUT_OTP_PATTERNS.numeric}>
+            <InputOTPGroup size="connected">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
         </Row>
-        <Row name="pattern=alphanumeric" desc="accepts letters + digits">
-          <InputOTP maxLength={4} pattern={INPUT_OTP_PATTERNS.alphanumeric}>
+        <Row
+          name="pattern=alphanumeric"
+          desc="default separate boxes, accepts letters + digits"
+        >
+          <InputOTP maxLength={5} pattern={INPUT_OTP_PATTERNS.alphanumeric}>
             <InputOTPGroup>
-              <InputOTPSlot index={0} />
-              <InputOTPSlot index={1} />
-              <InputOTPSlot index={2} />
-              <InputOTPSlot index={3} />
+              {[0, 1, 2, 3, 4].map((i) => (
+                <InputOTPSlot key={i} index={i} />
+              ))}
             </InputOTPGroup>
           </InputOTP>
         </Row>

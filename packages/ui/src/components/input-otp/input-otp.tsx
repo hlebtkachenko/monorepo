@@ -13,7 +13,9 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 import { MinusIcon } from "@workspace/ui/lib/icons"
 
-const InputOTPSizeContext = React.createContext<"default" | "xl">("default")
+const InputOTPSizeContext = React.createContext<"connected" | "default" | "xl">(
+  "default",
+)
 
 function InputOTP({
   className,
@@ -40,7 +42,7 @@ function InputOTPGroup({
   className,
   size = "default",
   ...props
-}: React.ComponentProps<"div"> & { size?: "default" | "xl" }) {
+}: React.ComponentProps<"div"> & { size?: "connected" | "default" | "xl" }) {
   return (
     <InputOTPSizeContext.Provider value={size}>
       <div
@@ -48,6 +50,7 @@ function InputOTPGroup({
         data-size={size}
         className={cn(
           "flex items-center rounded-lg has-aria-invalid:border-destructive has-aria-invalid:ring-3 has-aria-invalid:ring-destructive/20 dark:has-aria-invalid:ring-destructive/40",
+          size === "default" && "gap-2",
           size === "xl" && "w-full gap-2",
           className,
         )}
@@ -62,8 +65,16 @@ const slotVariants = cva(
   {
     variants: {
       size: {
-        default:
-          "size-8 border-y border-r text-sm first:rounded-l-lg first:border-l last:rounded-r-lg",
+        // Old shadcn joined look — slots share borders as one bar. Kept as an
+        // alternate view; no longer the default. Same size + radius token as
+        // the default box (size-9 = h-9, rounded-lg outer corners).
+        connected:
+          "size-9 border-y border-r text-base first:rounded-l-lg first:border-l last:rounded-r-lg",
+        // Separate rounded boxes — the auth style, matched to the Input line:
+        // size-9 (36px, = h-9) and rounded-lg (the same --radius token Input
+        // uses). Fixed size so slots never collapse the way `xl`'s flex-1 does
+        // without a width parent.
+        default: "size-9 rounded-lg border text-base",
         xl: "h-14 flex-1 rounded-xl border text-2xl font-medium",
       },
     },

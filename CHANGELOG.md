@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- InputOTP default size is now separate rounded boxes matched to the input line (size-9/36px, rounded-lg) instead of the joined look; the old joined look moves to a new `connected` size, and `xl` is documented as needing containerClassName='w-full'
 - PasswordInput generator now forces a random 1–3 symbols (was exactly 1) into distinct slots, and the stale comment (claimed 4 groups/21 chars) now matches the real 3-group/20-char output
 - PasswordInput now type-requires `value` + `onValueChange` when `showGenerate` is set (discriminated union), so the generated password always has somewhere to land
 - SelectTrigger shows its ring only while the dropdown is open (data-[state=open]); removed the focus-visible ring that lingered on the closed trigger after a mouse selection

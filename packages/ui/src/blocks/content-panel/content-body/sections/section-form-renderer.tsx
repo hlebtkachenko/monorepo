@@ -124,13 +124,15 @@ function FormFieldCell({ field }: { field: FormField }) {
                 <CircleHelp className="size-3.5" aria-hidden />
               </button>
             </HoverCardTrigger>
-            <HoverCardContent align="start">
+            <HoverCardContent align="start" className="w-56 text-xs">
               {field.hover.title != null ? (
                 <p className="mb-1 font-medium text-foreground">
                   {field.hover.title}
                 </p>
               ) : null}
-              <p className="text-muted-foreground">{field.hover.description}</p>
+              <p className="leading-relaxed text-muted-foreground">
+                {field.hover.description}
+              </p>
             </HoverCardContent>
           </HoverCard>
         ) : null}

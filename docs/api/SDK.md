@@ -170,4 +170,4 @@ The codegen step is part of the CI drift gate — if `packages/sdk/src/generated
 - [`openapi-fetch`](https://github.com/openapi-ts/openapi-typescript/tree/main/packages/openapi-fetch)
 - [Standard Webhooks](https://www.standardwebhooks.com/) — webhook verifier
 - [Semantic Versioning](https://semver.org/)
-- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`ADR-0024`](../adr/0024-developer-platform-codegen-pipeline.md), [`ERRORS.md`](./ERRORS.md), [`WEBHOOKS.md`](./WEBHOOKS.md)
+- [`ADR-0023`](../adr/0023-public-api-developer-platform.md), [`ADR-0024`](../adr/0024-developer-platform-codegen-pipeline.md), [`ERRORS.md`](./ERRORS.md), [`WEBHOOKS.md`](../specs/api/WEBHOOKS.md)

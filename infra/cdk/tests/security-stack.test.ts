@@ -262,10 +262,25 @@ describe("SecurityStack auto-cold-pause (staging + production)", () => {
     })
   })
 
-  it("also creates the auto-stop Lambda on production (pre-v1 cost control)", () => {
+  it("temporarily defers production auto-stop without changing staging", () => {
     const prod = Template.fromStack(buildTestApp("production").security)
     prod.hasResourceProperties("AWS::Lambda::Function", {
       FunctionName: "monorepo-production-autostop",
+      Environment: {
+        Variables: Match.objectLike({
+          AUTO_STOP_NOT_BEFORE: "2026-07-26T22:00:00Z",
+        }),
+      },
+    })
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "monorepo-staging-autostop",
+      Environment: {
+        Variables: Match.not(
+          Match.objectLike({
+            AUTO_STOP_NOT_BEFORE: Match.anyValue(),
+          }),
+        ),
+      },
     })
   })
 

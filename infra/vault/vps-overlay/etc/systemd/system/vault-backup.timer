@@ -1,6 +1,6 @@
 [Unit]
 Description=Vault backup timer — fires every 6h
-Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/plans/SECRETS-MIGRATION.md#m2--backup-setup-restic--r2--b2--dr-restore-drill
+Documentation=https://github.com/hlebtkachenko/monorepo/blob/main/docs/runbooks/VAULT-OPS.md#m2-as-built-2026-05-23-functional-pass
 
 [Timer]
 # Every 6h (00:00, 06:00, 12:00, 18:00 UTC). The vault-backup script

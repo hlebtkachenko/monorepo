@@ -27,8 +27,264 @@
       "status": "Status"
     }
   },
+  "utilityPage": {
+    "returnTo": "Return to {host}",
+    "actions": {
+      "go_back": "Go back",
+      "choose_organization": "Choose an organization",
+      "sign_in": "Sign in",
+      "reauthenticate": "Sign in again",
+      "retry": "Try again",
+      "reload": "Reload",
+      "request_access": "Request access",
+      "open_status": "View service status",
+      "contact_support": "Contact support"
+    },
+    "feedback": {
+      "sectionTitle": "Report this problem",
+      "description": "Help us investigate by sharing diagnostic information.",
+      "loading": "Loading report…",
+      "sending": "Sending…",
+      "sent": "Bug report sent",
+      "failed": "Try sending again",
+      "send": "Send report"
+    },
+    "states": {
+      "route_not_found": {
+        "codeLabel": "404",
+        "title": "Page not found",
+        "description": "The address may be incorrect, or the page may have moved."
+      },
+      "resource_not_found": {
+        "codeLabel": "404",
+        "title": "Resource not found",
+        "description": "This resource does not exist, was moved, or is no longer available to you."
+      },
+      "resource_gone": {
+        "codeLabel": "410",
+        "title": "Resource no longer available",
+        "description": "This resource was removed and cannot be restored from this address."
+      },
+      "invalid_link": {
+        "codeLabel": "Invalid link",
+        "title": "This link is not valid",
+        "description": "Check that the complete link was copied, or return to the page where it was created."
+      },
+      "expired_link": {
+        "codeLabel": "Expired link",
+        "title": "This link has expired",
+        "description": "Request a new link to continue."
+      },
+      "authentication_required": {
+        "codeLabel": "401",
+        "title": "Sign in required",
+        "description": "Sign in to continue to this page."
+      },
+      "session_expired": {
+        "codeLabel": "Session expired",
+        "title": "Your session has expired",
+        "description": "Sign in again to continue securely."
+      },
+      "reauthentication_required": {
+        "codeLabel": "Verification required",
+        "title": "Confirm it is you",
+        "description": "This action requires a recent sign-in."
+      },
+      "mfa_required": {
+        "codeLabel": "Two-factor required",
+        "title": "Additional verification required",
+        "description": "Complete two-factor verification to continue."
+      },
+      "auth_link_invalid": {
+        "codeLabel": "Invalid sign-in link",
+        "title": "This sign-in link is not valid",
+        "description": "The link may already have been used or may be incomplete."
+      },
+      "invite_invalid": {
+        "codeLabel": "Invalid invitation",
+        "title": "This invitation cannot be used",
+        "description": "Ask the organization owner to send a new invitation."
+      },
+      "account_locked": {
+        "codeLabel": "Account locked",
+        "title": "Your account is temporarily locked",
+        "description": "Wait before trying again, or contact support if you need help."
+      },
+      "account_disabled": {
+        "codeLabel": "Account disabled",
+        "title": "This account is disabled",
+        "description": "Contact support to review the account status."
+      },
+      "access_denied": {
+        "codeLabel": "403",
+        "title": "Access denied",
+        "description": "Your account does not have access to this section. Contact an owner if you need access."
+      },
+      "membership_required": {
+        "codeLabel": "Membership required",
+        "title": "Organization access required",
+        "description": "You need an active membership in this organization to continue."
+      },
+      "action_forbidden": {
+        "codeLabel": "Action not allowed",
+        "title": "You cannot perform this action",
+        "description": "Your current permissions do not allow this operation."
+      },
+      "resource_access_denied": {
+        "codeLabel": "Resource restricted",
+        "title": "This resource is restricted",
+        "description": "You do not have permission to view this resource."
+      },
+      "workspace_unavailable": {
+        "codeLabel": "Workspace unavailable",
+        "title": "Workspace unavailable",
+        "description": "This workspace does not exist or is no longer available to your account."
+      },
+      "organization_unavailable": {
+        "codeLabel": "Organization unavailable",
+        "title": "Organization unavailable",
+        "description": "This organization does not exist or is no longer available to your account."
+      },
+      "organization_suspended": {
+        "codeLabel": "Organization suspended",
+        "title": "This organization is suspended",
+        "description": "Access is paused. Contact an organization owner or support for details."
+      },
+      "organization_archived": {
+        "codeLabel": "Organization archived",
+        "title": "This organization is archived",
+        "description": "Archived organizations are read-only and cannot be opened here."
+      },
+      "feature_not_enabled": {
+        "codeLabel": "Feature unavailable",
+        "title": "This feature is not enabled",
+        "description": "The feature is not available for this organization or plan."
+      },
+      "maintenance_scheduled": {
+        "codeLabel": "Scheduled maintenance",
+        "title": "Maintenance is scheduled",
+        "description": "The service will be temporarily unavailable during the announced maintenance window."
+      },
+      "maintenance_active": {
+        "codeLabel": "Maintenance",
+        "title": "We are performing maintenance",
+        "description": "The service is temporarily unavailable. Check service status for progress."
+      },
+      "service_unavailable": {
+        "codeLabel": "503",
+        "title": "Service temporarily unavailable",
+        "description": "The service cannot complete requests right now. Try again shortly."
+      },
+      "service_degraded": {
+        "codeLabel": "Service degraded",
+        "title": "Some functions are unavailable",
+        "description": "You can continue using unaffected parts of the service while we restore full operation."
+      },
+      "system_waking": {
+        "codeLabel": "Starting service",
+        "title": "The service is starting",
+        "description": "This normally takes less than a minute. The page will retry automatically."
+      },
+      "dependency_unavailable": {
+        "codeLabel": "Dependency unavailable",
+        "title": "A required service is unavailable",
+        "description": "This operation cannot continue until the dependent service recovers."
+      },
+      "read_only_mode": {
+        "codeLabel": "Read-only mode",
+        "title": "Changes are temporarily paused",
+        "description": "You can view existing data, but changes cannot be saved right now."
+      },
+      "unexpected_server_error": {
+        "codeLabel": "500",
+        "title": "This page could not load",
+        "description": "An unexpected server error occurred. Try again, or send the diagnostic report if the problem continues."
+      },
+      "unexpected_client_error": {
+        "codeLabel": "Application error",
+        "title": "This page stopped working",
+        "description": "An unexpected application error occurred. Reload the page to continue."
+      },
+      "request_timeout": {
+        "codeLabel": "408",
+        "title": "The request took too long",
+        "description": "The operation did not finish in time. Try again."
+      },
+      "gateway_error": {
+        "codeLabel": "502",
+        "title": "Upstream service error",
+        "description": "A service returned an invalid response. Try again shortly."
+      },
+      "chunk_load_failed": {
+        "codeLabel": "Update mismatch",
+        "title": "The application could not finish loading",
+        "description": "A newer application version may be available. Reload to update."
+      },
+      "update_required": {
+        "codeLabel": "Update required",
+        "title": "A newer version is available",
+        "description": "Reload the application before continuing."
+      },
+      "offline": {
+        "codeLabel": "Offline",
+        "title": "No internet connection",
+        "description": "Check your connection. The page will retry when you are back online."
+      },
+      "connection_lost": {
+        "codeLabel": "Connection lost",
+        "title": "The connection was interrupted",
+        "description": "Your unsaved changes may still be present. Reconnect before continuing."
+      },
+      "connection_restoring": {
+        "codeLabel": "Reconnecting",
+        "title": "Restoring the connection",
+        "description": "The page will continue when the connection is stable."
+      },
+      "unsupported_browser": {
+        "codeLabel": "Unsupported browser",
+        "title": "This browser is not supported",
+        "description": "Use a current version of Chrome, Safari, Firefox, or Edge."
+      },
+      "javascript_required": {
+        "codeLabel": "JavaScript required",
+        "title": "JavaScript is disabled",
+        "description": "Enable JavaScript for this site, then reload the page."
+      },
+      "cookies_required": {
+        "codeLabel": "Cookies required",
+        "title": "Cookies are disabled",
+        "description": "Allow cookies for this site so we can keep you signed in securely."
+      },
+      "storage_unavailable": {
+        "codeLabel": "Storage unavailable",
+        "title": "Browser storage is unavailable",
+        "description": "Check private browsing or site storage settings, then reload."
+      },
+      "rate_limited": {
+        "codeLabel": "429",
+        "title": "Too many requests",
+        "description": "Wait a moment before trying again."
+      },
+      "quota_exceeded": {
+        "codeLabel": "Quota reached",
+        "title": "Usage limit reached",
+        "description": "This organization has reached its current usage allowance."
+      },
+      "ai_budget_exhausted": {
+        "codeLabel": "AI budget reached",
+        "title": "AI processing is paused",
+        "description": "The current AI budget has been used. Review the limit or continue without AI processing."
+      },
+      "cooldown_active": {
+        "codeLabel": "Please wait",
+        "title": "This action is temporarily paused",
+        "description": "The action will be available again after the cooldown period."
+      }
+    }
+  },
   "common": {
     "back": "Back",
+    "changeLanguage": "Change language",
     "continue": "Continue",
     "cancel": "Cancel",
     "submit": "Submit",
@@ -486,8 +742,7 @@
       "passwordLabel": "Password",
       "submit": "Confirm",
       "submitting": "Confirming…",
-      "invalidCredentials": "Incorrect password. Try again.",
-      "error": "Something went wrong. Try again."
+      "invalidCredentials": "Incorrect password. Try again."
     },
     "errors": {
       "sessionExpired": "Your onboarding session expired. Sign in to continue.",

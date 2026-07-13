@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
-import { ErrorShell } from "@workspace/ui/blocks/app-shell"
-import { reportClientError } from "./_lib/report-error"
+import { UtilityPage } from "@workspace/ui/blocks/utility-page"
+
+import { LanguagePicker } from "./_components/language-picker"
 
 // Route-segment error boundary (OBS-03). Reports through the same-origin
 // /api/client-error sink, then offers a retry. Renders inside the root
@@ -14,17 +14,25 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  useEffect(() => {
-    reportClientError(error, error.digest)
-  }, [error])
-
   return (
-    <ErrorShell
-      variant="error"
-      onReset={reset}
-      homeHref="/"
-      homeLabel="Go home"
-      errorId={error.digest}
+    <UtilityPage
+      state={
+        error.digest ? "unexpected_server_error" : "unexpected_client_error"
+      }
+      runtime={{
+        application: "admin",
+        surface: "global",
+        onRetry: reset,
+        referenceId: error.digest,
+        report: {
+          payload: {
+            message: error.message || "Unknown admin error",
+            digest: error.digest,
+            source: "admin",
+          },
+        },
+      }}
+      footerControl={<LanguagePicker />}
     />
   )
 }

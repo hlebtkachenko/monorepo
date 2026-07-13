@@ -42,6 +42,12 @@ export interface ContentPanelProps {
   onInspectorOpenChange?: (open: boolean) => void
   /** Title shown in the panel header / dialog header (also the dialog a11y name). */
   inspectorTitle?: React.ReactNode
+  /**
+   * A footer pinned to the BOTTOM of the Inspector, OUTSIDE its scroll region —
+   * for the primary actions on the inspected element (approve / reject / save).
+   * Stays put while the detail body scrolls. Omit for a scroll-only Inspector.
+   */
+  inspectorFooter?: React.ReactNode
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string
   /** The scrolling body content (table / cards / detail). */
@@ -70,6 +76,7 @@ export function ContentPanel({
   inspectorMode = "panel",
   onInspectorOpenChange,
   inspectorTitle,
+  inspectorFooter,
   bodyClassName,
   children,
 }: ContentPanelProps) {
@@ -135,6 +142,14 @@ export function ContentPanel({
               <div className="min-h-0 flex-1 overflow-auto p-3">
                 {inspector}
               </div>
+              {inspectorFooter ? (
+                <div
+                  data-slot="content-inspector-footer"
+                  className="shrink-0 border-t border-border-subtle p-3"
+                >
+                  {inspectorFooter}
+                </div>
+              ) : null}
             </aside>
           </>
         ) : null}
@@ -149,6 +164,11 @@ export function ContentPanel({
               <DialogTitle>{inspectorTitle}</DialogTitle>
             </DialogHeader>
             {inspector}
+            {inspectorFooter ? (
+              <div className="border-t border-border-subtle pt-3">
+                {inspectorFooter}
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
       ) : null}

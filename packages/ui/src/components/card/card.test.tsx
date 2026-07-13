@@ -19,7 +19,7 @@ describe("Card", () => {
         </CardHeader>
         <CardContent>Content</CardContent>
         <CardFooter>Footer</CardFooter>
-      </Card>
+      </Card>,
     )
     expect(screen.getByText("Title")).toBeInTheDocument()
     expect(screen.getByText("Description")).toBeInTheDocument()
@@ -29,7 +29,10 @@ describe("Card", () => {
 
   it("applies size data attribute", () => {
     const { container } = render(<Card size="sm">Content</Card>)
-    expect(container.querySelector("[data-slot='card']")).toHaveAttribute("data-size", "sm")
+    expect(container.querySelector("[data-slot='card']")).toHaveAttribute(
+      "data-size",
+      "sm",
+    )
   })
 
   it("each slot has correct data-slot", () => {
@@ -41,13 +44,23 @@ describe("Card", () => {
         </CardHeader>
         <CardContent>C</CardContent>
         <CardFooter>F</CardFooter>
-      </Card>
+      </Card>,
     )
     expect(container.querySelector("[data-slot='card']")).toBeInTheDocument()
-    expect(container.querySelector("[data-slot='card-header']")).toBeInTheDocument()
-    expect(container.querySelector("[data-slot='card-title']")).toBeInTheDocument()
-    expect(container.querySelector("[data-slot='card-description']")).toBeInTheDocument()
-    expect(container.querySelector("[data-slot='card-content']")).toBeInTheDocument()
-    expect(container.querySelector("[data-slot='card-footer']")).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='card-header']"),
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='card-title']"),
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='card-description']"),
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='card-content']"),
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='card-footer']"),
+    ).toBeInTheDocument()
   })
 })

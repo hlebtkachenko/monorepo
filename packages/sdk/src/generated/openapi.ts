@@ -543,7 +543,7 @@ export interface paths {
         };
         /**
          * List chart of accounts
-         * @description Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (`periodId`) and synthetic/analytical shape (`isSynthetic`). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.
+         * @description Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (`periodId`), synthetic/analytical shape (`isSynthetic`), and exact account `number` (combine `periodId` + `number` for a single-row number→id lookup). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.
          */
         get: operations["listAccounts"];
         put?: never;
@@ -7275,6 +7275,8 @@ export interface operations {
                 periodId?: string;
                 /** @description Filter to synthetic (`true`) or analytical (`false`) accounts only. */
                 isSynthetic?: "true" | "false";
+                /** @description Resolve accounts by exact number (e.g. `518`, `311.001`). Combine with `periodId` to get the single row for that period's chart — the ergonomic number→id lookup that avoids paging the whole chart. */
+                number?: string;
             };
             header?: never;
             path?: never;

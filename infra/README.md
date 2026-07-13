@@ -32,7 +32,7 @@ infra/
   openstatus/               # status.afframe.com monitors-as-code (OVH VPS Docker Compose — NOT AWS/CDK; ADR-0019)
   scripts/                  # backup + restore + WAL archive scripts (Commit 11)
   Dockerfile.backup         # minimal image for the ECS Scheduled Task
-  secrets/                  # SOPS+age scaffold per docs/runbooks/SECRETS.md
+  secrets/                  # SOPS+age scaffold per docs/conventions/SECRETS-AND-VARIABLES.md
 ```
 
 `openstatus/` is the one infra directory that is **not** AWS: the `status.afframe.com`

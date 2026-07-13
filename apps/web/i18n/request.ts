@@ -19,8 +19,10 @@ export default buildRequestConfig({
       const session = await auth.api.getSession({ headers: await headers() })
       return session?.user.locale ?? null
     } catch {
-      // Session lookup is best-effort: a transient auth/DB outage must not
-      // crash rendering. Fall through to the NEXT_LOCALE cookie / defaultLocale.
+      // A session-fetch failure (DB blip, or a stale / foreign session cookie)
+      // must NOT crash locale resolution — it runs inside the root layout's
+      // generateMetadata, so an unhandled throw 500s EVERY page. Degrade to the
+      // NEXT_LOCALE cookie / defaultLocale instead.
       return null
     }
   },

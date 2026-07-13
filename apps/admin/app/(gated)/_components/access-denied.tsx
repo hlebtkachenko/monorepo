@@ -1,9 +1,6 @@
-import Link from "next/link"
+import { UtilityPage } from "@workspace/ui/blocks/utility-page"
 
-import { Button } from "@workspace/ui/components/button"
-import { Heading } from "@workspace/ui/components/heading"
-import { Text } from "@workspace/ui/components/text"
-import { Shield } from "@workspace/ui/lib/icons"
+import { LanguagePicker } from "../../_components/language-picker"
 
 /**
  * Generic deny screen for section-level capability misses. Deliberately
@@ -12,20 +9,10 @@ import { Shield } from "@workspace/ui/lib/icons"
  */
 export function AccessDenied() {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-4 text-center">
-        <Shield className="size-10 text-muted-foreground" aria-hidden />
-        <Heading level={2} className="mt-0">
-          Access denied
-        </Heading>
-        <Text variant="muted">
-          Your account doesn&apos;t have access to this section. Contact an
-          owner if you need access.
-        </Text>
-        <Button asChild variant="outline">
-          <Link href="/">Back to home</Link>
-        </Button>
-      </div>
-    </div>
+    <UtilityPage
+      state="access_denied"
+      runtime={{ application: "admin" }}
+      footerControl={<LanguagePicker />}
+    />
   )
 }

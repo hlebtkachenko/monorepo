@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Archetype-body governance ratchet (archetype-system S8 §1/§3/§7).
 //
-// The ContentPanel body may hold ONLY a branded archetype descriptor
-// (`<ContentPanel body={archetypeEmpty(...)} />`). The legacy free-JSX path
+// The ContentPanel body may hold ONLY branded Sections
+// (`<ContentPanel sections={[sectionEmpty(...)]} />`, composed by an Archetype
+// component). The legacy free-JSX path
 // (`<ContentPanel>{jsx}</ContentPanel>`, or an explicit `children=` prop) is
 // grandfathered by a hand-maintained allowlist. This check fails when:
 //
 //   1. VIOLATION — a *new* file renders a <ContentPanel> that passes children
-//      and is NOT in the allowlist. Use the archetype path instead.
+//      and is NOT in the allowlist. Use the sections path instead.
 //   2. STALE — an allowlist entry whose file is gone OR no longer renders a
 //      <ContentPanel> with children. Remove it from the JSON (caught in review).
 //
@@ -213,8 +214,8 @@ function main() {
   if (violations.length > 0) {
     console.error(
       "\n[archetype-body] BLOCKED — new files render a legacy <ContentPanel> body\n" +
-        "(children / free JSX). Use the archetype path instead:\n" +
-        "  <ContentPanel body={archetypeEmpty({ ... })} />\n" +
+        "(children / free JSX). Use the sections path instead:\n" +
+        "  <ContentPanel sections={[sectionEmpty({ ... })]} />  (composed by an archetype component)\n" +
         "Do NOT silence this by appending to archetype-body-allowlist.json — that\n" +
         "is FORBIDDEN without Hleb's explicit approval (see the CRITICAL note atop\n" +
         "the file). Migrate the page.\n" +

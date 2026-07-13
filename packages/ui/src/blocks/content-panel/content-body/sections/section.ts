@@ -1,9 +1,11 @@
+import type { ComponentType } from "react"
+
 /**
  * The Section brand — a module-private `unique symbol`, mirroring the archetype
  * brand at the body-part granularity (Doc-01 §6: "Archetype and Section slots
  * must themselves be descriptor- or Section-branded, never ReactNode"). Sections
- * are the reusable parts an archetype places in the body; keeping the brand
- * symmetrical now avoids a second refactor when real sections ship (deferred).
+ * are the reusable parts an archetype places in the body; `ContentBody` renders
+ * a list of them through the closed `SECTION_REGISTRY`.
  */
 const SECTION_BRAND = Symbol("section-brand")
 
@@ -42,3 +44,6 @@ export function isSectionDescriptor(
     )
   )
 }
+
+/** A renderer entry in the closed section registry: consumes the section `props`. */
+export type SectionRenderer<P = unknown> = ComponentType<{ props: P }>

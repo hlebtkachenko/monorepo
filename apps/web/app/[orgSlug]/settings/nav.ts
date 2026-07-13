@@ -260,5 +260,21 @@ export function settingsNav(base: string): SidebarNavEntry[] {
         },
       ],
     },
+    {
+      label: "Debug",
+      pages: [
+        {
+          label: "Debug",
+          href: `${base}/debug`,
+          icon: "Bug",
+          subpages: [
+            {
+              label: "Archetype Blank",
+              href: `${base}/debug/archetype-blank`,
+            },
+          ],
+        },
+      ],
+    },
   ]
 }

@@ -7,6 +7,7 @@ import { ContentHeader, type ViewTab } from "./content-header"
 import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
+import { sectionEmpty } from "./content-body"
 import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
@@ -136,6 +137,16 @@ describe("ContentPanel", () => {
     expect(screen.getByTestId("sb")).toBeInTheDocument()
     expect(screen.getByTestId("ft")).toBeInTheDocument()
     expect(container.querySelector('[data-slot="content-body"]')).not.toBeNull()
+  })
+
+  it("forwards the sections prop to ContentBody", () => {
+    const { container } = wrap(
+      <ContentPanel sections={[sectionEmpty({ title: "Blank section" })]} />,
+    )
+    expect(screen.getByText("Blank section")).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="content-section"]'),
+    ).not.toBeNull()
   })
 })
 

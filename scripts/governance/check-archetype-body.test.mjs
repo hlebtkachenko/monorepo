@@ -26,9 +26,10 @@ export function View() {
 }
 `
 
-const ARCHETYPE = `${IMPORT}
+// The corrected body path — a `sections` attribute, not children.
+const SECTIONS = `${IMPORT}
 export function View() {
-  return <ContentPanel body={archetypeEmpty({ title: "Nothing here" })} />
+  return <ContentPanel sections={[sectionEmpty({ title: "Nothing here" })]} />
 }
 `
 
@@ -85,14 +86,14 @@ test("detects an explicit children= attribute", () => {
   assert.equal(sourceHasContentPanelChildren(CHILDREN_ATTR), true)
 })
 
-test("body= alone is not a legacy children usage", () => {
-  assert.equal(sourceHasContentPanelChildren(ARCHETYPE), false)
+test("sections= alone is not a legacy children usage", () => {
+  assert.equal(sourceHasContentPanelChildren(SECTIONS), false)
 })
 
-test("whitespace-only body is not a children usage", () => {
+test("whitespace-only body is not a children usage (sections attr present)", () => {
   assert.equal(
     sourceHasContentPanelChildren(
-      `${IMPORT}<ContentPanel body={x}>\n   \n</ContentPanel>`,
+      `${IMPORT}<ContentPanel sections={x}>\n   \n</ContentPanel>`,
     ),
     false,
   )
@@ -143,19 +144,19 @@ test("findViolations passes an allowlisted legacy file", () => {
   assert.deepEqual(stale, [])
 })
 
-test("findViolations passes a migrated (body=) file", () => {
+test("findViolations passes a migrated (sections=) file", () => {
   const { violations, stale } = findViolations({
-    files: [{ path: "apps/web/app/_components/x/x.tsx", source: ARCHETYPE }],
+    files: [{ path: "apps/web/app/_components/x/x.tsx", source: SECTIONS }],
     allowlist: [],
   })
   assert.deepEqual(violations, [])
   assert.deepEqual(stale, [])
 })
 
-test("findViolations reports a stale allowlist entry (file migrated to body=)", () => {
+test("findViolations reports a stale allowlist entry (file migrated to sections=)", () => {
   const path = "apps/web/app/_components/migrated/migrated-view.tsx"
   const { violations, stale } = findViolations({
-    files: [{ path, source: ARCHETYPE }],
+    files: [{ path, source: SECTIONS }],
     allowlist: [path],
   })
   assert.deepEqual(violations, [])

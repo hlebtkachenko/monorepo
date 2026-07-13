@@ -5,7 +5,7 @@ import * as React from "react"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { ContentBody } from "./content-body"
-import type { ArchetypeDescriptor } from "./content-body"
+import type { SectionDescriptor } from "./content-body"
 import { Inspector } from "./inspector"
 import type { InspectorMode } from "./inspector"
 
@@ -48,16 +48,16 @@ export interface ContentPanelProps {
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string
   /**
-   * The archetype-blocked body (the canonical path). When set, ContentPanel
-   * renders `<ContentBody body={body} />` in the scrolling region — the body can
-   * hold ONLY a branded archetype (e.g. `archetypeEmpty({...})`), never bespoke
-   * JSX. Mutually exclusive with the deprecated `children`.
+   * The body: the ordered Sections that fill it, rendered via ContentBody's
+   * closed `SECTION_REGISTRY`. An Archetype composes this whole panel and supplies
+   * its sections. Mutually exclusive with the grandfathered `children`.
    */
-  body?: ArchetypeDescriptor
+  sections?: readonly SectionDescriptor[]
   /**
    * @deprecated Legacy free-JSX body. Frozen to the grandfather allowlist in
    * `scripts/governance/archetype-body-allowlist.json`; the `check` CI job
-   * rejects any NEW file that passes `children`. Migrate to `body` + an archetype.
+   * rejects any NEW file that passes `children`. Migrate to `sections` (branded
+   * Sections), composed by an archetype component.
    */
   children?: React.ReactNode
 }
@@ -84,7 +84,7 @@ export function ContentPanel({
   onInspectorOpenChange,
   inspectorTitle,
   bodyClassName,
-  body,
+  sections,
   children,
 }: ContentPanelProps) {
   return (
@@ -92,8 +92,8 @@ export function ContentPanel({
       {toolbar}
       {filters}
       <div data-slot="content-row" className="flex min-h-0 flex-1">
-        {body != null ? (
-          <ContentBody body={body} className={bodyClassName} />
+        {sections != null ? (
+          <ContentBody sections={sections} className={bodyClassName} />
         ) : (
           <div
             data-slot="content-body"

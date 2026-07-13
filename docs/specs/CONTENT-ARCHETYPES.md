@@ -51,7 +51,8 @@ two things into the persistent org shell:
 2. **`<ContentPanel>`** — the body frame below the header. One component, no
    `variant` prop; a "variant" is just which optional slots you fill:
    `toolbar` · `filters` · `footer` · `inspector` (+
-   `inspectorMode` `"panel" | "dialog"`) · `children` (the scrolling body) ·
+   `inspectorMode` `"panel" | "dialog"`) · `sections` (the branded body Sections,
+   the canonical body path — `children` is the deprecated grandfather hatch) ·
    `bodyClassName`. (`statusBar` now belongs to the Table section, not the
    Content Panel.)
 
@@ -81,7 +82,10 @@ export default function MyPage() {
         }
         footer={<ContentFooter selection={{ count, actions, onClear }} />}
       >
-        {/* the archetype body: <ContentPanel body={archetypeEmpty({ title })} /> */}
+        {/* the body: pass branded Sections, e.g.
+            <ContentPanel sections={[sectionEmpty({ title })]} />.
+            An Archetype is a component that composes this whole page
+            (ContentHeader + ContentPanel with its sections). */}
       </ContentPanel>
     </>
   )
@@ -203,7 +207,7 @@ tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
 
 1. `apps/web/app/[orgSlug]/<name>/page.tsx` — render `<OrgPageHeader><ContentHeader …/></OrgPageHeader>` + `<ContentPanel>…</ContentPanel>`. Gate dev-only demos on `process.env.NODE_ENV === "production" && notFound()`.
 2. Put the data + client state in `apps/web/app/_components/<name>/` (never in `packages/ui` — the `ui-location` lefthook hook enforces reusable UI lives in `packages/ui/src/blocks`).
-3. Drop the archetype block into `ContentPanel.children`; feed it props.
+3. Feed the body as branded Sections via `ContentPanel sections={[sectionEmpty({…})]}` (an Archetype is the component that composes the whole page — ContentHeader + this ContentPanel). `children` remains only as the deprecated grandfather hatch.
 4. If a demo/dev route, add its folder name to `HIDDEN_ROUTES` in `scripts/check-nav.ts`.
 5. Verify: `pnpm --filter web typecheck`, `pnpm --filter @workspace/ui test`, `pnpm --filter web lint`, `pnpm check:nav`.
 
@@ -216,8 +220,9 @@ route/page.tsx
  └─ <ContentPanel>           the body frame (rows below the header)
       ├─ toolbar   ContentToolbar   named data slots: statusFilter · search · filter · viewTools · actions · add · modeToggle
       ├─ filters   (optional active-filter band below the 36px bar)
-      ├─ children  ← body-only Blank or an archetype block
-      │               (DataGridView | LaunchpadGrid | DashboardGrid | RecordWorkspace)
+      ├─ sections ← branded body Sections (via the closed SECTION_REGISTRY);
+      │               a whole-panel Archetype component supplies them
+      │               (`children` is the deprecated grandfather hatch)
       ├─ inspector (Table only) resizable panel or dialog
       └─ footer    ContentFooter (sticky bottom surface: selection or save)
 ```

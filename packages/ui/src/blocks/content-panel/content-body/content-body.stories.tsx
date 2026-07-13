@@ -2,13 +2,13 @@ import type { Meta, StoryObj } from "@storybook/react"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { archetypeEmpty } from "./archetypes/archetype-empty"
 import { ContentBody } from "./content-body"
+import { sectionEmpty } from "./sections/section-empty"
 
 /**
- * `ContentBody` is the archetype-blocked scrolling body of the Content Panel. It
- * accepts only a branded `ArchetypeDescriptor` from a closed factory (here
- * `archetypeEmpty(...)`), never bespoke JSX.
+ * `ContentBody` is the body region of the Content Panel. It renders a list of
+ * branded `Section` descriptors from a closed factory (here `sectionEmpty(...)`)
+ * through the closed `SECTION_REGISTRY`, never bespoke JSX.
  */
 const meta = {
   title: "Blocks/Content Panel/ContentBody",
@@ -30,21 +30,17 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Empty: Story = {
+export const EmptySection: Story = {
   args: {
-    body: archetypeEmpty({
-      title: "No documents yet",
-      description: "Imported invoices will appear here.",
-    }),
+    sections: [sectionEmpty({ title: "No documents yet" })],
   },
 }
 
-export const EmptyWithIcon: Story = {
+export const StackedSections: Story = {
   args: {
-    body: archetypeEmpty({
-      icon: "Inbox",
-      title: "No documents yet",
-      description: "Imported invoices will appear here.",
-    }),
+    sections: [
+      sectionEmpty({ title: "First section" }),
+      sectionEmpty({ title: "Second section" }),
+    ],
   },
 }

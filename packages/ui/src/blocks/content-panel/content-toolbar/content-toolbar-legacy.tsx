@@ -15,7 +15,7 @@ export interface ContentToolbarLegacyProps {
 }
 
 /**
- *  Use the descriptor-based `ContentToolbar` (named data slots).
+ * @deprecated Use the descriptor-based `ContentToolbar` (named data slots).
  * This open left/right ReactNode version is retained only for pages not yet
  * migrated to the closed toolbar vocabulary.
  *

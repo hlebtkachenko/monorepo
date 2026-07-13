@@ -58,7 +58,7 @@ export function ContentBody({ body, className }: ContentBodyProps) {
       data-slot="content-body"
       className={cn("min-w-0 flex-1 overflow-auto p-3", className)}
     >
-      {Renderer ? <Renderer props={body.props} /> : null}
+      <Renderer props={body.props} />
     </div>
   )
 }

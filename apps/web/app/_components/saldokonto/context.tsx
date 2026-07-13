@@ -10,8 +10,6 @@ import type { OpenItemRow } from "./data"
 interface SaldokontoState {
   activeTab: string
   setActiveTab: (value: string) => void
-  favorite: boolean
-  toggleFavorite: () => void
   hiddenTabs: ReadonlySet<string>
   toggleTabHidden: (value: string) => void
   inspected: OpenItemRow | null
@@ -37,7 +35,6 @@ export function SaldokontoProvider({
   children: React.ReactNode
 }) {
   const [activeTab, setActiveTab] = React.useState("all")
-  const [favorite, setFavorite] = React.useState(false)
   const [hiddenTabs, setHiddenTabs] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -51,7 +48,6 @@ export function SaldokontoProvider({
     setInspectorOpen(true)
   }, [])
   const closeInspector = React.useCallback(() => setInspectorOpen(false), [])
-  const toggleFavorite = React.useCallback(() => setFavorite((f) => !f), [])
   const toggleTabHidden = React.useCallback((value: string) => {
     setHiddenTabs((prev) => {
       const next = new Set(prev)
@@ -66,8 +62,6 @@ export function SaldokontoProvider({
     () => ({
       activeTab,
       setActiveTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,
@@ -79,8 +73,6 @@ export function SaldokontoProvider({
     }),
     [
       activeTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,

@@ -1,8 +1,9 @@
 # App Shell Panels — build guide for agents
 
 > **⚠️ UNDER REDESIGN (2026-07-12).** The shell + content-panel "archetype system"
-> is being restructured — locked target in
-> `.context/archetype-system/03-target-architecture.md` (4 panels incl. a new
+> is being restructured — locked model in
+> `.context/archetype-system/01-taxonomy-and-naming.md`, build plan in
+> `.context/archetype-system/03-plan.md` (4 panels incl. a new
 > Drawer, `cp-*` blocks, a CPBody archetype-blocker, no status bar in the Content
 > Panel). Block folders were renamed (`app-content → content-panel`,
 > `app-sidebar → sidebar-panel`); paths below are updated but the composition model
@@ -34,14 +35,14 @@ touching the sidebar or the content panel, or before wiring a new page.
 
 ## Where everything lives
 
-| Layer                        | Location                                                                     | Rule                                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Layer                        | Location                                                                         | Rule                                                                                                                 |
+| ---------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | Shell + panels (reusable UI) | `packages/ui/src/blocks/app-shell`, `app-rail`, `sidebar-panel`, `content-panel` | All reusable composition goes here. **Never** put shell/panel UI in `apps/web`.                                      |
-| Leaf components              | `packages/ui/src/components/*`                                               | shadcn-derived primitives (Button, Tabs, DataTable, ActionBar, …).                                                   |
-| App data wrappers            | `apps/web/app/_components/*`                                                 | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic.      |
-| Shell mount                  | `apps/web/app/[orgSlug]/layout.tsx`                                          | Mounts the persistent `OrgShell` **once** (rail + sidebar + chrome). Page bodies swap underneath it.                 |
-| Page body                    | `apps/web/app/[orgSlug]/<module>/page.tsx`                                   | Fills the content-panel **body only**. The shell owns every chrome slot; a page never wires `AppShell` itself.       |
-| Nav (structure-driven)       | `apps/web/app/[orgSlug]/_nav/org-nav.ts` + `<module>/nav.ts`                 | Rail + bottom-nav + `MODULE_NAV` (here); each module's sidebar tree (co-located). Drift-guarded by `pnpm check:nav`. |
+| Leaf components              | `packages/ui/src/components/*`                                                   | shadcn-derived primitives (Button, Tabs, DataTable, ActionBar, …).                                                   |
+| App data wrappers            | `apps/web/app/_components/*`                                                     | Thin client components that feed **data** (mock today) + live `usePathname()` into the blocks. No layout logic.      |
+| Shell mount                  | `apps/web/app/[orgSlug]/layout.tsx`                                              | Mounts the persistent `OrgShell` **once** (rail + sidebar + chrome). Page bodies swap underneath it.                 |
+| Page body                    | `apps/web/app/[orgSlug]/<module>/page.tsx`                                       | Fills the content-panel **body only**. The shell owns every chrome slot; a page never wires `AppShell` itself.       |
+| Nav (structure-driven)       | `apps/web/app/[orgSlug]/_nav/org-nav.ts` + `<module>/nav.ts`                     | Rail + bottom-nav + `MODULE_NAV` (here); each module's sidebar tree (co-located). Drift-guarded by `pnpm check:nav`. |
 
 This split is the `ui-belongs-in-packages-ui-blocks` convention. The pre-commit
 `ui-location` lefthook hook (`scripts/governance/check-ui-location.mjs`)
@@ -219,13 +220,13 @@ so a "variant" is just which slots a page fills — not a different component. F
 named archetypes cover every page; pick one when scaffolding. Live examples:
 `packages/ui/src/blocks/content-panel/content-panel.stories.tsx` (one story each).
 
-| Variant       | Slots filled                                                | Use for                                                                                                                |
-| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today.                                                       |
-| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                             |
-| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. Demo: `/demo-launchpad`.                                        |
-| **Dashboard** | body only (`DashboardGrid` + `DashboardChartCard`)          | Analytics — KPI tiles, chart cards, period control, a selectable matrix. Demo: `/demo-dashboard`.                      |
-| **Single**    | body only (`RecordWorkspace`)                               | One record on show — side-by-side form panels + an editable line-items grid + live totals. Demo: `/demo-single`.       |
+| Variant       | Slots filled                                                | Use for                                                                                                          |
+| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today.                                                 |
+| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                       |
+| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. Demo: `/demo-launchpad`.                                  |
+| **Dashboard** | body only (`DashboardGrid` + `DashboardChartCard`)          | Analytics — KPI tiles, chart cards, period control, a selectable matrix. Demo: `/demo-dashboard`.                |
+| **Single**    | body only (`RecordWorkspace`)                               | One record on show — side-by-side form panels + an editable line-items grid + live totals. Demo: `/demo-single`. |
 
 **Scaffolding a Table page** (the common case): mount `ContentPanel` with a
 `ContentToolbar` in `toolbar`, the body in `children` (`bodyClassName="p-0"` so a

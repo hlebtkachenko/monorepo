@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
+import { ContentToolbar } from "./content-toolbar"
 import { ContentToolbarAddButton } from "./content-toolbar-add-button"
 import { ContentToolbarModeToggle } from "./content-toolbar-mode-toggle"
 import { ContentToolbarStatusFilter } from "./content-toolbar-status-filter"
@@ -94,5 +95,68 @@ describe("ContentToolbarAddButton", () => {
     wrap(<ContentToolbarAddButton label="Add invoice" onAdd={onAdd} />)
     await userEvent.click(screen.getByRole("button", { name: /add invoice/i }))
     expect(onAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it("fires onSelectVariant from the split-button dropdown", async () => {
+    const onSelectVariant = vi.fn()
+    wrap(
+      <ContentToolbarAddButton
+        label="Add invoice"
+        onAdd={() => {}}
+        variants={[
+          { id: "received", label: "Received" },
+          { id: "issued", label: "Issued" },
+        ]}
+        onSelectVariant={onSelectVariant}
+      />,
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Choose type" }))
+    await userEvent.click(await screen.findByText("Issued"))
+    expect(onSelectVariant).toHaveBeenCalledWith("issued")
+  })
+})
+
+describe("ContentToolbar (container)", () => {
+  it("renders left slots before right slots and omits the filter band with no active filters", () => {
+    const { container } = wrap(
+      <ContentToolbar
+        statusFilter={{
+          title: "Status",
+          options: STATUS,
+          value: [],
+          onChange: () => {},
+          multiple: true,
+        }}
+        actions={[{ id: "refresh", label: "Refresh", onSelect: () => {} }]}
+        add={{ label: "New", onAdd: () => {} }}
+        modeToggle={{ value: "panel", onChange: () => {} }}
+      />,
+    )
+    // The active-filters band mounts only when filter.filters.length > 0.
+    expect(
+      container.querySelector('[data-slot="content-toolbar-filter-band"]'),
+    ).toBeNull()
+    // statusFilter (left cluster) renders ahead of add (right cluster).
+    const status = screen.getByRole("button", { name: /status/i })
+    const add = screen.getByRole("button", { name: /new/i })
+    expect(
+      status.compareDocumentPosition(add) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it("maps actions[] to buttons that each fire their own onSelect", async () => {
+    const refresh = vi.fn()
+    const exportCsv = vi.fn()
+    wrap(
+      <ContentToolbar
+        actions={[
+          { id: "refresh", label: "Refresh", onSelect: refresh },
+          { id: "export", label: "Export", onSelect: exportCsv },
+        ]}
+      />,
+    )
+    await userEvent.click(screen.getByRole("button", { name: "Export" }))
+    expect(exportCsv).toHaveBeenCalledTimes(1)
+    expect(refresh).not.toHaveBeenCalled()
   })
 })

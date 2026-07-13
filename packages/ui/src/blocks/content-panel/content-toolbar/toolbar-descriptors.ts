@@ -81,16 +81,24 @@ export interface AddVariant {
   disabled?: boolean
 }
 
-/** The `add` slot descriptor (right #3). */
-export interface AddDescriptor {
+interface AddDescriptorBase {
   label?: string
   icon?: IconName
   onAdd: () => void
-  variants?: AddVariant[]
-  onSelectVariant?: (id: string) => void
   align?: "start" | "end"
   disabled?: boolean
 }
+
+/**
+ * The `add` slot descriptor (right #3). Supplying `variants` turns it into a
+ * split button, which then REQUIRES `onSelectVariant` — the union makes a
+ * dropdown-without-handler (dead menu clicks) unrepresentable.
+ */
+export type AddDescriptor = AddDescriptorBase &
+  (
+    | { variants?: undefined; onSelectVariant?: undefined }
+    | { variants: AddVariant[]; onSelectVariant: (id: string) => void }
+  )
 
 /** The `modeToggle` slot descriptor (right #4) — binds to the Inspector mode. */
 export interface ModeToggleDescriptor {

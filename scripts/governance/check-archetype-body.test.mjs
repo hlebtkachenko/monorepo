@@ -52,6 +52,31 @@ export function View() {
 }
 `
 
+// Namespace import — the tag is the member expression <CP.ContentPanel>. Caught
+// because the binding is fully resolvable in-file.
+const NAMESPACE = `import * as CP from "@workspace/ui/blocks/content-panel"
+export function View() {
+  return <CP.ContentPanel><div>hello</div></CP.ContentPanel>
+}
+`
+
+// Local re-export shim — ContentPanel is reached via another module, so the
+// binding is NOT resolvable without the cross-file type-checker. Documented
+// out-of-scope: the detector does not follow it (diff-visible + non-idiomatic).
+const RE_EXPORT_SHIM = `import { ContentPanel } from "./panel-shim"
+export function View() {
+  return <ContentPanel><div>hello</div></ContentPanel>
+}
+`
+
+// React.createElement path — no JSX tag to walk. Also out-of-scope for the same
+// cross-file/AST reason; pinned so the boundary is explicit, not silent.
+const CREATE_ELEMENT = `${IMPORT}
+export function View() {
+  return React.createElement(ContentPanel, null, React.createElement("div"))
+}
+`
+
 test("detects JSX children passed to ContentPanel", () => {
   assert.equal(sourceHasContentPanelChildren(LEGACY), true)
 })
@@ -85,9 +110,23 @@ test("treats a spread attribute on ContentPanel as children-bearing", () => {
   assert.equal(sourceHasContentPanelChildren(SPREAD), true)
 })
 
+test("catches a namespace-imported <CP.ContentPanel> body", () => {
+  assert.equal(sourceHasContentPanelChildren(NAMESPACE), true)
+})
+
+test("does NOT follow a cross-file re-export shim (documented out-of-scope)", () => {
+  assert.equal(sourceHasContentPanelChildren(RE_EXPORT_SHIM), false)
+})
+
+test("does NOT follow React.createElement(ContentPanel, ...) (documented out-of-scope)", () => {
+  assert.equal(sourceHasContentPanelChildren(CREATE_ELEMENT), false)
+})
+
 test("findViolations flags a new (non-allowlisted) legacy file", () => {
   const { violations, stale } = findViolations({
-    files: [{ path: "apps/web/app/_components/new/new-view.tsx", source: LEGACY }],
+    files: [
+      { path: "apps/web/app/_components/new/new-view.tsx", source: LEGACY },
+    ],
     allowlist: [],
   })
   assert.deepEqual(violations, ["apps/web/app/_components/new/new-view.tsx"])

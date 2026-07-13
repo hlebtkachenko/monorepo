@@ -7,9 +7,10 @@ import { useDoklad } from "./context"
 
 /**
  * The doklad content header — mounted into the shell's content-header slot via
- * `AppPageHeader`. Carries a Back button (icon), the document number as title,
- * a draft status pill, relation pills (orders / deliveries), record paging, and
- * a configure button. Reads the document number from the shared record state.
+ * `AppPageHeader`. Currently renders only the document number as title (from the
+ * shared record state). The back button, draft status pill, order/delivery
+ * relation buttons, record paging, and configure button previously lived here
+ * and are deferred to the body rebuild (see the archetype-redo TODOs below).
  */
 export function DokladHeader() {
   const { header } = useDoklad()

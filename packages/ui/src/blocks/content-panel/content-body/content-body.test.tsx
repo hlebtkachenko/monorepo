@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
@@ -37,5 +37,28 @@ describe("ContentBody", () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       wrap(<ContentBody body={{ kind: "empty" } as any} />),
     ).toThrow(/branded archetype descriptor/)
+  })
+
+  it("in production renders an empty body without throwing or leaking a forged payload", () => {
+    const prev = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const { container } = wrap(
+        <ContentBody
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          body={{ kind: "empty", props: { title: "leak" } } as any}
+        />,
+      )
+      const root = container.querySelector('[data-slot="content-body"]')
+      expect(root).not.toBeNull()
+      // The prod backstop must render nothing rather than leak hand-built content.
+      expect(root).toBeEmptyDOMElement()
+      expect(container).not.toHaveTextContent("leak")
+      expect(error).toHaveBeenCalled()
+    } finally {
+      error.mockRestore()
+      process.env.NODE_ENV = prev
+    }
   })
 })

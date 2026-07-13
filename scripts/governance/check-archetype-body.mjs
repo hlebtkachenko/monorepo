@@ -28,12 +28,21 @@ const ALLOWLIST_PATH = join(here, "archetype-body-allowlist.json")
 const SCAN_DIRS = ["apps/web", "apps/admin"]
 
 /**
- * The set of LOCAL names bound to the `ContentPanel` component in this file —
- * resolved from its import declarations so an aliased import
- * (`import { ContentPanel as Panel }`) is caught, not just the literal identifier.
+ * The LOCAL bindings that reach `ContentPanel` in this file, resolved from its
+ * import declarations so import-shape variants are caught, not just the literal
+ * identifier:
+ *   - `names`      — direct/aliased named imports (`import { ContentPanel }`,
+ *                    `import { ContentPanel as Panel }`) → matched as `<Panel>`.
+ *   - `namespaces` — namespace imports (`import * as CP`) → matched as the
+ *                    member tag `<CP.ContentPanel>`.
+ * Cross-file indirection (a local re-export shim, or `React.createElement`) is
+ * out of scope here: closing it needs the type-checker across files, and both
+ * are non-idiomatic + diff-visible in this codebase. The NAMESPACE / SHIM /
+ * CREATE_ELEMENT fixtures in the test file pin this exact boundary.
  */
-function contentPanelLocalNames(sourceFile) {
+function contentPanelBindings(sourceFile) {
   const names = new Set()
+  const namespaces = new Set()
   const visit = (node) => {
     if (
       ts.isImportDeclaration(node) &&
@@ -46,12 +55,14 @@ function contentPanelLocalNames(sourceFile) {
           const imported = (el.propertyName ?? el.name).text
           if (imported === "ContentPanel") names.add(el.name.text)
         }
+      } else if (bindings && ts.isNamespaceImport(bindings)) {
+        namespaces.add(bindings.name.text)
       }
     }
     ts.forEachChild(node, visit)
   }
   visit(sourceFile)
-  return names
+  return { names, namespaces }
 }
 
 /**
@@ -93,10 +104,18 @@ export function sourceHasContentPanelChildren(source, fileName = "file.tsx") {
     ts.ScriptKind.TSX,
   )
 
-  const localNames = contentPanelLocalNames(sourceFile)
-  if (localNames.size === 0) return false
-  const isCP = (tagName) =>
-    ts.isIdentifier(tagName) && localNames.has(tagName.text)
+  const { names, namespaces } = contentPanelBindings(sourceFile)
+  if (names.size === 0 && namespaces.size === 0) return false
+  const isCP = (tagName) => {
+    if (ts.isIdentifier(tagName)) return names.has(tagName.text)
+    // Namespace member tag: `<CP.ContentPanel>` from `import * as CP`.
+    return (
+      ts.isPropertyAccessExpression(tagName) &&
+      ts.isIdentifier(tagName.expression) &&
+      namespaces.has(tagName.expression.text) &&
+      tagName.name.text === "ContentPanel"
+    )
+  }
 
   let found = false
   const visit = (node) => {
@@ -136,7 +155,10 @@ export function findViolations({ files, allowlist }) {
   const allowSet = new Set(allowlist)
   const withChildren = new Set(
     files
-      .filter((f) => f.source != null && sourceHasContentPanelChildren(f.source, f.path))
+      .filter(
+        (f) =>
+          f.source != null && sourceHasContentPanelChildren(f.source, f.path),
+      )
       .map((f) => f.path),
   )
   const violations = [...withChildren].filter((p) => !allowSet.has(p)).sort()

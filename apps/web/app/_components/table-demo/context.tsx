@@ -9,15 +9,13 @@ import type { InvoiceRow } from "./data"
 /**
  * Shared UI state for the TEMP Content Panel demo. Exists only to link the two
  * app-shell slots that the demo spans: the header (`contentHeader` slot — tabs,
- * favorite, manage-page menu) and the body (`children` — toolbar + table). Real
+ * manage-page menu) and the body (`children` — toolbar + table). Real
  * pages will likely lift far less than this; it's broad here to exercise every
  * cross-slot interaction at once.
  */
 interface OrgContentState {
   activeTab: string
   setActiveTab: (value: string) => void
-  favorite: boolean
-  toggleFavorite: () => void
   hiddenTabs: ReadonlySet<string>
   toggleTabHidden: (value: string) => void
   // Inspector — the element-detail view (panel or dialog mode).
@@ -45,7 +43,6 @@ export function OrgContentProvider({
   children: React.ReactNode
 }) {
   const [activeTab, setActiveTab] = React.useState("all")
-  const [favorite, setFavorite] = React.useState(false)
   const [hiddenTabs, setHiddenTabs] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -60,7 +57,6 @@ export function OrgContentProvider({
   }, [])
   const closeInspector = React.useCallback(() => setInspectorOpen(false), [])
 
-  const toggleFavorite = React.useCallback(() => setFavorite((fav) => !fav), [])
   const toggleTabHidden = React.useCallback((value: string) => {
     setHiddenTabs((prev) => {
       const next = new Set(prev)
@@ -76,8 +72,6 @@ export function OrgContentProvider({
     () => ({
       activeTab,
       setActiveTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,
@@ -89,8 +83,6 @@ export function OrgContentProvider({
     }),
     [
       activeTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,

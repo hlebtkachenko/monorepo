@@ -6,8 +6,10 @@
 > **composed, importable grouping** you feed data (not a demo you copy), and the
 > `ContentHeader` API is now closed (no `actions`/`icon`/`tabs`/`manageTabs`
 > props — use `viewTabs`/`manageViews`/`breadcrumb`/`titleIcon`, Favorite+Configure
-> are internal). The examples below still show the OLD API; treat this doc as
-> current-catalog reference, not the build contract. Ask Hleb before new work.
+> are internal). The shared-foundation example below already reflects this closed
+> API; the per-archetype **Build it** recipes still point at the older demo
+> folders, so treat those as current-catalog reference, not the build contract.
+> Ask Hleb before new work.
 
 Five page shapes cover almost every org-app screen. Four use reusable blocks
 from `packages/ui/src/blocks/content-panel` plus thin data demos under
@@ -48,9 +50,10 @@ two things into the persistent org shell:
    title / tabs / actions into the shell's content-header slot (the 45px bar).
 2. **`<ContentPanel>`** — the body frame below the header. One component, no
    `variant` prop; a "variant" is just which optional slots you fill:
-   `toolbar` · `filters` · `statusBar` · `actionBar` · `inspector` (+
+   `toolbar` · `filters` · `footer` · `inspector` (+
    `inspectorMode` `"panel" | "dialog"`) · `children` (the scrolling body) ·
-   `bodyClassName`.
+   `bodyClassName`. (`statusBar` now belongs to the Table section, not the
+   Content Panel.)
 
 ```tsx
 export default function MyPage() {
@@ -209,15 +212,14 @@ tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
 ```
 route/page.tsx
  ├─ <OrgPageHeader>          → portals into the shell's 45px content-header slot
- │    └─ <ContentHeader>     title · tabs (+ ⋯ ManageTabsMenu) · actions (PageHeaderActions)
+ │    └─ <ContentHeader>     [breadcrumb] title │ viewTabs (+ ⋯ manageViews) · internal Favorite/Configure
  └─ <ContentPanel>           the body frame (rows below the header)
-      ├─ toolbar   ContentToolbar   (filters / search / add / view switches)
-      ├─ filters   (optional band)
+      ├─ toolbar   ContentToolbar   named data slots: statusFilter · search · filter · viewTools · actions · add · modeToggle
+      ├─ filters   (optional active-filter band below the 36px bar)
       ├─ children  ← body-only Blank or an archetype block
       │               (DataGridView | LaunchpadGrid | DashboardGrid | RecordWorkspace)
-      ├─ statusBar ContentStatusBar (counts / totals)
       ├─ inspector (Table only) resizable panel or dialog
-      └─ actionBar (bulk selection)
+      └─ footer    ContentFooter (sticky bottom surface: selection or save)
 ```
 
 See also `docs/runbooks/APP-SHELL-PANELS.md` for the shell + panel mechanics and

@@ -70,24 +70,34 @@ still enforces FORCE RLS).
 
 ## Cloud workspaces
 
-Cloud runs on Conductor's infra, not your Mac: no Docker, no local DB, and it
-does **not** see your machine-local `.conductor/settings.local.toml` or SSH
-keyring. Cloud reads only committed `settings.toml`. Cloud is for coding, `typecheck`,
-and git — the DB-backed run buttons are hidden there by `available_in`.
+Cloud (Conductor Pro) runs each workspace in a **Vercel Sandbox**, not on your
+Mac: no Docker, no local DB, and it does **not** see your machine-local
+`.conductor/settings.local.toml`. It reads only committed `settings.toml`, and
+its DB-backed run buttons are hidden by `available_in`. Cloud is for coding,
+`typecheck`, and git. A workspace starts from a per-project **snapshot** that
+Conductor builds by cloning the repo + running the **snapshot script** (root of
+repo) — the right place to pre-install deps for cloud:
 
-To make cloud fully functional, connect GitHub and (optionally) provide a token —
-these are **app/GUI settings, not repo files**:
+```bash
+pnpm install --frozen-lockfile --prefer-offline
+```
 
-1. **GitHub connection** — Conductor app **Settings → GitHub** (Local _and_ Cloud
-   sections). Authorize the Conductor GitHub App for the Cloud environment on
-   `hlebtkachenko/monorepo`. This is what fixes "not connected to GitHub".
-2. **git push over SSH from cloud** — set `ssh_key_path` in your **local**
-   `.conductor/settings.local.toml` (a path, not a secret; machine-specific, so
-   never in committed `settings.toml`).
-3. **`gh` CLI in cloud** — cloud has no keyring, so `gh` needs a `GH_TOKEN`
-   provided through Conductor's **cloud environment/secrets UI** (or
-   `[environment_variables.cloud]` in `settings.local.toml`). A token is a secret
-   → **never** put it in committed `settings.toml` (public repo).
+All cloud config is one-time and account-level under Conductor **Settings → Cloud
+→ Cloud setup** — not per-workspace, not repo files:
+
+1. **Conductor Pro** — the cloud subscription (required to run cloud workspaces).
+2. **Agents** — at least one agent subscription token or API key (Claude Code /
+   Codex).
+3. **GitHub** — connect the **Conductor GitHub app** (recommended) once; it then
+   brokers repo access into every cloud sandbox automatically. The alternative is
+   to skip the app and use your own SSH/HTTPS auth.
+
+Gotcha: with the GitHub app connected, git + agent GitHub operations are brokered
+into the sandbox, but the **interactive `gh` CLI** in a cloud terminal can still
+report `auth broker has no GitHub token for this context (context: terminal)` and
+run unauthenticated. That is expected — it does not mean git is broken. Rely on
+brokered `git` / the agent's own GitHub flow rather than raw `gh` in a cloud
+terminal.
 
 ## Settings precedence (why committed vs local matters)
 

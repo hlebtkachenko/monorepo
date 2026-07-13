@@ -19,6 +19,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- UI: replace the Title `topRule` flag with a standalone **Divider** section (`sectionDivider`) — a full-ContentBody-width hairline the page places explicitly above and below a group, so the last group gets a real bottom rule (a flag couldn't, since no section knows it is last)
 - UI: Title section — bottom padding 32→16px (hugs its group) and a new `topRule` flag drawing a full-ContentBody-width hairline above the heading; groups separate by the next title's rule, the last group is closed by the ContentFooter (flat pattern — chose over a nested Group section per Advisor review)
 - UI: Form section vertical padding `py-4`→`py-8` (16→32px each side, so stacked sections sit 64px apart) and the Space section default gap 16→32px
 - UI: Form field hover card text reduced to `text-xs` and narrowed to w-56

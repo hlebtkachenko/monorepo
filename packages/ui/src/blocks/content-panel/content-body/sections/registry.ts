@@ -1,4 +1,5 @@
 import type { SectionKind, SectionRenderer } from "./section"
+import { SectionDividerRenderer } from "./section-divider"
 import { SectionEmptyRenderer } from "./section-empty"
 import { SectionFormRenderer } from "./section-form-renderer"
 import { SectionSpaceRenderer } from "./section-space"
@@ -16,4 +17,5 @@ export const SECTION_REGISTRY = {
   form: SectionFormRenderer,
   space: SectionSpaceRenderer,
   title: SectionTitleRenderer,
+  divider: SectionDividerRenderer,
 } satisfies Record<SectionKind, SectionRenderer<never>>

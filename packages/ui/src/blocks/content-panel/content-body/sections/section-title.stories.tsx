@@ -18,7 +18,3 @@ type Story = StoryObj<typeof meta>
 export const Default: Story = {
   args: { props: { title: "Company" } },
 }
-
-export const WithTopRule: Story = {
-  args: { props: { title: "Company", topRule: true } },
-}

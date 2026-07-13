@@ -10,7 +10,13 @@ import type { ComponentType } from "react"
 const SECTION_BRAND = Symbol("section-brand")
 
 /** The closed set of section kinds. Extending this is review-gated. */
-export const SECTION_KINDS = ["empty", "form", "space", "title"] as const
+export const SECTION_KINDS = [
+  "empty",
+  "form",
+  "space",
+  "title",
+  "divider",
+] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
 
 /** Section-level metadata that every kind shares (not per-kind `props`). */

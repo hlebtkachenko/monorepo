@@ -4,6 +4,7 @@ import { useState } from "react"
 
 import { ArchetypeDetails } from "@workspace/ui/blocks/archetypes"
 import {
+  sectionDivider,
   sectionForm,
   sectionSpace,
   sectionTitle,
@@ -82,9 +83,11 @@ export function ArchetypeDetailsView() {
       title="Archetype Details"
       sections={[
         sectionSpace(),
-        sectionTitle({ title: "Company", anchor: "company", topRule: true }),
+        sectionDivider(),
+        sectionTitle({ title: "Company", anchor: "company" }),
         legalIdentity("a", "legal-identity"),
         legalIdentity("b", "legal-identity-2"),
+        sectionDivider(),
       ]}
       save={{
         dirty,

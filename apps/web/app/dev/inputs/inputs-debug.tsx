@@ -341,6 +341,19 @@ function ColorDemo() {
   )
 }
 
+function GenerateDemo() {
+  const [pw, setPw] = React.useState("")
+  return (
+    <PasswordInput
+      showGenerate
+      value={pw}
+      onValueChange={setPw}
+      autoComplete="new-password"
+      className="max-w-xs"
+    />
+  )
+}
+
 function PasswordChecklistDemo() {
   const [pw, setPw] = React.useState("")
   return (
@@ -1120,11 +1133,7 @@ export function InputsDebug() {
           name="showGenerate"
           desc="adds a Sparkles button that fills a strong password"
         >
-          <PasswordInput
-            showGenerate
-            autoComplete="new-password"
-            className="max-w-xs"
-          />
+          <GenerateDemo />
         </Row>
         <Row name="inputSize='xl'" desc="taller variant (h-11)">
           <PasswordInput inputSize="xl" className="max-w-xs" />

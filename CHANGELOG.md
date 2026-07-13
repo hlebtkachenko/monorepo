@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- PasswordInput now type-requires `value` + `onValueChange` when `showGenerate` is set (discriminated union), so the generated password always has somewhere to land
 - SelectTrigger shows its ring only while the dropdown is open (data-[state=open]); removed the focus-visible ring that lingered on the closed trigger after a mouse selection
 - SelectTrigger `sm` size reverted to shadcn/ui original height (h-8, was our h-7) and dropped the sm-only radius override
 - InputGroup addon text (InputGroupText) and buttons (InputGroupButton) now match the input's own text size (text-base/md:text-sm) at medium weight and muted-foreground, instead of a fixed text-sm

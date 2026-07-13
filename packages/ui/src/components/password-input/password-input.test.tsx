@@ -47,6 +47,7 @@ describe("PasswordInput", () => {
     render(
       <PasswordInput
         showGenerate
+        value=""
         onGenerate={onGenerate}
         onValueChange={() => {}}
       />,
@@ -62,6 +63,19 @@ describe("PasswordInput", () => {
     expect(generated.split("-").every((g) => g.length === 6)).toBe(true)
   })
 
+  it("type-enforces value + onValueChange when showGenerate is set", () => {
+    // Contract: showGenerate makes the field a controlled input. Omitting
+    // value / onValueChange must be a compile error (the generated password
+    // would otherwise have nowhere to land).
+    // @ts-expect-error showGenerate requires value + onValueChange
+    const missing = <PasswordInput showGenerate />
+    // Both wired is fine.
+    const ok = <PasswordInput showGenerate value="" onValueChange={() => {}} />
+    // Without showGenerate they stay optional.
+    const bare = <PasswordInput />
+    expect([missing, ok, bare].length).toBe(3)
+  })
+
   it("generated string contains digit, symbol, uppercase and lowercase", async () => {
     const user = userEvent.setup()
     const collected: string[] = []
@@ -73,6 +87,7 @@ describe("PasswordInput", () => {
       const { unmount } = render(
         <PasswordInput
           showGenerate
+          value=""
           onGenerate={onGenerate}
           onValueChange={() => {}}
         />,

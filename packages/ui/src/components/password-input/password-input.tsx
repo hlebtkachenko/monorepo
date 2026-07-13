@@ -80,19 +80,35 @@ function generatePassword(): string {
   return groups.join("-")
 }
 
-export interface PasswordInputProps extends Omit<
+type PasswordInputBaseProps = Omit<
   React.ComponentProps<"input">,
   "type" | "onChange"
-> {
-  value?: string
-  onValueChange?: (next: string) => void
-  showGenerate?: boolean
+> & {
   onGenerate?: (pw: string) => void
   autoComplete?: "new-password" | "current-password"
   inputSize?: "default" | "xl"
   visible?: boolean
   onVisibleChange?: (visible: boolean) => void
 }
+
+/**
+ * `showGenerate` requires a wired-up value. The generate button hands the new
+ * password out through `onValueChange` (it never stores it internally), so both
+ * `value` and `onValueChange` are mandatory when `showGenerate` is set —
+ * otherwise the generated password has nowhere to land. TypeScript enforces
+ * this via the discriminated union below.
+ */
+export type PasswordInputProps =
+  | (PasswordInputBaseProps & {
+      showGenerate: true
+      value: string
+      onValueChange: (next: string) => void
+    })
+  | (PasswordInputBaseProps & {
+      showGenerate?: false
+      value?: string
+      onValueChange?: (next: string) => void
+    })
 
 const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
   (

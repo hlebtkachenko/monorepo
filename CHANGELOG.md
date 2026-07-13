@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.18.0] — 2026-07-13
+
 ### Added
 
 - Admin Platform Debug page with Input Fields subpage (blocked in production); the shared inputs debug board lives in packages/ui/src/blocks/inputs-debug and is rendered by that page
@@ -45,19 +47,16 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - ci: split environment resume into parallel database and application lanes, remove the setup runner, overlap ECS, API boot, independent sidecar preparation, and migration-journal reads, prevent the bootstrap/runtime OpenFGA metrics-port race, tighten readiness detection without reducing failure tolerance, and gate sleeping-page removal on ECS task health
 - infra: keep production continuously available through 2026-07-26 by temporarily deferring the 5h auto-cold-pause TTL; staging remains unchanged and production auto-stop resumes automatically at 2026-07-27 00:00 Europe/Prague
 
-### Fixed
-
-- Replace the false-green shadcn update check with an explicit reviewed upstream baseline and port compatible button, card, sidebar, and spinner fixes without changing Afframe theme tokens.
-- fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
-- fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
-- Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.
-
 ### Removed
 
 - Dropped the unused `sm` size from NativeSelect (only the held-writes MD/Dal picker used it, now default h-9); NativeSelect is single-size
 
 ### Fixed
 
+- Replace the false-green shadcn update check with an explicit reviewed upstream baseline and port compatible button, card, sidebar, and spinner fixes without changing Afframe theme tokens.
+- fix(api): add a `number` filter to GET /v1/accounts so an agent resolves one account by number (with periodId) without paging the whole period chart — unblocks the posting lane's account number→id lookup (#690)
+- fix(brain): posting-lane MCP tool now types the double-entry `entry` (gen-tools emits z.union for OpenAPI anyOf/oneOf instead of z.unknown), so the model can build a valid posting body (#690)
+- Documentation link check ignores Markdown links inside code fences and inline code, preventing false positives on illustrative examples.
 - PasswordInput generator now forces a lowercase letter, so every generated password satisfies PasswordSchema.mixedCase (previously ~1-in-2500 could be rejected by the app's own rule)
 - PhoneInput: explicit country pick no longer reverts to the default for shared dial codes (+44/+1/+39), and the first typed digit is no longer swallowed when it matches the dial code's leading digit
 - Combobox popup width matches the input (min-w anchor-width, was 28px wider); debug board Combobox demos use the required items + render-function filtering pattern; normal Combobox shows a clear (X) on selection; CreatableCombobox demo matches the standard input width, drops the debug readout, and gains a disabled variation

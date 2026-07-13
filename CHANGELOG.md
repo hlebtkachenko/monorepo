@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- PasswordInput generator now forces a random 1–3 symbols (was exactly 1) into distinct slots, and the stale comment (claimed 4 groups/21 chars) now matches the real 3-group/20-char output
 - PasswordInput now type-requires `value` + `onValueChange` when `showGenerate` is set (discriminated union), so the generated password always has somewhere to land
 - SelectTrigger shows its ring only while the dropdown is open (data-[state=open]); removed the focus-visible ring that lingered on the closed trigger after a mouse selection
 - SelectTrigger `sm` size reverted to shadcn/ui original height (h-8, was our h-7) and dropped the sm-only radius override

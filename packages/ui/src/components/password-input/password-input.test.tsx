@@ -106,6 +106,35 @@ describe("PasswordInput", () => {
     expect(corpus).toMatch(/[a-z]/)
   })
 
+  it("forces between 1 and 3 symbols into each generated password", async () => {
+    const user = userEvent.setup()
+    const counts = new Set<number>()
+
+    for (let i = 0; i < 50; i++) {
+      const onGenerate = vi.fn()
+      const { unmount } = render(
+        <PasswordInput
+          showGenerate
+          value=""
+          onGenerate={onGenerate}
+          onValueChange={() => {}}
+        />,
+      )
+      await user.click(
+        screen.getByRole("button", { name: "Generate password" }),
+      )
+      const pw = onGenerate.mock.lastCall![0] as string
+      const symbols = [...pw].filter((c) => "!@#$%^&*".includes(c)).length
+      expect(symbols).toBeGreaterThanOrEqual(1)
+      expect(symbols).toBeLessThanOrEqual(3)
+      counts.add(symbols)
+      unmount()
+    }
+
+    // 50 draws of a 1–3 range should exercise more than one count value.
+    expect(counts.size).toBeGreaterThan(1)
+  })
+
   it("forwardRef wires to the underlying input element", () => {
     const ref = createRef<HTMLInputElement>()
     render(<PasswordInput ref={ref} />)

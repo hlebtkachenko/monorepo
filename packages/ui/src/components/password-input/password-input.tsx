@@ -43,35 +43,50 @@ function pick(charset: string, rand: number): string {
 }
 
 /**
- * Apple-style suggested password: four hyphen-separated groups,
- * readable mixed alphanumeric, with guaranteed uppercase, lowercase,
- * digit, and symbol to satisfy app password rules.
+ * Apple-style suggested password: three hyphen-separated groups of six
+ * readable alphanumeric characters (20 chars total).
  *
- *   abcdEF-12gh3K-mnPq45-xy!Z67    (18 chars + 3 hyphens, 21 total)
+ *   ab!dEF-12gh3K-mn#q45   (three groups of six, 20 chars)
  *
- * Hyphens count toward the rules-checker's length (>=12) but are not
- * treated as symbols by Zod's symbol class. We inject one explicit
- * symbol into a random slot so PasswordSchema.symbol passes.
+ * The readable set excludes ambiguous glyphs (l/1/o/0/i). We guarantee at
+ * least one uppercase and one digit, and force 1–3 symbols into distinct
+ * random slots so PasswordSchema (which requires a symbol) always passes.
+ * Apple's own format is alphanumeric-only, so injecting symbols is a
+ * deliberate divergence to meet our own rules. Hyphens count toward the
+ * length check but are not treated as symbols by Zod's symbol class.
  */
 function generatePassword(): string {
   const groupSize = 6
   const groupCount = 3
   const total = groupSize * groupCount
-  const rand = randomBytes(total + 4)
+  // Budget: `total` readable fills + one draw for the symbol count + two draws
+  // (index + char) for each forced placement (1 uppercase, 1 digit, 1–3
+  // symbols = up to 5). `total + 16` covers the worst case with headroom.
+  const rand = randomBytes(total + 16)
+  let cursor = 0
+  const next = () => rand[cursor++ % rand.length]!
 
   const chars: string[] = new Array(total)
   for (let i = 0; i < total; i++) {
-    chars[i] = pick(READABLE, rand[i]!)
+    chars[i] = pick(READABLE, next())
   }
 
-  // Guarantee at least one of each required class.
-  chars[rand[total]! % total] = pick(UPPER, rand[total + 1]!)
-  chars[rand[total + 2]! % total] = pick(DIGIT, rand[total + 3]!)
-  // Force one symbol slot (overrides one readable char). PasswordSchema
-  // requires at least one symbol; without this the readable charset
-  // alone would never satisfy it.
-  const symIdx = rand[total + 1]! % total
-  chars[symIdx] = pick(SYMBOL, rand[total + 3]!)
+  // Place one uppercase, one digit, and 1–3 symbols at distinct slots so no
+  // forced class clobbers another. Linear-probe on collision.
+  const symbolCount = 1 + (next() % 3)
+  const used = new Set<number>()
+  const placeAt = (charset: string) => {
+    let idx = next() % total
+    while (used.has(idx)) idx = (idx + 1) % total
+    used.add(idx)
+    chars[idx] = pick(charset, next())
+  }
+
+  placeAt(UPPER)
+  placeAt(DIGIT)
+  for (let s = 0; s < symbolCount; s++) {
+    placeAt(SYMBOL)
+  }
 
   const groups: string[] = []
   for (let g = 0; g < groupCount; g++) {

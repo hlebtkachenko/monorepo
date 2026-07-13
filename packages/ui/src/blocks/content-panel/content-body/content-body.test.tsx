@@ -5,6 +5,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ContentBody } from "./content-body"
 import { sectionEmpty } from "./sections/section-empty"
+import { sectionSpace } from "./sections/section-space"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
@@ -27,6 +28,20 @@ describe("ContentBody", () => {
     expect(slots).toHaveLength(2)
     expect(slots[0]).toHaveTextContent("First")
     expect(slots[1]).toHaveTextContent("Second")
+  })
+
+  it("fills for a `fill` section (Empty) and takes natural height otherwise (Space)", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[sectionSpace({ size: 16 }), sectionEmpty({ title: "Fill" })]}
+      />,
+    )
+    const [space, empty] = container.querySelectorAll(
+      '[data-slot="content-section"]',
+    )
+    expect(space).toHaveClass("shrink-0")
+    expect(space).not.toHaveClass("flex-1")
+    expect(empty).toHaveClass("flex-1")
   })
 
   it("applies a section anchor as the DOM id for deep-linking", () => {

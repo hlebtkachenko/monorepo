@@ -8,5 +8,7 @@ export type {
   FormFieldSpan,
   FormSelectOption,
 } from "./section-form"
+export { sectionSpace } from "./section-space"
+export type { SectionSpaceProps } from "./section-space"
 export type { SectionDescriptor, SectionKind } from "./section"
 export { SECTION_KINDS } from "./section"

@@ -64,5 +64,5 @@ export function sectionForm({
   anchor,
   ...props
 }: SectionFormProps): SectionDescriptor<"form", SectionFormProps> {
-  return defineSection("form", props, anchor)
+  return defineSection("form", props, { anchor })
 }

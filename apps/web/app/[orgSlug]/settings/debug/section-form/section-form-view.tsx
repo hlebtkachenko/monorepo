@@ -4,6 +4,7 @@ import {
   ContentHeader,
   ContentPanel,
   sectionForm,
+  sectionSpace,
 } from "@workspace/ui/blocks/content-panel"
 import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
@@ -23,6 +24,7 @@ export function SectionFormView() {
       </AppPageHeader>
       <ContentPanel
         sections={[
+          sectionSpace({ size: 16 }),
           sectionForm({
             anchor: "legal-identity",
             title: "Legal identity",

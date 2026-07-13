@@ -35,7 +35,12 @@ export function ContentBody({ sections, className }: ContentBodyProps) {
   return (
     <div
       data-slot="content-body"
-      className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}
+      // The body itself scrolls; sections take their natural height unless a
+      // `fill` section (Empty) claims the remaining space.
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto",
+        className,
+      )}
     >
       {sections.map((section, index) => {
         if (!isSectionDescriptor(section)) {
@@ -65,7 +70,12 @@ export function ContentBody({ sections, className }: ContentBodyProps) {
             id={section.anchor}
             data-slot="content-section"
             data-section-anchor={section.anchor}
-            className="flex min-h-0 flex-1 scroll-mt-16 flex-col overflow-auto"
+            className={cn(
+              "flex scroll-mt-16 flex-col",
+              // Fill sections (Empty) grow to the remaining height; the rest
+              // take their natural height and let the body scroll.
+              section.fill ? "min-h-0 flex-1" : "shrink-0",
+            )}
           >
             <Renderer props={section.props} />
           </div>

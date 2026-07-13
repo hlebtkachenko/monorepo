@@ -3,6 +3,7 @@
 import { useId } from "react"
 
 import { Field, FieldLabel } from "@workspace/ui/components/field"
+import { Heading } from "@workspace/ui/components/heading"
 import { Input } from "@workspace/ui/components/input"
 import {
   Select,
@@ -21,16 +22,18 @@ import type {
 } from "./section-form"
 
 /**
- * Static span → col-span map. Tailwind needs literal class names, so the six
- * spans are enumerated. Below the `sm` breakpoint every field is a full row;
- * at `sm`+ the field takes its requested span out of the 6-column grid.
+ * Static span → col-span map, keyed on the SECTION container width (not the
+ * viewport) via `@…/section` — the Content Panel can be narrow at any viewport
+ * (resizable panels, open inspector). Below `@xl` (36rem container) every field
+ * is a full row; at `@xl`+ the field takes its requested span out of the 6-col
+ * grid. Tailwind needs literal class names, so the six spans are enumerated.
  */
 const SPAN_CLASS: Record<FormFieldSpan, string> = {
-  1: "col-span-6 sm:col-span-1",
-  2: "col-span-6 sm:col-span-2",
-  3: "col-span-6 sm:col-span-3",
-  4: "col-span-6 sm:col-span-4",
-  5: "col-span-6 sm:col-span-5",
+  1: "col-span-6 @xl/section:col-span-1",
+  2: "col-span-6 @xl/section:col-span-2",
+  3: "col-span-6 @xl/section:col-span-3",
+  4: "col-span-6 @xl/section:col-span-4",
+  5: "col-span-6 @xl/section:col-span-5",
   6: "col-span-6",
 }
 
@@ -101,33 +104,34 @@ function FormFieldCell({ field }: { field: FormField }) {
 }
 
 /**
- * SectionForm — a two-column form group: a title + description block on the
- * left, and a 6-column field grid on the right. The left title and the right
- * grid's first row share the same top edge; fields declare their own span (1–6)
- * and wrap. The grid never constrains which control a field carries.
- * The reusable Section behind settings-style pages.
+ * SectionForm — a two-column form group: a title + description block, and a
+ * 6-column field grid. It is a container-query context (`@container/section`):
+ * the two columns stack (title above the fields) until the panel is wide enough
+ * (`@3xl`, 48rem) to place them side by side, so a narrow panel never crams the
+ * inputs. Both columns are fluid, not fixed. Fields declare their own span (1–6)
+ * and wrap. Horizontal padding is 2× the panel header's (`px-4` = 16px).
  */
 export function SectionFormRenderer({ props }: { props: SectionFormProps }) {
   return (
-    <div className="grid items-start gap-x-14 gap-y-6 px-11 py-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-      <div>
-        <h3 className="text-base font-semibold tracking-tight">
-          {props.title}
-        </h3>
-        {props.description != null ? (
-          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            {props.description}
-          </p>
-        ) : null}
-      </div>
+    <div className="@container/section px-4 py-4">
+      <div className="grid grid-cols-1 gap-y-6 @3xl/section:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] @3xl/section:items-start @3xl/section:gap-x-12">
+        <div>
+          <Heading level={2}>{props.title}</Heading>
+          {props.description != null ? (
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              {props.description}
+            </p>
+          ) : null}
+        </div>
 
-      <div className="grid grid-cols-6 gap-x-6 gap-y-6">
-        {props.fields.map((field, index) => (
-          <FormFieldCell
-            key={field.name ?? `${field.label}-${index}`}
-            field={field}
-          />
-        ))}
+        <div className="grid grid-cols-6 gap-x-6 gap-y-6">
+          {props.fields.map((field, index) => (
+            <FormFieldCell
+              key={field.name ?? `${field.label}-${index}`}
+              field={field}
+            />
+          ))}
+        </div>
       </div>
     </div>
   )

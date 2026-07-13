@@ -10,36 +10,48 @@ import type { ComponentType } from "react"
 const SECTION_BRAND = Symbol("section-brand")
 
 /** The closed set of section kinds. Extending this is review-gated. */
-export const SECTION_KINDS = ["empty", "form"] as const
+export const SECTION_KINDS = ["empty", "form", "space"] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
+
+/** Section-level metadata that every kind shares (not per-kind `props`). */
+export interface SectionMeta {
+  /**
+   * Optional URL/scroll anchor — a stable slug applied as the section's DOM `id`
+   * by `ContentBody`, so `…/page#legal-identity` deep-links, CLI/agent links,
+   * and docs help-center links can navigate straight to a section.
+   */
+  readonly anchor?: string
+  /**
+   * Whether the section fills the remaining body height (`flex-1`) rather than
+   * taking its natural height. `Empty` fills (a blank page centres it); `Form`
+   * and `Space` are natural-height and the body scrolls past them. Default false.
+   */
+  readonly fill?: boolean
+}
 
 /** A branded, plain-data description of one body Section. */
 export interface SectionDescriptor<
   K extends SectionKind = SectionKind,
   P = unknown,
-> {
+> extends SectionMeta {
   readonly [SECTION_BRAND]: true
   readonly kind: K
   readonly props: P
-  /**
-   * Optional URL/scroll anchor — a stable slug applied as the section's DOM `id`
-   * by `ContentBody`. Section-level (every kind gets it, not per-kind props), so
-   * `…/page#legal-identity` deep-links, CLI/agent links, and docs help-center
-   * links can navigate straight to a section.
-   */
-  readonly anchor?: string
 }
 
 /** Internal-only minter — factories are the sole construction path. */
 export function defineSection<K extends SectionKind, P>(
   kind: K,
   props: P,
-  anchor?: string,
+  meta?: SectionMeta,
 ): SectionDescriptor<K, P> {
-  return { [SECTION_BRAND]: true, kind, props, anchor } as SectionDescriptor<
-    K,
-    P
-  >
+  return {
+    [SECTION_BRAND]: true,
+    kind,
+    props,
+    anchor: meta?.anchor,
+    fill: meta?.fill,
+  } as SectionDescriptor<K, P>
 }
 
 /** Dev-only guard: is this an authentically branded section descriptor? */

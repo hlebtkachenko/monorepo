@@ -13,7 +13,8 @@ export function sectionEmpty(
   props?: SectionEmptyProps,
 ): SectionDescriptor<"empty", SectionEmptyProps> {
   const { anchor, ...rest } = props ?? {}
-  return defineSection("empty", rest, anchor)
+  // Empty fills the body so a blank page centres it full-height.
+  return defineSection("empty", rest, { anchor, fill: true })
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   fetchJson,
   type RegistryItem,
   type UpstreamManifest,
+  validateConfigStyle,
   validateManifest,
 } from "./shadcn-upstream"
 
@@ -43,7 +44,31 @@ function manifest(digest = digestRegistryItem(button)): UpstreamManifest {
         reviewedAt: "2026-07-13",
       },
     },
-    assets: {},
+    assets: {
+      "hirael-audit-log": {
+        format: "registry-item",
+        url: "https://hirael.com/r/audit-log.json",
+        local: "src/components/audit-log/audit-log.tsx",
+        item: "audit-log",
+        digest: "sha256:audit-log",
+        reviewedAt: "2026-07-13",
+      },
+      "hirael-stat-card": {
+        format: "registry-item",
+        url: "https://hirael.com/r/stat-card.json",
+        local: "src/components/stat-card/stat-card.tsx",
+        item: "stat-card",
+        digest: "sha256:stat-card",
+        reviewedAt: "2026-07-13",
+      },
+      typeset: {
+        format: "text",
+        url: "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
+        local: "src/styles/typeset.css",
+        digest: "sha256:typeset",
+        reviewedAt: "2026-07-13",
+      },
+    },
   }
 }
 
@@ -149,6 +174,52 @@ describe("shadcn upstream tracking", () => {
     )
     expect(() => validateManifest(manifest(), "radix-rhea")).toThrow(
       "does not match",
+    )
+  })
+
+  it("pins the deliberate shadcn style", () => {
+    expect(validateConfigStyle("radix-nova")).toBe("radix-nova")
+    expect(() => validateConfigStyle("radix-rhea")).toThrow("must remain")
+  })
+
+  it("requires the exact trusted source asset set and metadata", () => {
+    const base = manifest()
+    expect(() => validateManifest(base, "radix-nova")).not.toThrow()
+
+    for (const mutate of [
+      (value: UpstreamManifest) => {
+        value.assets.typeset!.url = "https://example.com/typeset.css"
+      },
+      (value: UpstreamManifest) => {
+        value.assets.typeset!.local = "../../.env"
+      },
+      (value: UpstreamManifest) => {
+        value.assets["hirael-audit-log"]!.item = "other-item"
+      },
+    ]) {
+      const changed = structuredClone(base)
+      mutate(changed)
+      expect(() => validateManifest(changed, "radix-nova")).toThrow(
+        "source does not match trusted metadata",
+      )
+    }
+
+    const missing = structuredClone(base)
+    delete missing.assets.typeset
+    expect(() => validateManifest(missing, "radix-nova")).toThrow(
+      "must exactly match tracked sources",
+    )
+
+    const extra = structuredClone(base)
+    extra.assets.other = {
+      format: "text",
+      url: "https://example.com/other.css",
+      local: "src/styles/other.css",
+      digest: "sha256:other",
+      reviewedAt: "2026-07-13",
+    }
+    expect(() => validateManifest(extra, "radix-nova")).toThrow(
+      "must exactly match tracked sources",
     )
   })
 

@@ -8,6 +8,8 @@ const UI_ROOT = resolve(import.meta.dirname, "..")
 const MANIFEST_PATH = resolve(UI_ROOT, "shadcn-upstream.json")
 const CONFIG_PATH = resolve(UI_ROOT, "components.json")
 const INDEX_URL = "https://ui.shadcn.com/r/index.json"
+const STYLE_REGISTRY_URL = "https://ui.shadcn.com/r/styles/radix-nova"
+const SUPPORTED_STYLE = "radix-nova"
 const REQUEST_TIMEOUT_MS = 15_000
 const REQUEST_ATTEMPTS = 3
 
@@ -37,6 +39,34 @@ export interface AssetEntry {
   item?: string
   digest: string
   reviewedAt: string
+}
+
+const TRACKED_ASSET_SOURCES = {
+  "hirael-audit-log": {
+    format: "registry-item",
+    url: "https://hirael.com/r/audit-log.json",
+    local: "src/components/audit-log/audit-log.tsx",
+    item: "audit-log",
+  },
+  "hirael-stat-card": {
+    format: "registry-item",
+    url: "https://hirael.com/r/stat-card.json",
+    local: "src/components/stat-card/stat-card.tsx",
+    item: "stat-card",
+  },
+  typeset: {
+    format: "text",
+    url: "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
+    local: "src/styles/typeset.css",
+  },
+} as const satisfies Record<
+  string,
+  Pick<AssetEntry, "format" | "url" | "local" | "item">
+>
+
+function trackedAssetSource(name: string) {
+  if (!Object.hasOwn(TRACKED_ASSET_SOURCES, name)) return undefined
+  return TRACKED_ASSET_SOURCES[name as keyof typeof TRACKED_ASSET_SOURCES]
 }
 
 export interface RegistryItem {
@@ -130,6 +160,13 @@ export function digestTextAsset(content: string) {
   return `sha256:${createHash("sha256").update(content.replaceAll("\r\n", "\n")).digest("hex")}`
 }
 
+export function validateConfigStyle(style: unknown) {
+  if (style !== SUPPORTED_STYLE) {
+    throw new Error(`components.json style must remain ${SUPPORTED_STYLE}`)
+  }
+  return SUPPORTED_STYLE
+}
+
 export function validateManifest(manifest: UpstreamManifest, style: string) {
   if (manifest.version !== 1 || manifest.registry !== "@shadcn") {
     throw new Error("Invalid shadcn upstream manifest header")
@@ -164,15 +201,22 @@ export function validateManifest(manifest: UpstreamManifest, style: string) {
   if (!manifest.assets || typeof manifest.assets !== "object") {
     throw new Error("Manifest assets are required")
   }
-  for (const [name, asset] of Object.entries(manifest.assets)) {
-    if (!(["registry-item", "text"] as string[]).includes(asset.format)) {
-      throw new Error(`${name}: invalid asset format ${String(asset.format)}`)
-    }
-    if (!asset.url.startsWith("https://") || !asset.local) {
-      throw new Error(`${name}: asset url and local path are required`)
-    }
-    if (asset.format === "registry-item" && !asset.item) {
-      throw new Error(`${name}: registry-item assets require item`)
+  const assetNames = Object.keys(manifest.assets).sort()
+  const trackedAssetNames = Object.keys(TRACKED_ASSET_SOURCES).sort()
+  if (JSON.stringify(assetNames) !== JSON.stringify(trackedAssetNames)) {
+    throw new Error(
+      `Manifest assets must exactly match tracked sources: ${trackedAssetNames.join(", ")}`,
+    )
+  }
+  for (const [name, source] of Object.entries(TRACKED_ASSET_SOURCES)) {
+    const asset = manifest.assets[name]!
+    if (
+      asset.format !== source.format ||
+      asset.url !== source.url ||
+      asset.local !== source.local ||
+      asset.item !== ("item" in source ? source.item : undefined)
+    ) {
+      throw new Error(`${name}: source does not match trusted metadata`)
     }
     if (!asset.digest.startsWith("sha256:") || !asset.reviewedAt) {
       throw new Error(`${name}: asset digest and reviewedAt are required`)
@@ -316,7 +360,7 @@ function assertRegistryItem(
   return item
 }
 
-async function fetchUpstream(style: string) {
+async function fetchUpstream() {
   const rawIndex = await fetchJson(INDEX_URL)
   if (!Array.isArray(rawIndex))
     throw new Error("Official registry index must be an array")
@@ -333,9 +377,7 @@ async function fetchUpstream(style: string) {
     items.push(
       ...(await Promise.all(
         batch.map(async (name) => {
-          const value = await fetchJson(
-            `https://ui.shadcn.com/r/styles/${style}/${name}.json`,
-          )
+          const value = await fetchJson(`${STYLE_REGISTRY_URL}/${name}.json`)
           return assertRegistryItem(value, name)
         }),
       )),
@@ -344,27 +386,30 @@ async function fetchUpstream(style: string) {
   return items
 }
 
-async function fetchUpstreamAssets(manifest: UpstreamManifest) {
+async function fetchUpstreamAssets() {
   return Object.fromEntries(
     await Promise.all(
-      Object.entries(manifest.assets).map(async ([name, asset]) => {
-        if (asset.format === "text") {
-          return [name, digestTextAsset(await fetchText(asset.url))]
+      Object.entries(TRACKED_ASSET_SOURCES).map(async ([name, source]) => {
+        if (source.format === "text") {
+          return [name, digestTextAsset(await fetchText(source.url))]
         }
-        const item = assertRegistryItem(await fetchJson(asset.url), asset.item)
+        const item = assertRegistryItem(
+          await fetchJson(source.url),
+          source.item,
+        )
         return [name, digestRegistryItem(item)]
       }),
     ),
   )
 }
 
-async function validateLocalAssets(manifest: UpstreamManifest) {
+async function validateLocalAssets() {
   const errors: string[] = []
-  for (const [name, asset] of Object.entries(manifest.assets)) {
+  for (const [name, source] of Object.entries(TRACKED_ASSET_SOURCES)) {
     try {
-      await readFile(resolve(UI_ROOT, asset.local))
+      await readFile(resolve(UI_ROOT, source.local))
     } catch {
-      errors.push(`${name}: local source asset ${asset.local} is missing`)
+      errors.push(`${name}: local source asset ${source.local} is missing`)
     }
   }
   return errors
@@ -402,7 +447,7 @@ function markdownReport(report: DriftReport, manifest: UpstreamManifest) {
     for (const item of items) {
       const name = item.split(":", 1)[0]!
       const entry = manifest.items[name]
-      const asset = manifest.assets[name]
+      const asset = trackedAssetSource(name)
       const detail = report.digests[name]
         ? ` current \`${report.digests[name]}\`${entry ? `, reviewed \`${entry.digest}\`` : ""}`
         : ""
@@ -416,7 +461,7 @@ function markdownReport(report: DriftReport, manifest: UpstreamManifest) {
       } else {
         lines.push(
           `- **${item}**${detail}`,
-          `  - Source: https://ui.shadcn.com/r/styles/${manifest.style}/${name}.json`,
+          `  - Source: ${STYLE_REGISTRY_URL}/${name}.json`,
           ...(entry?.local
             ? [`  - Local registry item: \`${entry.local}\``]
             : []),
@@ -430,11 +475,12 @@ function markdownReport(report: DriftReport, manifest: UpstreamManifest) {
   if (report.changedAssets.length) {
     lines.push("## Changed source assets", "")
     for (const name of report.changedAssets) {
-      const asset = manifest.assets[name]!
+      const source = trackedAssetSource(name)!
+      const reviewed = manifest.assets[name]!
       lines.push(
-        `- **${name}** current \`${report.assetDigests[name]}\`, reviewed \`${asset.digest}\``,
-        `  - Source: ${asset.url}`,
-        `  - Local: \`${asset.local}\``,
+        `- **${name}** current \`${report.assetDigests[name]}\`, reviewed \`${reviewed.digest}\``,
+        `  - Source: ${source.url}`,
+        `  - Local: \`${source.local}\``,
         `  - Record review: \`pnpm review:shadcn-upstream -- --asset ${name}\``,
       )
     }
@@ -447,9 +493,7 @@ async function readConfigStyle() {
   const config = JSON.parse(await readFile(CONFIG_PATH, "utf8")) as {
     style?: unknown
   }
-  if (typeof config.style !== "string")
-    throw new Error("components.json style is required")
-  return config.style
+  return validateConfigStyle(config.style)
 }
 
 async function readManifest(style: string): Promise<UpstreamManifest> {
@@ -489,8 +533,8 @@ async function main() {
   const style = await readConfigStyle()
   const manifest = await readManifest(style)
   if (Object.keys(manifest.items).length) validateManifest(manifest, style)
-  const upstream = await fetchUpstream(style)
-  const assetDigests = await fetchUpstreamAssets(manifest)
+  const upstream = await fetchUpstream()
+  const assetDigests = await fetchUpstreamAssets()
 
   if (command === "review") {
     const names = argValues("--item")
@@ -520,10 +564,10 @@ async function main() {
       }
     }
     for (const name of assetNames) {
-      const asset = manifest.assets[name]
+      const source = trackedAssetSource(name)
       const digest = assetDigests[name]
-      if (!asset || !digest) throw new Error(`${name}: unknown source asset`)
-      manifest.assets[name] = { ...asset, digest, reviewedAt }
+      if (!source || !digest) throw new Error(`${name}: unknown source asset`)
+      manifest.assets[name] = { ...source, digest, reviewedAt }
     }
     manifest.items = Object.fromEntries(
       Object.entries(manifest.items).sort(([left], [right]) =>
@@ -545,7 +589,7 @@ async function main() {
     localCoverage().localShadcnNames,
     assetDigests,
   )
-  report.invalidLocal.push(...(await validateLocalAssets(manifest)))
+  report.invalidLocal.push(...(await validateLocalAssets()))
   report.invalidLocal.sort()
   const body = hasDrift(report)
     ? markdownReport(report, manifest)

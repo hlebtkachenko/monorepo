@@ -135,6 +135,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
+- `CONDUCTOR.md`: how Conductor workspaces are wired — committed `.conductor/settings.toml` + `scripts/conductor/*` as the source of truth, full per-workspace isolation (own `$CONDUCTOR_PORT` range + own seeded `ws_p<port>` Postgres database, shared demo login `owner@example.com`), the setup/archive/run scripts, and cloud-workspace GitHub + secrets setup
 - `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the five-archetype catalog (Table / Blank / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the four dev-only `/demo-*` routes as living examples
 - `CODEGRAPH.md`: how the repo-local CodeGraph MCP/index setup works, how to initialize/sync per Conductor worktree, and when agents should use it before grep/read exploration
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL

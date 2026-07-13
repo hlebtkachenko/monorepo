@@ -70,6 +70,9 @@ const config: KnipConfig = {
         "e2e/global-teardown.ts",
         "e2e/db-setup.ts",
       ],
+      // Dev seed run via `pnpm exec tsx apps/web/scripts/...` from the Conductor
+      // setup script (string path), never imported into the TS graph.
+      ignore: ["scripts/*.ts"],
     },
     "packages/auth": {
       // Dev/admin CLIs run via `pnpm tsx packages/auth/scripts/...`, never imported.

@@ -1643,7 +1643,7 @@ export function InputsDebug() {
       {/* ---------------- Toggle ---------------- */}
       <Section
         title="Toggle"
-        blurb="Single pressable button. variant: default | outline. size: sm | default | lg. State via pressed / defaultPressed."
+        blurb="Single pressable button. variant: default | outline. size: sm | default (h-9, matches input). State via pressed / defaultPressed."
       >
         <Row
           name="<Toggle> variant='default'"
@@ -1656,16 +1656,13 @@ export function InputsDebug() {
             I
           </Toggle>
         </Row>
-        <Row name="size sm / default / lg" desc="three heights">
+        <Row name="size sm / default" desc="two heights (default = h-9)">
           <div className="flex items-center gap-2">
             <Toggle size="sm" variant="outline">
               sm
             </Toggle>
             <Toggle size="default" variant="outline">
               default
-            </Toggle>
-            <Toggle size="lg" variant="outline">
-              lg
             </Toggle>
           </div>
         </Row>

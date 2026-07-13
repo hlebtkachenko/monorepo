@@ -28,10 +28,6 @@ export const Small: Story = {
   render: () => <Toggle size="sm">Sm</Toggle>,
 }
 
-export const Large: Story = {
-  render: () => <Toggle size="lg">Lg</Toggle>,
-}
-
 export const Pressed: Story = {
   render: () => <Toggle defaultPressed>Pressed</Toggle>,
 }

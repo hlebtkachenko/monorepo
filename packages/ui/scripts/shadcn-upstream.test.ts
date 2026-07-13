@@ -46,25 +46,14 @@ function manifest(digest = digestRegistryItem(button)): UpstreamManifest {
     },
     assets: {
       "hirael-audit-log": {
-        format: "registry-item",
-        url: "https://hirael.com/r/audit-log.json",
-        local: "src/components/audit-log/audit-log.tsx",
-        item: "audit-log",
         digest: "sha256:audit-log",
         reviewedAt: "2026-07-13",
       },
       "hirael-stat-card": {
-        format: "registry-item",
-        url: "https://hirael.com/r/stat-card.json",
-        local: "src/components/stat-card/stat-card.tsx",
-        item: "stat-card",
         digest: "sha256:stat-card",
         reviewedAt: "2026-07-13",
       },
       typeset: {
-        format: "text",
-        url: "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
-        local: "src/styles/typeset.css",
         digest: "sha256:typeset",
         reviewedAt: "2026-07-13",
       },
@@ -182,27 +171,19 @@ describe("shadcn upstream tracking", () => {
     expect(() => validateConfigStyle("radix-rhea")).toThrow("must remain")
   })
 
-  it("requires the exact trusted source asset set and metadata", () => {
+  it("requires the exact trusted source asset set with a valid digest", () => {
+    // Source url/local/item are not stored in the manifest at all — they live
+    // only in TRACKED_ASSET_SOURCES (code), so a manifest edit cannot redirect
+    // an asset to a spoofed url or a traversal path. The manifest only carries
+    // the reviewed digest and date, and both are validated.
     const base = manifest()
     expect(() => validateManifest(base, "radix-nova")).not.toThrow()
 
-    for (const mutate of [
-      (value: UpstreamManifest) => {
-        value.assets.typeset!.url = "https://example.com/typeset.css"
-      },
-      (value: UpstreamManifest) => {
-        value.assets.typeset!.local = "../../.env"
-      },
-      (value: UpstreamManifest) => {
-        value.assets["hirael-audit-log"]!.item = "other-item"
-      },
-    ]) {
-      const changed = structuredClone(base)
-      mutate(changed)
-      expect(() => validateManifest(changed, "radix-nova")).toThrow(
-        "source does not match trusted metadata",
-      )
-    }
+    const badDigest = structuredClone(base)
+    badDigest.assets.typeset!.digest = "not-a-sha"
+    expect(() => validateManifest(badDigest, "radix-nova")).toThrow(
+      "asset digest and reviewedAt are required",
+    )
 
     const missing = structuredClone(base)
     delete missing.assets.typeset
@@ -211,13 +192,7 @@ describe("shadcn upstream tracking", () => {
     )
 
     const extra = structuredClone(base)
-    extra.assets.other = {
-      format: "text",
-      url: "https://example.com/other.css",
-      local: "src/styles/other.css",
-      digest: "sha256:other",
-      reviewedAt: "2026-07-13",
-    }
+    extra.assets.other = { digest: "sha256:other", reviewedAt: "2026-07-13" }
     expect(() => validateManifest(extra, "radix-nova")).toThrow(
       "must exactly match tracked sources",
     )
@@ -226,9 +201,6 @@ describe("shadcn upstream tracking", () => {
   it("detects tracked source asset changes", () => {
     const base = manifest()
     base.assets.typeset = {
-      format: "text",
-      url: "https://example.com/typeset.css",
-      local: "src/styles/typeset.css",
       digest: "sha256:old",
       reviewedAt: "2026-07-13",
     }
@@ -251,6 +223,23 @@ describe("shadcn upstream tracking", () => {
       })
     try {
       await expect(fetchJson("https://example.com/item.json")).rejects.toThrow()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it("fails a 4xx fast and prefixes the url exactly once", async () => {
+    const originalFetch = globalThis.fetch
+    let calls = 0
+    globalThis.fetch = async () => {
+      calls++
+      return new Response("nope", { status: 404, statusText: "Not Found" })
+    }
+    try {
+      await expect(fetchJson("https://example.com/item.json")).rejects.toThrow(
+        "https://example.com/item.json: 404 Not Found",
+      )
+      expect(calls).toBe(1)
     } finally {
       globalThis.fetch = originalFetch
     }

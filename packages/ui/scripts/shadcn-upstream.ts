@@ -33,12 +33,15 @@ export interface UpstreamManifest {
 }
 
 export interface AssetEntry {
+  digest: string
+  reviewedAt: string
+}
+
+interface TrackedAssetSource {
   format: AssetFormat
   url: string
   local: string
   item?: string
-  digest: string
-  reviewedAt: string
 }
 
 const TRACKED_ASSET_SOURCES = {
@@ -59,10 +62,7 @@ const TRACKED_ASSET_SOURCES = {
     url: "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
     local: "src/styles/typeset.css",
   },
-} as const satisfies Record<
-  string,
-  Pick<AssetEntry, "format" | "url" | "local" | "item">
->
+} as const satisfies Record<string, TrackedAssetSource>
 
 function trackedAssetSource(name: string) {
   if (!Object.hasOwn(TRACKED_ASSET_SOURCES, name)) return undefined
@@ -72,14 +72,7 @@ function trackedAssetSource(name: string) {
 export interface RegistryItem {
   name: string
   type: string
-  dependencies?: string[]
-  devDependencies?: string[]
-  registryDependencies?: Array<string | Record<string, unknown>>
   files?: Array<Record<string, unknown>>
-  css?: unknown
-  cssVars?: unknown
-  tailwind?: unknown
-  envVars?: unknown
   [key: string]: unknown
 }
 
@@ -105,7 +98,7 @@ const METADATA_KEYS = new Set([
 ])
 
 function normalizeValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortValue)
+  if (Array.isArray(value)) return value.map(normalizeValue)
   if (typeof value === "string") return value.replaceAll("\r\n", "\n")
   if (!value || typeof value !== "object") return value
   return Object.fromEntries(
@@ -115,14 +108,10 @@ function normalizeValue(value: unknown): unknown {
   )
 }
 
-function sortValue(value: unknown): unknown {
-  return normalizeValue(value)
-}
-
 function sortedSet(values: unknown): unknown[] {
   if (!Array.isArray(values)) return []
   return values
-    .map(sortValue)
+    .map(normalizeValue)
     .sort((left, right) =>
       JSON.stringify(left).localeCompare(JSON.stringify(right)),
     )
@@ -141,14 +130,14 @@ export function normalizeRegistryItem(item: RegistryItem) {
   }
   implementation.files = Array.isArray(implementation.files)
     ? implementation.files
-        .map(sortValue)
+        .map(normalizeValue)
         .sort((left, right) =>
           String((left as { path?: unknown }).path).localeCompare(
             String((right as { path?: unknown }).path),
           ),
         )
     : []
-  return sortValue(implementation)
+  return normalizeValue(implementation)
 }
 
 export function digestRegistryItem(item: RegistryItem) {
@@ -208,16 +197,7 @@ export function validateManifest(manifest: UpstreamManifest, style: string) {
       `Manifest assets must exactly match tracked sources: ${trackedAssetNames.join(", ")}`,
     )
   }
-  for (const [name, source] of Object.entries(TRACKED_ASSET_SOURCES)) {
-    const asset = manifest.assets[name]!
-    if (
-      asset.format !== source.format ||
-      asset.url !== source.url ||
-      asset.local !== source.local ||
-      asset.item !== ("item" in source ? source.item : undefined)
-    ) {
-      throw new Error(`${name}: source does not match trusted metadata`)
-    }
+  for (const [name, asset] of Object.entries(manifest.assets)) {
     if (!asset.digest.startsWith("sha256:") || !asset.reviewedAt) {
       throw new Error(`${name}: asset digest and reviewedAt are required`)
     }
@@ -290,55 +270,60 @@ export function compareUpstream(
   return next
 }
 
-export async function fetchJson(url: string): Promise<unknown> {
+const USER_AGENT = "afframe-shadcn-audit"
+
+class UpstreamHttpError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+// Retries only on network faults and 5xx; a 4xx is a permanent answer, so it
+// fails fast. The single `${url}:` prefix lives here, never re-wrapped by callers.
+async function fetchRetry(
+  url: string,
+  headers: HeadersInit,
+): Promise<Response> {
   let lastError: unknown
   for (let attempt = 1; attempt <= REQUEST_ATTEMPTS; attempt++) {
     try {
       const response = await fetch(url, {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "afframe-shadcn-audit",
-        },
+        headers,
       })
-      if (!response.ok) {
-        if (response.status >= 500)
-          throw new Error(`${response.status} ${response.statusText}`)
-        throw new Error(`${url}: ${response.status} ${response.statusText}`)
-      }
-      return await response.json()
-    } catch (error) {
+      if (response.ok) return response
+      const error = new UpstreamHttpError(
+        response.status,
+        `${url}: ${response.status} ${response.statusText}`,
+      )
+      if (response.status < 500) throw error
       lastError = error
-      if (attempt === REQUEST_ATTEMPTS) break
+    } catch (error) {
+      if (error instanceof UpstreamHttpError && error.status < 500) throw error
+      lastError = error
     }
   }
-  throw new Error(
-    `${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
-  )
+  throw lastError instanceof UpstreamHttpError
+    ? lastError
+    : new Error(
+        `${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      )
+}
+
+export async function fetchJson(url: string): Promise<unknown> {
+  const response = await fetchRetry(url, {
+    Accept: "application/json",
+    "User-Agent": USER_AGENT,
+  })
+  return response.json()
 }
 
 export async function fetchText(url: string): Promise<string> {
-  let lastError: unknown
-  for (let attempt = 1; attempt <= REQUEST_ATTEMPTS; attempt++) {
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        headers: { "User-Agent": "afframe-shadcn-audit" },
-      })
-      if (!response.ok) {
-        if (response.status >= 500)
-          throw new Error(`${response.status} ${response.statusText}`)
-        throw new Error(`${url}: ${response.status} ${response.statusText}`)
-      }
-      return await response.text()
-    } catch (error) {
-      lastError = error
-      if (attempt === REQUEST_ATTEMPTS) break
-    }
-  }
-  throw new Error(
-    `${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
-  )
+  const response = await fetchRetry(url, { "User-Agent": USER_AGENT })
+  return response.text()
 }
 
 function assertRegistryItem(
@@ -360,7 +345,7 @@ function assertRegistryItem(
   return item
 }
 
-async function fetchUpstream() {
+async function fetchUpstreamNames(): Promise<string[]> {
   const rawIndex = await fetchJson(INDEX_URL)
   if (!Array.isArray(rawIndex))
     throw new Error("Official registry index must be an array")
@@ -370,35 +355,42 @@ async function fetchUpstream() {
     .map((item) => item.name)
   if (new Set(names).size !== names.length)
     throw new Error("Official registry contains duplicate UI names")
+  return names
+}
 
+async function fetchUpstreamItem(name: string): Promise<RegistryItem> {
+  return assertRegistryItem(
+    await fetchJson(`${STYLE_REGISTRY_URL}/${name}.json`),
+    name,
+  )
+}
+
+async function fetchUpstream(): Promise<RegistryItem[]> {
+  const names = await fetchUpstreamNames()
   const items: RegistryItem[] = []
   for (let index = 0; index < names.length; index += 8) {
     const batch = names.slice(index, index + 8)
-    items.push(
-      ...(await Promise.all(
-        batch.map(async (name) => {
-          const value = await fetchJson(`${STYLE_REGISTRY_URL}/${name}.json`)
-          return assertRegistryItem(value, name)
-        }),
-      )),
-    )
+    items.push(...(await Promise.all(batch.map(fetchUpstreamItem))))
   }
   return items
 }
 
-async function fetchUpstreamAssets() {
+async function fetchAssetDigest(source: TrackedAssetSource): Promise<string> {
+  if (source.format === "text") {
+    return digestTextAsset(await fetchText(source.url))
+  }
+  return digestRegistryItem(
+    assertRegistryItem(await fetchJson(source.url), source.item),
+  )
+}
+
+async function fetchUpstreamAssets(): Promise<Record<string, string>> {
   return Object.fromEntries(
     await Promise.all(
-      Object.entries(TRACKED_ASSET_SOURCES).map(async ([name, source]) => {
-        if (source.format === "text") {
-          return [name, digestTextAsset(await fetchText(source.url))]
-        }
-        const item = assertRegistryItem(
-          await fetchJson(source.url),
-          source.item,
-        )
-        return [name, digestRegistryItem(item)]
-      }),
+      Object.entries(TRACKED_ASSET_SOURCES).map(
+        async ([name, source]) =>
+          [name, await fetchAssetDigest(source)] as const,
+      ),
     ),
   )
 }
@@ -432,7 +424,6 @@ function markdownReport(report: DriftReport, manifest: UpstreamManifest) {
     ["Changed adapted or composed items", report.changedLocal],
     ["Changed covered items", report.changedCovered],
     ["Removed upstream items", report.removed],
-    ["Invalid local coverage", report.invalidLocal],
   ]
   const lines = [
     "# shadcn upstream review required",
@@ -470,6 +461,11 @@ function markdownReport(report: DriftReport, manifest: UpstreamManifest) {
         )
       }
     }
+    lines.push("")
+  }
+  if (report.invalidLocal.length) {
+    lines.push("## Invalid local coverage", "")
+    for (const issue of report.invalidLocal) lines.push(`- ${issue}`)
     lines.push("")
   }
   if (report.changedAssets.length) {
@@ -511,8 +507,7 @@ function localCoverage() {
     Object.entries(localRegistry)
       .filter(
         ([, meta]) =>
-          meta.source.includes("shadcn") &&
-          meta.upstream?.includes("/docs/components/"),
+          meta.source.includes("shadcn") && meta.tracking !== "asset",
       )
       .map(([name]) => name),
   )
@@ -528,65 +523,77 @@ function argValues(flag: string) {
   return values
 }
 
+async function review(manifest: UpstreamManifest, style: string) {
+  const names = argValues("--item")
+  const assetNames = argValues("--asset")
+  if (!names.length && !assetNames.length)
+    throw new Error("review requires one or more --item or --asset values")
+  const stateArg = argValues("--state").at(-1) as UpstreamState | undefined
+  const localArg = argValues("--local").at(-1)
+  const reasonArg = argValues("--reason").at(-1)
+  if (names.length > 1 && (localArg !== undefined || reasonArg !== undefined))
+    throw new Error(
+      "--local and --reason apply to a single item; review one --item at a time",
+    )
+  const reviewedAt = new Date().toISOString().slice(0, 10)
+
+  const validNames = names.length ? new Set(await fetchUpstreamNames()) : null
+  for (const name of names) {
+    if (!validNames!.has(name))
+      throw new Error(`${name}: not found in official registry`)
+    const item = await fetchUpstreamItem(name)
+    const previous = manifest.items[name]
+    const state = stateArg ?? previous?.state
+    if (!state) throw new Error(`${name}: new entries require --state`)
+    const local =
+      localArg ?? previous?.local ?? (state === "covered" ? undefined : name)
+    const reason = reasonArg ?? previous?.reason
+    manifest.items[name] = {
+      state,
+      ...(local ? { local } : {}),
+      ...(reason ? { reason } : {}),
+      digest: digestRegistryItem(item),
+      reviewedAt,
+    }
+  }
+  for (const name of assetNames) {
+    const source = trackedAssetSource(name)
+    if (!source) throw new Error(`${name}: unknown source asset`)
+    manifest.assets[name] = {
+      digest: await fetchAssetDigest(source),
+      reviewedAt,
+    }
+  }
+  manifest.items = Object.fromEntries(
+    Object.entries(manifest.items).sort(([left], [right]) =>
+      left.localeCompare(right),
+    ),
+  )
+  validateManifest(manifest, style)
+  await writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
+  console.log(`Reviewed ${[...names, ...assetNames].join(", ")}`)
+}
+
 async function main() {
   const command = process.argv[2] ?? "check"
   const style = await readConfigStyle()
   const manifest = await readManifest(style)
   if (Object.keys(manifest.items).length) validateManifest(manifest, style)
-  const upstream = await fetchUpstream()
-  const assetDigests = await fetchUpstreamAssets()
 
   if (command === "review") {
-    const names = argValues("--item")
-    const assetNames = argValues("--asset")
-    if (!names.length && !assetNames.length)
-      throw new Error("review requires one or more --item or --asset values")
-    const stateArg = argValues("--state").at(-1) as UpstreamState | undefined
-    const localArg = argValues("--local").at(-1)
-    const reasonArg = argValues("--reason").at(-1)
-    const upstreamByName = new Map(upstream.map((item) => [item.name, item]))
-    const reviewedAt = new Date().toISOString().slice(0, 10)
-    for (const name of names) {
-      const item = upstreamByName.get(name)
-      if (!item) throw new Error(`${name}: not found in official registry`)
-      const previous = manifest.items[name]
-      const state = stateArg ?? previous?.state
-      if (!state) throw new Error(`${name}: new entries require --state`)
-      const local =
-        localArg ?? previous?.local ?? (state === "covered" ? undefined : name)
-      const reason = reasonArg ?? previous?.reason
-      manifest.items[name] = {
-        state,
-        ...(local ? { local } : {}),
-        ...(reason ? { reason } : {}),
-        digest: digestRegistryItem(item),
-        reviewedAt,
-      }
-    }
-    for (const name of assetNames) {
-      const source = trackedAssetSource(name)
-      const digest = assetDigests[name]
-      if (!source || !digest) throw new Error(`${name}: unknown source asset`)
-      manifest.assets[name] = { ...source, digest, reviewedAt }
-    }
-    manifest.items = Object.fromEntries(
-      Object.entries(manifest.items).sort(([left], [right]) =>
-        left.localeCompare(right),
-      ),
-    )
-    validateManifest(manifest, style)
-    await writeFile(MANIFEST_PATH, `${JSON.stringify(manifest, null, 2)}\n`)
-    console.log(`Reviewed ${[...names, ...assetNames].join(", ")}`)
+    await review(manifest, style)
     return
   }
-
   if (command !== "check") throw new Error(`Unknown command ${command}`)
-  validateManifest(manifest, style)
+
+  const upstream = await fetchUpstream()
+  const assetDigests = await fetchUpstreamAssets()
+  const { localNames, localShadcnNames } = localCoverage()
   const report = compareUpstream(
     upstream,
     manifest,
-    localCoverage().localNames,
-    localCoverage().localShadcnNames,
+    localNames,
+    localShadcnNames,
     assetDigests,
   )
   report.invalidLocal.push(...(await validateLocalAssets()))

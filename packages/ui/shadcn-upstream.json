@@ -373,25 +373,14 @@
   },
   "assets": {
     "hirael-audit-log": {
-      "format": "registry-item",
-      "url": "https://hirael.com/r/audit-log.json",
-      "local": "src/components/audit-log/audit-log.tsx",
-      "item": "audit-log",
       "digest": "sha256:abbf55511fe22ab6c58430bc65073233082d5037beeb87173ebda0958d693621",
       "reviewedAt": "2026-07-13"
     },
     "hirael-stat-card": {
-      "format": "registry-item",
-      "url": "https://hirael.com/r/stat-card.json",
-      "local": "src/components/stat-card/stat-card.tsx",
-      "item": "stat-card",
       "digest": "sha256:a1dc5280df7987aff3f4f21362f39f9d8ea8e66625842e8f2023f5d01a2c37a3",
       "reviewedAt": "2026-07-13"
     },
     "typeset": {
-      "format": "text",
-      "url": "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
-      "local": "src/styles/typeset.css",
       "digest": "sha256:f70fb9750ffc48355ffa84c6d338dff866441a84f838901fa5739e148eea1be5",
       "reviewedAt": "2026-07-13"
     }

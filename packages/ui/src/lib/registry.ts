@@ -8,6 +8,10 @@ type ComponentMeta = {
   categories: string[]
   dependencies?: string[]
   packages?: string[]
+  // How the shadcn upstream audit tracks this entry. "asset" = tracked as a
+  // pinned source asset (see TRACKED_ASSET_SOURCES), so it is excluded from
+  // per-item registry drift enforcement. Omitted = tracked as a registry item.
+  tracking?: "item" | "asset"
 }
 
 export const registry: Record<string, ComponentMeta> = {
@@ -212,6 +216,7 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["data-display", "compliance"],
     dependencies: ["collapsible"],
     packages: ["class-variance-authority"],
+    tracking: "asset",
   },
   autocomplete: {
     source: "coss",
@@ -1027,6 +1032,7 @@ export const registry: Record<string, ComponentMeta> = {
       "Compact metric card with label, value, and up, down, or flat trend",
     categories: ["data-display", "dashboard"],
     dependencies: ["badge", "card"],
+    tracking: "asset",
   },
   swap: {
     source: "diceui",
@@ -1133,6 +1139,7 @@ export const registry: Record<string, ComponentMeta> = {
     description:
       "Token-driven HTML and rendered Markdown typography with container-relative rhythm and streaming-stable layout",
     categories: ["typography", "utility", "chat"],
+    tracking: "asset",
   },
   "webhook-tester": {
     source: "tryelements",

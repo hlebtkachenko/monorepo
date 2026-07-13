@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react"
 
+import { NextIntlClientProvider } from "@workspace/i18n/client"
+import messages from "@workspace/i18n/messages/en.json"
 import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { AppShell } from "./app-shell"
@@ -10,6 +12,13 @@ import { ErrorShell } from "./skeletons/error-shell"
 const meta: Meta = {
   title: "Blocks/AppShell",
   parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <Story />
+      </NextIntlClientProvider>
+    ),
+  ],
 }
 export default meta
 

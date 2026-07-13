@@ -71,8 +71,8 @@ function legalIdentity(): LeafSectionDescriptor {
 
 /**
  * An "Addresses" Details Tabs section — each tab is a DIFFERENT address kind with
- * its own distinct fields, so switching tabs visibly swaps the form below (not a
- * placeholder). A group child.
+ * its own distinct fields, so switching tabs visibly swaps the form below. A
+ * group child.
  */
 function addressesTabs(): LeafSectionDescriptor {
   const text = (label: string, name: string, span: 1 | 2 | 3 | 4 | 5 | 6) => ({
@@ -125,38 +125,33 @@ function addressesTabs(): LeafSectionDescriptor {
 }
 
 /**
- * A READONLY "Bank accounts" Details Table (the sketch) — display cells, a
- * "Primary" flag rendered as a green success badge or an em dash, and two action
- * buttons: "+ New" appends a blank editable row (real, local state); "Import from
- * Excel" is a `link` that navigates (real wiring is the page's job). A group child.
+ * EDITABLE "Bank accounts" Details Table — text + dropdown columns on the fixed
+ * 6-track grid (IBAN 2 · Bank 2 · Currency 1 · actions 1). Rows read-only until
+ * their Edit icon flips them to inputs; "Add account" appends an editable row,
+ * "Import from Excel" is a real navigation link. A group child.
  */
 function bankAccounts(): LeafSectionDescriptor {
   return sectionDetailsTable({
     anchor: "bank-accounts",
     title: "Bank accounts",
     description:
-      "Used on invoices and for párování plateb. The primary account prints by default.",
-    mode: "readonly",
+      "Used on invoices and for párování plateb. Edit inline; saved with the page.",
+    mode: "editable",
+    name: "bank_accounts",
     columns: [
-      { id: "iban", header: "IBAN", display: { kind: "mono" } },
-      { id: "bank", header: "Bank" },
+      { id: "iban", header: "IBAN", span: 2, control: { kind: "text" } },
+      { id: "bank", header: "Bank", span: 2, control: { kind: "text" } },
       {
         id: "currency",
         header: "Currency",
-        edit: {
+        span: 1,
+        control: {
           kind: "select",
           options: [
             { label: "CZK", value: "CZK" },
             { label: "EUR", value: "EUR" },
           ],
         },
-        display: { kind: "badge", tone: "neutral" },
-      },
-      {
-        id: "primary",
-        header: "Primary",
-        align: "end",
-        display: { kind: "badge-or-dash", tone: "success" },
       },
     ],
     rows: [
@@ -166,7 +161,6 @@ function bankAccounts(): LeafSectionDescriptor {
           iban: "CZ65 0800 0000 1920 0014 5399",
           bank: "Česká spořitelna",
           currency: "CZK",
-          primary: "Primary",
         },
       },
       {
@@ -175,17 +169,15 @@ function bankAccounts(): LeafSectionDescriptor {
           iban: "CZ12 2010 0000 0029 0148 1234",
           bank: "Fio banka",
           currency: "EUR",
-          primary: "",
         },
       },
     ],
+    addLabel: "Add account",
     actions: [
-      { id: "new", label: "New", icon: "add" },
       {
         id: "import",
         label: "Import from Excel",
         icon: "import",
-        behavior: "link",
         href: "?import=bank-accounts",
       },
     ],
@@ -193,22 +185,24 @@ function bankAccounts(): LeafSectionDescriptor {
 }
 
 /**
- * An EDITABLE "Contact people" Details Table — every existing row is inputs,
- * editable in place; "+ Add person" appends a blank removable row. A group child.
+ * EDITABLE "Contact people" Details Table — showcases the tags control (Emails)
+ * alongside text + dropdown. Name 2 · Role 1 · Emails 2 · actions 1. A group child.
  */
 function contacts(): LeafSectionDescriptor {
   return sectionDetailsTable({
     anchor: "contacts",
     title: "Contact people",
     description:
-      "Statutory representatives and daily contacts. Edited inline; saved with the page.",
+      "Statutory representatives and daily contacts. Edit inline; saved with the page.",
     mode: "editable",
+    name: "contacts",
     columns: [
-      { id: "name", header: "Name", edit: { kind: "text" } },
+      { id: "name", header: "Name", span: 2, control: { kind: "text" } },
       {
         id: "role",
         header: "Role",
-        edit: {
+        span: 1,
+        control: {
           kind: "select",
           placeholder: "Select…",
           options: [
@@ -219,29 +213,77 @@ function contacts(): LeafSectionDescriptor {
         },
       },
       {
-        id: "email",
-        header: "Email",
-        edit: { kind: "text", placeholder: "name@example.cz" },
+        id: "emails",
+        header: "Emails",
+        span: 2,
+        control: { kind: "tags", placeholder: "Add email…" },
       },
     ],
     rows: [
       {
         id: "r1",
-        cells: { name: "Jan Novák", role: "jednatel", email: "jan@acme.cz" },
+        cells: { name: "Jan Novák", role: "jednatel", emails: ["jan@acme.cz"] },
       },
       {
         id: "r2",
-        cells: { name: "Eva Dvořáková", role: "ucetni", email: "eva@acme.cz" },
+        cells: {
+          name: "Eva Dvořáková",
+          role: "ucetni",
+          emails: ["eva@acme.cz", "ucetni@acme.cz"],
+        },
       },
     ],
-    actions: [{ id: "add", label: "Add person", icon: "add" }],
+    addLabel: "Add person",
+  })
+}
+
+/**
+ * READ-ONLY "Registrations" Details Table — synced from public registries, so it
+ * cannot be configured from this page: no Add, no Edit/Delete column, pure
+ * display. Registry 2 · Number 2 · Status 2. A group child.
+ */
+function registrations(): LeafSectionDescriptor {
+  return sectionDetailsTable({
+    anchor: "registrations",
+    title: "Registrations",
+    description:
+      "Synced from public registries (ARES, registr plátců DPH). Read-only here.",
+    mode: "readonly",
+    columns: [
+      {
+        id: "registry",
+        header: "Registry",
+        span: 2,
+        control: { kind: "text" },
+      },
+      { id: "number", header: "Number", span: 2, control: { kind: "text" } },
+      { id: "status", header: "Status", span: 2, control: { kind: "text" } },
+    ],
+    rows: [
+      {
+        id: "or",
+        cells: {
+          registry: "Obchodní rejstřík",
+          number: "C 12345 / MS Praha",
+          status: "Active",
+        },
+      },
+      {
+        id: "dph",
+        cells: {
+          registry: "Registr plátců DPH",
+          number: "CZ12345678",
+          status: "Registered",
+        },
+      },
+    ],
   })
 }
 
 /**
  * Client view for the Archetype Details debug page — the Details archetype with
- * two Groups ("Company" holding a Form + a Tabs section, "Banking & contacts"
- * holding a readonly + an editable Table), plus a Save footer. Branded section
+ * a "Company" group (Form + Tabs) and a "Banking, contacts & registrations" group
+ * (two editable Tables + one read-only Table), plus a Save footer. Branded section
  * descriptors must be minted inside the client boundary.
  */
 export function ArchetypeDetailsView() {
@@ -258,9 +300,9 @@ export function ArchetypeDetailsView() {
         }),
         sectionSpace(),
         sectionDetailsGroup({
-          title: "Banking & contacts",
+          title: "Banking, contacts & registrations",
           anchor: "banking",
-          sections: [bankAccounts(), contacts()],
+          sections: [bankAccounts(), contacts(), registrations()],
         }),
       ]}
       save={{

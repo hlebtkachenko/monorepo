@@ -1,34 +1,20 @@
 import { type SectionDescriptor, defineSection } from "./section"
 import type { DetailsFormSelectOption } from "./section-details-form"
 
+/** Columns snap to the same fixed 6-track grid the Form section's fields use. */
+export type DetailsTableColumnSpan = 1 | 2 | 3 | 4 | 5 | 6
+
 /** Horizontal alignment of a column's header + cells. Default "start". */
 export type DetailsTableColumnAlign = "start" | "end"
 
 /**
- * Badge tones for display cells, mapped to design tokens in the renderer
- * (`neutral` → secondary, `success` → `--success`, `primary` → primary,
- * `outline` → outline). Data only — never a raw colour.
+ * A column's control — the SAME description drives the editable cell AND how the
+ * display cell reads its value back. A closed discriminated union ("interactivity
+ * as data"): add an arm here + its case in the renderer. Today: a text input, our
+ * Select dropdown, and the tags field. `combobox` / `creatable-combobox` are the
+ * next arms (same shape: options + optional create).
  */
-export type DetailsTableBadgeTone =
-  "neutral" | "success" | "primary" | "outline"
-
-/**
- * How a column's cells render in READONLY mode. A closed discriminated union —
- * the "interactivity/format as data" seam: add an arm here + its case in the
- * renderer. `badge-or-dash` renders a badge when the cell has a value, an em
- * dash when it is empty (e.g. a "Primary" flag column).
- */
-export type DetailsTableCellDisplay =
-  | { readonly kind: "text" }
-  | { readonly kind: "mono" }
-  | { readonly kind: "badge"; readonly tone?: DetailsTableBadgeTone }
-  | { readonly kind: "badge-or-dash"; readonly tone?: DetailsTableBadgeTone }
-
-/**
- * The control a column's cells use in EDITABLE mode (and for appended rows).
- * Defaults to a text input. Same closed shape as the Form section's controls.
- */
-export type DetailsTableEditControl =
+export type DetailsTableControl =
   | {
       readonly kind: "text"
       readonly placeholder?: string
@@ -37,27 +23,29 @@ export type DetailsTableEditControl =
   | {
       readonly kind: "select"
       readonly placeholder?: string
-      readonly options?: readonly DetailsFormSelectOption[]
+      readonly options: readonly DetailsFormSelectOption[]
+    }
+  | {
+      readonly kind: "tags"
+      readonly placeholder?: string
     }
 
 /** One table column, described as data. */
 export interface DetailsTableColumn {
   readonly id: string
   readonly header: string
-  /** Alignment of the header + cells. Default "start". */
+  /**
+   * Grid tracks this column occupies (1–6), snapped to fixed starts like the
+   * Form's field grid. In editable mode the last track is reserved for the
+   * Edit/Delete column, so data spans should sum to ≤5. Default 1.
+   */
+  readonly span?: DetailsTableColumnSpan
   readonly align?: DetailsTableColumnAlign
-  /** Readonly display style for this column's cells. Default `{ kind: "text" }`. */
-  readonly display?: DetailsTableCellDisplay
-  /** Editable control (mode "editable" + appended rows). Default text input. */
-  readonly edit?: DetailsTableEditControl
+  readonly control: DetailsTableControl
 }
 
-/**
- * A per-row cell value — a plain string, or a value plus a per-row badge tone
- * override (so one column can carry, say, both `success` and `neutral` pills).
- */
-export type DetailsTableCellValue =
-  string | { readonly value: string; readonly tone?: DetailsTableBadgeTone }
+/** A cell value — a string for text/select, a string list for a tags column. */
+export type DetailsTableCellValue = string | readonly string[]
 
 /** One row: a stable id and its cell values keyed by column id. */
 export interface DetailsTableRow {
@@ -65,40 +53,28 @@ export interface DetailsTableRow {
   readonly cells: Readonly<Record<string, DetailsTableCellValue>>
 }
 
-/** A closed set of action-button icons (name-strings), resolved in the renderer. */
-export type DetailsTableActionIcon = "add" | "import"
+/** Icon name for an extra action button (resolved in the renderer). */
+export type DetailsTableActionIcon = "import"
 
 /**
- * An action button rendered under the table, described AS DATA — no callback
- * crosses the descriptor. Two behaviours, both genuinely functional in the
- * closed renderer:
- *   - `add-row` (default): appends a blank EDITABLE row (local renderer state),
- *     the honest "add new" affordance even on a readonly display table.
- *   - `link`: renders a real anchor that navigates to `href` (for flows the
- *     library cannot own, e.g. an import wizard route).
+ * An extra action button rendered after the always-first Add button — a real
+ * navigation `link` (data only, no callback). The button set beyond Add is
+ * page-configured and deliberately open.
  */
-export type DetailsTableAction =
-  | {
-      readonly id: string
-      readonly label: string
-      readonly icon?: DetailsTableActionIcon
-      readonly behavior?: "add-row"
-    }
-  | {
-      readonly id: string
-      readonly label: string
-      readonly icon?: DetailsTableActionIcon
-      readonly behavior: "link"
-      readonly href: string
-    }
+export interface DetailsTableAction {
+  readonly id: string
+  readonly label: string
+  readonly icon?: DetailsTableActionIcon
+  readonly href: string
+}
 
 /**
- * `readonly`: existing rows render as display cells (text/mono/badge); the only
- * mutation is "+ New", which appends editable rows. `editable`: every existing
- * row renders as inputs seeded from its data, editable in place. Appended rows
- * are always editable and removable. Default "readonly".
+ * `editable`: rows display read-only until their Edit icon flips that row to
+ * inputs (a newly-added row starts editable); Add/Delete are available.
+ * `readonly`: pure display — the table cannot be configured from this page (no
+ * Add, no Edit/Delete column). Default "editable".
  */
-export type DetailsTableMode = "readonly" | "editable"
+export type DetailsTableMode = "editable" | "readonly"
 
 export interface SectionDetailsTableProps {
   /** Left-column heading for the group. */
@@ -107,12 +83,19 @@ export interface SectionDetailsTableProps {
   readonly description?: string
   /** Optional URL/scroll anchor slug applied as the section's DOM `id`. */
   readonly anchor?: string
-  /** Readonly display (default) or editable inputs. */
+  /** Editable (default) or read-only. */
   readonly mode?: DetailsTableMode
   readonly columns: readonly DetailsTableColumn[]
   readonly rows: readonly DetailsTableRow[]
-  /** Action buttons under the table (e.g. New, Import). */
+  /**
+   * Label for the always-first Add button (e.g. "Add account"). Editable mode
+   * only; omit to hide the Add button.
+   */
+  readonly addLabel?: string
+  /** Extra action buttons after Add (editable mode only). */
   readonly actions?: readonly DetailsTableAction[]
+  /** Header text for the trailing Edit/Delete column. Default "Actions". */
+  readonly actionsHeader?: string
   /** Shown when the table has no rows. */
   readonly emptyText?: string
   /**
@@ -128,31 +111,51 @@ export interface SectionDetailsTablePayload {
   readonly mode: DetailsTableMode
   readonly columns: readonly DetailsTableColumn[]
   readonly rows: readonly DetailsTableRow[]
+  readonly addLabel?: string
   readonly actions: readonly DetailsTableAction[]
+  readonly actionsHeader: string
   readonly emptyText?: string
   readonly name?: string
 }
 
 /**
  * The sole constructor for a Details Table-section descriptor — the Details Form
- * section with its right column swapped for a data-driven table (columns + rows
- * as pure data) plus action buttons below. Server-safe (no `"use client"`); the
- * interactive renderer lives in `./section-details-table-renderer`.
+ * section with its right column swapped for a grid-based table (columns + rows as
+ * pure data) that aligns to the same 6-track grid as the form fields. Server-safe
+ * (no `"use client"`); the interactive renderer lives in
+ * `./section-details-table-renderer`.
  */
 export function sectionDetailsTable({
   anchor,
   title,
   description,
-  mode = "readonly",
+  mode = "editable",
   columns,
   rows,
+  addLabel,
   actions = [],
+  actionsHeader = "Actions",
   emptyText,
   name,
 }: SectionDetailsTableProps): SectionDescriptor<
   "details-table",
   SectionDetailsTablePayload
 > {
+  // The columns snap to a fixed 6-track grid; an editable table reserves the
+  // 6th track for the Edit/Delete column, so data spans must fit the remainder.
+  // Fail loud in dev on an over-budget layout (the actions cell is hard-pinned
+  // to track 6 — an overflow would silently wrap it to a second row).
+  if (process.env.NODE_ENV !== "production") {
+    const spanTotal = columns.reduce((sum, col) => sum + (col.span ?? 1), 0)
+    const budget = mode === "editable" ? 5 : 6
+    if (spanTotal > budget) {
+      throw new Error(
+        `sectionDetailsTable("${title}"): column spans sum to ${spanTotal}, ` +
+          `but a ${mode} table allows at most ${budget} of the 6 tracks` +
+          `${mode === "editable" ? " (track 6 is the Edit/Delete column)" : ""}.`,
+      )
+    }
+  }
   return defineSection(
     "details-table",
     {
@@ -161,7 +164,9 @@ export function sectionDetailsTable({
       mode,
       columns,
       rows,
+      addLabel,
       actions,
+      actionsHeader,
       emptyText,
       name: name ?? anchor,
     },

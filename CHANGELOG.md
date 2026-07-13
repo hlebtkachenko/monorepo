@@ -22,6 +22,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Redesign Section Details Table: fixed 6-track grid layout, per-row inline Edit + destructive Delete confirmation, real controls (text / dropdown / tags), dynamic Add button + optional link actions, editable/read-only states, white inputs on the grey editing row. Drops the earlier badge/badge-or-dash cell.
 - Renamed the Details-archetype section family: Section Form/Tabs/Group → Section Details Form/Tabs/Table/Group (factories sectionDetailsForm/Tabs/Group, kinds details-form/tabs/table/group); Space and Empty stay generic.
 - UI: Tabs section keeps every tab panel mounted (`forceMount`) so entered values survive a tab switch (reset only on reload/Discard); +6px gap between the tab bar and the fields
 - UI: Group section gains 16px bottom breathing room (pb-4) before its bottom rule; Archetype Details demo gives each Addresses tab distinct fields so tab switching visibly swaps the form

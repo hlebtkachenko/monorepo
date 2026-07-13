@@ -1,11 +1,25 @@
 "use client"
 
-import type { ComponentType } from "react"
 import * as React from "react"
 
-import { Badge } from "@workspace/ui/components/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@workspace/ui/components/alert-dialog"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
+import {
+  InputTags,
+  InputTagsInput,
+  InputTagsItem,
+  InputTagsList,
+} from "@workspace/ui/components/input-tags"
 import {
   Select,
   SelectContent,
@@ -13,348 +27,490 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@workspace/ui/components/table"
-import { Plus, Trash2, Upload } from "@workspace/ui/lib/icons"
+import { Pencil, Plus, Trash2, Upload, X } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SectionTwoCol } from "./section-details-parts"
 import type {
-  DetailsTableAction,
-  DetailsTableActionIcon,
-  DetailsTableBadgeTone,
-  DetailsTableCellDisplay,
-  DetailsTableCellValue,
   DetailsTableColumn,
+  DetailsTableColumnSpan,
+  DetailsTableControl,
+  DetailsTableCellValue,
   SectionDetailsTablePayload,
 } from "./section-details-table"
 
-const ACTION_ICON: Record<DetailsTableActionIcon, ComponentType> = {
-  add: Plus,
-  import: Upload,
+/** Fixed 6-track column spans — enumerated so Tailwind keeps the literals. */
+const COL_SPAN: Record<DetailsTableColumnSpan, string> = {
+  1: "col-span-1",
+  2: "col-span-2",
+  3: "col-span-3",
+  4: "col-span-4",
+  5: "col-span-5",
+  6: "col-span-6",
 }
 
-/** Normalises a cell value (string | {value,tone}) to its display text. */
-function cellText(value: DetailsTableCellValue | undefined): string {
-  if (value == null) return ""
-  return typeof value === "string" ? value : value.value
+const asText = (value: DetailsTableCellValue | undefined): string =>
+  typeof value === "string" ? value : ""
+const asTags = (value: DetailsTableCellValue | undefined): readonly string[] =>
+  Array.isArray(value) ? value : []
+
+/** A column's empty value: a tags column starts as an empty list, others as "". */
+function blankValue(control: DetailsTableControl): DetailsTableCellValue {
+  return control.kind === "tags" ? [] : ""
 }
 
-/** Per-row tone override, falling back to the column's tone, then neutral. */
-function cellTone(
+/** Full value record for a row, defaulting any column the row omits. */
+function seedValues(
+  columns: readonly DetailsTableColumn[],
+  cells?: Readonly<Record<string, DetailsTableCellValue>>,
+): Record<string, DetailsTableCellValue> {
+  return Object.fromEntries(
+    columns.map((col) => [col.id, cells?.[col.id] ?? blankValue(col.control)]),
+  )
+}
+
+/** The value a display cell reads back — the selected option's label, joined tags, or text. */
+function displayText(
+  column: DetailsTableColumn,
   value: DetailsTableCellValue | undefined,
-  fallback: DetailsTableBadgeTone | undefined,
-): DetailsTableBadgeTone {
-  const rowTone =
-    typeof value === "object" && value != null ? value.tone : undefined
-  return rowTone ?? fallback ?? "neutral"
-}
-
-/** A tokenised badge — `success` uses the `--success` token, never a raw green. */
-function DisplayBadge({
-  value,
-  tone,
-}: {
-  value: string
-  tone: DetailsTableBadgeTone
-}) {
-  if (tone === "success") {
-    return (
-      <Badge
-        variant="secondary"
-        className="border-transparent bg-success/10 text-success"
-      >
-        {value}
-      </Badge>
-    )
+): string {
+  if (column.control.kind === "tags") return asTags(value).join(", ")
+  if (column.control.kind === "select") {
+    const match = column.control.options.find((o) => o.value === asText(value))
+    return match?.label ?? asText(value)
   }
-  const variant =
-    tone === "primary"
-      ? "default"
-      : tone === "outline"
-        ? "outline"
-        : "secondary"
-  return <Badge variant={variant}>{value}</Badge>
+  return asText(value)
 }
 
-const Dash = () => <span className="text-muted-foreground">—</span>
-
-/** One readonly display cell, dispatched on the column's display kind. */
-function DisplayCell({
-  display,
-  value,
-}: {
-  display: DetailsTableCellDisplay | undefined
-  value: DetailsTableCellValue | undefined
-}) {
-  const text = cellText(value)
-  const d = display ?? { kind: "text" as const }
-  switch (d.kind) {
-    case "mono":
-      return text.trim() === "" ? (
-        <Dash />
-      ) : (
-        <span className="font-mono text-[0.8125rem] tabular-nums">{text}</span>
-      )
-    case "badge":
-      return text.trim() === "" ? (
-        <Dash />
-      ) : (
-        <DisplayBadge value={text} tone={cellTone(value, d.tone)} />
-      )
-    case "badge-or-dash":
-      return text.trim() === "" ? (
-        <Dash />
-      ) : (
-        <DisplayBadge value={text} tone={cellTone(value, d.tone)} />
-      )
-    case "text":
-      return text.trim() === "" ? <Dash /> : <span>{text}</span>
-    default:
-      return d satisfies never
-  }
-}
-
-/** One editable cell — a text input or our Select, seeded from the cell value. */
-function EditCell({
+/** A read-only cell — same font/size/colour as an input's text (item 4). */
+function CellDisplay({
   column,
   value,
-  name,
 }: {
   column: DetailsTableColumn
-  value?: DetailsTableCellValue
-  name?: string
+  value: DetailsTableCellValue | undefined
 }) {
-  const edit = column.edit ?? { kind: "text" as const }
-  const defaultValue = cellText(value)
-  if (edit.kind === "select") {
-    return (
-      <Select name={name} defaultValue={defaultValue || undefined}>
-        <SelectTrigger aria-label={column.header} className="h-8 w-full">
-          <SelectValue placeholder={edit.placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          {(edit.options ?? []).map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    )
-  }
+  const text = displayText(column, value)
   return (
-    <Input
-      name={name}
-      aria-label={column.header}
-      defaultValue={defaultValue}
-      placeholder={edit.placeholder}
-      inputMode={edit.inputMode}
-      className="h-8"
-    />
-  )
-}
-
-function RemoveButton({
-  onClick,
-  label,
-}: {
-  onClick: () => void
-  label: string
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={label}
-      onClick={onClick}
-      className="text-muted-foreground hover:text-foreground"
+    <span
+      className={cn(
+        // Match the input control's text exactly (item 4): same size ramp,
+        // font, and foreground colour.
+        "truncate text-base text-foreground md:text-sm",
+        text.trim() === "" && "text-muted-foreground",
+        column.align === "end" && "text-right",
+      )}
     >
-      <Trash2 />
-    </Button>
-  )
-}
-
-function TableActionButton({
-  action,
-  onAddRow,
-}: {
-  action: DetailsTableAction
-  onAddRow: () => void
-}) {
-  const Icon = action.icon ? ACTION_ICON[action.icon] : undefined
-  const content = (
-    <>
-      {Icon != null ? <Icon aria-hidden /> : null}
-      {action.label}
-    </>
-  )
-  const className = "text-muted-foreground hover:text-foreground"
-  // A `link` action navigates for real; every other action appends a row.
-  if (action.behavior === "link") {
-    return (
-      <Button asChild variant="ghost" size="sm" className={className}>
-        <a href={action.href}>{content}</a>
-      </Button>
-    )
-  }
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      onClick={onAddRow}
-      className={className}
-    >
-      {content}
-    </Button>
+      {text.trim() === "" ? "—" : text}
+    </span>
   )
 }
 
 /**
+ * An editable cell — the column's real control, seeded from and writing back to
+ * the working value. `bg-background` keeps the field white against the grey
+ * editing row (item 12). Dispatched on the closed control union.
+ */
+function CellControl({
+  column,
+  value,
+  name,
+  onChange,
+}: {
+  column: DetailsTableColumn
+  value: DetailsTableCellValue | undefined
+  name?: string
+  onChange: (next: DetailsTableCellValue) => void
+}) {
+  const control = column.control
+  switch (control.kind) {
+    case "text":
+      return (
+        <Input
+          name={name}
+          aria-label={column.header}
+          value={asText(value)}
+          placeholder={control.placeholder}
+          inputMode={control.inputMode}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-8 bg-background dark:bg-background"
+        />
+      )
+    case "select":
+      return (
+        <Select name={name} value={asText(value)} onValueChange={onChange}>
+          <SelectTrigger
+            aria-label={column.header}
+            className="h-8 w-full bg-background dark:bg-background"
+          >
+            <SelectValue placeholder={control.placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {control.options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )
+    case "tags":
+      return (
+        <InputTags
+          value={[...asTags(value)]}
+          onValueChange={onChange}
+          aria-label={column.header}
+        >
+          <InputTagsList className="min-h-8 bg-background py-1">
+            {asTags(value).map((tag, index) => (
+              <InputTagsItem key={`${tag}-${index}`} value={tag}>
+                {tag}
+              </InputTagsItem>
+            ))}
+            <InputTagsInput placeholder={control.placeholder} />
+          </InputTagsList>
+        </InputTags>
+      )
+    default:
+      return control satisfies never
+  }
+}
+
+/** The trailing action cell — icon-only Edit/Delete (existing) or remove (new). */
+function RowActions({
+  variant,
+  onEdit,
+  onDelete,
+}: {
+  variant: "display" | "editing" | "new"
+  onEdit?: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div
+      role="cell"
+      className="col-start-6 flex items-center justify-end gap-0.5"
+    >
+      {variant === "display" ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Edit row"
+          onClick={onEdit}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <Pencil />
+        </Button>
+      ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={variant === "new" ? "Remove new row" : "Delete row"}
+        onClick={onDelete}
+        className="text-muted-foreground hover:text-destructive"
+      >
+        {variant === "new" ? <X /> : <Trash2 />}
+      </Button>
+    </div>
+  )
+}
+
+const ROW_GRID = "grid grid-cols-6 items-center gap-x-6 px-3 py-2"
+
+/**
  * SectionDetailsTable — the Details Form section with its right column swapped
- * for a data-driven table plus action buttons below. Two modes:
- *   - `readonly`: existing rows render as display cells; "+ New" appends editable
- *     rows (show-info-and-add).
- *   - `editable`: existing rows render as inputs, editable in place.
- * Appended rows are held in local renderer state (never a callback through the
- * descriptor), stay editable, and are removable — so typed values survive until
- * reload / Discard. The left title/description block is the shared `SectionTwoCol`.
+ * for a grid-based table that aligns to the same fixed 6-track grid as the form
+ * fields (item 2). Two modes:
+ *   - `editable`: rows read-only until their Edit icon flips that row to inputs
+ *     (a new row starts editable); Add appends, Delete confirms.
+ *   - `readonly`: pure display — no Add, no Edit/Delete column.
+ * All edit state (which rows are editing, appended rows, deleted rows, working
+ * values) lives in this closed renderer — no callback crosses the descriptor.
+ * Edits persist across re-render until reload (item 6); wiring real Save/Discard
+ * (harvest + reset) is the footer's job and is not connected yet.
  */
 export function SectionDetailsTableRenderer({
   props,
 }: {
   props: SectionDetailsTablePayload
 }) {
-  const { title, description, mode, columns, rows, actions, emptyText, name } =
-    props
+  const {
+    title,
+    description,
+    mode,
+    columns,
+    rows,
+    addLabel,
+    actions,
+    actionsHeader,
+    emptyText,
+    name,
+  } = props
 
-  // Appended rows are always blank + editable. A monotonic ref counter gives
-  // stable, collision-free ids across add/remove (no Math.random / Date.now).
+  const editable = mode === "editable"
+
+  // Working values for every row currently in edit mode (existing or appended),
+  // keyed by row id then column id. Controls are controlled off this.
+  const [values, setValues] = React.useState<
+    Record<string, Record<string, DetailsTableCellValue>>
+  >({})
+  const [editingIds, setEditingIds] = React.useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
   const [appended, setAppended] = React.useState<readonly string[]>([])
+  const [deletedIds, setDeletedIds] = React.useState<ReadonlySet<string>>(
+    () => new Set(),
+  )
+  // Row awaiting delete confirmation (existing rows only). New rows drop instantly.
+  const [pendingDelete, setPendingDelete] = React.useState<string | null>(null)
+  // Monotonic id source for appended rows — stable + collision-free, no randomness.
   const nextId = React.useRef(0)
+
+  const setCell = React.useCallback(
+    (rowId: string, colId: string, next: DetailsTableCellValue) => {
+      setValues((prev) => ({
+        ...prev,
+        [rowId]: { ...prev[rowId], [colId]: next },
+      }))
+    },
+    [],
+  )
+
+  const startEdit = React.useCallback(
+    (row: {
+      id: string
+      cells: Readonly<Record<string, DetailsTableCellValue>>
+    }) => {
+      setValues((prev) => ({
+        ...prev,
+        [row.id]: seedValues(columns, row.cells),
+      }))
+      setEditingIds((prev) => new Set(prev).add(row.id))
+    },
+    [columns],
+  )
+
   const addRow = React.useCallback(() => {
-    setAppended((prev) => [...prev, `new-${nextId.current++}`])
-  }, [])
-  const removeRow = React.useCallback((id: string) => {
+    const id = `new-${nextId.current++}`
+    setValues((prev) => ({ ...prev, [id]: seedValues(columns) }))
+    setAppended((prev) => [...prev, id])
+  }, [columns])
+
+  const removeAppended = React.useCallback((id: string) => {
     setAppended((prev) => prev.filter((rowId) => rowId !== id))
+    setValues((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
   }, [])
 
-  // A trailing action column exists only when rows can be appended (appended
-  // rows carry the remove control; existing rows get an empty trailing cell).
-  const canAppend = actions.some((action) => action.behavior !== "link")
-  const showActionCol = canAppend
-  const colCount = columns.length + (showActionCol ? 1 : 0)
-  const isEmpty = rows.length === 0 && appended.length === 0
+  const confirmDelete = React.useCallback(() => {
+    if (pendingDelete == null) return
+    setDeletedIds((prev) => new Set(prev).add(pendingDelete))
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.delete(pendingDelete)
+      return next
+    })
+    setPendingDelete(null)
+  }, [pendingDelete])
 
+  const visibleRows = rows.filter((row) => !deletedIds.has(row.id))
+  const isEmpty = visibleRows.length === 0 && appended.length === 0
+  const showActionsCol = editable
   const inputName = (rowId: string, colId: string) =>
     name != null ? `${name}[${rowId}][${colId}]` : undefined
 
-  const alignEnd = (align: DetailsTableColumn["align"]) => align === "end"
+  const headerAlign = (col: DetailsTableColumn) =>
+    col.align === "end" ? "justify-self-end text-right" : undefined
 
   return (
     <SectionTwoCol title={title} description={description}>
       <div className="min-w-0">
         <div className="overflow-hidden rounded-md border border-border-subtle">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
+          <div className="overflow-x-auto">
+            <div role="table" className="min-w-[34rem]">
+              <div
+                role="row"
+                className={cn(ROW_GRID, "border-b border-border-subtle")}
+              >
                 {columns.map((col) => (
-                  <TableHead
+                  <div
+                    role="columnheader"
                     key={col.id}
                     className={cn(
-                      "text-muted-foreground",
-                      alignEnd(col.align) && "text-right",
+                      "text-sm leading-none font-medium text-foreground",
+                      COL_SPAN[col.span ?? 1],
+                      headerAlign(col),
                     )}
                   >
                     {col.header}
-                  </TableHead>
+                  </div>
                 ))}
-                {showActionCol ? (
-                  <TableHead className="w-10">
-                    <span className="sr-only">Row actions</span>
-                  </TableHead>
+                {showActionsCol ? (
+                  <div
+                    role="columnheader"
+                    className="col-start-6 text-right text-sm leading-none font-medium text-foreground"
+                  >
+                    {actionsHeader}
+                  </div>
                 ) : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+              </div>
+
               {isEmpty ? (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell
-                    colSpan={colCount}
-                    className="py-6 text-center text-muted-foreground"
+                <div role="row">
+                  <div
+                    role="cell"
+                    className="px-3 py-6 text-center text-sm text-muted-foreground"
                   >
                     {emptyText ?? "Nothing here yet."}
-                  </TableCell>
-                </TableRow>
+                  </div>
+                </div>
               ) : null}
 
-              {rows.map((row) => (
-                <TableRow key={row.id}>
-                  {columns.map((col) => (
-                    <TableCell
-                      key={col.id}
-                      className={cn(alignEnd(col.align) && "text-right")}
-                    >
-                      {mode === "editable" ? (
-                        <EditCell
-                          column={col}
-                          value={row.cells[col.id]}
-                          name={inputName(row.id, col.id)}
-                        />
-                      ) : (
-                        <DisplayCell
-                          display={col.display}
-                          value={row.cells[col.id]}
-                        />
-                      )}
-                    </TableCell>
-                  ))}
-                  {showActionCol ? <TableCell className="w-10" /> : null}
-                </TableRow>
-              ))}
+              {visibleRows.map((row) => {
+                const isEditing = editingIds.has(row.id)
+                return (
+                  <div
+                    role="row"
+                    key={row.id}
+                    className={cn(
+                      ROW_GRID,
+                      "border-b border-border-subtle last:border-b-0",
+                      isEditing ? "bg-muted/40" : "hover:bg-muted/20",
+                    )}
+                  >
+                    {columns.map((col) => (
+                      <div
+                        role="cell"
+                        key={col.id}
+                        className={cn(
+                          "flex min-w-0 flex-col",
+                          COL_SPAN[col.span ?? 1],
+                        )}
+                      >
+                        {isEditing ? (
+                          <CellControl
+                            column={col}
+                            value={values[row.id]?.[col.id]}
+                            name={inputName(row.id, col.id)}
+                            onChange={(next) => setCell(row.id, col.id, next)}
+                          />
+                        ) : (
+                          <CellDisplay column={col} value={row.cells[col.id]} />
+                        )}
+                      </div>
+                    ))}
+                    {showActionsCol ? (
+                      <RowActions
+                        variant={isEditing ? "editing" : "display"}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => setPendingDelete(row.id)}
+                      />
+                    ) : null}
+                  </div>
+                )
+              })}
 
               {appended.map((rowId) => (
-                <TableRow key={rowId} className="bg-muted/30">
+                <div
+                  role="row"
+                  key={rowId}
+                  className={cn(
+                    ROW_GRID,
+                    "border-b border-border-subtle bg-muted/40 last:border-b-0",
+                  )}
+                >
                   {columns.map((col) => (
-                    <TableCell
+                    <div
+                      role="cell"
                       key={col.id}
-                      className={cn(alignEnd(col.align) && "text-right")}
+                      className={cn(
+                        "flex min-w-0 flex-col",
+                        COL_SPAN[col.span ?? 1],
+                      )}
                     >
-                      <EditCell column={col} name={inputName(rowId, col.id)} />
-                    </TableCell>
+                      <CellControl
+                        column={col}
+                        value={values[rowId]?.[col.id]}
+                        name={inputName(rowId, col.id)}
+                        onChange={(next) => setCell(rowId, col.id, next)}
+                      />
+                    </div>
                   ))}
-                  <TableCell className="w-10 text-right">
-                    <RemoveButton
-                      onClick={() => removeRow(rowId)}
-                      label="Remove new row"
-                    />
-                  </TableCell>
-                </TableRow>
+                  <RowActions
+                    variant="new"
+                    onDelete={() => removeAppended(rowId)}
+                  />
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+          </div>
         </div>
 
-        {actions.length > 0 ? (
+        {editable && (addLabel != null || actions.length > 0) ? (
           <div className="mt-3 flex flex-wrap items-center gap-1">
+            {addLabel != null ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={addRow}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Plus aria-hidden />
+                {addLabel}
+              </Button>
+            ) : null}
             {actions.map((action) => (
-              <TableActionButton
+              <Button
                 key={action.id}
-                action={action}
-                onAddRow={addRow}
-              />
+                asChild
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <a href={action.href}>
+                  {action.icon === "import" ? <Upload aria-hidden /> : null}
+                  {action.label}
+                </a>
+              </Button>
             ))}
           </div>
         ) : null}
       </div>
+
+      <AlertDialog
+        open={pendingDelete != null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this row?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the row from the table. It takes effect when you save
+              the page.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={(event) => {
+                event.preventDefault()
+                confirmDelete()
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SectionTwoCol>
   )
 }

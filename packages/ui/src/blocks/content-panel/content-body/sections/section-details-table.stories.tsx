@@ -6,9 +6,10 @@ import { SectionDetailsTableRenderer } from "./section-details-table-renderer"
 
 /**
  * `SectionDetailsTable` is the Details Form section with its right column swapped
- * for a data-driven table plus action buttons below. `readonly` shows display
- * cells and lets "+ New" append editable rows; `editable` renders every row as
- * inputs.
+ * for a grid-based table on the same fixed 6-track grid as the form fields. In
+ * `editable` mode rows are read-only until their Edit icon flips them to inputs
+ * (text / dropdown / tags); Add appends and Delete confirms. `readonly` is pure
+ * display.
  */
 const meta = {
   title: "Blocks/Content Panel/SectionDetailsTable",
@@ -28,27 +29,29 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** Reproduces the "Bank accounts" table from the sketch — readonly + New/Import. */
+/** Editable bank accounts — text + dropdown columns, Add + Import actions. */
 export const BankAccounts: Story = {
   args: {
     props: {
       title: "Bank accounts",
       description:
-        "Used on invoices and for párování plateb. The primary account prints by default.",
-      mode: "readonly",
+        "Used on invoices and for párování plateb. Edit inline; saved with the page.",
+      mode: "editable",
+      name: "bank_accounts",
       columns: [
-        { id: "iban", header: "IBAN", display: { kind: "mono" } },
-        { id: "bank", header: "Bank" },
+        { id: "iban", header: "IBAN", span: 2, control: { kind: "text" } },
+        { id: "bank", header: "Bank", span: 2, control: { kind: "text" } },
         {
           id: "currency",
           header: "Currency",
-          display: { kind: "badge", tone: "neutral" },
-        },
-        {
-          id: "primary",
-          header: "Primary",
-          align: "end",
-          display: { kind: "badge-or-dash", tone: "success" },
+          span: 1,
+          control: {
+            kind: "select",
+            options: [
+              { label: "CZK", value: "CZK" },
+              { label: "EUR", value: "EUR" },
+            ],
+          },
         },
       ],
       rows: [
@@ -58,7 +61,6 @@ export const BankAccounts: Story = {
             iban: "CZ65 0800 0000 1920 0014 5399",
             bank: "Česká spořitelna",
             currency: "CZK",
-            primary: "Primary",
           },
         },
         {
@@ -67,61 +69,101 @@ export const BankAccounts: Story = {
             iban: "CZ12 2010 0000 0029 0148 1234",
             bank: "Fio banka",
             currency: "EUR",
-            primary: "",
           },
         },
       ],
+      addLabel: "Add account",
       actions: [
-        { id: "new", label: "New", icon: "add" },
         {
           id: "import",
           label: "Import from Excel",
           icon: "import",
-          behavior: "link",
           href: "?import=bank-accounts",
         },
       ],
+      actionsHeader: "Actions",
     },
   },
 }
 
-/** An editable table — every row is inputs; "+ Add person" appends a blank row. */
+/** Editable contacts — showcases the tags control (Emails) beside text + dropdown. */
 export const EditableContacts: Story = {
   args: {
     props: {
       title: "Contact people",
       description:
-        "Statutory representatives and daily contacts. Edited inline; saved with the page.",
+        "Statutory representatives and daily contacts. Edit inline; saved with the page.",
       mode: "editable",
       name: "contacts",
       columns: [
-        { id: "name", header: "Name", edit: { kind: "text" } },
+        { id: "name", header: "Name", span: 2, control: { kind: "text" } },
         {
           id: "role",
           header: "Role",
-          edit: {
+          span: 1,
+          control: {
             kind: "select",
             placeholder: "Select…",
             options: [
               { label: "Jednatel", value: "jednatel" },
               { label: "Účetní", value: "ucetni" },
-              { label: "Kontakt", value: "kontakt" },
             ],
           },
         },
         {
-          id: "email",
-          header: "Email",
-          edit: { kind: "text", placeholder: "name@example.cz" },
+          id: "emails",
+          header: "Emails",
+          span: 2,
+          control: { kind: "tags", placeholder: "Add email…" },
         },
       ],
       rows: [
         {
           id: "r1",
-          cells: { name: "Jan Novák", role: "jednatel", email: "jan@acme.cz" },
+          cells: {
+            name: "Jan Novák",
+            role: "jednatel",
+            emails: ["jan@acme.cz"],
+          },
         },
       ],
-      actions: [{ id: "add", label: "Add person", icon: "add" }],
+      addLabel: "Add person",
+      actions: [],
+      actionsHeader: "Actions",
+    },
+  },
+}
+
+/** Read-only — synced data, no Add and no Edit/Delete column. */
+export const ReadOnly: Story = {
+  args: {
+    props: {
+      title: "Registrations",
+      description:
+        "Synced from public registries (ARES, registr plátců DPH). Read-only here.",
+      mode: "readonly",
+      columns: [
+        {
+          id: "registry",
+          header: "Registry",
+          span: 2,
+          control: { kind: "text" },
+        },
+        { id: "number", header: "Number", span: 2, control: { kind: "text" } },
+        { id: "status", header: "Status", span: 2, control: { kind: "text" } },
+      ],
+      rows: [
+        {
+          id: "or",
+          cells: {
+            registry: "Obchodní rejstřík",
+            number: "C 12345 / MS Praha",
+            status: "Active",
+          },
+        },
+      ],
+      actions: [],
+      actionsHeader: "Actions",
     },
   },
 }

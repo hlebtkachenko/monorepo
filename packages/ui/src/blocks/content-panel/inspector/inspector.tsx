@@ -25,6 +25,12 @@ export interface InspectorProps {
   onOpenChange?: (open: boolean) => void
   /** Header title (panel band + dialog a11y name). */
   title?: React.ReactNode
+  /**
+   * A footer pinned to the BOTTOM of the inspector, OUTSIDE its scroll region —
+   * for the primary actions on the inspected element (approve / reject / save).
+   * Stays put while the detail body scrolls. Omit for a scroll-only inspector.
+   */
+  footer?: React.ReactNode
 }
 
 const INSPECTOR = { default: 380, min: 280, max: 680 }
@@ -44,6 +50,7 @@ export function Inspector({
   mode = "panel",
   onOpenChange,
   title,
+  footer,
 }: InspectorProps) {
   const [width, setWidth] = React.useState(INSPECTOR.default)
   // Handle sits on the inspector's LEFT edge → dragging left grows it.
@@ -66,6 +73,9 @@ export function Inspector({
             <DialogTitle>{title}</DialogTitle>
           </DialogHeader>
           {children}
+          {footer ? (
+            <div className="border-t border-border-subtle pt-3">{footer}</div>
+          ) : null}
         </DialogContent>
       </Dialog>
     )
@@ -106,6 +116,14 @@ export function Inspector({
           ) : null}
         </div>
         <div className="min-h-0 flex-1 overflow-auto p-3">{children}</div>
+        {footer ? (
+          <div
+            data-slot="content-inspector-footer"
+            className="shrink-0 border-t border-border-subtle p-3"
+          >
+            {footer}
+          </div>
+        ) : null}
       </aside>
     </>
   )

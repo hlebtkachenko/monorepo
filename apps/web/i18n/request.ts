@@ -15,7 +15,15 @@ import { buildRequestConfig } from "@workspace/i18n/request"
  */
 export default buildRequestConfig({
   resolveUserLocale: async () => {
-    const session = await auth.api.getSession({ headers: await headers() })
-    return session?.user.locale ?? null
+    try {
+      const session = await auth.api.getSession({ headers: await headers() })
+      return session?.user.locale ?? null
+    } catch {
+      // A session-fetch failure (DB blip, or a stale / foreign session cookie)
+      // must NOT crash locale resolution — it runs inside the root layout's
+      // generateMetadata, so an unhandled throw 500s EVERY page. Degrade to the
+      // NEXT_LOCALE cookie / defaultLocale instead.
+      return null
+    }
   },
 })

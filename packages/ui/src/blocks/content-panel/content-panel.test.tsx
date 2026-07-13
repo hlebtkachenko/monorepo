@@ -198,6 +198,45 @@ describe("ContentPanel inspector", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
     expect(screen.queryByText("detail body")).not.toBeInTheDocument()
   })
+
+  it("pins the inspector footer below the scroll region in panel mode", () => {
+    const { container } = wrap(
+      <ContentPanel
+        inspector={<div>detail body</div>}
+        inspectorFooter={<button>Schválit</button>}
+        inspectorOpen
+        inspectorMode="panel"
+        inspectorTitle="FP-2026-0001"
+      >
+        <div>body</div>
+      </ContentPanel>,
+    )
+    const footer = container.querySelector(
+      '[data-slot="content-inspector-footer"]',
+    )
+    expect(footer).not.toBeNull()
+    // The footer is a sibling of — never inside — the scrolling body region.
+    const scroll = container.querySelector(
+      '[data-slot="content-inspector"] .overflow-auto',
+    )
+    expect(scroll?.contains(footer)).toBe(false)
+    expect(screen.getByRole("button", { name: "Schválit" })).toBeInTheDocument()
+  })
+
+  it("omits the inspector footer slot when no footer is passed", () => {
+    const { container } = wrap(
+      <ContentPanel
+        inspector={<div>detail body</div>}
+        inspectorOpen
+        inspectorMode="panel"
+      >
+        <div>body</div>
+      </ContentPanel>,
+    )
+    expect(
+      container.querySelector('[data-slot="content-inspector-footer"]'),
+    ).toBeNull()
+  })
 })
 
 describe("DetailField", () => {

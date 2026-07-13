@@ -13,6 +13,11 @@ describe("Spinner", () => {
     expect(screen.getByLabelText("Loading")).toBeInTheDocument()
   })
 
+  it("exposes its component slot", () => {
+    render(<Spinner />)
+    expect(screen.getByRole("status")).toHaveAttribute("data-slot", "spinner")
+  })
+
   it("applies custom className", () => {
     render(<Spinner className="size-8" />)
     expect(screen.getByRole("status")).toHaveClass("size-8")

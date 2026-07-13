@@ -202,7 +202,7 @@ When the `Workflow` tool is available, run:
 Workflow({ scriptPath: ".claude/workflows/thermo-review.js", args: "<diff scope + file list + questions>" })
 ```
 
-`thermo-review.js` fans out three independent Fable-5-high reviewers (simplification / spaghetti-boundary / canonical-layer lenses) over the branch diff and synthesizes one ranked, deduped, high-conviction finding list — each with a concrete behavior-preserving remedy. The skill above is the methodology; the workflow is its deterministic execution. Its sibling `.claude/workflows/brain-gate.js` is the mandatory Brain/accounting-safety gate (Fable 5 high + Opus 4.8 xhigh) — run that on any change to the Brain write-gate / safety spine.
+`thermo-review.js` fans out three independent Opus-4.8-xhigh reviewers (simplification / spaghetti-boundary / canonical-layer lenses) over the branch diff and synthesizes one ranked, deduped, high-conviction finding list — each with a concrete behavior-preserving remedy. The skill above is the methodology; the workflow is its deterministic execution. Its sibling `.claude/workflows/brain-gate.js` is the mandatory Brain/accounting-safety gate (Opus 4.8 xhigh ×2 independent lenses) — run that on any change to the Brain write-gate / safety spine.
 
 When `Workflow` is unavailable, read `thermo-review.js` completely, then use
 the client's subagent controls to reproduce its three independent review lenses

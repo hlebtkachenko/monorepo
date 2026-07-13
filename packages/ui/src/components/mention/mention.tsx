@@ -13,7 +13,7 @@ function Mention({
     <MentionPrimitive.Root
       data-slot="mention"
       className={cn(
-        "**:data-tag:rounded-md **:data-tag:bg-accent **:data-tag:py-px **:data-tag:text-accent-foreground",
+        "**:data-tag:rounded-md **:data-tag:bg-accent **:data-tag:px-1 **:data-tag:py-px **:data-tag:text-accent-foreground",
         className,
       )}
       {...props}
@@ -28,7 +28,10 @@ function MentionLabel({
   return (
     <MentionPrimitive.Label
       data-slot="mention-label"
-      className={cn("px-0.5 py-1.5 text-sm font-semibold", className)}
+      className={cn(
+        "px-2 py-1.5 text-xs font-medium text-muted-foreground",
+        className,
+      )}
       {...props}
     />
   )
@@ -60,7 +63,7 @@ function MentionContent({
       <MentionPrimitive.Content
         data-slot="mention-content"
         className={cn(
-          "relative z-50 min-w-32 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md",
+          "relative z-50 min-w-32 overflow-hidden rounded-lg bg-popover p-1 text-popover-foreground shadow-md ring-1 ring-foreground/10",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
           className,
@@ -82,7 +85,7 @@ function MentionItem({
     <MentionPrimitive.Item
       data-slot="mention-item"
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none",
+        "relative flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none select-none",
         "data-highlighted:bg-accent data-highlighted:text-accent-foreground",
         "data-disabled:pointer-events-none data-disabled:opacity-50",
         className,

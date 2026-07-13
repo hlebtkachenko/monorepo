@@ -265,7 +265,6 @@ function PostingLinesEditTable({
               </ComboboxContent>
             </Combobox>
             <NativeSelect
-              size="sm"
               aria-label="Strana"
               value={line.side}
               onChange={(event) =>

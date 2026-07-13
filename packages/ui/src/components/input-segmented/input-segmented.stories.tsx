@@ -34,50 +34,6 @@ export const Default: Story = {
   ),
 }
 
-export const Small: Story = {
-  render: () => (
-    <InputSegmented size="sm">
-      <InputSegmentedItem
-        placeholder="A"
-        maxLength={1}
-        className="w-10 text-center"
-      />
-      <InputSegmentedItem
-        placeholder="B"
-        maxLength={1}
-        className="w-10 text-center"
-      />
-      <InputSegmentedItem
-        placeholder="C"
-        maxLength={1}
-        className="w-10 text-center"
-      />
-    </InputSegmented>
-  ),
-}
-
-export const Large: Story = {
-  render: () => (
-    <InputSegmented size="lg">
-      <InputSegmentedItem
-        placeholder="A"
-        maxLength={1}
-        className="w-12 text-center"
-      />
-      <InputSegmentedItem
-        placeholder="B"
-        maxLength={1}
-        className="w-12 text-center"
-      />
-      <InputSegmentedItem
-        placeholder="C"
-        maxLength={1}
-        className="w-12 text-center"
-      />
-    </InputSegmented>
-  ),
-}
-
 export const Vertical: Story = {
   render: () => (
     <InputSegmented orientation="vertical">

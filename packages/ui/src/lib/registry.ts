@@ -8,6 +8,10 @@ type ComponentMeta = {
   categories: string[]
   dependencies?: string[]
   packages?: string[]
+  // How the shadcn upstream audit tracks this entry. "asset" = tracked as a
+  // pinned source asset (see TRACKED_ASSET_SOURCES), so it is excluded from
+  // per-item registry drift enforcement. Omitted = tracked as a registry item.
+  tracking?: "item" | "asset"
 }
 
 export const registry: Record<string, ComponentMeta> = {
@@ -15,9 +19,17 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/app-shell",
     sourceType: "custom",
     description:
-      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and ErrorShell (error.tsx / not-found.tsx).",
+      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and a compatibility ErrorShell adapter.",
     categories: ["block", "layout", "app"],
     dependencies: ["button", "navigation-bottom-mobile", "sheet", "skeleton"],
+  },
+  "utility-page": {
+    source: "src/blocks/utility-page",
+    sourceType: "custom",
+    description:
+      "Block — single policy-driven renderer for navigation, identity, access, tenancy, availability, runtime, connectivity, client-capability, and capacity states. All supported copy, actions, HTTP semantics, recovery, telemetry, reference, surface, and indexing policy live in one exhaustive typed catalog. Feedback code is lazy-loaded only for catalog states that permit user feedback.",
+    categories: ["block", "feedback", "layout"],
+    dependencies: ["button"],
   },
   "app-header": {
     source: "src/blocks/app-header",
@@ -250,6 +262,26 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Container enforcing a fixed aspect ratio",
     categories: ["layout"],
   },
+  attachment: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/attachment",
+    description:
+      "Composable file and image attachment with upload states, metadata, actions, sizes, and horizontal or vertical layouts",
+    categories: ["display", "feedback", "chat"],
+    dependencies: ["button"],
+  },
+  "audit-log": {
+    source: "hirael",
+    sourceType: "import",
+    upstream: "https://hirael.com/r/audit-log.json",
+    description:
+      "Compliance event log with expandable actor, action, status, time, and request metadata",
+    categories: ["data-display", "compliance"],
+    dependencies: ["collapsible"],
+    packages: ["class-variance-authority"],
+    tracking: "asset",
+  },
   autocomplete: {
     source: "coss",
     sourceType: "import",
@@ -299,6 +331,14 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/breadcrumb",
     description: "Navigation breadcrumb trail with separators",
     categories: ["navigation"],
+  },
+  bubble: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/bubble",
+    description:
+      "Message surface with alignment, semantic visual variants, grouping, and reactions",
+    categories: ["display", "chat"],
   },
   browser: {
     source: "eldoraui",
@@ -532,6 +572,16 @@ export const registry: Record<string, ComponentMeta> = {
     ],
     packages: ["@tanstack/react-table"],
   },
+  "date-picker": {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/base/calendar",
+    description:
+      "Calendar-with-presets date picker in a Card: controlled month so presets navigate, fixedWeeks, flex-1 preset footer; controllable selected date",
+    categories: ["forms"],
+    dependencies: ["button", "calendar", "card"],
+    packages: ["date-fns"],
+  },
   dialog: {
     source: "shadcn",
     sourceType: "vanilla",
@@ -757,6 +807,14 @@ export const registry: Record<string, ComponentMeta> = {
       "Horizontal or vertical scrolling marquee with pause-on-hover, reverse, and configurable speed",
     categories: ["effects"],
   },
+  marker: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/marker",
+    description:
+      "Conversation status, system note, bordered row, or labelled separator",
+    categories: ["display", "feedback", "chat"],
+  },
   mention: {
     source: "diceui",
     sourceType: "import",
@@ -806,6 +864,24 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/menubar",
     description: "Horizontal menu bar with dropdown submenus",
     categories: ["navigation"],
+  },
+  message: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/message",
+    description:
+      "Conversation row layout with avatar, alignment, header, content, footer, and grouping",
+    categories: ["display", "chat"],
+  },
+  "message-scroller": {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/message-scroller",
+    description:
+      "Streaming conversation viewport with anchored turns, prepend preservation, visibility tracking, and scroll controls",
+    categories: ["layout", "chat"],
+    dependencies: ["button"],
+    packages: ["@shadcn/react"],
   },
   "native-select": {
     source: "shadcn",
@@ -1022,6 +1098,16 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Animated loading spinner",
     categories: ["feedback"],
   },
+  "stat-card": {
+    source: "hirael",
+    sourceType: "import",
+    upstream: "https://hirael.com/r/stat-card.json",
+    description:
+      "Compact metric card with label, value, and up, down, or flat trend",
+    categories: ["data-display", "dashboard"],
+    dependencies: ["badge", "card"],
+    tracking: "asset",
+  },
   swap: {
     source: "diceui",
     sourceType: "import",
@@ -1119,6 +1205,15 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["overlay", "navigation"],
     dependencies: ["button"],
     packages: ["@floating-ui/react-dom"],
+  },
+  typeset: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/typeset",
+    description:
+      "Token-driven HTML and rendered Markdown typography with container-relative rhythm and streaming-stable layout",
+    categories: ["typography", "utility", "chat"],
+    tracking: "asset",
   },
   "webhook-tester": {
     source: "tryelements",

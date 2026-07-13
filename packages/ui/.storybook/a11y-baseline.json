@@ -147,6 +147,7 @@
   "components-inputotp--four-digit": ["label"],
   "components-inputotp--large-numeric": ["label"],
   "components-inputotp--numeric-only": ["label"],
+  "components-inputotp--size-connected": ["label"],
   "components-inputotp--size-xl": ["label"],
   "components-inputphone--default": ["button-name"],
   "components-inputphone--disabled": ["button-name"],

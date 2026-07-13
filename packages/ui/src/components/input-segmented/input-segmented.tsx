@@ -15,13 +15,11 @@ const ITEM_NAME = "InputSegmentedItem"
 
 type Direction = "ltr" | "rtl"
 type Orientation = "horizontal" | "vertical"
-type Size = "default" | "sm" | "lg"
 type Position = "isolated" | "first" | "middle" | "last"
 
 interface InputSegmentedContextValue {
   dir: Direction
   orientation: Orientation
-  size: Size
   disabled: boolean
   invalid: boolean
   required: boolean
@@ -44,7 +42,6 @@ function useInputSegmentedContext(consumerName: string) {
 interface InputSegmentedProps extends React.ComponentProps<"div"> {
   dir?: Direction
   orientation?: Orientation
-  size?: Size
   asChild?: boolean
   disabled?: boolean
   invalid?: boolean
@@ -54,7 +51,6 @@ interface InputSegmentedProps extends React.ComponentProps<"div"> {
 
 function InputSegmented(props: InputSegmentedProps) {
   const {
-    size = "default",
     dir: dirProp,
     orientation = "horizontal",
     children,
@@ -89,7 +85,6 @@ function InputSegmented(props: InputSegmentedProps) {
     () => ({
       dir,
       orientation,
-      size,
       disabled,
       invalid,
       required,
@@ -100,7 +95,6 @@ function InputSegmented(props: InputSegmentedProps) {
     [
       dir,
       orientation,
-      size,
       disabled,
       invalid,
       required,
@@ -174,11 +168,6 @@ const inputSegmentedItemVariants = cva("", {
       horizontal: "",
       vertical: "",
     },
-    size: {
-      sm: "h-7 px-2 text-xs",
-      default: "h-8 px-2.5",
-      lg: "h-9 px-3",
-    },
   },
   compoundVariants: [
     {
@@ -200,14 +189,13 @@ const inputSegmentedItemVariants = cva("", {
   defaultVariants: {
     position: "isolated",
     orientation: "horizontal",
-    size: "default",
   },
 })
 
 interface InputSegmentedItemProps
   extends
     React.ComponentProps<"input">,
-    Omit<VariantProps<typeof inputSegmentedItemVariants>, "size"> {
+    VariantProps<typeof inputSegmentedItemVariants> {
   asChild?: boolean
   /** Injected by `InputSegmented` parent. Do not set manually. */
   __segmentedIndex?: number
@@ -304,7 +292,6 @@ function InputSegmentedItem(props: InputSegmentedItemProps) {
         inputSegmentedItemVariants({
           position,
           orientation: context.orientation,
-          size: context.size,
           className,
         }),
       )}

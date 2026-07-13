@@ -1224,7 +1224,7 @@ export function InputsDebug() {
       {/* ---------------- InputTags ---------------- */}
       <Section
         title="InputTags"
-        blurb="Chip/tag input (@diceui). Value is a string[] via value + onValueChange. editable makes existing chips double-click-editable. Each chip has a built-in delete X."
+        blurb="Chip/tag input (@diceui). Value is a string[] via value + onValueChange. editable makes existing chips click-to-edit in place. Each chip has a built-in delete X."
       >
         <Row
           name="<InputTags>"
@@ -1232,7 +1232,7 @@ export function InputsDebug() {
         >
           <TagsDemo />
         </Row>
-        <Row name="editable" desc="double-click a chip to rename it in place">
+        <Row name="editable" desc="click a chip to rename it in place">
           <TagsDemo editable defaultValue={["design", "backend"]} />
         </Row>
         <Row name="empty" desc="starts with no chips">

@@ -249,6 +249,11 @@ function registrations(): LeafSectionDescriptor {
     description:
       "Synced from public registries (ARES, registr plátců DPH). Read-only here.",
     mode: "readonly",
+    editHint: {
+      text: "To edit these details, go to",
+      linkLabel: "Company identity",
+      href: "../section-form",
+    },
     columns: [
       {
         id: "registry",
@@ -298,7 +303,6 @@ export function ArchetypeDetailsView() {
           anchor: "company",
           sections: [legalIdentity(), addressesTabs()],
         }),
-        sectionSpace(),
         sectionDetailsGroup({
           title: "Banking, contacts & registrations",
           anchor: "banking",

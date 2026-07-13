@@ -142,6 +142,11 @@ export const ReadOnly: Story = {
       description:
         "Synced from public registries (ARES, registr plátců DPH). Read-only here.",
       mode: "readonly",
+      editHint: {
+        text: "To edit these details, go to",
+        linkLabel: "Company identity",
+        href: "#",
+      },
       columns: [
         {
           id: "registry",

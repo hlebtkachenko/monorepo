@@ -76,6 +76,20 @@ export interface DetailsTableAction {
  */
 export type DetailsTableMode = "editable" | "readonly"
 
+/**
+ * A small line under the table pointing at where the data is actually editable —
+ * for a read-only table synced from elsewhere. Renders as "{text} {linkLabel} ↗"
+ * with an underlined link + an up-right arrow.
+ */
+export interface DetailsTableEditHint {
+  /** Lead-in copy. Default "To edit this data, go to". */
+  readonly text?: string
+  /** The underlined link label. */
+  readonly linkLabel: string
+  /** Link target. */
+  readonly href: string
+}
+
 export interface SectionDetailsTableProps {
   /** Left-column heading for the group. */
   readonly title: string
@@ -96,6 +110,8 @@ export interface SectionDetailsTableProps {
   readonly actions?: readonly DetailsTableAction[]
   /** Header text for the trailing Edit/Delete column. Default "Actions". */
   readonly actionsHeader?: string
+  /** A "to edit, go to …" link under the table — for a read-only synced table. */
+  readonly editHint?: DetailsTableEditHint
   /** Shown when the table has no rows. */
   readonly emptyText?: string
   /**
@@ -114,6 +130,7 @@ export interface SectionDetailsTablePayload {
   readonly addLabel?: string
   readonly actions: readonly DetailsTableAction[]
   readonly actionsHeader: string
+  readonly editHint?: DetailsTableEditHint
   readonly emptyText?: string
   readonly name?: string
 }
@@ -135,6 +152,7 @@ export function sectionDetailsTable({
   addLabel,
   actions = [],
   actionsHeader = "Actions",
+  editHint,
   emptyText,
   name,
 }: SectionDetailsTableProps): SectionDescriptor<
@@ -167,6 +185,7 @@ export function sectionDetailsTable({
       addLabel,
       actions,
       actionsHeader,
+      editHint,
       emptyText,
       name: name ?? anchor,
     },

@@ -26,6 +26,7 @@ export type {
   DetailsTableAction,
   DetailsTableActionIcon,
   DetailsTableMode,
+  DetailsTableEditHint,
 } from "./section-details-table"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"

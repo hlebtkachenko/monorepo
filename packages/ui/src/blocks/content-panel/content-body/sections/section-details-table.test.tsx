@@ -120,6 +120,72 @@ describe("SectionDetailsTableRenderer — edit a row", () => {
     fireEvent.change(iban, { target: { value: "CZ99 9999" } })
     expect(iban).toHaveValue("CZ99 9999")
   })
+
+  it("toggles the Edit icon to an Apply action that returns the row to read mode", () => {
+    wrap(<SectionDetailsTableRenderer props={base()} />)
+    const csRow = screen
+      .getByText("Česká spořitelna")
+      .closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(csRow).getByRole("button", { name: "Edit row" }))
+    // Editing: the same control now reads "Apply row changes".
+    const iban = within(csRow).getByRole<HTMLInputElement>("textbox", {
+      name: "IBAN",
+    })
+    fireEvent.change(iban, { target: { value: "CZ99 9999" } })
+    fireEvent.click(
+      within(csRow).getByRole("button", { name: "Apply row changes" }),
+    )
+    // Back to read mode, showing the applied value (no input, edit icon returns).
+    expect(within(csRow).queryByRole("textbox")).toBeNull()
+    expect(within(csRow).getByText("CZ99 9999")).toBeInTheDocument()
+    expect(
+      within(csRow).getByRole("button", { name: "Edit row" }),
+    ).toBeInTheDocument()
+    // Re-editing keeps the applied value — it is NOT re-seeded from the original.
+    fireEvent.click(within(csRow).getByRole("button", { name: "Edit row" }))
+    expect(
+      within(csRow).getByRole<HTMLInputElement>("textbox", { name: "IBAN" }),
+    ).toHaveValue("CZ99 9999")
+  })
+
+  it("a new row shows Apply while editing, then Edit + Remove after applying", () => {
+    wrap(
+      <SectionDetailsTableRenderer props={base({ addLabel: "Add account" })} />,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Add account" }))
+    // Only the new row is editing → exactly one Apply control, and an X remove.
+    expect(
+      screen.getByRole("button", { name: "Apply row changes" }),
+    ).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Apply row changes" }))
+    // Applied → the new row is read-only (Edit icon) but keeps its X remove.
+    expect(
+      screen.queryByRole("button", { name: "Apply row changes" }),
+    ).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Remove new row" }),
+    ).toBeInTheDocument()
+  })
+})
+
+describe("SectionDetailsTableRenderer — editHint", () => {
+  it("renders an underlined link to where the data is editable", () => {
+    wrap(
+      <SectionDetailsTableRenderer
+        props={base({
+          mode: "readonly",
+          editHint: {
+            text: "To edit these details, go to",
+            linkLabel: "Company identity",
+            href: "/acme/settings",
+          },
+        })}
+      />,
+    )
+    expect(screen.getByText(/To edit these details, go to/)).toBeInTheDocument()
+    const link = screen.getByRole("link", { name: /Company identity/ })
+    expect(link).toHaveAttribute("href", "/acme/settings")
+  })
 })
 
 describe("SectionDetailsTableRenderer — add + remove new row", () => {

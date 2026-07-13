@@ -27,7 +27,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import { Pencil, Plus, Trash2, Upload, X } from "@workspace/ui/lib/icons"
+import {
+  ArrowUpRight,
+  Check,
+  Pencil,
+  Plus,
+  Trash2,
+  Upload,
+  X,
+} from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SectionTwoCol } from "./section-details-parts"
@@ -176,42 +184,50 @@ function CellControl({
   }
 }
 
-/** The trailing action cell — icon-only Edit/Delete (existing) or remove (new). */
+/**
+ * The trailing action cell — two icon buttons. The first toggles the row's edit
+ * state: Pencil (start editing) in display mode, a Check ("apply changes, back to
+ * read mode") while editing. The second removes the row: a plain X for an unsaved
+ * new row (instant), a Trash2 for an existing row (opens a destructive confirm).
+ */
 function RowActions({
-  variant,
-  onEdit,
-  onDelete,
+  isEditing,
+  isNew,
+  onToggle,
+  onRemove,
 }: {
-  variant: "display" | "editing" | "new"
-  onEdit?: () => void
-  onDelete: () => void
+  isEditing: boolean
+  isNew: boolean
+  onToggle: () => void
+  onRemove: () => void
 }) {
   return (
     <div
       role="cell"
       className="col-start-6 flex items-center justify-end gap-0.5"
     >
-      {variant === "display" ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Edit row"
-          onClick={onEdit}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          <Pencil />
-        </Button>
-      ) : null}
       <Button
         type="button"
         variant="ghost"
         size="icon-sm"
-        aria-label={variant === "new" ? "Remove new row" : "Delete row"}
-        onClick={onDelete}
+        aria-label={isEditing ? "Apply row changes" : "Edit row"}
+        onClick={onToggle}
+        className={cn(
+          "text-muted-foreground",
+          isEditing ? "hover:text-success" : "hover:text-foreground",
+        )}
+      >
+        {isEditing ? <Check /> : <Pencil />}
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={isNew ? "Remove new row" : "Delete row"}
+        onClick={onRemove}
         className="text-muted-foreground hover:text-destructive"
       >
-        {variant === "new" ? <X /> : <Trash2 />}
+        {isNew ? <X /> : <Trash2 />}
       </Button>
     </div>
   )
@@ -245,6 +261,7 @@ export function SectionDetailsTableRenderer({
     addLabel,
     actions,
     actionsHeader,
+    editHint,
     emptyText,
     name,
   } = props
@@ -278,28 +295,44 @@ export function SectionDetailsTableRenderer({
     [],
   )
 
-  const startEdit = React.useCallback(
-    (row: {
-      id: string
-      cells: Readonly<Record<string, DetailsTableCellValue>>
-    }) => {
+  // Enter edit mode for a row. Seeds working values from `base` (a row's cells,
+  // or nothing for a new row) only once — re-editing an already-edited row keeps
+  // the values it was applied with, so no edit is ever clobbered.
+  const beginEdit = React.useCallback(
+    (id: string, base?: Readonly<Record<string, DetailsTableCellValue>>) => {
       setValues((prev) => ({
         ...prev,
-        [row.id]: seedValues(columns, row.cells),
+        [id]: prev[id] ?? seedValues(columns, base),
       }))
-      setEditingIds((prev) => new Set(prev).add(row.id))
+      setEditingIds((prev) => new Set(prev).add(id))
     },
     [columns],
   )
+
+  // Leave edit mode (the check / "apply" icon). Working values are kept, so the
+  // row's display now reflects the edit until reload / Discard.
+  const applyEdit = React.useCallback((id: string) => {
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+  }, [])
 
   const addRow = React.useCallback(() => {
     const id = `new-${nextId.current++}`
     setValues((prev) => ({ ...prev, [id]: seedValues(columns) }))
     setAppended((prev) => [...prev, id])
+    setEditingIds((prev) => new Set(prev).add(id))
   }, [columns])
 
   const removeAppended = React.useCallback((id: string) => {
     setAppended((prev) => prev.filter((rowId) => rowId !== id))
+    setEditingIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
     setValues((prev) => {
       const next = { ...prev }
       delete next[id]
@@ -318,8 +351,16 @@ export function SectionDetailsTableRenderer({
     setPendingDelete(null)
   }, [pendingDelete])
 
-  const visibleRows = rows.filter((row) => !deletedIds.has(row.id))
-  const isEmpty = visibleRows.length === 0 && appended.length === 0
+  // One list for both existing (non-deleted) and appended rows, rendered
+  // uniformly. `base` is a row's original cells (undefined for a new row).
+  type RowBase = Readonly<Record<string, DetailsTableCellValue>> | undefined
+  const renderRows: { id: string; isNew: boolean; base: RowBase }[] = [
+    ...rows
+      .filter((row) => !deletedIds.has(row.id))
+      .map((row) => ({ id: row.id, isNew: false, base: row.cells as RowBase })),
+    ...appended.map((id) => ({ id, isNew: true, base: undefined as RowBase })),
+  ]
+  const isEmpty = renderRows.length === 0
   const showActionsCol = editable
   const inputName = (rowId: string, colId: string) =>
     name != null ? `${name}[${rowId}][${colId}]` : undefined
@@ -371,82 +412,59 @@ export function SectionDetailsTableRenderer({
                 </div>
               ) : null}
 
-              {visibleRows.map((row) => {
-                const isEditing = editingIds.has(row.id)
+              {renderRows.map(({ id, isNew, base }) => {
+                const isEditing = editingIds.has(id)
                 return (
                   <div
                     role="row"
-                    key={row.id}
+                    key={id}
                     className={cn(
                       ROW_GRID,
                       "border-b border-border-subtle last:border-b-0",
                       isEditing ? "bg-muted/40" : "hover:bg-muted/20",
                     )}
                   >
-                    {columns.map((col) => (
-                      <div
-                        role="cell"
-                        key={col.id}
-                        className={cn(
-                          "flex min-w-0 flex-col",
-                          COL_SPAN[col.span ?? 1],
-                        )}
-                      >
-                        {isEditing ? (
-                          <CellControl
-                            column={col}
-                            value={values[row.id]?.[col.id]}
-                            name={inputName(row.id, col.id)}
-                            onChange={(next) => setCell(row.id, col.id, next)}
-                          />
-                        ) : (
-                          <CellDisplay column={col} value={row.cells[col.id]} />
-                        )}
-                      </div>
-                    ))}
+                    {columns.map((col) => {
+                      // Display reads the applied working value if the row has
+                      // been edited, else its original cell.
+                      const value = values[id]?.[col.id] ?? base?.[col.id]
+                      return (
+                        <div
+                          role="cell"
+                          key={col.id}
+                          className={cn(
+                            "flex min-w-0 flex-col",
+                            COL_SPAN[col.span ?? 1],
+                          )}
+                        >
+                          {isEditing ? (
+                            <CellControl
+                              column={col}
+                              value={values[id]?.[col.id]}
+                              name={inputName(id, col.id)}
+                              onChange={(next) => setCell(id, col.id, next)}
+                            />
+                          ) : (
+                            <CellDisplay column={col} value={value} />
+                          )}
+                        </div>
+                      )
+                    })}
                     {showActionsCol ? (
                       <RowActions
-                        variant={isEditing ? "editing" : "display"}
-                        onEdit={() => startEdit(row)}
-                        onDelete={() => setPendingDelete(row.id)}
+                        isEditing={isEditing}
+                        isNew={isNew}
+                        onToggle={() =>
+                          isEditing ? applyEdit(id) : beginEdit(id, base)
+                        }
+                        onRemove={() =>
+                          isNew ? removeAppended(id) : setPendingDelete(id)
+                        }
                       />
                     ) : null}
                   </div>
                 )
               })}
-
-              {appended.map((rowId) => (
-                <div
-                  role="row"
-                  key={rowId}
-                  className={cn(
-                    ROW_GRID,
-                    "border-b border-border-subtle bg-muted/40 last:border-b-0",
-                  )}
-                >
-                  {columns.map((col) => (
-                    <div
-                      role="cell"
-                      key={col.id}
-                      className={cn(
-                        "flex min-w-0 flex-col",
-                        COL_SPAN[col.span ?? 1],
-                      )}
-                    >
-                      <CellControl
-                        column={col}
-                        value={values[rowId]?.[col.id]}
-                        name={inputName(rowId, col.id)}
-                        onChange={(next) => setCell(rowId, col.id, next)}
-                      />
-                    </div>
-                  ))}
-                  <RowActions
-                    variant="new"
-                    onDelete={() => removeAppended(rowId)}
-                  />
-                </div>
-              ))}
             </div>
           </div>
         </div>
@@ -480,6 +498,19 @@ export function SectionDetailsTableRenderer({
               </Button>
             ))}
           </div>
+        ) : null}
+
+        {editHint != null && !editable ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            {editHint.text ?? "To edit this data, go to"}{" "}
+            <a
+              href={editHint.href}
+              className="inline-flex items-center gap-0.5 font-medium text-foreground underline underline-offset-4"
+            >
+              {editHint.linkLabel}
+              <ArrowUpRight className="size-3" aria-hidden="true" />
+            </a>
+          </p>
         ) : null}
       </div>
 

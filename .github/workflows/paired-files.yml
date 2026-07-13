@@ -30,6 +30,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+      - name: Check documentation
+        run: node scripts/check-docs.mjs
       - name: Check changelog Unreleased entry
         if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
         run: node scripts/governance/check-changelog-unreleased.mjs

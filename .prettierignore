@@ -39,3 +39,8 @@ packages/accounting-kb/predkontace/
 # (JSON.stringify format). Prettier must not reformat or the `--check` drift
 # guard (lefthook structure-drift) would never match the emitter's output.
 apps/api/src/v1/structure/structure.data.ts
+
+# Generated admin route registry — emitted by `pnpm --filter admin generate:routes`
+# (JSON.stringify format). Prettier must not reformat it or the committed output
+# drifts from the generator (quoted keys, unwrapped strings).
+apps/admin/app/(gated)/_components/route-registry.generated.ts

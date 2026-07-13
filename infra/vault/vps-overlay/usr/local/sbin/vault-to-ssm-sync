@@ -54,7 +54,7 @@
 #         created (heartbeat + metric withheld for the failed env so the
 #         staleness alarm + drift workflow trip)
 #
-# Tracks: AFF-245 M4. Plan: docs/plans/SECRETS-MIGRATION.md § M4 task 2.
+# Tracks: AFF-245 M4. Runbook: docs/runbooks/VAULT-OPS.md § Adding a new secret.
 
 set -euo pipefail
 

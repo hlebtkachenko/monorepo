@@ -89,6 +89,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform api keys platform api keys"
   },
   {
+    "href": "/platform/archetypes",
+    "label": "Archetypes",
+    "section": "Platform",
+    "keywords": "platform archetypes platform archetypes"
+  },
+  {
     "href": "/platform/domains",
     "label": "Domains",
     "section": "Platform",
@@ -105,6 +111,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "label": "TLS certificates",
     "section": "Platform",
     "keywords": "platform tls platform tls"
+  },
+  {
+    "href": "/platform/utility-pages",
+    "label": "Utility pages",
+    "section": "Platform",
+    "keywords": "platform utility pages platform utility pages"
   },
   {
     "href": "/profile",

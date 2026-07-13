@@ -20,9 +20,9 @@
 > `mcp__afframe__capture_accounting_document`. There is **no hosted MCP server**; instead the CLI spawns the
 > `@afframe/mcp` server LOCALLY (via `tsx`, from inside this monorepo — no build step), which reaches prod as an
 > ordinary outbound HTTPS client at `BRAIN_MCP_ENDPOINT` (the deployed REST API **base**, e.g.
-> `https://api.afframe.com`, NOT an `/mcp` path). This transport is validated end-to-end against prod (31 tools
-> served, a real 401 on a bad key); only a real agent key producing a real HELD write remains — that is Hleb's
-> supervised step. Run the pasted session from **inside the monorepo**.
+> `https://api.afframe.com`, NOT an `/mcp` path). This transport and a real
+> agent-key HELD write were validated end to end against production. Run the
+> pasted session from **inside the monorepo**.
 
 > **What this is.** The single, self-contained prompt Hleb pastes into a **fresh Claude Code session** — one with
 > **no Afframe memory and no prior connection** — to start a live Afframe Brain accounting session against

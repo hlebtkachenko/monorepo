@@ -9,6 +9,7 @@ import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 const inputShape = {
   "periodId": z.string().uuid().describe("Restrict to one účetní období. Omit to list every period's accounts the tenant can see.").optional(),
   "isSynthetic": z.enum(["true","false"]).describe("Filter to synthetic (`true`) or analytical (`false`) accounts only.").optional(),
+  "number": z.string().min(1).max(20).describe("Resolve accounts by exact number (e.g. `518`, `311.001`). Combine with `periodId` to get the single row for that period's chart — the ergonomic number→id lookup that avoids paging the whole chart.").optional(),
 }
 
 export function registerListAccounts(
@@ -19,7 +20,7 @@ export function registerListAccounts(
     "list_accounts",
     {
       title: "List chart of accounts",
-      description: `Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (\`periodId\`) and synthetic/analytical shape (\`isSynthetic\`). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.`,
+      description: `Returns the organization's chart-of-accounts entries (účtový rozvrh), organization-scoped (FORCE RLS). Optionally filter by účetní období (\`periodId\`), synthetic/analytical shape (\`isSynthetic\`), and exact account \`number\` (combine \`periodId\` + \`number\` for a single-row number→id lookup). The chart exists only for DOUBLE_ENTRY periods — SINGLE_ENTRY / TAX_RECORDS orgs keep no chart and return an empty list.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("get"),
@@ -29,7 +30,7 @@ export function registerListAccounts(
     async (args): Promise<CallToolResult> => {
       try {
         const raw = args as Record<string, unknown>
-        const params = { query: { "periodId": raw["periodId"], "isSynthetic": raw["isSynthetic"] } } as unknown as NonNullable<operations["listAccounts"]["parameters"]>
+        const params = { query: { "periodId": raw["periodId"], "isSynthetic": raw["isSynthetic"], "number": raw["number"] } } as unknown as NonNullable<operations["listAccounts"]["parameters"]>
         const init = { params }
         const { data, error, response } = await client.GET("/v1/accounts", init)
         if (error) throw error

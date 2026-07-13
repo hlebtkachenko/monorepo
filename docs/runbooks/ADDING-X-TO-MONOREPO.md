@@ -38,7 +38,7 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
    help no longer has a hosted surface (ADR-0024 Amendment 2026-05-21);
    put end-user-facing copy in the relevant Next.js page or wait for a
    future docs surface.
-2. Link from `docs/START-HERE.md` and from any related runbook.
+2. Link from `docs/README.md` and from any related runbook.
 3. If the runbook covers an incident class, also link from
    `docs/runbooks/INCIDENT.md`.
 
@@ -49,8 +49,7 @@ vitest.config.ts, scripts/emit-openapi.ts}`.
 2. MADR format. Keep `Status`, `Context`, `Decision`, `Consequences`.
 3. If the ADR supersedes an earlier one, set the older ADR's status to
    `Superseded by ADR-NNNN` in the same PR.
-4. Link from `docs/START-HERE.md` "Decisions backing this layout" if
-   the ADR is foundational.
+4. Link from `docs/README.md` if the ADR is foundational.
 
 ## A new GitHub Actions workflow
 
@@ -88,11 +87,11 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
    non-production paths; throw on missing in production where
    appropriate.
 2. Declare in `turbo.json` `globalEnv`.
-3. Document in `docs/env-vars.md` under the section matching the
+3. Document in `docs/ENVIRONMENT-VARIABLES.md` under the section matching the
    consumer (web / api / admin / db / auth / etc.).
 4. If CI / production needs it, add the corresponding GitHub Actions
    repo variable or Secrets Manager entry. Cross-reference from
-   `docs/runbooks/SECRETS.md` and `docs/runbooks/AWS-SETUP.md`.
+   `docs/conventions/SECRETS-AND-VARIABLES.md` and `docs/runbooks/AWS-SETUP.md`.
 
 ## A new public host
 
@@ -101,6 +100,6 @@ annotations in `apps/mcp/src/tools/_curate.ts`.
    `infra/cdk/lib/{data,app}-stack.ts` (clone the closest existing host
    block).
 3. `docs/DOMAINS-AND-EMAIL.md` — add an inventory entry.
-4. `docs/env-vars.md` — add the per-env `*_DOMAIN` row.
+4. `docs/ENVIRONMENT-VARIABLES.md` — add the per-env `*_DOMAIN` row.
 5. `infra/cdk/bin/app.ts` — read the env var, pass to AppStack.
 6. `infra/cdk/tests/helper.ts` — add the test domain constant.

@@ -48,6 +48,12 @@ export interface HeldWriteReviewSource {
   rationale: string | null
   /** Resolved server-side (accounting_event / counterparty join); null when unresolved. */
   counterparty_name: string | null
+  /** Označení of the účetní případ (`ae.designation`, e.g. `UC2025000005`); null when no event resolves. */
+  case_designation?: string | null
+  /** účetní případ description (`ae.description`) — carries the supplier/context when no counterparty is linked. */
+  case_description?: string | null
+  /** Označení of the doklad a posting books from (`sr.designation`, e.g. `FP20250005`); null otherwise. */
+  document_designation?: string | null
   input_json: unknown
   output_json: unknown
 }
@@ -80,7 +86,11 @@ export interface HeldWritePostingLineRow {
 
 export interface HeldWriteHeader {
   counterpartyName: string | null
-  /** Designation (Označení) — null pre-approval; the number series allocates it only when the write applies. */
+  /** Označení of the účetní případ this write books (`UC2025…`) — null when no event resolves. */
+  caseDesignation: string | null
+  /** účetní případ description — the supplier/context text, shown when no counterparty row is linked. */
+  caseDescription: string | null
+  /** Designation (Označení) of the doklad — a posting's linked `sr.designation` (`FP2025…`); null pre-allocation for tools that mint it only on apply. */
   documentNumber: string | null
   /** ISO date/datetime as carried by the payload (occurredAt / issuedAt / postingDate). */
   date: string | null
@@ -656,6 +666,8 @@ function headerFromEvent(
 ): HeldWriteHeader {
   return {
     counterpartyName,
+    caseDesignation: null,
+    caseDescription: null,
     documentNumber: null,
     date: asString(input["occurredAt"]),
     totalAmount: null,
@@ -675,6 +687,8 @@ function headerFromCapture(
     .find((c): c is string => c !== null)
   return {
     counterpartyName,
+    caseDesignation: null,
+    caseDescription: null,
     documentNumber: null,
     date: asString(input["issuedAt"]),
     totalAmount: partials.length > 0 ? toDecimal(totalBase + totalVat) : null,
@@ -698,6 +712,8 @@ function headerFromPosting(
   )
   return {
     counterpartyName,
+    caseDesignation: null,
+    caseDescription: null,
     documentNumber: null,
     date: asString(entry["postingDate"]),
     totalAmount: lines.length > 0 ? toDecimal(total) : null,
@@ -745,6 +761,15 @@ export function buildHeldWriteViewModel(
     default:
       header = headerFromEvent(input, row.counterparty_name)
       break
+  }
+
+  // Server-resolved case/document identity (LEFT JOINs in fetchHeldWrites) — the
+  // supplier text and doklad/case Označení a raw payload can't carry pre-apply.
+  header = {
+    ...header,
+    caseDesignation: row.case_designation ?? null,
+    caseDescription: row.case_description ?? null,
+    documentNumber: header.documentNumber ?? row.document_designation ?? null,
   }
 
   return {

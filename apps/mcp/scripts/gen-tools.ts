@@ -35,6 +35,8 @@ interface JsonSchemaNode {
   minimum?: number
   maximum?: number
   format?: string
+  anyOf?: JsonSchemaNode[]
+  oneOf?: JsonSchemaNode[]
 }
 
 interface Parameter {
@@ -129,8 +131,26 @@ function zodExprFor(
   const nullable = types.includes("null")
   const base = types.find((t) => t !== "null")
   const enumValues = node.enum?.filter((v) => v !== null)
+  // `anyOf` / `oneOf` (a Zod `z.union(...)`, e.g. the posting `entry`'s
+  // double|monetary shapes) → `z.union([...])`. Without this the node falls
+  // through to the terminal `z.unknown()`, leaving the LLM with no shape to
+  // build (the write it then guesses fails server validation). A `{type:"null"}`
+  // branch (nullable union) is lifted to a trailing `.nullable()`; a single
+  // remaining branch needs no `z.union` wrapper.
+  const union = node.anyOf ?? node.oneOf
+  const isNullBranch = (b: JsonSchemaNode): boolean =>
+    b.type === "null" ||
+    (Array.isArray(b.type) && b.type.length === 1 && b.type[0] === "null")
   let expr: string
-  if (
+  if (union && union.length > 0) {
+    const branches = union.filter((b) => !isNullBranch(b))
+    const unionNullable = branches.length !== union.length
+    const exprs = branches.map((b) => zodExprFor(b, spec, seen))
+    if (exprs.length === 0) expr = "z.unknown()"
+    else if (exprs.length === 1) expr = exprs[0]
+    else expr = `z.union([${exprs.join(", ")}])`
+    if (unionNullable) expr += ".nullable()"
+  } else if (
     enumValues &&
     enumValues.length > 0 &&
     enumValues.every((v) => typeof v === "string")

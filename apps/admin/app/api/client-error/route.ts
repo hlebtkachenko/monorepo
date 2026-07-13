@@ -9,16 +9,21 @@ import {
 } from "@workspace/notify"
 
 interface ClientErrorBody {
+  type?: "bug"
   message?: string
   id?: string
   source?: string
   /** Next.js error digest, when from an error boundary. */
   digest?: string
+  context?: unknown
 }
 
+const API_BASE = process.env.API_INTERNAL_URL ?? "http://localhost:3001"
+
 // Same-origin sink for admin browser errors (OBS-03 — mirror of the web route,
-// including the OBS-14 hardening). Holds the bot secret server-side; opens a
-// deduped GitHub issue via the bot's /issue. The admin container gets
+// including the OBS-14 hardening). Automatic errors open a deduped issue;
+// user-initiated utility reports enter the canonical Bug feedback pipeline.
+// The admin container gets
 // BOT_INGEST_URL + NOTIFY_SHARED_SECRET from CDK (infra/cdk/lib/app-stack.ts);
 // notifierFromEnv() no-ops when they are unset (local dev).
 //
@@ -49,6 +54,33 @@ export async function POST(req: Request): Promise<Response> {
   const body = (await req.json().catch(() => null)) as ClientErrorBody | null
   if (!body?.message) {
     return NextResponse.json({ error: "message required" }, { status: 400 })
+  }
+  if (body.type === "bug") {
+    const safe = sanitizeError(body.message, body.id ?? "admin-utility")
+    try {
+      const response = await fetch(`${API_BASE}/v1/feedback`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          type: "bug",
+          message: safe.message,
+          context: body.context,
+        }),
+      })
+      if (!response.ok) {
+        return NextResponse.json(
+          { error: "feedback unavailable" },
+          { status: 502 },
+        )
+      }
+      const result = (await response.json()) as { referenceId?: string }
+      return NextResponse.json({ ok: true, referenceId: result.referenceId })
+    } catch {
+      return NextResponse.json(
+        { error: "feedback unavailable" },
+        { status: 502 },
+      )
+    }
   }
   if (isIgnorableError(body.message, body.digest)) {
     return NextResponse.json({ ok: true, ignored: true })

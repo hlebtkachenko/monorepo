@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)
+- UI: **Group** section (`sectionGroup`) — a titled, rule-bracketed container that nests other sections (one level); subsumes and replaces the standalone Title + Divider sections (its chrome = the h2 + top/bottom rules). ContentBody now delegates to a shared recursive `SectionList` so the brand guard runs at every level; the closed registry stays leaf-only (no import cycle)
 - UI: **Title** section (`sectionTitle`) — a standalone h2 group heading at the same left position as a Form title, used to group 2+ Form sections; wired into the Archetype Details debug page
 - UI: **Details** archetype (`ArchetypeDetails`) — ContentHeader (no view tabs), no toolbar, a body of as many stacked branded Sections as the page wants, and an optional Save/Discard ContentFooter; Settings → Debug → Archetype Details reference page shows two stacked Form sections + the footer
 - UI: Form section fields can carry an optional `hover` (HoverCard, not tooltip) shown over the CONTROL — rich data-driven explanation (title + description), label left undecorated; DIČ on the debug page explains it is FÚ-issued for every company incl. non-VAT payers

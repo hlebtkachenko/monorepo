@@ -4,32 +4,29 @@ import { useState } from "react"
 
 import { ArchetypeDetails } from "@workspace/ui/blocks/archetypes"
 import {
-  sectionDivider,
   sectionForm,
+  sectionGroup,
   sectionSpace,
-  sectionTitle,
+  sectionTabs,
 } from "@workspace/ui/blocks/content-panel"
-import type { SectionDescriptor } from "@workspace/ui/blocks/content-panel"
+import type { LeafSectionDescriptor } from "@workspace/ui/blocks/content-panel"
 
-/**
- * Builds a "Legal identity" form section. `suffix` keeps field ids unique when
- * the section is rendered more than once on a page; `anchor` is its deep-link id.
- */
-function legalIdentity(suffix: string, anchor: string): SectionDescriptor {
+/** A "Legal identity" Form section (a group child). */
+function legalIdentity(): LeafSectionDescriptor {
   return sectionForm({
-    anchor,
+    anchor: "legal-identity",
     title: "Legal identity",
     description: "How this účetní jednotka is named on filings and výkazy.",
     fields: [
       {
         label: "Legal name",
-        name: `legal_name_${suffix}`,
+        name: "legal_name",
         span: 4,
         control: { kind: "text", value: "Developer Workspace" },
       },
       {
         label: "Legal form",
-        name: `legal_form_${suffix}`,
+        name: "legal_form",
         span: 2,
         control: {
           kind: "select",
@@ -42,7 +39,7 @@ function legalIdentity(suffix: string, anchor: string): SectionDescriptor {
       },
       {
         label: "IČO",
-        name: `ico_${suffix}`,
+        name: "ico",
         span: 2,
         control: {
           kind: "text",
@@ -52,7 +49,7 @@ function legalIdentity(suffix: string, anchor: string): SectionDescriptor {
       },
       {
         label: "DIČ",
-        name: `dic_${suffix}`,
+        name: "dic",
         span: 2,
         control: { kind: "text", placeholder: "—", disabled: true },
         hover: {
@@ -63,7 +60,7 @@ function legalIdentity(suffix: string, anchor: string): SectionDescriptor {
       },
       {
         label: "Person kind",
-        name: `person_kind_${suffix}`,
+        name: "person_kind",
         span: 2,
         control: { kind: "text", value: "legal_entity", disabled: true },
       },
@@ -71,10 +68,68 @@ function legalIdentity(suffix: string, anchor: string): SectionDescriptor {
   })
 }
 
+/** An "Addresses" Tabs section — each address kind is a tab (a group child). */
+function addressesTabs(): LeafSectionDescriptor {
+  const addressFields = (prefix: string) => [
+    {
+      label: "Street",
+      name: `${prefix}_street`,
+      span: 6 as const,
+      control: { kind: "text" as const, placeholder: "Ulice" },
+    },
+    {
+      label: "House no. (č.p.)",
+      name: `${prefix}_cp`,
+      span: 2 as const,
+      control: { kind: "text" as const },
+    },
+    {
+      label: "Orientation (č.o.)",
+      name: `${prefix}_co`,
+      span: 2 as const,
+      control: { kind: "text" as const },
+    },
+    {
+      label: "Postal code",
+      name: `${prefix}_zip`,
+      span: 2 as const,
+      control: { kind: "text" as const },
+    },
+    {
+      label: "City",
+      name: `${prefix}_city`,
+      span: 3 as const,
+      control: { kind: "text" as const },
+    },
+    {
+      label: "Region (kraj)",
+      name: `${prefix}_region`,
+      span: 3 as const,
+      control: { kind: "text" as const },
+    },
+  ]
+  return sectionTabs({
+    anchor: "addresses",
+    title: "Addresses",
+    description:
+      "Sídlo prints on every přiznání and výkaz. Mailing and establishment are optional.",
+    tabs: [
+      {
+        id: "sidlo",
+        label: "Registered seat (sídlo)",
+        fields: addressFields("sidlo"),
+      },
+      { id: "mail", label: "Mailing address", fields: addressFields("mail") },
+      { id: "prov", label: "Provozovna", fields: addressFields("prov") },
+    ],
+  })
+}
+
 /**
  * Client view for the Archetype Details debug page — the Details archetype with
- * two stacked Form sections (one plus a duplicate below) and a Save footer.
- * Branded section descriptors must be minted inside the client boundary.
+ * one Group ("Company") that holds a Form section and a Tabs section, plus a
+ * Save footer. Branded section descriptors must be minted inside the client
+ * boundary.
  */
 export function ArchetypeDetailsView() {
   const [dirty, setDirty] = useState(true)
@@ -83,12 +138,11 @@ export function ArchetypeDetailsView() {
       title="Archetype Details"
       sections={[
         sectionSpace(),
-        sectionDivider(),
-        sectionTitle({ title: "Company", anchor: "company" }),
-        legalIdentity("a", "legal-identity"),
-        legalIdentity("b", "legal-identity-2"),
-        sectionSpace({ size: 16 }),
-        sectionDivider(),
+        sectionGroup({
+          title: "Company",
+          anchor: "company",
+          sections: [legalIdentity(), addressesTabs()],
+        }),
       ]}
       save={{
         dirty,

@@ -9,11 +9,15 @@ export type {
   FormFieldSpan,
   FormSelectOption,
 } from "./section-form"
+export { sectionTabs } from "./section-tabs"
+export type { SectionTabsProps, FormTab } from "./section-tabs"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"
-export { sectionTitle } from "./section-title"
-export type { SectionTitleProps } from "./section-title"
-export { sectionDivider } from "./section-divider"
-export type { SectionDividerProps } from "./section-divider"
-export type { SectionDescriptor, SectionKind } from "./section"
+export { sectionGroup } from "./section-group"
+export type { SectionGroupProps } from "./section-group"
+export type {
+  SectionDescriptor,
+  SectionKind,
+  LeafSectionDescriptor,
+} from "./section"
 export { SECTION_KINDS } from "./section"

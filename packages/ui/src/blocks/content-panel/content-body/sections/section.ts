@@ -13,11 +13,20 @@ const SECTION_BRAND = Symbol("section-brand")
 export const SECTION_KINDS = [
   "empty",
   "form",
+  "tabs",
   "space",
-  "title",
-  "divider",
+  "group",
 ] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
+
+/**
+ * Kinds that can be nested inside a `group` — everything EXCEPT `group` itself.
+ * Groups are one level deep (a group holds leaf sections, never other groups);
+ * this is enforced at compile time by typing a group's children as
+ * `LeafSectionDescriptor[]`.
+ */
+export type LeafSectionKind = Exclude<SectionKind, "group">
+export type LeafSectionDescriptor = SectionDescriptor<LeafSectionKind>
 
 /** Section-level metadata that every kind shares (not per-kind `props`). */
 export interface SectionMeta {

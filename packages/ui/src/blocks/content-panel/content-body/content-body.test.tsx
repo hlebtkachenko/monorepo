@@ -5,6 +5,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ContentBody } from "./content-body"
 import { sectionEmpty } from "./sections/section-empty"
+import { sectionGroup } from "./sections/section-group"
 import { sectionSpace } from "./sections/section-space"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
@@ -13,6 +14,25 @@ describe("ContentBody", () => {
   it("renders a branded section through the section registry", () => {
     wrap(<ContentBody sections={[sectionEmpty({ title: "Nothing here" })]} />)
     expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("renders a group's nested sections (guard recurses through SectionList)", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionGroup({
+            title: "Company",
+            sections: [sectionEmpty({ title: "Inside the group" })],
+          }),
+        ]}
+      />,
+    )
+    expect(screen.getByRole("heading", { name: "Company" })).toBeInTheDocument()
+    expect(screen.getByText("Inside the group")).toBeInTheDocument()
+    // The group wrapper + the nested section each get a content-section box.
+    expect(
+      container.querySelectorAll('[data-slot="content-section"]').length,
+    ).toBeGreaterThanOrEqual(2)
   })
 
   it("renders each section in order", () => {

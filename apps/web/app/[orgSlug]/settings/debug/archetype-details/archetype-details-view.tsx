@@ -3,7 +3,11 @@
 import { useState } from "react"
 
 import { ArchetypeDetails } from "@workspace/ui/blocks/archetypes"
-import { sectionForm, sectionSpace } from "@workspace/ui/blocks/content-panel"
+import {
+  sectionForm,
+  sectionSpace,
+  sectionTitle,
+} from "@workspace/ui/blocks/content-panel"
 import type { SectionDescriptor } from "@workspace/ui/blocks/content-panel"
 
 /**
@@ -78,6 +82,7 @@ export function ArchetypeDetailsView() {
       title="Archetype Details"
       sections={[
         sectionSpace(),
+        sectionTitle({ title: "Company", anchor: "company" }),
         legalIdentity("a", "legal-identity"),
         legalIdentity("b", "legal-identity-2"),
       ]}

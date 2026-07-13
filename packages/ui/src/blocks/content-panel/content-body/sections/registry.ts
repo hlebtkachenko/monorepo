@@ -2,6 +2,7 @@ import type { SectionKind, SectionRenderer } from "./section"
 import { SectionEmptyRenderer } from "./section-empty"
 import { SectionFormRenderer } from "./section-form-renderer"
 import { SectionSpaceRenderer } from "./section-space"
+import { SectionTitleRenderer } from "./section-title"
 
 /**
  * The closed section registry. Adding a key here is the SINGLE review-gated
@@ -14,4 +15,5 @@ export const SECTION_REGISTRY = {
   empty: SectionEmptyRenderer,
   form: SectionFormRenderer,
   space: SectionSpaceRenderer,
+  title: SectionTitleRenderer,
 } satisfies Record<SectionKind, SectionRenderer<never>>

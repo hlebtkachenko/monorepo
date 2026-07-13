@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- UI: **Title** section (`sectionTitle`) — a standalone h2 group heading at the same left position as a Form title, used to group 2+ Form sections; wired into the Archetype Details debug page
 - UI: **Details** archetype (`ArchetypeDetails`) — ContentHeader (no view tabs), no toolbar, a body of as many stacked branded Sections as the page wants, and an optional Save/Discard ContentFooter; Settings → Debug → Archetype Details reference page shows two stacked Form sections + the footer
 - UI: Form section fields can carry an optional `hover` (HoverCard, not tooltip) shown over the CONTROL — rich data-driven explanation (title + description), label left undecorated; DIČ on the debug page explains it is FÚ-issued for every company incl. non-VAT payers
 - UI: Form section (`sectionForm`) — a two-column Content-Panel body section (title + description left, a 6-column field grid right, fields spanning 1–6 columns; text + select controls as data) plus a Settings → Debug → Section Form reference page

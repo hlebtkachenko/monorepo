@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "registry": "@shadcn",
+  "style": "radix-nova",
+  "items": {
+    "accordion": {
+      "state": "adapted",
+      "local": "accordion",
+      "digest": "sha256:55c7f3fcf405ec3a00fa5c770c45bbfc6896d4edf9a7be168e2049b8170c07ad",
+      "reviewedAt": "2026-07-13"
+    },
+    "alert": {
+      "state": "adapted",
+      "local": "alert",
+      "digest": "sha256:d8ff08342a7bf3ca50f90f122579fb2f1e3a87cc48204abeb44b55abaa912107",
+      "reviewedAt": "2026-07-13"
+    },
+    "alert-dialog": {
+      "state": "adapted",
+      "local": "alert-dialog",
+      "digest": "sha256:c1094a34ac022fccd4e2ad48c4209cf2df050db53b113e2a407061976683d2e7",
+      "reviewedAt": "2026-07-13"
+    },
+    "aspect-ratio": {
+      "state": "adapted",
+      "local": "aspect-ratio",
+      "digest": "sha256:db37388cf035b0fd11fc9c1627dda9ae625270c50648dee4119d5d94fae07ffe",
+      "reviewedAt": "2026-07-13"
+    },
+    "attachment": {
+      "state": "adapted",
+      "local": "attachment",
+      "digest": "sha256:8a65c5a482b07c9dbe10b6398f0fd5efaeeda384ba7a2d1a1af67803d5f9c382",
+      "reviewedAt": "2026-07-13"
+    },
+    "avatar": {
+      "state": "adapted",
+      "local": "avatar",
+      "digest": "sha256:4937be97ead5ede1951aebb784a496ff27c61d4c4e7bf441f07db63abaae53fc",
+      "reviewedAt": "2026-07-13"
+    },
+    "badge": {
+      "state": "adapted",
+      "local": "badge",
+      "digest": "sha256:6c2ca8f2c3d15f997fe0b16be62b4f8c289d06ec9e219e728d0e93a2a322a9a5",
+      "reviewedAt": "2026-07-13"
+    },
+    "breadcrumb": {
+      "state": "adapted",
+      "local": "breadcrumb",
+      "digest": "sha256:797ef74446f3890ff9fbeecb1702e71672738365a54d4c1aec1e5dfbad6cb206",
+      "reviewedAt": "2026-07-13"
+    },
+    "bubble": {
+      "state": "adapted",
+      "local": "bubble",
+      "digest": "sha256:3f8c6127a10cc34e3018e833c91386f5f2176c471b211410bc49dc66d7524837",
+      "reviewedAt": "2026-07-13"
+    },
+    "button": {
+      "state": "adapted",
+      "local": "button",
+      "digest": "sha256:3f56e75c4a8e9e85c241f7eee7c0574bc7c4d9ead54a0896589159c290acf994",
+      "reviewedAt": "2026-07-13"
+    },
+    "button-group": {
+      "state": "adapted",
+      "local": "button-group",
+      "digest": "sha256:f8331d509cbf39dfe2315a36f6d379fed5327789603ca5c515100e994c996624",
+      "reviewedAt": "2026-07-13"
+    },
+    "calendar": {
+      "state": "adapted",
+      "local": "calendar",
+      "digest": "sha256:75f9668e778911c3cb00fd921bae785c64dbf92c407f2826f3a668d043fad7bf",
+      "reviewedAt": "2026-07-13"
+    },
+    "card": {
+      "state": "adapted",
+      "local": "card",
+      "digest": "sha256:d77bd7d414cd074f9c1aa4b98374f303a50c4d22149096fe943721cc6062853f",
+      "reviewedAt": "2026-07-13"
+    },
+    "carousel": {
+      "state": "adapted",
+      "local": "carousel",
+      "digest": "sha256:2acdf71e4769a6f279dc2ea138338718313f2eca3937c3b85a68ae4d5ab1e577",
+      "reviewedAt": "2026-07-13"
+    },
+    "chart": {
+      "state": "composed",
+      "local": "chart",
+      "reason": "Local chart combines shadcn chart primitives with EvilCharts integrations.",
+      "digest": "sha256:e4dac56195a5a86456c599cc2984250591bd0e5d67fcd04d956ab44adf91fcc7",
+      "reviewedAt": "2026-07-13"
+    },
+    "checkbox": {
+      "state": "adapted",
+      "local": "checkbox",
+      "digest": "sha256:0e6819d94348c2817fef7e0f3e3210b9bbd93e4a2019e416582666091cae92c4",
+      "reviewedAt": "2026-07-13"
+    },
+    "collapsible": {
+      "state": "adapted",
+      "local": "collapsible",
+      "digest": "sha256:f3032d731aa1d8fa42c39d512c62549147b172340003481940bed16384903177",
+      "reviewedAt": "2026-07-13"
+    },
+    "combobox": {
+      "state": "adapted",
+      "local": "combobox",
+      "digest": "sha256:b9274887e55dc348b2bacf00df9ecaaff93f46dfc6fc59438f3e5cff409158d3",
+      "reviewedAt": "2026-07-13"
+    },
+    "command": {
+      "state": "adapted",
+      "local": "command",
+      "digest": "sha256:259a69b8eba9b10cf65c6048c34af3c4561527c5116788e4eaf16fed298e43f0",
+      "reviewedAt": "2026-07-13"
+    },
+    "context-menu": {
+      "state": "adapted",
+      "local": "context-menu",
+      "digest": "sha256:2709c423bd6a5e966f7a76265b9efbdfc1475d534dac00d37769f1fcd13f35ab",
+      "reviewedAt": "2026-07-13"
+    },
+    "dialog": {
+      "state": "adapted",
+      "local": "dialog",
+      "digest": "sha256:c308ecf777427ddafd8c79690e252bd4fea49ef4e9d60904e5403c057849b0d5",
+      "reviewedAt": "2026-07-13"
+    },
+    "direction": {
+      "state": "adapted",
+      "local": "direction",
+      "digest": "sha256:854d3e4c85c9ee01fa56cb434d7d4d9ce6502a0a5b40f1f3e2ce88ba7ac996ed",
+      "reviewedAt": "2026-07-13"
+    },
+    "drawer": {
+      "state": "adapted",
+      "local": "drawer",
+      "digest": "sha256:75cc48e39ae42866b976ad3896a476298ee8bedb43bc75db99f8145e671dbe3f",
+      "reviewedAt": "2026-07-13"
+    },
+    "dropdown-menu": {
+      "state": "adapted",
+      "local": "dropdown-menu",
+      "digest": "sha256:7a926a8ef5c7eb92273e9af9db72ec21189169923503b73c4ba1f4a55893708b",
+      "reviewedAt": "2026-07-13"
+    },
+    "empty": {
+      "state": "adapted",
+      "local": "empty",
+      "digest": "sha256:560e8399f61242dfa25084beb7b6e66dfaccbeaa09d100c2d8938126ab282c6c",
+      "reviewedAt": "2026-07-13"
+    },
+    "field": {
+      "state": "adapted",
+      "local": "field",
+      "digest": "sha256:ddd9a26d489ae59b64f722c4cd579b616dc5e295306d7610bcf2e4b2e73eeaee",
+      "reviewedAt": "2026-07-13"
+    },
+    "form": {
+      "state": "covered",
+      "reason": "The upstream compatibility item has no implementation files; local forms use Field and React Hook Form Controller.",
+      "digest": "sha256:988f74bec7c37bae3a684355c1c6652cfbb838dab887272fb988e1a716e2a9ca",
+      "reviewedAt": "2026-07-13"
+    },
+    "hover-card": {
+      "state": "adapted",
+      "local": "hover-card",
+      "digest": "sha256:f69aa7a453a799d5e965e6c6a0dcb1a8064eae66f9dca8f9f871b3caa7bf1791",
+      "reviewedAt": "2026-07-13"
+    },
+    "input": {
+      "state": "adapted",
+      "local": "input",
+      "digest": "sha256:c706426f52a133ad09808eb74f0a45caf539278c7a346874fca0b77a965718c4",
+      "reviewedAt": "2026-07-13"
+    },
+    "input-group": {
+      "state": "adapted",
+      "local": "input-group",
+      "digest": "sha256:a48669662346e8c541cee799facbeafd1c2fe77a4a820b9eef003cbb10f9320b",
+      "reviewedAt": "2026-07-13"
+    },
+    "input-otp": {
+      "state": "adapted",
+      "local": "input-otp",
+      "digest": "sha256:1de15bb40a45fa320c65ce469fdd5e5c5dd9377abd2db40b5c3f309e92e5fb8d",
+      "reviewedAt": "2026-07-13"
+    },
+    "item": {
+      "state": "adapted",
+      "local": "item",
+      "digest": "sha256:0f67b16c05e9af79ba8946433cc64364df5e2ea4bcba377b2c81b769893e1725",
+      "reviewedAt": "2026-07-13"
+    },
+    "kbd": {
+      "state": "adapted",
+      "local": "kbd",
+      "digest": "sha256:90f827c06f48979cf5ac4f0543253685d1aa75378ac60758f436e5f55d414bab",
+      "reviewedAt": "2026-07-13"
+    },
+    "label": {
+      "state": "adapted",
+      "local": "label",
+      "digest": "sha256:da91283421e510355544214021d463b9556c370deddcab0de906dbee160d70fe",
+      "reviewedAt": "2026-07-13"
+    },
+    "marker": {
+      "state": "adapted",
+      "local": "marker",
+      "digest": "sha256:88acfbb7d2aaa25c94ddcfee0b84a1a71e6891a2ff48f50e87d27a1f05fecb4a",
+      "reviewedAt": "2026-07-13"
+    },
+    "menubar": {
+      "state": "adapted",
+      "local": "menubar",
+      "digest": "sha256:eb9178fabd4cfd5d1fd984a1e4790c9f28063757e90f923f493339c33670effd",
+      "reviewedAt": "2026-07-13"
+    },
+    "message": {
+      "state": "adapted",
+      "local": "message",
+      "digest": "sha256:1e1ef67264875c1e2dbc4080b4fe8ec77943017d84fd3dc5f131bc538e980d76",
+      "reviewedAt": "2026-07-13"
+    },
+    "message-scroller": {
+      "state": "adapted",
+      "local": "message-scroller",
+      "digest": "sha256:1ab0d3530b0f15e62a50b177363f261ac2a335e49930af68ea6912423f91397f",
+      "reviewedAt": "2026-07-13"
+    },
+    "native-select": {
+      "state": "adapted",
+      "local": "native-select",
+      "digest": "sha256:3e86e36cadbba5532b67316b19f1f5367e36c106e122e5720c97d8943331cd48",
+      "reviewedAt": "2026-07-13"
+    },
+    "navigation-menu": {
+      "state": "adapted",
+      "local": "navigation-menu",
+      "digest": "sha256:c5df77942a38fdc096546649f359f63139dbdf7aa883d8bba21a1f67edc9bd28",
+      "reviewedAt": "2026-07-13"
+    },
+    "pagination": {
+      "state": "adapted",
+      "local": "pagination",
+      "digest": "sha256:4f8da1767a2565b028f151c7c13c325b116177be24ed5c62df12bdbc0093ef0b",
+      "reviewedAt": "2026-07-13"
+    },
+    "popover": {
+      "state": "adapted",
+      "local": "popover",
+      "digest": "sha256:a88fe8cd11c5b5e35827981ae2ff50f3a1f81edc1bb776242e13defc98fd64b0",
+      "reviewedAt": "2026-07-13"
+    },
+    "progress": {
+      "state": "adapted",
+      "local": "progress",
+      "digest": "sha256:7ea7e565f6fa707e04f0bc6a06a2abfb456535e4861759f57001dd82416715aa",
+      "reviewedAt": "2026-07-13"
+    },
+    "radio-group": {
+      "state": "adapted",
+      "local": "radio-group",
+      "digest": "sha256:2f0723ac94635ae2ad71212b3f3c5c07d7ea4cf463bb51947830c0ad1f107591",
+      "reviewedAt": "2026-07-13"
+    },
+    "resizable": {
+      "state": "adapted",
+      "local": "resizable",
+      "digest": "sha256:31565d7ca0c56acf94402b446e82327693012c2ee88cfdd8436d50af45c7bb2e",
+      "reviewedAt": "2026-07-13"
+    },
+    "scroll-area": {
+      "state": "adapted",
+      "local": "scroll-area",
+      "digest": "sha256:48895bb42fd8a03459771c2dd3edd40c969eac7fa9c5f3a84abcc008dd37bad1",
+      "reviewedAt": "2026-07-13"
+    },
+    "select": {
+      "state": "adapted",
+      "local": "select",
+      "digest": "sha256:01e605d933514def2e763fc26d5ff70167e668eebe4a4bb5b04d08a5b55a251f",
+      "reviewedAt": "2026-07-13"
+    },
+    "separator": {
+      "state": "adapted",
+      "local": "separator",
+      "digest": "sha256:609bdaa12cf018fe34b19754828bc2e0eea3aba16227cb04ad94e8cf404db2b4",
+      "reviewedAt": "2026-07-13"
+    },
+    "sheet": {
+      "state": "adapted",
+      "local": "sheet",
+      "digest": "sha256:9e26865f3ac5ea21854e9230ca2bd09626e6b6d09990266ec75add1d38c03fcf",
+      "reviewedAt": "2026-07-13"
+    },
+    "sidebar": {
+      "state": "adapted",
+      "local": "sidebar",
+      "digest": "sha256:b9f38c8ba20b274648931a168bf80c24823e27bbe5ec8ed6a7a8805acf972457",
+      "reviewedAt": "2026-07-13"
+    },
+    "skeleton": {
+      "state": "adapted",
+      "local": "skeleton",
+      "digest": "sha256:1de5b361affe7e259074f887197b771cc11a442928945f776bc39f95f7676e0a",
+      "reviewedAt": "2026-07-13"
+    },
+    "slider": {
+      "state": "adapted",
+      "local": "slider",
+      "digest": "sha256:1c72a30bfe715fadfd267afe28aeaa022766eedd6555601e5a1f13a53a0f5569",
+      "reviewedAt": "2026-07-13"
+    },
+    "sonner": {
+      "state": "adapted",
+      "local": "sonner",
+      "digest": "sha256:77bc87dce30f33bd951604343037baaf557d8bea37e034c5d022ba0a4a9f368d",
+      "reviewedAt": "2026-07-13"
+    },
+    "spinner": {
+      "state": "adapted",
+      "local": "spinner",
+      "digest": "sha256:3a6c8ca0089fe3d6c0cfee4bebf36f6aa14f0832ecb60d944dc100a59957c862",
+      "reviewedAt": "2026-07-13"
+    },
+    "switch": {
+      "state": "adapted",
+      "local": "switch",
+      "digest": "sha256:50c953044e597e8c70b1030072f1e492940d83e719c7f71f9c28a9b2c882d363",
+      "reviewedAt": "2026-07-13"
+    },
+    "table": {
+      "state": "adapted",
+      "local": "table",
+      "digest": "sha256:97f83695d79f2f96e04696cad0afe4eff880075ffa4c6c0958734c047bdefa15",
+      "reviewedAt": "2026-07-13"
+    },
+    "tabs": {
+      "state": "adapted",
+      "local": "tabs",
+      "digest": "sha256:b85f9625d07ce39a405bbacdfbb90956a9e87d33413401b7de2ab18a593799f0",
+      "reviewedAt": "2026-07-13"
+    },
+    "textarea": {
+      "state": "adapted",
+      "local": "textarea",
+      "digest": "sha256:b2470dd6671cacdbe7acf2d242218e727417f4b6d8e4b61e05304d89e408a1df",
+      "reviewedAt": "2026-07-13"
+    },
+    "toggle": {
+      "state": "adapted",
+      "local": "toggle",
+      "digest": "sha256:dce544722d60c008778c2894bcf9581bc80fe443e4485840d50e6139e03eb5f2",
+      "reviewedAt": "2026-07-13"
+    },
+    "toggle-group": {
+      "state": "adapted",
+      "local": "toggle-group",
+      "digest": "sha256:e4f71539b351ef7134bda2639003ce898c46e429cb333768afa818af818abf8d",
+      "reviewedAt": "2026-07-13"
+    },
+    "tooltip": {
+      "state": "adapted",
+      "local": "tooltip",
+      "digest": "sha256:995f6c8c1133ab9857d82afbdbef92c1009b47360fe521558f9f4db8fbc183dd",
+      "reviewedAt": "2026-07-13"
+    }
+  },
+  "assets": {
+    "hirael-audit-log": {
+      "format": "registry-item",
+      "url": "https://hirael.com/r/audit-log.json",
+      "local": "src/components/audit-log/audit-log.tsx",
+      "item": "audit-log",
+      "digest": "sha256:abbf55511fe22ab6c58430bc65073233082d5037beeb87173ebda0958d693621",
+      "reviewedAt": "2026-07-13"
+    },
+    "hirael-stat-card": {
+      "format": "registry-item",
+      "url": "https://hirael.com/r/stat-card.json",
+      "local": "src/components/stat-card/stat-card.tsx",
+      "item": "stat-card",
+      "digest": "sha256:a1dc5280df7987aff3f4f21362f39f9d8ea8e66625842e8f2023f5d01a2c37a3",
+      "reviewedAt": "2026-07-13"
+    },
+    "typeset": {
+      "format": "text",
+      "url": "https://raw.githubusercontent.com/shadcn-ui/ui/main/apps/v4/app/(app)/(typeset)/typeset.css",
+      "local": "src/styles/typeset.css",
+      "digest": "sha256:f70fb9750ffc48355ffa84c6d338dff866441a84f838901fa5739e148eea1be5",
+      "reviewedAt": "2026-07-13"
+    }
+  }
+}

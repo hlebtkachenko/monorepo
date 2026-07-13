@@ -194,6 +194,25 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Container enforcing a fixed aspect ratio",
     categories: ["layout"],
   },
+  attachment: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/attachment",
+    description:
+      "Composable file and image attachment with upload states, metadata, actions, sizes, and horizontal or vertical layouts",
+    categories: ["display", "feedback", "chat"],
+    dependencies: ["button"],
+  },
+  "audit-log": {
+    source: "hirael",
+    sourceType: "import",
+    upstream: "https://hirael.com/r/audit-log.json",
+    description:
+      "Compliance event log with expandable actor, action, status, time, and request metadata",
+    categories: ["data-display", "compliance"],
+    dependencies: ["collapsible"],
+    packages: ["class-variance-authority"],
+  },
   autocomplete: {
     source: "coss",
     sourceType: "import",
@@ -243,6 +262,14 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/breadcrumb",
     description: "Navigation breadcrumb trail with separators",
     categories: ["navigation"],
+  },
+  bubble: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/bubble",
+    description:
+      "Message surface with alignment, semantic visual variants, grouping, and reactions",
+    categories: ["display", "chat"],
   },
   browser: {
     source: "eldoraui",
@@ -701,6 +728,14 @@ export const registry: Record<string, ComponentMeta> = {
       "Horizontal or vertical scrolling marquee with pause-on-hover, reverse, and configurable speed",
     categories: ["effects"],
   },
+  marker: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/marker",
+    description:
+      "Conversation status, system note, bordered row, or labelled separator",
+    categories: ["display", "feedback", "chat"],
+  },
   mention: {
     source: "diceui",
     sourceType: "import",
@@ -750,6 +785,24 @@ export const registry: Record<string, ComponentMeta> = {
     upstream: "https://ui.shadcn.com/docs/components/menubar",
     description: "Horizontal menu bar with dropdown submenus",
     categories: ["navigation"],
+  },
+  message: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/message",
+    description:
+      "Conversation row layout with avatar, alignment, header, content, footer, and grouping",
+    categories: ["display", "chat"],
+  },
+  "message-scroller": {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/components/message-scroller",
+    description:
+      "Streaming conversation viewport with anchored turns, prepend preservation, visibility tracking, and scroll controls",
+    categories: ["layout", "chat"],
+    dependencies: ["button"],
+    packages: ["@shadcn/react"],
   },
   "native-select": {
     source: "shadcn",
@@ -966,6 +1019,15 @@ export const registry: Record<string, ComponentMeta> = {
     description: "Animated loading spinner",
     categories: ["feedback"],
   },
+  "stat-card": {
+    source: "hirael",
+    sourceType: "import",
+    upstream: "https://hirael.com/r/stat-card.json",
+    description:
+      "Compact metric card with label, value, and up, down, or flat trend",
+    categories: ["data-display", "dashboard"],
+    dependencies: ["badge", "card"],
+  },
   swap: {
     source: "diceui",
     sourceType: "import",
@@ -1063,6 +1125,14 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["overlay", "navigation"],
     dependencies: ["button"],
     packages: ["@floating-ui/react-dom"],
+  },
+  typeset: {
+    source: "shadcn",
+    sourceType: "vanilla",
+    upstream: "https://ui.shadcn.com/docs/typeset",
+    description:
+      "Token-driven HTML and rendered Markdown typography with container-relative rhythm and streaming-stable layout",
+    categories: ["typography", "utility", "chat"],
   },
   "webhook-tester": {
     source: "tryelements",

@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Redesigned the accounting approvals surface: business-facing table columns (counterparty, amount, confidence, doklad number, event date, added date, status) replacing the internal Operace/Popis/Aktér/Klíč set, with row-select checkboxes and bulk approve/reject straight from the ActionBar; a pinned Inspector action footer (approve/reject/edit stay put while the detail scrolls, via a new ContentPanel `inspectorFooter` slot); richer always-on detail lines (doklad number, účetní případ, supplier resolved server-side); and hardened i18n locale resolution so a session-fetch failure no longer 500s every page through the root layout's metadata
 - chore(agents): pin the brain-gate + thermo-review workflows to Opus 4.8 xhigh (two independent lenses); drop Fable 5 as the default advisor model
 - Add an in-admin Platform Archetypes reference catalog at `/platform/archetypes` listing the content-panel archetypes and their slot recipes.
 - Restore the AI financial agents plan to docs/plans as durable reference for EPIC #485/#487; remaining active plan and public-API launch context migrated to GitHub issues #686/#687/#688 in the Roadmap v1 project.

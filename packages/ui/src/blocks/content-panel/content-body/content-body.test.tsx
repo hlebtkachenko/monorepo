@@ -29,6 +29,19 @@ describe("ContentBody", () => {
     expect(slots[1]).toHaveTextContent("Second")
   })
 
+  it("applies a section anchor as the DOM id for deep-linking", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionEmpty({ title: "Anchored", anchor: "legal-identity" }),
+        ]}
+      />,
+    )
+    const slot = container.querySelector('[data-slot="content-section"]')
+    expect(slot).toHaveAttribute("id", "legal-identity")
+    expect(slot).toHaveAttribute("data-section-anchor", "legal-identity")
+  })
+
   it("uses the content-body region markup", () => {
     const { container } = wrap(
       <ContentBody sections={[sectionEmpty({ title: "Nothing here" })]} />,

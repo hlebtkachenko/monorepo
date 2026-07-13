@@ -15,6 +15,16 @@ describe("sectionForm factory", () => {
     expect(descriptor.kind).toBe("form")
     expect(isSectionDescriptor(descriptor)).toBe(true)
   })
+
+  it("lifts `anchor` onto the descriptor, not into props", () => {
+    const descriptor = sectionForm({
+      title: "Legal identity",
+      anchor: "legal-identity",
+      fields: [],
+    })
+    expect(descriptor.anchor).toBe("legal-identity")
+    expect(descriptor.props).not.toHaveProperty("anchor")
+  })
 })
 
 describe("SectionFormRenderer", () => {
@@ -53,7 +63,7 @@ describe("SectionFormRenderer", () => {
     expect(input).toHaveValue("Developer Workspace")
   })
 
-  it("renders a select field with placeholder + options", () => {
+  it("renders a select field (Radix trigger) showing its default value", () => {
     wrap(
       <SectionFormRenderer
         props={{
@@ -65,6 +75,7 @@ describe("SectionFormRenderer", () => {
               control: {
                 kind: "select",
                 value: "CZK",
+                placeholder: "Select…",
                 options: [
                   { label: "CZK", value: "CZK" },
                   { label: "EUR", value: "EUR" },
@@ -75,9 +86,12 @@ describe("SectionFormRenderer", () => {
         }}
       />,
     )
-    const select = screen.getByLabelText<HTMLSelectElement>("Currency")
-    expect(select).toHaveValue("CZK")
-    expect(screen.getByRole("option", { name: "EUR" })).toBeInTheDocument()
+    // Our desktop control is the Radix Select (a combobox button), not a native
+    // <select>; options render in a portal only once opened. Assert the trigger
+    // is labelled and shows the default value.
+    const trigger = screen.getByLabelText("Currency")
+    expect(trigger).toHaveAttribute("role", "combobox")
+    expect(trigger).toHaveTextContent("CZK")
   })
 
   it("maps span to a col-span class and defaults to a full row", () => {

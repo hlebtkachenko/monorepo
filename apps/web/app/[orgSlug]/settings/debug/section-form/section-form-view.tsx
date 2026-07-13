@@ -24,6 +24,7 @@ export function SectionFormView() {
       <ContentPanel
         sections={[
           sectionForm({
+            anchor: "legal-identity",
             title: "Legal identity",
             description:
               "How this účetní jednotka is named on filings and výkazy.",

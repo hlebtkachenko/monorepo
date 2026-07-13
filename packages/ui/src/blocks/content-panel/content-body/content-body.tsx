@@ -59,8 +59,13 @@ export function ContentBody({ sections, className }: ContentBodyProps) {
             // kind+index is unambiguous. Swap for a descriptor id if sections
             // ever become reorderable/insertable.
             key={`${section.kind}-${index}`}
+            // The section-level `anchor` becomes the DOM id so URL/CLI/agent/docs
+            // links can deep-link a section (`…#legal-identity`). `scroll-mt`
+            // offsets the anchored scroll so it clears the content header.
+            id={section.anchor}
             data-slot="content-section"
-            className="flex min-h-0 flex-1 flex-col overflow-auto"
+            data-section-anchor={section.anchor}
+            className="flex min-h-0 flex-1 scroll-mt-16 flex-col overflow-auto"
           >
             <Renderer props={section.props} />
           </div>

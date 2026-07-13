@@ -4,13 +4,16 @@ import { type SectionDescriptor, defineSection } from "./section"
 
 export interface SectionEmptyProps {
   readonly title?: string
+  /** Optional URL/scroll anchor slug applied as the section's DOM `id`. */
+  readonly anchor?: string
 }
 
 /** The sole constructor for an Empty-section descriptor. */
 export function sectionEmpty(
   props?: SectionEmptyProps,
 ): SectionDescriptor<"empty", SectionEmptyProps> {
-  return defineSection("empty", props ?? {})
+  const { anchor, ...rest } = props ?? {}
+  return defineSection("empty", rest, anchor)
 }
 
 /**

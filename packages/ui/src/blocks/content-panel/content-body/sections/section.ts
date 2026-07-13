@@ -21,14 +21,25 @@ export interface SectionDescriptor<
   readonly [SECTION_BRAND]: true
   readonly kind: K
   readonly props: P
+  /**
+   * Optional URL/scroll anchor — a stable slug applied as the section's DOM `id`
+   * by `ContentBody`. Section-level (every kind gets it, not per-kind props), so
+   * `…/page#legal-identity` deep-links, CLI/agent links, and docs help-center
+   * links can navigate straight to a section.
+   */
+  readonly anchor?: string
 }
 
 /** Internal-only minter — factories are the sole construction path. */
 export function defineSection<K extends SectionKind, P>(
   kind: K,
   props: P,
+  anchor?: string,
 ): SectionDescriptor<K, P> {
-  return { [SECTION_BRAND]: true, kind, props } as SectionDescriptor<K, P>
+  return { [SECTION_BRAND]: true, kind, props, anchor } as SectionDescriptor<
+    K,
+    P
+  >
 }
 
 /** Dev-only guard: is this an authentically branded section descriptor? */

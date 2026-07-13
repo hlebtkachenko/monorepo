@@ -5,9 +5,12 @@ import { useId } from "react"
 import { Field, FieldLabel } from "@workspace/ui/components/field"
 import { Input } from "@workspace/ui/components/input"
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@workspace/ui/components/native-select"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { cn } from "@workspace/ui/lib/utils"
 
 import type {
@@ -54,24 +57,22 @@ function FormControl({
       )
     case "select":
       return (
-        <NativeSelect
-          id={id}
+        <Select
           name={name}
-          className="w-full"
-          defaultValue={control.value ?? ""}
+          defaultValue={control.value}
           disabled={control.disabled}
         >
-          {control.placeholder != null ? (
-            <NativeSelectOption value="" disabled hidden>
-              {control.placeholder}
-            </NativeSelectOption>
-          ) : null}
-          {(control.options ?? []).map((option) => (
-            <NativeSelectOption key={option.value} value={option.value}>
-              {option.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+          <SelectTrigger id={id} className="w-full">
+            <SelectValue placeholder={control.placeholder} />
+          </SelectTrigger>
+          <SelectContent>
+            {(control.options ?? []).map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )
     default:
       // Exhaustiveness guard: a new control arm without a render case fails here.
@@ -80,40 +81,47 @@ function FormControl({
 }
 
 /**
- * One grid cell: a labelled control that spans 1–6 columns. A `useId` fallback
- * guarantees the label associates with its control even when the field carries
- * no explicit `name`.
+ * One grid cell: a labelled control that spans 1–6 columns. The cell stretches
+ * to its grid row (`h-full`) and pins the control to the bottom (`mt-auto`), so
+ * every control in a row lines up on one baseline even when a neighbour's label
+ * wraps to two lines — no floating inputs. A `useId` fallback keeps the label
+ * associated with its control when the field carries no explicit `name`.
  */
 function FormFieldCell({ field }: { field: FormField }) {
   const generatedId = useId()
   const controlId = field.name ?? generatedId
   return (
-    <Field className={cn(SPAN_CLASS[field.span ?? 6])}>
+    <Field className={cn("h-full", SPAN_CLASS[field.span ?? 6])}>
       <FieldLabel htmlFor={controlId}>{field.label}</FieldLabel>
-      <FormControl id={controlId} name={field.name} control={field.control} />
+      <div className="mt-auto">
+        <FormControl id={controlId} name={field.name} control={field.control} />
+      </div>
     </Field>
   )
 }
 
 /**
  * SectionForm — a two-column form group: a title + description block on the
- * left, and a 6-column field grid on the right. Fields declare their own span
- * (1–6) and wrap; the grid never constrains which control a field carries.
+ * left, and a 6-column field grid on the right. The left title and the right
+ * grid's first row share the same top edge; fields declare their own span (1–6)
+ * and wrap. The grid never constrains which control a field carries.
  * The reusable Section behind settings-style pages.
  */
 export function SectionFormRenderer({ props }: { props: SectionFormProps }) {
   return (
-    <div className="grid gap-x-8 gap-y-6 p-6 md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
-      <div className="space-y-1.5">
-        <h3 className="text-base leading-none font-semibold">{props.title}</h3>
+    <div className="grid items-start gap-x-14 gap-y-6 px-11 py-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+      <div>
+        <h3 className="text-base font-semibold tracking-tight">
+          {props.title}
+        </h3>
         {props.description != null ? (
-          <p className="text-sm leading-normal text-muted-foreground">
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
             {props.description}
           </p>
         ) : null}
       </div>
 
-      <div className="grid grid-cols-6 gap-x-4 gap-y-5">
+      <div className="grid grid-cols-6 gap-x-6 gap-y-6">
         {props.fields.map((field, index) => (
           <FormFieldCell
             key={field.name ?? `${field.label}-${index}`}

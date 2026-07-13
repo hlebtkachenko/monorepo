@@ -49,6 +49,8 @@ export interface SectionFormProps {
   readonly description?: string
   /** Fields laid out on the right, wrapping across the 6-column grid. */
   readonly fields: readonly FormField[]
+  /** Optional URL/scroll anchor slug applied as the section's DOM `id`. */
+  readonly anchor?: string
 }
 
 /**
@@ -58,8 +60,9 @@ export interface SectionFormProps {
  * boundary that mints it (the `Symbol` brand does not survive RSC
  * serialisation). The renderer lives in `./section-form-renderer`.
  */
-export function sectionForm(
-  props: SectionFormProps,
-): SectionDescriptor<"form", SectionFormProps> {
-  return defineSection("form", props)
+export function sectionForm({
+  anchor,
+  ...props
+}: SectionFormProps): SectionDescriptor<"form", SectionFormProps> {
+  return defineSection("form", props, anchor)
 }

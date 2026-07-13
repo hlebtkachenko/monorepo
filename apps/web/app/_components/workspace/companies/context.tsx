@@ -2,7 +2,7 @@
 
 import * as React from "react"
 
-import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 
 import type { CompanyAssignee, CompanyRow } from "./data"
@@ -11,8 +11,8 @@ import type { CompanyAssignee, CompanyRow } from "./data"
  * Shared UI state linking the Companies page's two shell slots: the portaled
  * content-header (status tabs) and the body (toolbar + table + inspector). Same
  * seam the org Table demo uses (`table-demo/context.tsx`), trimmed to what this
- * page actually consumes — the favorite star lives in the shared
- * `PageHeaderActions` cluster, and the inspector mode follows the viewport
+ * page actually consumes — the favorite star is internal `ContentHeader`
+ * chrome (`ContentHeaderActions`), and the inspector mode follows the viewport
  * (panel on desktop, dialog on mobile), so neither needs page-level state here.
  *
  * `canAssign` + `assignableMembers` are workspace-level (same for every row),

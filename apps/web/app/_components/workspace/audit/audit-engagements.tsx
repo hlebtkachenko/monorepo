@@ -7,8 +7,8 @@ import {
   ContentPanel,
   ContentStatusBar,
   DetailField,
-  type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+  type ViewTab,
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import {
   Table,
@@ -22,8 +22,7 @@ import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   AUDIT_ENGAGEMENT_TABS,
   AUDIT_ENGAGEMENTS,
@@ -67,7 +66,7 @@ export function AuditEngagements() {
     (e) => e.status === "Awaiting docs",
   ).length
 
-  const tabs: ContentTab[] = AUDIT_ENGAGEMENT_TABS.map((t) => ({
+  const tabs: ViewTab[] = AUDIT_ENGAGEMENT_TABS.map((t) => ({
     value: t.value,
     label: t.label,
     badge: t.value === "action" && actionCount > 0 ? actionCount : undefined,
@@ -89,10 +88,9 @@ export function AuditEngagements() {
       <AppPageHeader>
         <ContentHeader
           title="Engagements"
-          tabs={tabs}
+          viewTabs={tabs}
           value={tab}
           onValueChange={setTab}
-          actions={<PageHeaderActions />}
         />
       </AppPageHeader>
       <ContentPanel

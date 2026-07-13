@@ -2,7 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table"
 
-import { DetailField } from "@workspace/ui/blocks/app-content"
+import { DetailField } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { useIcons } from "@workspace/ui/icon-packs"

@@ -1313,7 +1313,7 @@ export interface components {
                 label: string;
                 /**
                  * @description Which `ContentPanel` slots this archetype fills.
-                 * @example toolbar + body + statusBar (+ inspector, actionBar)
+                 * @example toolbar + body + statusBar (+ inspector, footer)
                  */
                 slots: string;
                 /**
@@ -1343,7 +1343,7 @@ export interface components {
             label: string;
             /**
              * @description Which `ContentPanel` slots this archetype fills.
-             * @example toolbar + body + statusBar (+ inspector, actionBar)
+             * @example toolbar + body + statusBar (+ inspector, footer)
              */
             slots: string;
             /**

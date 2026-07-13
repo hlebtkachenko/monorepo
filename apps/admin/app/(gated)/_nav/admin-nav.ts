@@ -1,6 +1,6 @@
 import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
 import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
-import type { SidebarNavPage } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavPage } from "@workspace/ui/blocks/sidebar-panel"
 import type { IconName } from "@workspace/ui/icon-packs"
 import { longestPrefixMatch } from "@workspace/ui/lib/active-path"
 

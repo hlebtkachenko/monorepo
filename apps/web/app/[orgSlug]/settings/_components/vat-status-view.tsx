@@ -7,7 +7,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -46,7 +46,7 @@ import {
 } from "@workspace/ui/components/table"
 import type { VatFilingPeriod, VatRegime } from "@workspace/accounting"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type {
   OssRow,
   TaxRepresentativeRow,

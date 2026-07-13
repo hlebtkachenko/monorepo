@@ -7,7 +7,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -25,7 +25,7 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { dataBoxError } from "../_lib/org-update"
 import { updateOrgSettingsAction } from "../actions"
 

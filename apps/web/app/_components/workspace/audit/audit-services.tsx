@@ -6,7 +6,7 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -30,8 +30,7 @@ import { toast } from "@workspace/ui/components/sonner"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   AUDIT_COMPANIES,
   AUDIT_PERIODS,
@@ -70,7 +69,7 @@ export function AuditServices() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Services" actions={<PageHeaderActions />} />
+        <ContentHeader title="Services" />
       </AppPageHeader>
       <ContentPanel statusBar={statusBar}>
         <div className="space-y-4">

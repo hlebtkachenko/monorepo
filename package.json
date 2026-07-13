@@ -19,6 +19,7 @@
     "codegraph:sync": "node scripts/codegraph.mjs sync",
     "check:brand-placeholders": "node scripts/check-brand-placeholders.mjs",
     "check:client-secrets": "node scripts/check-client-secrets.mjs",
+    "check:archetype-body": "node scripts/governance/check-archetype-body.mjs",
     "check:changelog": "node scripts/governance/check-changelog-unreleased.mjs",
     "check:docs": "node scripts/check-docs.mjs",
     "check:nav": "tsx scripts/check-nav.ts",

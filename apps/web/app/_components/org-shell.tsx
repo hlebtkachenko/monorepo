@@ -3,9 +3,10 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
+import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 
 import {
   MODULE_NAV,
@@ -16,7 +17,10 @@ import {
 } from "../[orgSlug]/_nav/org-nav"
 import { AppBottomNav } from "./app-bottom-nav"
 import { AppRailNav } from "./app-rail-nav"
-import { AppContentHeaderSlot, AppPageHeaderProvider } from "./app-page-header"
+import {
+  AppContentHeaderSlot,
+  AppPageHeaderProvider,
+} from "@workspace/ui/blocks/app-shell"
 import { OrgSidebar } from "./org-sidebar"
 import { SidebarModuleTitle } from "./sidebar-module-title"
 
@@ -59,11 +63,7 @@ export function OrgShell({
         contentHeader={
           <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }
-        assistant={
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Assistant — coming soon
-          </div>
-        }
+        assistant={<AssistantPanel />}
         logoHref={`/${orgSlug}`}
       >
         {children}

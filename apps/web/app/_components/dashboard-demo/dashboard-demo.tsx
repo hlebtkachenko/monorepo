@@ -23,11 +23,11 @@ import {
 import {
   ContentHeader,
   ContentPanel,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DashboardChartCard,
   DashboardGrid,
-  type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+  type ViewTab,
+} from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
 import {
@@ -67,12 +67,10 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { applyFilterBar } from "../_shared/apply-filter-bar"
 import {
-  ManageTabsMenu,
-  PageHeaderActions,
   useTabVisibility,
   type ManageTab,
 } from "../_shared/content-header-extras"
-import { AppPageHeader } from "../app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   ACCOUNT_OPTIONS,
   aggregate,
@@ -357,13 +355,13 @@ export function DashboardDemo() {
         chart != null && !hiddenWidgets.has(chart.id),
     )
 
-  const tabs: ContentTab[] = visibleTabs.map((t) => ({
+  const tabs: ViewTab[] = visibleTabs.map((t) => ({
     value: t.value,
     label: t.label,
   }))
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <>
           {/* Predefined-timeframe control FIRST — maps to the granularity
@@ -499,17 +497,14 @@ export function DashboardDemo() {
       <AppPageHeader>
         <ContentHeader
           title="Dashboard"
-          tabs={tabs}
+          viewTabs={tabs}
           value={activeView}
           onValueChange={(value) => setView(value as DashboardView)}
-          manageTabs={
-            <ManageTabsMenu
-              tabs={DASHBOARD_TABS as ManageTab[]}
-              hidden={hiddenTabs}
-              onToggle={toggleTab}
-            />
-          }
-          actions={<PageHeaderActions />}
+          manageViews={{
+            tabs: DASHBOARD_TABS as ManageTab[],
+            hidden: hiddenTabs,
+            onToggle: toggleTab,
+          }}
         />
       </AppPageHeader>
       <ContentPanel toolbar={toolbar}>

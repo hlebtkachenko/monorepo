@@ -1,4 +1,4 @@
-import type { SidebarNavEntry } from "@workspace/ui/blocks/app-sidebar"
+import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Settings module sidebar nav. Derived from `docs/specs/SITEMAP.md` (Settings —
@@ -257,6 +257,30 @@ export function settingsNav(base: string): SidebarNavEntry[] {
           href: `${base}/import-export`,
           icon: "Download",
           tba: true,
+        },
+      ],
+    },
+    {
+      label: "Debug",
+      pages: [
+        {
+          label: "Debug",
+          href: `${base}/debug`,
+          icon: "Bug",
+          subpages: [
+            {
+              label: "Archetype Blank",
+              href: `${base}/debug/archetype-blank`,
+            },
+            {
+              label: "Archetype Details",
+              href: `${base}/debug/archetype-details`,
+            },
+            {
+              label: "Section Details Form",
+              href: `${base}/debug/section-form`,
+            },
+          ],
         },
       ],
     },

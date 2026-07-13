@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation"
 import {
   AppSidebar,
   type SidebarNavPage,
-} from "@workspace/ui/blocks/app-sidebar"
+} from "@workspace/ui/blocks/sidebar-panel"
 
 /**
  * Admin sidebar body — the active module's pages, fed the live pathname for

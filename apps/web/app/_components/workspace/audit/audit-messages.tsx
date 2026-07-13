@@ -6,15 +6,14 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Avatar, AvatarFallback } from "@workspace/ui/components/avatar"
 import { Button } from "@workspace/ui/components/button"
 import { Input } from "@workspace/ui/components/input"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { AUDIT_MESSAGES, formatDate, type AuditMessage } from "./data"
 
 /**
@@ -74,7 +73,7 @@ export function AuditMessages() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Messages" actions={<PageHeaderActions />} />
+        <ContentHeader title="Messages" />
       </AppPageHeader>
       <ContentPanel statusBar={statusBar}>
         <div className="mx-auto flex h-full max-w-3xl flex-col gap-4">

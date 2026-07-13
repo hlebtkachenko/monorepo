@@ -1,7 +1,7 @@
 import type {
   DashboardChartCardProps,
   MetricTileProps,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 /**
  * Mock dashboard data for the #425 demo. Unlike a static KPI list, this is a

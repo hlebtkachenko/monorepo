@@ -4,9 +4,10 @@ import * as React from "react"
 import { usePathname } from "next/navigation"
 
 import { Logo } from "@workspace/ui/brand-assets"
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
+import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 
 import {
   WORKSPACE_MODULE_NAV,
@@ -17,7 +18,10 @@ import {
 } from "./workspace-nav"
 import { AppBottomNav } from "./app-bottom-nav"
 import { AppRailNav } from "./app-rail-nav"
-import { AppContentHeaderSlot, AppPageHeaderProvider } from "./app-page-header"
+import {
+  AppContentHeaderSlot,
+  AppPageHeaderProvider,
+} from "@workspace/ui/blocks/app-shell"
 import { SidebarModuleTitle } from "./sidebar-module-title"
 import { WorkspaceSidebar } from "./workspace-sidebar"
 
@@ -78,11 +82,7 @@ export function WorkspaceShell({
           contentHeader={
             <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
           }
-          assistant={
-            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-              Assistant — coming soon
-            </div>
-          }
+          assistant={<AssistantPanel />}
           logoHref="/workspace"
         >
           {children}

@@ -2,7 +2,7 @@
 
 import type { Table } from "@tanstack/react-table"
 
-import { ContentToolbar } from "@workspace/ui/blocks/app-content"
+import { ContentToolbarLegacy } from "@workspace/ui/blocks/content-panel"
 import {
   DataTableColumnManager,
   DataTableFacetedFilter,
@@ -35,7 +35,7 @@ export function LegislationToolbar({
   const statusColumn = table.getColumn("status")
 
   return (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <>
           {statusColumn ? (

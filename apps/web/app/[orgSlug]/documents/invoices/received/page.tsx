@@ -1,6 +1,6 @@
 import { DocumentsReceivedBody } from "../../../../_components/documents-received/documents-received-body"
 import { DocumentsReceivedHeader } from "../../../../_components/documents-received/documents-received-header"
-import { AppPageHeader } from "../../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   fetchDocuments,
   getOrgAccountingContext,

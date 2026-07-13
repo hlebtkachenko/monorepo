@@ -6,9 +6,9 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DetailField,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { toast } from "@workspace/ui/components/sonner"
@@ -24,8 +24,7 @@ import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   AUDIT_REPORT_KIND_META,
   AUDIT_REPORTS,
@@ -56,7 +55,7 @@ export function AuditReports() {
   )
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <span className="text-xs text-muted-foreground">
           Reports, certificates, and working papers delivered by Afframe.
@@ -89,7 +88,7 @@ export function AuditReports() {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Reports" actions={<PageHeaderActions />} />
+        <ContentHeader title="Reports" />
       </AppPageHeader>
       <ContentPanel
         toolbar={toolbar}

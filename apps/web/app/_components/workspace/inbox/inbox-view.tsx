@@ -6,9 +6,9 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
-  type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+  ContentToolbarLegacy,
+  type ViewTab,
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -22,8 +22,7 @@ import {
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   formatDate,
   INBOX_MESSAGES,
@@ -73,14 +72,14 @@ export function InboxView() {
     setRead(new Set(INBOX_MESSAGES.map((m) => m.id)))
   }
 
-  const tabs: ContentTab[] = INBOX_TABS.map((tab) => ({
+  const tabs: ViewTab[] = INBOX_TABS.map((tab) => ({
     value: tab.value,
     label: tab.label,
     badge: tab.value === "unread" && unreadCount > 0 ? unreadCount : undefined,
   }))
 
   const toolbar = (
-    <ContentToolbar
+    <ContentToolbarLegacy
       right={
         <Button
           variant="ghost"
@@ -111,10 +110,9 @@ export function InboxView() {
       <AppPageHeader>
         <ContentHeader
           title="All messages"
-          tabs={tabs}
+          viewTabs={tabs}
           value={activeTab}
           onValueChange={setActiveTab}
-          actions={<PageHeaderActions />}
         />
       </AppPageHeader>
       <ContentPanel

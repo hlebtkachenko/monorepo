@@ -3,10 +3,11 @@ import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { ContentHeader, type ContentTab } from "./content-header"
+import { ContentHeader, type ViewTab } from "./content-header"
 import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
+import { sectionEmpty } from "./content-body"
 import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
@@ -14,7 +15,7 @@ import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
-const TABS: ContentTab[] = [
+const TABS: ViewTab[] = [
   { value: "all", label: "Všechny" },
   { value: "tax", label: "Daňové doklady" },
 ]
@@ -26,7 +27,7 @@ describe("ContentHeader", () => {
   })
 
   it("renders tabs as a tablist when tabs are provided", () => {
-    wrap(<ContentHeader title="Faktury" tabs={TABS} value="all" />)
+    wrap(<ContentHeader title="Faktury" viewTabs={TABS} value="all" />)
     expect(screen.getByRole("tablist")).toBeInTheDocument()
     expect(screen.getAllByRole("tab")).toHaveLength(2)
     expect(screen.getByRole("tab", { name: "Všechny" })).toHaveAttribute(
@@ -42,45 +43,67 @@ describe("ContentHeader", () => {
 
   it("shows the manage-tabs trigger only when a menu is passed", () => {
     const { rerender } = wrap(
-      <ContentHeader title="Faktury" tabs={TABS} value="all" />,
+      <ContentHeader title="Faktury" viewTabs={TABS} value="all" />,
     )
     expect(
-      screen.queryByRole("button", { name: /manage tabs/i }),
+      screen.queryByRole("button", { name: /manage views/i }),
     ).not.toBeInTheDocument()
     rerender(
       <ContentHeader
         title="Faktury"
-        tabs={TABS}
+        viewTabs={TABS}
         value="all"
-        manageTabs={<div>menu</div>}
+        manageViews={{ tabs: TABS, hidden: new Set(), onToggle: () => {} }}
       />,
     )
     expect(
-      screen.getByRole("button", { name: /manage tabs/i }),
+      screen.getByRole("button", { name: /manage views/i }),
     ).toBeInTheDocument()
   })
 
-  it("renders right-aligned page actions", () => {
+  it("renders the closed favorite + configure actions on every header", () => {
+    wrap(<ContentHeader title="Faktury" />)
+    expect(
+      screen.getByRole("button", { name: /favorite/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: /configure/i }),
+    ).toBeInTheDocument()
+  })
+
+  it("renders a decorative titleIcon and keeps the title", () => {
+    const { container } = wrap(
+      <ContentHeader title="Faktury" titleIcon="Inbox" />,
+    )
+    expect(screen.getByText("Faktury")).toBeInTheDocument()
+    expect(container.querySelector("svg")).not.toBeNull()
+  })
+
+  it("renders the breadcrumb trail as links and inert pages", () => {
     wrap(
       <ContentHeader
-        title="Faktury"
-        actions={<button type="button">Oblíbené</button>}
+        title="Received"
+        breadcrumb={[{ label: "Accounting", href: "/acc" }, { label: "Docs" }]}
       />,
     )
-    expect(screen.getByRole("button", { name: "Oblíbené" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Accounting" })).toHaveAttribute(
+      "href",
+      "/acc",
+    )
+    expect(screen.getByText("Docs")).toBeInTheDocument()
   })
 })
 
 describe("ContentToolbar", () => {
-  it("renders both slots", () => {
+  it("renders controls from data descriptors", () => {
     wrap(
       <ContentToolbar
-        left={<span>12 dokladů</span>}
-        right={<button type="button">Přidat</button>}
+        search={{ value: "", onChange: () => {} }}
+        actions={[{ id: "export", label: "Export", onSelect: () => {} }]}
       />,
     )
-    expect(screen.getByText("12 dokladů")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Přidat" })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText("Search anything…")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument()
   })
 })
 
@@ -99,12 +122,12 @@ describe("ContentStatusBar", () => {
 })
 
 describe("ContentPanel", () => {
-  it("stacks the toolbar, body, status bar and action bar", () => {
+  it("stacks the toolbar, body, status bar and footer", () => {
     const { container } = wrap(
       <ContentPanel
         toolbar={<div data-testid="tb">toolbar</div>}
         statusBar={<div data-testid="sb">status</div>}
-        actionBar={<div data-testid="ab">actions</div>}
+        footer={<div data-testid="ft">footer</div>}
       >
         <div>body</div>
       </ContentPanel>,
@@ -112,8 +135,18 @@ describe("ContentPanel", () => {
     expect(screen.getByTestId("tb")).toBeInTheDocument()
     expect(screen.getByText("body")).toBeInTheDocument()
     expect(screen.getByTestId("sb")).toBeInTheDocument()
-    expect(screen.getByTestId("ab")).toBeInTheDocument()
+    expect(screen.getByTestId("ft")).toBeInTheDocument()
     expect(container.querySelector('[data-slot="content-body"]')).not.toBeNull()
+  })
+
+  it("forwards the sections prop to ContentBody", () => {
+    const { container } = wrap(
+      <ContentPanel sections={[sectionEmpty({ title: "Blank section" })]} />,
+    )
+    expect(screen.getByText("Blank section")).toBeInTheDocument()
+    expect(
+      container.querySelector('[data-slot="content-section"]'),
+    ).not.toBeNull()
   })
 })
 

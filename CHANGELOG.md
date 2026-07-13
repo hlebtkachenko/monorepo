@@ -3,8 +3,53 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` for release candidates. See [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md) for the full rule set + cut workflow.
-
 ## [Unreleased]
+
+### Added
+
+- Section Details Table — a data-driven content-panel section (Data Table on the right of a Details Form), with readonly (display + add editable rows) and editable (edit rows in place) modes; action buttons as data (add-row local state, link navigation).
+- UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)
+- UI: **Group** section (`sectionGroup`) — a titled, rule-bracketed container that nests other sections (one level); subsumes and replaces the standalone Title + Divider sections (its chrome = the h2 + top/bottom rules). ContentBody now delegates to a shared recursive `SectionList` so the brand guard runs at every level; the closed registry stays leaf-only (no import cycle)
+- UI: **Title** section (`sectionTitle`) — a standalone h2 group heading at the same left position as a Form title, used to group 2+ Form sections; wired into the Archetype Details debug page
+- UI: **Details** archetype (`ArchetypeDetails`) — ContentHeader (no view tabs), no toolbar, a body of as many stacked branded Sections as the page wants, and an optional Save/Discard ContentFooter; Settings → Debug → Archetype Details reference page shows two stacked Form sections + the footer
+- UI: Form section fields can carry an optional `hover` (HoverCard, not tooltip) shown over the CONTROL — rich data-driven explanation (title + description), label left undecorated; DIČ on the debug page explains it is FÚ-issued for every company incl. non-VAT payers
+- UI: Form section (`sectionForm`) — a two-column Content-Panel body section (title + description left, a 6-column field grid right, fields spanning 1–6 columns; text + select controls as data) plus a Settings → Debug → Section Form reference page
+- Add the ContentFooter block — the single sticky bottom action surface (selection + save modes, data-descriptor slots); replace ContentPanel's floating actionBar slot with a footer slot; migrate the 3 ActionBar pages (archetype-system P5/PR-6)
+- Add the archetype-body governance ratchet (`check:archetype-body`): a required CI check that AST-scans apps/web + apps/admin and fails when a new file renders a legacy `<ContentPanel>` body outside the archetype path, with a frozen shrink-only allowlist of the 47 grandfathered call sites.
+- AssistantPanel block (assistant-panel) and a first-class Inspector block extracted from ContentPanel (archetype-system P3)
+
+### Changed
+
+- Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
+- Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).
+- Details Table polish: the per-row Edit icon toggles to an Apply (check) action that returns the row to read mode keeping its edits; read-only tables can show a 'to edit, go to <link> ↗' hint; two Details groups stacked with no Space now collapse to a single divider (no gap) via a 1px overlap.
+- Redesign Section Details Table: fixed 6-track grid layout, per-row inline Edit + destructive Delete confirmation, real controls (text / dropdown / tags), dynamic Add button + optional link actions, editable/read-only states, white inputs on the grey editing row. Drops the earlier badge/badge-or-dash cell.
+- Renamed the Details-archetype section family: Section Form/Tabs/Group → Section Details Form/Tabs/Table/Group (factories sectionDetailsForm/Tabs/Group, kinds details-form/tabs/table/group); Space and Empty stay generic.
+- UI: Tabs section keeps every tab panel mounted (`forceMount`) so entered values survive a tab switch (reset only on reload/Discard); +6px gap between the tab bar and the fields
+- UI: Group section gains 16px bottom breathing room (pb-4) before its bottom rule; Archetype Details demo gives each Addresses tab distinct fields so tab switching visibly swaps the form
+- UI: Archetype Details demo adds a 16px Space before the group's bottom divider (breathing room from the section above)
+- UI: replace the Title `topRule` flag with a standalone **Divider** section (`sectionDivider`) — a full-ContentBody-width hairline the page places explicitly above and below a group, so the last group gets a real bottom rule (a flag couldn't, since no section knows it is last)
+- UI: Title section — bottom padding 32→16px (hugs its group) and a new `topRule` flag drawing a full-ContentBody-width hairline above the heading; groups separate by the next title's rule, the last group is closed by the ContentFooter (flat pattern — chose over a nested Group section per Advisor review)
+- UI: Form section vertical padding `py-4`→`py-8` (16→32px each side, so stacked sections sit 64px apart) and the Space section default gap 16→32px
+- UI: Form field hover card text reduced to `text-xs` and narrowed to w-56
+- UI: Form field `hover` now surfaces as a visible '?' (CircleHelp) affordance next to the label instead of a hidden hover on the input — discoverable, opens the HoverCard on hover or keyboard focus; label still undecorated
+- UI: Form section layout pass — container-query responsive columns (stack the title above the fields on a narrow panel instead of cramming; when side-by-side the left title column is capped at 18rem so the fields take the remaining width), `px-6`/`py-4` padding (24px sides = 3× the panel header), h4 (`Heading level={4}`) title; new `sectionSpace` gap section + a section `fill` flag so Empty fills while Form/Space take natural height and the body scrolls
+- UI: Form section polish — desktop `select` now renders our Radix Select (not NativeSelect), controls pin to a shared baseline so a row's inputs never float, title/first-field top-aligned, and sections carry an optional `anchor` (DOM id via ContentBody) for URL/CLI/docs deep-links
+- Relocate reusable archetype surface into packages/ui (archetypes are shared across web + admin): ArchetypeBlank -> packages/ui/blocks/archetypes, and the AppPageHeader content-header portal seam -> packages/ui/blocks/app-shell; ~44 page importers repointed to the barrels. Only routes + nav config stay app-side.
+- Archetype system, corrected model: an Archetype is now a component that composes the whole Content Panel from closed blocks + branded Sections (not a body-level descriptor). Added the Blank archetype (ArchetypeBlank) + a Settings→Debug→Archetype Blank page, ContentBody now renders branded Sections via a closed SECTION_REGISTRY, and ContentPanel gained a sections body path. Deleted the dead, never-adopted body-level archetype API (ArchetypeDescriptor/ARCHETYPE_REGISTRY/archetypeEmpty) after an Advisor gate, and repointed the archetype-body ratchet message, allowlist banner, and docs to the sections path.
+- Archetype-body ratchet: make the allowlist claims honest (shrink-preferred + review-gated, not code-forced) and add a CRITICAL read-for-agents banner to archetype-body-allowlist.json forbidding hand-added entries without explicit approval; the BLOCKED/STALE messages now point at that rule.
+- Harden the archetype Content Panel after a thermo-review pass: close the governance ratchet's namespace-import blind spot (with pinned shim/createElement boundary fixtures), test ContentBody's prod no-leak backstop, make AddDescriptor a discriminated union so a variants dropdown can't ship without a handler, cover the ContentToolbar container + split-add path, trim dead content-header exports, drop orphaned favorite state from 5 page contexts, fix registry dep lists, and reconcile the archetype docs.
+- Register content-panel/sidebar-panel/assistant-panel blocks in the UI registry; reconcile the CONTENT-ARCHETYPES shared-foundation example to the closed ContentHeader/ContentToolbar/ContentBody/ContentFooter API (archetype-system P6/PR-7)
+- Close the ContentToolbar API: descriptor-only named slots (statusFilter/search/filter/viewTools/actions/add/modeToggle), rename the ReactNode left/right toolbar to ContentToolbarLegacy for not-yet-migrated pages, migrate demo-table as canonical (archetype-system P4/PR-4)
+- Close the ContentHeader API (remove actions/icon/tabs/manageTabs ReactNode holes; add breadcrumb + titleIcon; internal Favorite/Configure + data-driven manageViews); split into content-header-* sub-blocks (archetype-system P4/PR-3). Header-jammed content on companies/doklad/single-demo dropped behind TODO(archetype-redo).
+- Extract AppBody presentational panel-row component from AppShell; all shell state stays in AppShell (archetype-system P3)
+- Reshape content-panel block: move ContentHeader + ContentToolbar into subfolders with re-export (archetype-system P2, behavior-preserving)
+- Rename UI blocks `app-content` → `content-panel` and `app-sidebar` → `sidebar-panel` (archetype-system restructure, phase 1)
+
+### Fixed
+
+- Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load
+- Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.
 
 ## [v0.18.0] — 2026-07-13
 

@@ -3,14 +3,11 @@
 import * as React from "react"
 import { Banknote, Building2, Calendar, FileText } from "lucide-react"
 
-import { ContentPanel, DetailField } from "@workspace/ui/blocks/app-content"
 import {
-  ActionBar,
-  ActionBarGroup,
-  ActionBarItem,
-  ActionBarSelection,
-  ActionBarSeparator,
-} from "@workspace/ui/components/action-bar"
+  ContentFooter,
+  ContentPanel,
+  DetailField,
+} from "@workspace/ui/blocks/content-panel"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import {
   ColumnManagerMenuContent,
@@ -27,7 +24,6 @@ import {
   type FiltersState,
 } from "@workspace/ui/components/filter-bar"
 import { toast } from "@workspace/ui/components/sonner"
-import { useIcons } from "@workspace/ui/icon-packs"
 
 import { applyFilterBar } from "../_shared/apply-filter-bar"
 
@@ -172,7 +168,6 @@ function InvoiceDetail({ row }: { row: InvoiceRow }) {
  * `children`.
  */
 export function TableDemoBody() {
-  const icons = useIcons()
   const {
     activeTab,
     inspected,
@@ -279,10 +274,6 @@ export function TableDemoBody() {
     [filteredRows.length],
   )
 
-  const MatchIcon = icons.LinkIcon
-  const EditIcon = icons.Pencil
-  const DeleteIcon = icons.Trash2
-
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
@@ -322,37 +313,34 @@ export function TableDemoBody() {
           onExport={exportAs}
         />
       }
-      actionBar={
-        <ActionBar
-          open={selectedCount > 0}
-          onOpenChange={(open) => {
-            if (!open) table.resetRowSelection()
+      footer={
+        <ContentFooter
+          selection={{
+            count: selectedCount,
+            onClear: () => table.resetRowSelection(),
+            actions: [
+              {
+                id: "match",
+                label: "Match",
+                icon: "LinkIcon",
+                onSelect: () => table.resetRowSelection(),
+              },
+              {
+                id: "edit",
+                label: "Edit",
+                icon: "Pencil",
+                onSelect: () => table.resetRowSelection(),
+              },
+              {
+                id: "delete",
+                label: "Delete",
+                icon: "Trash2",
+                variant: "destructive",
+                onSelect: () => table.resetRowSelection(),
+              },
+            ],
           }}
-          aria-label="Bulk actions"
-          // Float above the status bar: read the clearance the bar publishes,
-          // falling back to the ActionBar's natural 16px when no bar is present.
-          sideOffset="var(--app-statusbar-clearance, 16px)"
-        >
-          <ActionBarSelection>{selectedCount} selected</ActionBarSelection>
-          <ActionBarSeparator />
-          <ActionBarGroup>
-            <ActionBarItem onSelect={() => table.resetRowSelection()}>
-              <MatchIcon />
-              Match
-            </ActionBarItem>
-            <ActionBarItem onSelect={() => table.resetRowSelection()}>
-              <EditIcon />
-              Edit
-            </ActionBarItem>
-            <ActionBarItem
-              variant="destructive"
-              onSelect={() => table.resetRowSelection()}
-            >
-              <DeleteIcon />
-              Delete
-            </ActionBarItem>
-          </ActionBarGroup>
-        </ActionBar>
+        />
       }
     >
       <DataGridView

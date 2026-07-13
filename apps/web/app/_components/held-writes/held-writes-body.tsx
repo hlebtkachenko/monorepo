@@ -5,9 +5,9 @@ import * as React from "react"
 import {
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   type InspectorMode,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import {
   ActionBar,
   ActionBarGroup,
@@ -206,7 +206,7 @@ export function HeldWritesBody({
       }}
       inspectorTitle={inspected ? toolLabel(inspected.tool_name) : undefined}
       toolbar={
-        <ContentToolbar
+        <ContentToolbarLegacy
           left={
             <div className="relative flex h-7 w-72 items-center">
               <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
@@ -249,7 +249,7 @@ export function HeldWritesBody({
           }
         />
       }
-      actionBar={
+      footer={
         <ActionBar
           open={selectedCount > 0}
           onOpenChange={(open) => {

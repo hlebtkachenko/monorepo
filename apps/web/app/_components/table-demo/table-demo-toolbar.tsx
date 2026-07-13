@@ -2,43 +2,14 @@
 
 import type { Table } from "@tanstack/react-table"
 
-import { ContentToolbar } from "@workspace/ui/blocks/app-content"
-import type { InspectorMode } from "@workspace/ui/blocks/app-content"
-import { Button } from "@workspace/ui/components/button"
-import { ButtonGroup } from "@workspace/ui/components/button-group"
-import {
-  DataTableColumnManager,
-  DataTableFacetedFilter,
-  DataTableMultiSort,
-} from "@workspace/ui/components/data-table"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import {
-  ActiveFilters,
-  FilterActions,
-  FilterSelector,
-  type Column as FilterColumn,
-  type DataTableFilterActions,
-  type FilterStrategy,
-  type FiltersState,
+import { ContentToolbar } from "@workspace/ui/blocks/content-panel"
+import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
+import type {
+  Column as FilterColumn,
+  DataTableFilterActions,
+  FilterStrategy,
+  FiltersState,
 } from "@workspace/ui/components/filter-bar"
-import { Input } from "@workspace/ui/components/input"
-import { Search, SquareMousePointer } from "@workspace/ui/lib/icons"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
-import { useIcons } from "@workspace/ui/icon-packs"
 
 import { INVOICE_STATUS_OPTIONS, type InvoiceRow } from "./data"
 
@@ -67,10 +38,11 @@ export interface TableDemoToolbarProps {
 }
 
 /**
- * TEMP — the invoices toolbar. Left: Status (its own faceted control) + a
- * universal Search + the FilterBar (per-column filters, also opened from the
- * grid headers). Right: Columns, Sort, a split "Add invoice" button, and the
- * Inspector view switch (rightmost).
+ * The invoices toolbar — the CANONICAL reference for the closed `ContentToolbar`
+ * vocabulary. Everything is a DATA descriptor (no raw controls): the SSF-style
+ * `statusFilter`, a universal `search`, the multi-`filter` (chips render in the
+ * band below the bar), then `viewTools` (Columns + Sort), the split `add`, and
+ * the Inspector `modeToggle`. The container owns the order + the filters band.
  */
 export function TableDemoToolbar({
   table,
@@ -89,121 +61,40 @@ export function TableDemoToolbar({
   inspectorMode,
   onInspectorModeChange,
 }: TableDemoToolbarProps) {
-  const icons = useIcons()
-  const PlusIcon = icons.Plus
-  const ChevronIcon = icons.ChevronDown
-  const DialogIcon = icons.Maximize2
-
   const statusColumn = table.getColumn("status")
+  const statusValue = (statusColumn?.getFilterValue() as string[]) ?? []
 
   return (
-    <ContentToolbar
-      left={
-        <>
-          {statusColumn ? (
-            <DataTableFacetedFilter
-              column={statusColumn}
-              title="Status"
-              options={INVOICE_STATUS_OPTIONS}
-              multiple
-              open={statusOpen}
-              onOpenChange={onStatusOpenChange}
-            />
-          ) : null}
-          <div className="relative flex h-7 w-80 items-center">
-            <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
-            <Input
-              placeholder="Search anything…"
-              value={search}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="h-7 w-full pl-8"
-            />
-          </div>
-          {/* The filter bar travels as one unit: when the funnel + active
-              filters + Clear don't fit on row 1 they wrap to row 2 together
-              (the funnel never strands itself above its own filters). */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <FilterSelector
-              columns={filterColumns}
-              filters={filters}
-              actions={filterActions}
-              strategy={filterStrategy}
-              open={selectorOpen}
-              onOpenChange={onSelectorOpenChange}
-              property={selectorProperty}
-              onPropertyChange={onSelectorPropertyChange}
-            />
-            <ActiveFilters
-              columns={filterColumns}
-              filters={filters}
-              actions={filterActions}
-              strategy={filterStrategy}
-            />
-            <FilterActions
-              hasFilters={filters.length > 0}
-              actions={filterActions}
-            />
-          </div>
-        </>
-      }
-      right={
-        <>
-          <DataTableColumnManager table={table} />
-          <DataTableMultiSort table={table} />
-          <ButtonGroup>
-            <Button size="sm">
-              <PlusIcon />
-              Add invoice
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="icon-sm" aria-label="Choose type">
-                  <ChevronIcon />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="min-w-40">
-                {ADD_TYPES.map((type) => (
-                  <DropdownMenuItem key={type}>{type}</DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </ButtonGroup>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <ToggleGroup
-                  type="single"
-                  value={inspectorMode}
-                  onValueChange={(value) => {
-                    if (value) onInspectorModeChange(value as InspectorMode)
-                  }}
-                  variant="outline"
-                  size="sm"
-                  // Extra left margin = double the toolbar gap between the
-                  // "Add invoice" group and the Inspector view switch.
-                  className="ms-1"
-                >
-                  <ToggleGroupItem
-                    value="panel"
-                    aria-label="Inspector as panel"
-                  >
-                    <SquareMousePointer />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem
-                    value="dialog"
-                    aria-label="Inspector as dialog"
-                  >
-                    <DialogIcon />
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">
-                Inspector view — panel or dialog
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </>
-      }
+    <ContentToolbar<InvoiceRow>
+      statusFilter={{
+        title: "Status",
+        options: INVOICE_STATUS_OPTIONS,
+        value: statusValue,
+        onChange: (value) =>
+          statusColumn?.setFilterValue(value.length ? value : undefined),
+        multiple: true,
+        open: statusOpen,
+        onOpenChange: onStatusOpenChange,
+      }}
+      search={{ value: search, onChange: onSearchChange }}
+      filter={{
+        columns: filterColumns,
+        filters,
+        actions: filterActions,
+        strategy: filterStrategy,
+        open: selectorOpen,
+        onOpenChange: onSelectorOpenChange,
+        property: selectorProperty,
+        onPropertyChange: onSelectorPropertyChange,
+      }}
+      viewTools={{ table }}
+      add={{
+        label: "Add invoice",
+        onAdd: () => {},
+        variants: ADD_TYPES.map((type) => ({ id: type, label: type })),
+        onSelectVariant: () => {},
+      }}
+      modeToggle={{ value: inspectorMode, onChange: onInspectorModeChange }}
     />
   )
 }

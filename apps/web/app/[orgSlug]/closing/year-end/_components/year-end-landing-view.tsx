@@ -4,7 +4,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import {
   Card,
   CardContent,
@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { AppPageHeader } from "../../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 const NOT_YET_AVAILABLE = [
   "Accruals",

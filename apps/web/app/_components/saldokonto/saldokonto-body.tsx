@@ -5,9 +5,9 @@ import * as React from "react"
 import {
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
+  ContentToolbarLegacy,
   DetailField,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import {
@@ -166,7 +166,7 @@ export function SaldokontoBody({
       }}
       inspectorTitle={inspected?.variableSymbol ?? inspected?.accountNumber}
       toolbar={
-        <ContentToolbar
+        <ContentToolbarLegacy
           left={
             <>
               {directionColumn ? (

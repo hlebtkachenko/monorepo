@@ -1,63 +1,41 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-// LayoutGrid / Rows3 are not in the workspace icon pack (no grid/rows glyphs);
-// keep the direct lucide import as the sole documented exception here.
-import { LayoutGrid, Rows3 } from "lucide-react"
 
-import {
-  ContentHeader,
-  type ContentTab,
-} from "@workspace/ui/blocks/app-content"
-import { Button } from "@workspace/ui/components/button"
+import { ContentHeader, type ViewTab } from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@workspace/ui/components/toggle-group"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@workspace/ui/components/tooltip"
-import { useIcons } from "@workspace/ui/icon-packs"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { CompaniesCards } from "./companies-cards"
 import { CompaniesTable } from "./companies-table"
-import { useCompanies, type CompaniesView as ViewMode } from "./context"
+import { useCompanies } from "./context"
 import { COMPANY_TABS, type CompanyRow } from "./data"
-
-const CardsIcon = LayoutGrid
-const TableIcon = Rows3
 
 /**
  * Companies — the accountant-office hub of company books. The portaled header
- * carries the status tabs (shared by both views, with per-status counts) and
- * the Card/Table view toggle; the body is the big-card grid or the dense table.
- * The content-header title is "All companies" (the sidebar module h2 already
- * says "Companies", so they stay distinct).
+ * carries the status tabs (with per-status counts); the body is the big-card
+ * grid or the dense table. The Card/Table view toggle, Export, and New-company
+ * actions were dropped from the header pending the archetype rebuild (see the
+ * TODO(archetype-redo) below). The content-header title is "All companies" (the
+ * sidebar module h2 already says "Companies", so they stay distinct).
  */
 export function CompaniesView({
   companies,
   errorMessage,
-  showArchived = false,
 }: {
   companies: CompanyRow[]
   /** `?error=` redirected here from the org layout on a failed book entry. */
   errorMessage?: string
-  /** Server-resolved: the list is showing archived books (`?archived=1`). */
+  /**
+   * Server-resolved: the list is showing archived books (`?archived=1`).
+   * TODO(archetype-redo): unconsumed since the header active/archived toggle was
+   * dropped; server-side `?archived=` filtering still works. Rewire on rebuild.
+   */
   showArchived?: boolean
 }) {
   const router = useRouter()
-  const icons = useIcons()
-  const PlusIcon = icons.Plus
-  const ExportIcon = icons.Download
-  const { activeTab, setActiveTab, view, setView } = useCompanies()
+  const { activeTab, setActiveTab, view } = useCompanies()
   const errorHandled = React.useRef(false)
 
   React.useEffect(() => {
@@ -68,7 +46,7 @@ export function CompaniesView({
     router.replace("/workspace")
   }, [errorMessage, router])
 
-  const tabs: ContentTab[] = COMPANY_TABS.map((tab) => ({
+  const tabs: ViewTab[] = COMPANY_TABS.map((tab) => ({
     value: tab.value,
     label: tab.label,
     badge: tab.status
@@ -81,71 +59,11 @@ export function CompaniesView({
       <AppPageHeader>
         <ContentHeader
           title="All companies"
-          tabs={tabs}
+          viewTabs={tabs}
           value={activeTab}
           onValueChange={setActiveTab}
-          actions={
-            <>
-              {/* Active vs archived books — REAL isolation on
-                  organization.archived_at, driven by the `?archived=` param
-                  (distinct from the mock status tabs). */}
-              <ToggleGroup
-                type="single"
-                value={showArchived ? "archived" : "active"}
-                variant="outline"
-                size="sm"
-              >
-                <ToggleGroupItem value="active" asChild>
-                  <Link href="/workspace">Active</Link>
-                </ToggleGroupItem>
-                <ToggleGroupItem value="archived" asChild>
-                  <Link href="/workspace?archived=1">Archived</Link>
-                </ToggleGroupItem>
-              </ToggleGroup>
-              <TooltipProvider delayDuration={200}>
-                <ToggleGroup
-                  type="single"
-                  value={view}
-                  onValueChange={(value) => {
-                    if (value) setView(value as ViewMode)
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="cards" aria-label="Card view">
-                        <CardsIcon />
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Card view</TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <ToggleGroupItem value="table" aria-label="Table view">
-                        <TableIcon />
-                      </ToggleGroupItem>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom">Table view</TooltipContent>
-                  </Tooltip>
-                </ToggleGroup>
-              </TooltipProvider>
-              <Button asChild variant="outline" size="sm">
-                <a href="/workspace/organizations/export">
-                  <ExportIcon />
-                  Export CSV
-                </a>
-              </Button>
-              <Button asChild size="sm">
-                <Link href="/workspace/organizations/new">
-                  <PlusIcon />
-                  New company
-                </Link>
-              </Button>
-              <PageHeaderActions />
-            </>
-          }
         />
+        {/* TODO(archetype-redo): the active/archived toggle, card/table view toggle, Export CSV, and New company buttons lived in the header; relocate to the body on rebuild. */}
       </AppPageHeader>
       {view === "table" ? (
         <CompaniesTable companies={companies} />

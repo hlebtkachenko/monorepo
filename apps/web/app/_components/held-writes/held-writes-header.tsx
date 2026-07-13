@@ -1,10 +1,8 @@
 "use client"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
-
-import { PageHeaderActions } from "../_shared/content-header-extras"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 
 /** Held-writes review queue content header — app-shell contentHeader slot. */
 export function HeldWritesHeader() {
-  return <ContentHeader title="Ke schválení" actions={<PageHeaderActions />} />
+  return <ContentHeader title="Ke schválení" />
 }

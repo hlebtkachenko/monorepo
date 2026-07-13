@@ -7,7 +7,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -35,7 +35,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type {
   LegalFormOption,
   OrgSettingsData,

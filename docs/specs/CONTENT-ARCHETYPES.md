@@ -1,7 +1,18 @@
 # Content-panel archetypes — pick one and build a page
 
+> **⚠️ UNDER REDESIGN (2026-07-12).** The archetype system is being restructured —
+> locked model in `.context/archetype-system/01-taxonomy-and-naming.md`, build plan
+> in `.context/archetype-system/03-plan.md`. In the new model an archetype is a
+> **composed, importable grouping** you feed data (not a demo you copy), and the
+> `ContentHeader` API is now closed (no `actions`/`icon`/`tabs`/`manageTabs`
+> props — use `viewTabs`/`manageViews`/`breadcrumb`/`titleIcon`, Favorite+Configure
+> are internal). The shared-foundation example below already reflects this closed
+> API; the per-archetype **Build it** recipes still point at the older demo
+> folders, so treat those as current-catalog reference, not the build contract.
+> Ask Hleb before new work.
+
 Five page shapes cover almost every org-app screen. Four use reusable blocks
-from `packages/ui/src/blocks/app-content` plus thin data demos under
+from `packages/ui/src/blocks/content-panel` plus thin data demos under
 `apps/web/app/_components/<name>-demo`. `Blank` is the intentional zero-slot
 case: page content renders directly in `ContentPanel` without archetype chrome.
 
@@ -39,35 +50,61 @@ two things into the persistent org shell:
    title / tabs / actions into the shell's content-header slot (the 45px bar).
 2. **`<ContentPanel>`** — the body frame below the header. One component, no
    `variant` prop; a "variant" is just which optional slots you fill:
-   `toolbar` · `filters` · `statusBar` · `actionBar` · `inspector` (+
-   `inspectorMode` `"panel" | "dialog"`) · `children` (the scrolling body) ·
-   `bodyClassName`.
+   `toolbar` · `filters` · `footer` · `inspector` (+
+   `inspectorMode` `"panel" | "dialog"`) · `sections` (the branded body Sections,
+   the canonical body path — `children` is the deprecated grandfather hatch) ·
+   `bodyClassName`. (`statusBar` now belongs to the Table section, not the
+   Content Panel.)
 
 ```tsx
 export default function MyPage() {
   return (
     <>
       <OrgPageHeader>
-        <ContentHeader title="My page" tabs={tabs} value={tab} onValueChange={setTab}
-          manageTabs={<ManageTabsMenu tabs={TAB_DEFS} hidden={hidden} onToggle={toggle} />}
-          actions={<PageHeaderActions />} />
+        {/* Closed header: viewTabs + manageViews are DATA, Favorite/Configure are
+            internal. No actions/icon/tabs/manageTabs props. */}
+        <ContentHeader
+          title="My page"
+          viewTabs={visible}
+          value={tab}
+          onValueChange={setTab}
+          manageViews={{ tabs: TAB_DEFS, hidden, onToggle: toggle }}
+        />
       </OrgPageHeader>
-      <ContentPanel toolbar={<ContentToolbar left={…} right={…} />} statusBar={…}>
-        {/* the archetype block goes here */}
+      {/* Closed toolbar: named DATA slots, never ReactNode. */}
+      <ContentPanel
+        toolbar={
+          <ContentToolbar
+            search={{ value: q, onChange: setQ }}
+            filter={filterDescriptor}
+            add={{ label: "Add", onAdd }}
+          />
+        }
+        footer={<ContentFooter selection={{ count, actions, onClear }} />}
+      >
+        {/* the body: pass branded Sections, e.g.
+            <ContentPanel sections={[sectionEmpty({ title })]} />.
+            An Archetype is a component that composes this whole page
+            (ContentHeader + ContentPanel with its sections). */}
       </ContentPanel>
     </>
   )
 }
 ```
 
-Shared header helpers live in `apps/web/app/_components/_shared/content-header-extras.tsx`:
+Shared view-state helper in `apps/web/app/_components/_shared/content-header-extras.tsx`:
 
-- **`PageHeaderActions`** — the standard favorite-star + config cluster for `ContentHeader.actions`.
-- **`ManageTabsMenu`** — the header `⋯` menu body (Choose tabs + Show-in-section + Sort). Shared by every page that exposes managed tabs; pass it to `ContentHeader.manageTabs`.
-- **`useTabVisibility(tabs, active)`** — controlled show/hide state for the tabs, returning a `visible` list and an `activeValue` clamped to it (hiding the active tab falls back to the first visible one, derived in render — no header/body desync).
+- **`useTabVisibility(tabs, active)`** — controlled show/hide state for the views,
+  returning a `visible` list (feed `ContentHeader.viewTabs`) and an `activeValue`
+  clamped to it. Feed `{ tabs, hidden, onToggle }` to `ContentHeader.manageViews`.
+  (The old `PageHeaderActions` + `ManageTabsMenu` helpers are gone — Favorite/
+  Configure and the ⋯ configure menu are now internal to `ContentHeader`.)
 
-`ContentToolbar` (36px, `left`/`right` slots) and `ContentStatusBar` (24px,
-`left`/`right`) are the toolbar + status rows; both are token-styled shell chrome.
+`ContentToolbar` is a closed named-data-slot container (`statusFilter` · `search` ·
+`filter` · `viewTools` · `actions[]` · `add` · `modeToggle`; active-filter chips
+render in a band below the 36px bar). `ContentFooter` is the sticky bottom action
+surface (selection / save). The status bar now belongs to the Table section, not
+the Content Panel. All are token-styled shell chrome.
 
 ## Table
 
@@ -170,7 +207,7 @@ tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
 
 1. `apps/web/app/[orgSlug]/<name>/page.tsx` — render `<OrgPageHeader><ContentHeader …/></OrgPageHeader>` + `<ContentPanel>…</ContentPanel>`. Gate dev-only demos on `process.env.NODE_ENV === "production" && notFound()`.
 2. Put the data + client state in `apps/web/app/_components/<name>/` (never in `packages/ui` — the `ui-location` lefthook hook enforces reusable UI lives in `packages/ui/src/blocks`).
-3. Drop the archetype block into `ContentPanel.children`; feed it props.
+3. Feed the body as branded Sections via `ContentPanel sections={[sectionEmpty({…})]}` (an Archetype is the component that composes the whole page — ContentHeader + this ContentPanel). `children` remains only as the deprecated grandfather hatch.
 4. If a demo/dev route, add its folder name to `HIDDEN_ROUTES` in `scripts/check-nav.ts`.
 5. Verify: `pnpm --filter web typecheck`, `pnpm --filter @workspace/ui test`, `pnpm --filter web lint`, `pnpm check:nav`.
 
@@ -179,15 +216,15 @@ tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
 ```
 route/page.tsx
  ├─ <OrgPageHeader>          → portals into the shell's 45px content-header slot
- │    └─ <ContentHeader>     title · tabs (+ ⋯ ManageTabsMenu) · actions (PageHeaderActions)
+ │    └─ <ContentHeader>     [breadcrumb] title │ viewTabs (+ ⋯ manageViews) · internal Favorite/Configure
  └─ <ContentPanel>           the body frame (rows below the header)
-      ├─ toolbar   ContentToolbar   (filters / search / add / view switches)
-      ├─ filters   (optional band)
-      ├─ children  ← body-only Blank or an archetype block
-      │               (DataGridView | LaunchpadGrid | DashboardGrid | RecordWorkspace)
-      ├─ statusBar ContentStatusBar (counts / totals)
+      ├─ toolbar   ContentToolbar   named data slots: statusFilter · search · filter · viewTools · actions · add · modeToggle
+      ├─ filters   (optional active-filter band below the 36px bar)
+      ├─ sections ← branded body Sections (via the closed SECTION_REGISTRY);
+      │               a whole-panel Archetype component supplies them
+      │               (`children` is the deprecated grandfather hatch)
       ├─ inspector (Table only) resizable panel or dialog
-      └─ actionBar (bulk selection)
+      └─ footer    ContentFooter (sticky bottom surface: selection or save)
 ```
 
 See also `docs/runbooks/APP-SHELL-PANELS.md` for the shell + panel mechanics and

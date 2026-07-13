@@ -2,19 +2,15 @@
 
 import * as React from "react"
 
-import { ContentPanel, DetailField } from "@workspace/ui/blocks/app-content"
 import {
-  ActionBar,
-  ActionBarGroup,
-  ActionBarItem,
-  ActionBarSelection,
-  ActionBarSeparator,
-} from "@workspace/ui/components/action-bar"
+  ContentFooter,
+  ContentPanel,
+  DetailField,
+} from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { useDataTable } from "@workspace/ui/components/data-table"
 import { toast } from "@workspace/ui/components/sonner"
-import { useIcons } from "@workspace/ui/icon-packs"
 
 import { TableStatusBar } from "../_shared/table-status-bar"
 import { obligationColumns } from "./columns"
@@ -72,13 +68,12 @@ function ObligationDetail({ row }: { row: ObligationRow }) {
  * Legislation body — the Table archetype on the workspace shell. Real
  * obligation rows (resolved server-side, see `workspace-obligations.ts`)
  * drive a TanStack `DataGridView`: tab-filtered by status, a universal
- * search, the faceted Status filter, row selection with a bulk `ActionBar`,
+ * search, the faceted Status filter, row selection with a bulk `ContentFooter`,
  * and a per-row `Inspector`. An empty `rows` array renders the grid's
  * built-in "No results." state — an honest empty board, not a fake row.
  * Mounts as the shell `children`.
  */
 export function LegislationBody({ rows }: { rows: ObligationRow[] }) {
-  const icons = useIcons()
   const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
     useLegislation()
 
@@ -112,8 +107,6 @@ export function LegislationBody({ rows }: { rows: ObligationRow[] }) {
   const isFiltered =
     search.trim() !== "" || table.getState().columnFilters.length > 0
 
-  const AssignIcon = icons.UserPlus
-
   return (
     <ContentPanel
       bodyClassName="flex min-h-0 flex-col p-0"
@@ -140,29 +133,24 @@ export function LegislationBody({ rows }: { rows: ObligationRow[] }) {
           isFiltered={isFiltered}
         />
       }
-      actionBar={
-        <ActionBar
-          open={selectedCount > 0}
-          onOpenChange={(open) => {
-            if (!open) table.resetRowSelection()
+      footer={
+        <ContentFooter
+          selection={{
+            count: selectedCount,
+            onClear: () => table.resetRowSelection(),
+            actions: [
+              {
+                id: "assign",
+                label: "Assign",
+                icon: "UserPlus",
+                onSelect: () => {
+                  toast("Assign — coming soon")
+                  table.resetRowSelection()
+                },
+              },
+            ],
           }}
-          aria-label="Bulk actions"
-          sideOffset="var(--app-statusbar-clearance, 16px)"
-        >
-          <ActionBarSelection>{selectedCount} selected</ActionBarSelection>
-          <ActionBarSeparator />
-          <ActionBarGroup>
-            <ActionBarItem
-              onSelect={() => {
-                toast("Assign — coming soon")
-                table.resetRowSelection()
-              }}
-            >
-              <AssignIcon />
-              Assign
-            </ActionBarItem>
-          </ActionBarGroup>
-        </ActionBar>
+        />
       }
     >
       <DataGridView table={table} className="min-h-0 flex-1" />

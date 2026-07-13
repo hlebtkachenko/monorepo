@@ -6,8 +6,8 @@ import {
   ContentHeader,
   ContentPanel,
   ContentStatusBar,
-  ContentToolbar,
-} from "@workspace/ui/blocks/app-content"
+  ContentToolbarLegacy,
+} from "@workspace/ui/blocks/content-panel"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
   Avatar,
@@ -34,8 +34,7 @@ import {
 } from "@workspace/ui/components/table"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { AppPageHeader } from "../../app-page-header"
-import { PageHeaderActions } from "../../_shared/content-header-extras"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { ToolbarSearch } from "../_shared/toolbar-search"
 
 export interface TeamMember {
@@ -86,12 +85,12 @@ export function TeamView({ members }: { members: TeamMember[] }) {
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title="Members" actions={<PageHeaderActions />} />
+        <ContentHeader title="Members" />
       </AppPageHeader>
       <ContentPanel
         bodyClassName="flex min-h-0 flex-col p-0"
         toolbar={
-          <ContentToolbar
+          <ContentToolbarLegacy
             left={
               <ToolbarSearch
                 value={search}

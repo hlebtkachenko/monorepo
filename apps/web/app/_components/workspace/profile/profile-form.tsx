@@ -12,7 +12,7 @@ import {
   LOCALE_COOKIE,
   isLocale,
 } from "@workspace/i18n/config"
-import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/content-panel"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
   Avatar,

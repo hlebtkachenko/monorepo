@@ -50,7 +50,7 @@ export const ArchetypeSchema = z
     }),
     slots: z.string().openapi({
       description: "Which `ContentPanel` slots this archetype fills.",
-      example: "toolbar + body + statusBar (+ inspector, actionBar)",
+      example: "toolbar + body + statusBar (+ inspector, footer)",
     }),
     useWhen: z.string().openapi({
       description: "When to pick this archetype for a page.",
@@ -211,7 +211,7 @@ export const ARCHETYPES: Archetype[] = [
   {
     key: "Table",
     label: "Table",
-    slots: "toolbar + body + statusBar (+ inspector, actionBar)",
+    slots: "toolbar + body + statusBar (+ inspector, footer)",
     useWhen:
       "Dense list pages (invoices, transactions). The wired gold standard.",
     demoRoute: "demo-table",

@@ -1,4 +1,4 @@
-import type { LaunchpadSection } from "@workspace/ui/blocks/app-content"
+import type { LaunchpadSection } from "@workspace/ui/blocks/content-panel"
 
 /**
  * Mock launchpad structure for the #425 demo. Exercises every section kind the

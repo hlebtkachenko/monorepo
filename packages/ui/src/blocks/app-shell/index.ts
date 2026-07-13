@@ -1,4 +1,9 @@
 export { AppShell, useAppShell } from "./app-shell"
+export {
+  AppPageHeader,
+  AppPageHeaderProvider,
+  AppContentHeaderSlot,
+} from "./app-page-header"
 export { AppShellBottomNav } from "./app-shell-bottom-nav"
 export type { BottomNavItem } from "./app-shell-bottom-nav"
 export { ShellSkeleton } from "./skeletons/shell-skeleton"

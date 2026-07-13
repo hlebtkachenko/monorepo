@@ -3,7 +3,7 @@
 import * as React from "react"
 import type { ColumnDef, Row } from "@tanstack/react-table"
 
-import { DetailField } from "@workspace/ui/blocks/app-content"
+import { DetailField } from "@workspace/ui/blocks/content-panel"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Checkbox } from "@workspace/ui/components/checkbox"

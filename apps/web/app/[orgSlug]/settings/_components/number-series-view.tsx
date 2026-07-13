@@ -11,7 +11,7 @@ import {
   ContentHeader,
   ContentPanel,
   RecordWorkspace,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +40,7 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type { NumberSeriesRow } from "../_lib/settings-data"
 import { backfillNumberSeriesAction } from "../actions"
 

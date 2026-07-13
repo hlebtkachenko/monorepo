@@ -10,7 +10,7 @@ export const metadata = { title: "Single demo" }
  * status / relation pills sit in the content header. The body is three
  * side-by-side panels (Document / Party / Amounts), each with its OWN local tab
  * strip; the Amounts panel carries the per-rate VAT recap table. A full-width
- * editable line-items grid sits below, a ContentToolbar carries the record
+ * editable line-items grid sits below, a ContentToolbarLegacy carries the record
  * actions, a ContentStatusBar pins Base / VAT / Total (live off the grid), and a
  * split Save / Close footer closes it out. Reachable at `/<org>/demo-single`,
  * hidden from nav (allow-listed in scripts/check-nav.ts). DEV-ONLY: any

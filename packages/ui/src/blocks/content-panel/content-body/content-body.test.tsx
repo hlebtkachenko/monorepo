@@ -1,0 +1,158 @@
+import { render, screen } from "@testing-library/react"
+import { describe, it, expect, vi } from "vitest"
+
+import { IconProvider } from "@workspace/ui/icon-packs"
+
+import { ContentBody } from "./content-body"
+import { sectionEmpty } from "./sections/section-empty"
+import { sectionDetailsGroup } from "./sections/section-details-group"
+import { sectionSpace } from "./sections/section-space"
+
+const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
+
+describe("ContentBody", () => {
+  it("renders a branded section through the section registry", () => {
+    wrap(<ContentBody sections={[sectionEmpty({ title: "Nothing here" })]} />)
+    expect(screen.getByText("Nothing here")).toBeInTheDocument()
+  })
+
+  it("renders a group's nested sections (guard recurses through SectionList)", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionDetailsGroup({
+            title: "Company",
+            sections: [sectionEmpty({ title: "Inside the group" })],
+          }),
+        ]}
+      />,
+    )
+    expect(screen.getByRole("heading", { name: "Company" })).toBeInTheDocument()
+    expect(screen.getByText("Inside the group")).toBeInTheDocument()
+    // The group wrapper + the nested section each get a content-section box.
+    expect(
+      container.querySelectorAll('[data-slot="content-section"]').length,
+    ).toBeGreaterThanOrEqual(2)
+  })
+
+  it("renders each section in order", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionEmpty({ title: "First" }),
+          sectionEmpty({ title: "Second" }),
+        ]}
+      />,
+    )
+    const slots = container.querySelectorAll('[data-slot="content-section"]')
+    expect(slots).toHaveLength(2)
+    expect(slots[0]).toHaveTextContent("First")
+    expect(slots[1]).toHaveTextContent("Second")
+  })
+
+  it("fills for a `fill` section (Empty) and takes natural height otherwise (Space)", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[sectionSpace({ size: 16 }), sectionEmpty({ title: "Fill" })]}
+      />,
+    )
+    const [space, empty] = container.querySelectorAll(
+      '[data-slot="content-section"]',
+    )
+    expect(space).toHaveClass("shrink-0")
+    expect(space).not.toHaveClass("flex-1")
+    expect(empty).toHaveClass("flex-1")
+  })
+
+  it("applies a section anchor as the DOM id for deep-linking", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionEmpty({ title: "Anchored", anchor: "legal-identity" }),
+        ]}
+      />,
+    )
+    const slot = container.querySelector('[data-slot="content-section"]')
+    expect(slot).toHaveAttribute("id", "legal-identity")
+    expect(slot).toHaveAttribute("data-section-anchor", "legal-identity")
+  })
+
+  it("uses the content-body region markup", () => {
+    const { container } = wrap(
+      <ContentBody sections={[sectionEmpty({ title: "Nothing here" })]} />,
+    )
+    const root = container.querySelector('[data-slot="content-body"]')
+    expect(root).not.toBeNull()
+    expect(root).toHaveClass("flex-1")
+  })
+
+  it("stamps each section wrapper with its kind", () => {
+    const { container } = wrap(
+      <ContentBody
+        sections={[
+          sectionSpace({ size: 16 }),
+          sectionDetailsGroup({
+            title: "Company",
+            sections: [sectionEmpty({ title: "Inside" })],
+          }),
+        ]}
+      />,
+    )
+    const root = container.querySelector('[data-slot="content-body"]')
+    const [space, group] = root!.querySelectorAll(
+      ':scope > [data-slot="content-section"]',
+    )
+    expect(space).toHaveAttribute("data-section-kind", "space")
+    expect(group).toHaveAttribute("data-section-kind", "details-group")
+  })
+
+  it("collapses the double hairline between adjacent groups via one CSS rule", () => {
+    // The seam is expressed as a single adjacent-sibling utility on the body root
+    // (verified to emit `> group + group { margin-top: -1px }` by Tailwind v4), so
+    // SectionList stays free of any per-kind layout branch. Lock the mechanism:
+    // dropping either the stamp (above) or this class silently regresses the seam.
+    const { container } = wrap(
+      <ContentBody sections={[sectionEmpty({ title: "x" })]} />,
+    )
+    const root = container.querySelector('[data-slot="content-body"]')
+    expect(root).toHaveClass(
+      "[&>[data-section-kind=details-group]+[data-section-kind=details-group]]:-mt-px",
+    )
+  })
+
+  it("throws in non-production when given an unbranded section", () => {
+    expect(() =>
+      wrap(
+        <ContentBody
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          sections={[{ kind: "empty", props: {} } as any]}
+        />,
+      ),
+    ).toThrow(/branded section/)
+  })
+
+  it("in production skips a forged section without throwing or leaking its payload", () => {
+    const prev = process.env.NODE_ENV
+    process.env.NODE_ENV = "production"
+    const error = vi.spyOn(console, "error").mockImplementation(() => {})
+    try {
+      const { container } = wrap(
+        <ContentBody
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          sections={[{ kind: "empty", props: { title: "leak" } } as any]}
+        />,
+      )
+      const root = container.querySelector('[data-slot="content-body"]')
+      expect(root).not.toBeNull()
+      // The prod backstop must skip the forgery — no forged content escapes.
+      expect(container).not.toHaveTextContent("leak")
+      expect(
+        container.querySelector('[data-slot="content-section"]'),
+      ).toBeNull()
+      expect(error).toHaveBeenCalled()
+    } finally {
+      error.mockRestore()
+      process.env.NODE_ENV = prev
+    }
+  })
+})

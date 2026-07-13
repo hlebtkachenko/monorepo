@@ -2,7 +2,7 @@ import * as React from "react"
 
 import { cn } from "@workspace/ui/lib/utils"
 
-export interface ContentToolbarProps {
+export interface ContentToolbarLegacyProps {
   /**
    * Left cluster — the content-transforming controls that can grow: status,
    * search, and the filter bar. Wraps onto extra rows when it overflows, which
@@ -15,6 +15,10 @@ export interface ContentToolbarProps {
 }
 
 /**
+ * @deprecated Use the descriptor-based `ContentToolbar` (named data slots).
+ * This open left/right ReactNode version is retained only for pages not yet
+ * migrated to the closed toolbar vocabulary.
+ *
  * The content panel's toolbar — controls that transform the body (filter,
  * search, sort, view, add). One row tall by default (36px, same chrome as the
  * header: full width, side padding, hairline bottom border) but it GROWS: the
@@ -24,11 +28,11 @@ export interface ContentToolbarProps {
  * Put only body-transforming controls here. Row/selection actions belong in the
  * floating ActionBar; element detail belongs in the Inspector.
  */
-export function ContentToolbar({
+export function ContentToolbarLegacy({
   left,
   right,
   className,
-}: ContentToolbarProps) {
+}: ContentToolbarLegacyProps) {
   return (
     <div
       data-slot="content-toolbar"

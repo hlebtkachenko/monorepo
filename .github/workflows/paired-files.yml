@@ -32,6 +32,10 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
       - name: Check documentation
         run: node scripts/check-docs.mjs
+      - name: Setup pnpm + Node + install
+        uses: ./.github/actions/setup
+      - name: Check archetype body ratchet
+        run: node scripts/governance/check-archetype-body.mjs
       - name: Check changelog Unreleased entry
         if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
         run: node scripts/governance/check-changelog-unreleased.mjs

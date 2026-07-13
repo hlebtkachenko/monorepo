@@ -3,7 +3,7 @@
 import type { Table } from "@tanstack/react-table"
 import Link from "next/link"
 
-import { ContentToolbar } from "@workspace/ui/blocks/app-content"
+import { ContentToolbarLegacy } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   DataTableColumnManager,
@@ -35,7 +35,7 @@ export function CompaniesTableToolbar({
   const PlusIcon = icons.Plus
 
   return (
-    <ContentToolbar
+    <ContentToolbarLegacy
       left={
         <ToolbarSearch
           value={search}

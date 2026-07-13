@@ -3,8 +3,9 @@
 import type { ReactNode } from "react"
 import { usePathname } from "next/navigation"
 
-import { ContentHeader } from "@workspace/ui/blocks/app-content"
+import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
+import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 import { Logo } from "@workspace/ui/brand-assets"
 
 import type { ImpersonationState } from "@/lib/admin-impersonation-types"
@@ -79,11 +80,7 @@ export function AdminShell({
         }
         sidebar={active ? <AdminSidebarBody pages={active.pages} /> : undefined}
         sidebarHeader={active?.label}
-        assistant={
-          <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-            Sidekick — coming soon
-          </div>
-        }
+        assistant={<AssistantPanel label="Sidekick" />}
         contentHeader={
           <AdminContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }

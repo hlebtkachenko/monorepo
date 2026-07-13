@@ -1,4 +1,4 @@
-import { AppPageHeader } from "../../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import type {
   InboxListRow,
   InboxStatus,

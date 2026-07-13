@@ -2,20 +2,18 @@
 
 import * as React from "react"
 
-import type { InspectorMode } from "@workspace/ui/blocks/app-content"
+import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
 
 import type { JournalRow } from "./data"
 
 /**
  * Shared UI state linking the deník page's two app-shell slots — the content
- * header (tabs + favorite) and the body (toolbar + table + inspector). Mirrors
+ * header (tabs) and the body (toolbar + table + inspector). Mirrors
  * the table-demo pattern; the inspector shows a single journal line's detail.
  */
 interface DenikState {
   activeTab: string
   setActiveTab: (value: string) => void
-  favorite: boolean
-  toggleFavorite: () => void
   hiddenTabs: ReadonlySet<string>
   toggleTabHidden: (value: string) => void
   inspected: JournalRow | null
@@ -36,7 +34,6 @@ export function useDenik(): DenikState {
 
 export function DenikProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = React.useState("all")
-  const [favorite, setFavorite] = React.useState(false)
   const [hiddenTabs, setHiddenTabs] = React.useState<ReadonlySet<string>>(
     () => new Set(),
   )
@@ -50,7 +47,6 @@ export function DenikProvider({ children }: { children: React.ReactNode }) {
     setInspectorOpen(true)
   }, [])
   const closeInspector = React.useCallback(() => setInspectorOpen(false), [])
-  const toggleFavorite = React.useCallback(() => setFavorite((f) => !f), [])
   const toggleTabHidden = React.useCallback((value: string) => {
     setHiddenTabs((prev) => {
       const next = new Set(prev)
@@ -65,8 +61,6 @@ export function DenikProvider({ children }: { children: React.ReactNode }) {
     () => ({
       activeTab,
       setActiveTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,
@@ -78,8 +72,6 @@ export function DenikProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       activeTab,
-      favorite,
-      toggleFavorite,
       hiddenTabs,
       toggleTabHidden,
       inspected,

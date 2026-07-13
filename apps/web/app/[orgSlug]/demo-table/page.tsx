@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { TableDemoBody } from "../../_components/table-demo/table-demo-body"
 import { TableDemoHeader } from "../../_components/table-demo/table-demo-header"
 import { OrgContentProvider } from "../../_components/table-demo/context"
-import { AppPageHeader } from "../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
 export const metadata = { title: "Table demo" }
 

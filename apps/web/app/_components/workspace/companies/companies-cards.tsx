@@ -3,7 +3,7 @@
 import * as React from "react"
 import Link from "next/link"
 
-import { ContentPanel, ContentToolbar } from "@workspace/ui/blocks/app-content"
+import { ContentPanel, ContentToolbarLegacy } from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,
@@ -43,7 +43,7 @@ export function CompaniesCards({ companies }: { companies: CompanyRow[] }) {
   return (
     <ContentPanel
       toolbar={
-        <ContentToolbar
+        <ContentToolbarLegacy
           left={
             <ToolbarSearch
               value={search}

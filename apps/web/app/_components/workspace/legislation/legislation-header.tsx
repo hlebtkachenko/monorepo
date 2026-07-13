@@ -1,11 +1,7 @@
 "use client"
 
-import {
-  ContentHeader,
-  type ContentTab,
-} from "@workspace/ui/blocks/app-content"
+import { ContentHeader, type ViewTab } from "@workspace/ui/blocks/content-panel"
 
-import { PageHeaderActions } from "../../_shared/content-header-extras"
 import { useLegislation } from "./context"
 import { OBLIGATION_TABS } from "./data"
 
@@ -18,7 +14,7 @@ import { OBLIGATION_TABS } from "./data"
 export function LegislationHeader() {
   const { activeTab, setActiveTab } = useLegislation()
 
-  const tabs: ContentTab[] = OBLIGATION_TABS.map((tab) => ({
+  const tabs: ViewTab[] = OBLIGATION_TABS.map((tab) => ({
     value: tab.value,
     label: tab.label,
   }))
@@ -26,10 +22,9 @@ export function LegislationHeader() {
   return (
     <ContentHeader
       title="Periodic obligations"
-      tabs={tabs}
+      viewTabs={tabs}
       value={activeTab}
       onValueChange={setActiveTab}
-      actions={<PageHeaderActions />}
     />
   )
 }

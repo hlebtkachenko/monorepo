@@ -41,6 +41,7 @@ export {
   ChevronsUpDown,
   ChevronsUpDownIcon,
   CircleCheckIcon,
+  CircleHelp,
   ClipboardIcon,
   Columns3,
   Copy,

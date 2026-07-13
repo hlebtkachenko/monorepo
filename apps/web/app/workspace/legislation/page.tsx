@@ -5,7 +5,7 @@ import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 
-import { AppPageHeader } from "../../_components/app-page-header"
+import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import { LegislationBody } from "../../_components/workspace/legislation/legislation-body"
 import { LegislationHeader } from "../../_components/workspace/legislation/legislation-header"
 import { LegislationProvider } from "../../_components/workspace/legislation/context"

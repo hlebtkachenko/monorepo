@@ -1,7 +1,7 @@
 import type {
   DashboardChartCardProps,
   MetricTileProps,
-} from "@workspace/ui/blocks/app-content"
+} from "@workspace/ui/blocks/content-panel"
 
 /**
  * Analyse (office overview) dashboard data. `Active companies` is REAL (the workspace

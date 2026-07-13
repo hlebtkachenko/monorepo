@@ -235,9 +235,9 @@ regexes = [
   # form placeholder across the org-tier "new entity" pages). Not a real
   # account.
   '''CZ65[ ]?0800[ ]?0000[ ]?1920[ ]?0014[ ]?5399''',
-  # Fixture IBAN in the Section Details Table demo + archetype-details debug
-  # view (branch hlebtkachenko/archetype-system-audit). Gitleaks scans every
-  # fetched ref, so an unlisted fixture on ANY branch fails ALL PR scans.
+  # Second demo IBAN in the Section Details Table fixture (the "Fio banka" row in
+  # the archetype-details debug page + its story). Not a real account. Gitleaks
+  # scans every fetched ref, so an unlisted fixture on ANY branch fails all PR scans.
   '''CZ12[ ]?2010[ ]?0000[ ]?0029[ ]?0148[ ]?1234''',
 ]
 

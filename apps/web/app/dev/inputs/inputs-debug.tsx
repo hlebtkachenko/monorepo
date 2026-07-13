@@ -365,7 +365,7 @@ function PhoneDemo({
 
 type Fruit = { label: string; value: string }
 
-function CreatableDemo() {
+function CreatableDemo({ disabled }: { disabled?: boolean }) {
   const [fruits, setFruits] = React.useState<Fruit[]>([
     { label: "Apple", value: "apple" },
     { label: "Banana", value: "banana" },
@@ -373,7 +373,7 @@ function CreatableDemo() {
   ])
   const [selected, setSelected] = React.useState<Fruit | null>(null)
   return (
-    <div className="max-w-xs">
+    <div className="w-full max-w-sm">
       <CreatableCombobox
         items={fruits}
         value={selected}
@@ -387,7 +387,11 @@ function CreatableDemo() {
           setSelected(next)
         }}
       >
-        <ComboboxInput placeholder="Search or create..." showClear />
+        <ComboboxInput
+          placeholder="Search or create..."
+          showClear
+          disabled={disabled}
+        />
         <ComboboxContent>
           <ComboboxList>
             {(item: Fruit | CreatableItem) =>
@@ -402,11 +406,6 @@ function CreatableDemo() {
           </ComboboxList>
         </ComboboxContent>
       </CreatableCombobox>
-      {selected ? (
-        <p className="mt-1 text-xs text-muted-foreground">
-          selected: {selected.label}
-        </p>
-      ) : null}
     </div>
   )
 }
@@ -1495,20 +1494,20 @@ export function InputsDebug() {
       {/* ---------------- Combobox ---------------- */}
       <Section
         title="Combobox"
-        blurb="Select-with-search. Unlike Autocomplete the value must be one of the items. Compose ComboboxInput + ComboboxContent > ComboboxList > ComboboxItem (+ ComboboxEmpty)."
+        blurb="Select-with-search. Unlike Autocomplete the value must be one of the items. Pass items to Combobox for filtering and render each via a function child in ComboboxList (ComboboxEmpty is a sibling of the list)."
       >
         <Row name="<Combobox>" desc="type to filter, pick a fruit">
           <div className="w-full max-w-sm">
-            <Combobox>
-              <ComboboxInput placeholder="Search fruit..." />
+            <Combobox items={FRUITS}>
+              <ComboboxInput placeholder="Search fruit..." showClear />
               <ComboboxContent>
+                <ComboboxEmpty>No fruit found.</ComboboxEmpty>
                 <ComboboxList>
-                  <ComboboxEmpty>No fruit found.</ComboboxEmpty>
-                  {FRUITS.map((f) => (
+                  {(f: string) => (
                     <ComboboxItem key={f} value={f}>
                       {f}
                     </ComboboxItem>
-                  ))}
+                  )}
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
@@ -1516,15 +1515,16 @@ export function InputsDebug() {
         </Row>
         <Row name="disabled" desc="input disabled">
           <div className="w-full max-w-sm">
-            <Combobox>
+            <Combobox items={FRUITS}>
               <ComboboxInput disabled placeholder="Disabled" />
               <ComboboxContent>
+                <ComboboxEmpty>No fruit found.</ComboboxEmpty>
                 <ComboboxList>
-                  {FRUITS.map((f) => (
+                  {(f: string) => (
                     <ComboboxItem key={f} value={f}>
                       {f}
                     </ComboboxItem>
-                  ))}
+                  )}
                 </ComboboxList>
               </ComboboxContent>
             </Combobox>
@@ -1539,6 +1539,9 @@ export function InputsDebug() {
       >
         <Row name="<CreatableCombobox>" desc="type a new fruit and create it">
           <CreatableDemo />
+        </Row>
+        <Row name="disabled" desc="input disabled">
+          <CreatableDemo disabled />
         </Row>
       </Section>
 

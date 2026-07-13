@@ -272,6 +272,10 @@ export function settingsNav(base: string): SidebarNavEntry[] {
               label: "Archetype Blank",
               href: `${base}/debug/archetype-blank`,
             },
+            {
+              label: "Section Form",
+              href: `${base}/debug/section-form`,
+            },
           ],
         },
       ],

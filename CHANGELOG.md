@@ -12,6 +12,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- SelectTrigger `sm` size reverted to shadcn/ui original height (h-8, was our h-7) and dropped the sm-only radius override
 - InputGroup addon text (InputGroupText) and buttons (InputGroupButton) now match the input's own text size (text-base/md:text-sm) at medium weight and muted-foreground, instead of a fixed text-sm
 - Default form-control height bumped `h-8` → `h-9` across Input, Select trigger, NativeSelect, InputGroup (also lifts PasswordInput + Combobox), and the Autocomplete field so paired fields align; `sm` sizes unchanged
 - Share repository agent skills across Claude Code and Codex, and add Codex-native CodeGraph MCP and prompt-hook configuration.

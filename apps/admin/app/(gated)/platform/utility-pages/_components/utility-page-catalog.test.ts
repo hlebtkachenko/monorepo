@@ -53,7 +53,7 @@ describe("UtilityPageCatalog", () => {
         container.querySelector("[data-slot='utility-page']"),
       ).toHaveAttribute("data-state", "service_unavailable"),
     )
-    expect(screen.getByText("Report this problem")).toBeInTheDocument()
+    expect(await screen.findByText("Report this problem")).toBeInTheDocument()
     expect(
       await screen.findByRole("button", { name: "Send report" }),
     ).toHaveAttribute("data-variant", "link")

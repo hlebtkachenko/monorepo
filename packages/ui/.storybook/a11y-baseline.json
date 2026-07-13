@@ -1,6 +1,7 @@
 {
-  "blocks-app-content-contentpanel--dashboard": ["color-contrast"],
   "blocks-authforms--login-email-with-error": ["color-contrast"],
+  "blocks-content-panel-contentfooter--selection": ["color-contrast"],
+  "blocks-content-panel-contentpanel--dashboard": ["color-contrast"],
   "brandassets-logo--explicit-tone-matrix": ["color-contrast"],
   "components-alert--destructive": ["color-contrast"],
   "components-alertdialog--default": ["color-contrast"],

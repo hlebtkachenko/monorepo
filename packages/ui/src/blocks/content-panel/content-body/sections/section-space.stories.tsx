@@ -24,7 +24,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
-  args: { props: { size: 16 } },
+  args: { props: { size: 32 } },
 }
 
 export const Large: Story = {

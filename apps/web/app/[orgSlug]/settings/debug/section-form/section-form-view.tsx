@@ -24,7 +24,7 @@ export function SectionFormView() {
       </AppPageHeader>
       <ContentPanel
         sections={[
-          sectionSpace({ size: 16 }),
+          sectionSpace(),
           sectionForm({
             anchor: "legal-identity",
             title: "Legal identity",

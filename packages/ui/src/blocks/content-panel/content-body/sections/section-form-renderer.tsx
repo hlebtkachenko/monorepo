@@ -150,11 +150,12 @@ function FormFieldCell({ field }: { field: FormField }) {
  * inputs. When side by side the left column is capped (≤18rem) so it never grows
  * wider than the title/description need — the fields take all remaining width;
  * below `@3xl` it shrinks and stacks. Fields declare their own span (1–6) and
- * wrap. Horizontal padding is 3× the panel header's (`px-6` = 24px).
+ * wrap. Horizontal padding is 3× the panel header's (`px-6` = 24px); vertical
+ * padding is `py-8` = 32px, so stacked sections sit 64px apart.
  */
 export function SectionFormRenderer({ props }: { props: SectionFormProps }) {
   return (
-    <div className="@container/section px-6 py-4">
+    <div className="@container/section px-6 py-8">
       <div className="grid grid-cols-1 gap-y-6 @3xl/section:grid-cols-[minmax(0,18rem)_minmax(0,1fr)] @3xl/section:items-start @3xl/section:gap-x-12">
         <div>
           <Heading level={4}>{props.title}</Heading>

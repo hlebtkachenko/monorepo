@@ -9,7 +9,7 @@ describe("sectionSpace factory", () => {
     const descriptor = sectionSpace()
     expect(descriptor.kind).toBe("space")
     expect(isSectionDescriptor(descriptor)).toBe(true)
-    expect(descriptor.props.size).toBe(16)
+    expect(descriptor.props.size).toBe(32)
     expect(descriptor.fill).toBeFalsy()
   })
 

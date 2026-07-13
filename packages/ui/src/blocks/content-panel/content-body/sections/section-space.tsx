@@ -8,7 +8,7 @@ export interface SectionSpaceProps {
 }
 
 /** The default Space gap, in pixels. */
-const DEFAULT_SPACE = 16
+const DEFAULT_SPACE = 32
 
 /**
  * The sole constructor for a Space-section descriptor — a pure vertical gap

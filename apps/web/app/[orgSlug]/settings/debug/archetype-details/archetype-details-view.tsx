@@ -77,7 +77,7 @@ export function ArchetypeDetailsView() {
     <ArchetypeDetails
       title="Archetype Details"
       sections={[
-        sectionSpace({ size: 16 }),
+        sectionSpace(),
         legalIdentity("a", "legal-identity"),
         legalIdentity("b", "legal-identity-2"),
       ]}

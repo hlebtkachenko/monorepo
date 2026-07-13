@@ -387,11 +387,7 @@ function CreatableDemo({ disabled }: { disabled?: boolean }) {
           setSelected(next)
         }}
       >
-        <ComboboxInput
-          placeholder="Search or create..."
-          showClear
-          disabled={disabled}
-        />
+        <ComboboxInput placeholder="Search or create..." disabled={disabled} />
         <ComboboxContent>
           <ComboboxList>
             {(item: Fruit | CreatableItem) =>
@@ -1499,7 +1495,7 @@ export function InputsDebug() {
         <Row name="<Combobox>" desc="type to filter, pick a fruit">
           <div className="w-full max-w-sm">
             <Combobox items={FRUITS}>
-              <ComboboxInput placeholder="Search fruit..." showClear />
+              <ComboboxInput placeholder="Search fruit..." />
               <ComboboxContent>
                 <ComboboxEmpty>No fruit found.</ComboboxEmpty>
                 <ComboboxList>

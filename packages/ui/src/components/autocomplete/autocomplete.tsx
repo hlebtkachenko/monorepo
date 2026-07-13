@@ -101,7 +101,7 @@ function AutocompletePopup({
       >
         <span
           className={cn(
-            "relative flex max-h-full max-w-(--available-width) min-w-(--anchor-width) origin-(--transform-origin) rounded-lg border border-border bg-popover text-popover-foreground shadow-md",
+            "relative flex max-h-full max-w-(--available-width) min-w-(--anchor-width) origin-(--transform-origin) rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10",
             className,
           )}
         >

@@ -54,7 +54,7 @@ function ComboboxInput({
   children,
   disabled = false,
   showTrigger = true,
-  showClear = false,
+  showClear = true,
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean

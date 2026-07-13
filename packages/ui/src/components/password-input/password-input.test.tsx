@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createRef } from "react"
 import { describe, it, expect, vi } from "vitest"
+import { PasswordSchema } from "@workspace/shared/auth"
 import { PasswordInput } from "./password-input"
 
 describe("PasswordInput", () => {
@@ -133,6 +134,32 @@ describe("PasswordInput", () => {
 
     // 50 draws of a 1–3 range should exercise more than one count value.
     expect(counts.size).toBeGreaterThan(1)
+  })
+
+  it("every generated password satisfies the canonical PasswordSchema", async () => {
+    const user = userEvent.setup()
+
+    // Per-password (not corpus) — each draw must independently pass the real
+    // validator, or the Generate button can produce a password the app then
+    // rejects. Assert the canonical schema directly so a rule change (e.g. a
+    // min-length bump) can't drift out of sync with a hand-mirrored copy.
+    for (let i = 0; i < 100; i++) {
+      const onGenerate = vi.fn()
+      const { unmount } = render(
+        <PasswordInput
+          showGenerate
+          value=""
+          onGenerate={onGenerate}
+          onValueChange={() => {}}
+        />,
+      )
+      await user.click(
+        screen.getByRole("button", { name: "Generate password" }),
+      )
+      const pw = onGenerate.mock.lastCall![0] as string
+      expect(PasswordSchema.safeParse(pw), pw).toMatchObject({ success: true })
+      unmount()
+    }
   })
 
   it("forwardRef wires to the underlying input element", () => {

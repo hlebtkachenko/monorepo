@@ -573,6 +573,15 @@ function PhoneInput(props: PhoneInputProps) {
 
     if (!shouldDetect) return
 
+    // Explicit selection wins. While the typed digits still begin with the
+    // selected country's dial code, keep that country and skip detection.
+    // Otherwise a pick among shared dial codes (+44 GB/GG, +1 US/CA/DO/PR,
+    // +39 IT/VA) is instantly reverted to the alphabetical / tiebreak default,
+    // since detection re-derives the country from the dial code alone.
+    // Detection still fires once the dial code no longer matches (a retype).
+    const current = countries.find((c) => c.code === country)
+    if (current && digits.startsWith(current.dialCode.slice(1))) return
+
     const detected = detectCountryFromNumber(value, countries)
     if (detected && detected.code !== country) {
       store.setState("country", detected.code)
@@ -801,23 +810,26 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
 
       const inputValue = event.target.value
 
-      // First keystroke into an empty field: auto-load the selected country's
-      // dial code so it sits before the number the user types. If that press is
-      // "+" or the code's leading digit, just show the code (they were starting
-      // to type it). Only single-character input takes this path, so pasting a
-      // full number still lands verbatim.
+      // First digit into an empty field: auto-load the selected country's dial
+      // code so it sits before the national number the user types (the typed
+      // digit is kept, never swallowed). A leading "+" means the user is
+      // entering an international number by hand, so fall through and let them.
+      // Only single-character input takes this path, so pasting a full number
+      // still lands verbatim.
       const prevValue = store.getState().value
-      if (!prevValue && inputValue.length === 1) {
+      if (
+        !prevValue &&
+        inputValue.length === 1 &&
+        !inputValue.startsWith("+")
+      ) {
         const selected = countries.find(
           (c) => c.code === store.getState().country,
         )
         const dial = selected ? selected.dialCode.slice(1) : ""
         if (dial) {
           const typed = inputValue.replace(/\D/g, "")
-          const isCodeStart =
-            inputValue.startsWith("+") || (typed !== "" && typed[0] === dial[0])
           store.setState("startsWithPlus", true)
-          store.setState("value", isCodeStart ? `+${dial}` : `+${dial}${typed}`)
+          store.setState("value", `+${dial}${typed}`)
           return
         }
       }

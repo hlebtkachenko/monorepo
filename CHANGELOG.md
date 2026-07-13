@@ -8,9 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
-- Admin Platform Debug page with Input Fields subpage; shared inputs debug board moved to packages/ui/src/blocks/inputs-debug and consumed by both the web /dev/inputs route and admin
+- Admin Platform Debug page with Input Fields subpage (blocked in production); the shared inputs debug board lives in packages/ui/src/blocks/inputs-debug and is rendered by that page
 - DatePicker component: shadcn calendar-with-presets in a Card, vertical (presets below) and horizontal (presets left) orientations, active-preset highlight, our rounded-lg surface radius
-- Dev-only Input components debug board at /dev/inputs (blocked in production) with a dev-only proxy bypass for /dev/* routes
 
 ### Changed
 
@@ -35,6 +34,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- PasswordInput generator now forces a lowercase letter, so every generated password satisfies PasswordSchema.mixedCase (previously ~1-in-2500 could be rejected by the app's own rule)
+- PhoneInput: explicit country pick no longer reverts to the default for shared dial codes (+44/+1/+39), and the first typed digit is no longer swallowed when it matches the dial code's leading digit
 - Combobox popup width matches the input (min-w anchor-width, was 28px wider); debug board Combobox demos use the required items + render-function filtering pattern; normal Combobox shows a clear (X) on selection; CreatableCombobox demo matches the standard input width, drops the debug readout, and gains a disabled variation
 - PhoneInput: h-9 height, country selection rewrites the dial code (no more revert), CZ/SK pinned atop a scrollable country list, dial code auto-loads on the first digit typed, and the country defaults to Czechia
 - i18n locale resolver no longer crashes page rendering when the auth/session backend is unavailable; it falls back to the cookie/default locale

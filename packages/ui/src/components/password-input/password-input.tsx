@@ -48,21 +48,23 @@ function pick(charset: string, rand: number): string {
  *
  *   ab!dEF-12gh3K-mn#q45   (three groups of six, 20 chars)
  *
- * The readable set excludes ambiguous glyphs (l/1/o/0/i). We guarantee at
- * least one uppercase and one digit, and force 1–3 symbols into distinct
- * random slots so PasswordSchema (which requires a symbol) always passes.
- * Apple's own format is alphanumeric-only, so injecting symbols is a
- * deliberate divergence to meet our own rules. Hyphens count toward the
- * length check but are not treated as symbols by Zod's symbol class.
+ * The readable set excludes ambiguous glyphs (l/1/o/0/i). We force one
+ * uppercase, one lowercase, and one digit into distinct random slots so
+ * PasswordSchema's mixed-case rule always passes. Its symbol rule
+ * (/[^A-Za-z0-9]/) is already satisfied by the group hyphens; we additionally
+ * inject 1–3 in-group symbols for strength (Apple's own format is
+ * alphanumeric-only, so this is a deliberate divergence). Hyphens also count
+ * toward the length check.
  */
 function generatePassword(): string {
   const groupSize = 6
   const groupCount = 3
   const total = groupSize * groupCount
   // Budget: `total` readable fills + one draw for the symbol count + two draws
-  // (index + char) for each forced placement (1 uppercase, 1 digit, 1–3
-  // symbols = up to 5). `total + 16` covers the worst case with headroom.
-  const rand = randomBytes(total + 16)
+  // (index + char) for each forced placement (1 uppercase, 1 lowercase, 1
+  // digit, 1–3 symbols = up to 6). `total + 20` covers the worst case with
+  // headroom.
+  const rand = randomBytes(total + 20)
   let cursor = 0
   const next = () => rand[cursor++ % rand.length]!
 
@@ -71,8 +73,10 @@ function generatePassword(): string {
     chars[i] = pick(READABLE, next())
   }
 
-  // Place one uppercase, one digit, and 1–3 symbols at distinct slots so no
-  // forced class clobbers another. Linear-probe on collision.
+  // Place one uppercase, one lowercase, one digit, and 1–3 symbols at distinct
+  // slots so no forced class clobbers another. Lowercase is forced too because
+  // PasswordSchema requires mixed case — a rare all-uppercase readable fill
+  // would otherwise fail our own rule. Linear-probe on collision.
   const symbolCount = 1 + (next() % 3)
   const used = new Set<number>()
   const placeAt = (charset: string) => {
@@ -83,6 +87,7 @@ function generatePassword(): string {
   }
 
   placeAt(UPPER)
+  placeAt(LOWER)
   placeAt(DIGIT)
   for (let s = 0; s < symbolCount; s++) {
     placeAt(SYMBOL)

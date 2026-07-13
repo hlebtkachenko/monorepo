@@ -59,15 +59,28 @@ describe("PhoneInput", () => {
     expect(onValueChange).toHaveBeenLastCalledWith("+491511234")
   })
 
-  it("ignores the leading dial-code digit / + on the first keystroke", async () => {
+  it("keeps the first typed digit even when it equals the dial code's leading digit", async () => {
     const user = userEvent.setup()
     const onValueChange = vi.fn()
     render(<Composed defaultCountry="DE" onValueChange={onValueChange} />)
 
     const tel = screen.getByRole("textbox")
-    // "4" is the first digit of +49, so it is dropped and only the code shows.
+    // "4" is also the first digit of +49, but it is the user's national number
+    // and must not be swallowed: the code is prepended, the digit is kept.
     await user.type(tel, "4")
 
+    expect(onValueChange).toHaveBeenLastCalledWith("+494")
+  })
+
+  it("a leading + lets the user type a foreign code instead of forcing the default dial", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    // Default is Czechia (+420); starting with "+" opts into a manual number.
+    render(<Composed onValueChange={onValueChange} />)
+
+    await user.type(screen.getByRole("textbox"), "+49")
+
+    // No forced +420 prefix — the typed international code lands verbatim.
     expect(onValueChange).toHaveBeenLastCalledWith("+49")
   })
 

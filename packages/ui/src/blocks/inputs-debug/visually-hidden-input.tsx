@@ -2,34 +2,30 @@
 
 /**
  * Ported from hlebtkachenko/starter (src/components/ui/visually-hidden-input.tsx)
- * for evaluation — NOT yet in packages/ui.
+ * for evaluation on the inputs debug board.
  *
  * An accessibility bridge: renders a visually-hidden native <input> that mirrors
  * the value/checked state of a custom control so the control participates in
- * native form submission and validation. It reflects the wrapped control's box
- * size (via ResizeObserver) and re-dispatches native input/click events using
- * the prototype setter so libraries listening on the real element still fire.
+ * native form submission and validation. It re-dispatches native input/click
+ * events using the prototype setter so libraries listening on the real element
+ * still fire.
  */
 
 import * as React from "react"
 
 type InputValue = string[] | string
 
-interface VisuallyHiddenInputProps<T = InputValue> extends Omit<
+interface VisuallyHiddenInputProps extends Omit<
   React.InputHTMLAttributes<HTMLInputElement>,
   "value" | "checked" | "onReset"
 > {
-  value?: T
+  value?: InputValue
   checked?: boolean
-  control: HTMLElement | null
   bubbles?: boolean
 }
 
-function VisuallyHiddenInput<T = InputValue>(
-  props: VisuallyHiddenInputProps<T>,
-) {
+function VisuallyHiddenInput(props: VisuallyHiddenInputProps) {
   const {
-    control,
     value,
     checked,
     bubbles = true,
@@ -45,8 +41,8 @@ function VisuallyHiddenInput<T = InputValue>(
   const inputRef = React.useRef<HTMLInputElement>(null)
 
   const prevValueRef = React.useRef<{
-    value: T | boolean | undefined
-    previous: T | boolean | undefined
+    value: InputValue | boolean | undefined
+    previous: InputValue | boolean | undefined
   }>({
     value: isCheckInput ? checked : value,
     previous: isCheckInput ? checked : value,
@@ -60,45 +56,6 @@ function VisuallyHiddenInput<T = InputValue>(
     }
     return prevValueRef.current.previous
   }, [isCheckInput, value, checked])
-
-  const [controlSize, setControlSize] = React.useState<{
-    width?: number
-    height?: number
-  }>({})
-
-  React.useLayoutEffect(() => {
-    if (!control) {
-      setControlSize({})
-      return
-    }
-
-    setControlSize({ width: control.offsetWidth, height: control.offsetHeight })
-
-    if (typeof window === "undefined") return
-
-    const resizeObserver = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) return
-      const borderSizeEntry = entry.borderBoxSize
-      const borderSize = Array.isArray(borderSizeEntry)
-        ? borderSizeEntry[0]
-        : borderSizeEntry
-      if (borderSize) {
-        setControlSize({
-          width: borderSize.inlineSize,
-          height: borderSize.blockSize,
-        })
-      } else {
-        setControlSize({
-          width: control.offsetWidth,
-          height: control.offsetHeight,
-        })
-      }
-    })
-
-    resizeObserver.observe(control, { box: "border-box" })
-    return () => resizeObserver.disconnect()
-  }, [control])
 
   React.useEffect(() => {
     const input = inputRef.current
@@ -128,9 +85,6 @@ function VisuallyHiddenInput<T = InputValue>(
   const composedStyle = React.useMemo<React.CSSProperties>(
     () => ({
       ...style,
-      ...(controlSize.width !== undefined && controlSize.height !== undefined
-        ? controlSize
-        : {}),
       border: 0,
       clip: "rect(0 0 0 0)",
       clipPath: "inset(50%)",
@@ -142,7 +96,7 @@ function VisuallyHiddenInput<T = InputValue>(
       whiteSpace: "nowrap",
       width: "1px",
     }),
-    [style, controlSize],
+    [style],
   )
 
   return (
@@ -159,3 +113,4 @@ function VisuallyHiddenInput<T = InputValue>(
 }
 
 export { VisuallyHiddenInput }
+export type { VisuallyHiddenInputProps }

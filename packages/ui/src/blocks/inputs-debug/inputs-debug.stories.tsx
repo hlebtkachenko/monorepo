@@ -4,7 +4,7 @@ import { InputsDebug } from "./inputs-debug"
 
 /**
  * Dev-only gallery of every input / input-related component in packages/ui.
- * Consumed by the web `/dev/inputs` route and the admin Debug → Input Fields page.
+ * Consumed by the admin Debug → Input Fields page.
  */
 const meta: Meta<typeof InputsDebug> = {
   title: "Blocks/InputsDebug",

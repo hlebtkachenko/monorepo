@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { addDays } from "date-fns"
+import { addDays, isSameDay, startOfMonth } from "date-fns"
 
 import { cn } from "@workspace/ui/lib/utils"
 import { Button } from "@workspace/ui/components/button"
@@ -21,19 +21,6 @@ const DEFAULT_PRESETS: DatePickerPreset[] = [
   { label: "In a week", days: 7 },
   { label: "In 2 weeks", days: 14 },
 ]
-
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1)
-}
-
-function isSameDay(a: Date | undefined, b: Date) {
-  return (
-    !!a &&
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
 
 interface DatePickerProps {
   value?: Date
@@ -109,7 +96,7 @@ function DatePicker({
   )
 
   const presetButtons = presets.map((preset, index) => {
-    const selected = isSameDay(date, addDays(new Date(), preset.days))
+    const selected = !!date && isSameDay(date, addDays(new Date(), preset.days))
     return (
       <Button
         key={preset.label}
@@ -149,9 +136,7 @@ function DatePicker({
             {presetButtons}
           </div>
         ) : null}
-        <div data-slot="card-content" className="p-3">
-          {calendar}
-        </div>
+        <div className="p-3">{calendar}</div>
       </div>
     )
   }

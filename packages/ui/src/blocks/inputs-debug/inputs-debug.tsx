@@ -5,7 +5,8 @@
  *
  * Every entry shows the exact code name (the export you import) and a one-line
  * note on what makes that variant / prop different, next to a live instance you
- * can interact with. Dev-only route: apps/web/app/dev/inputs (blocked in prod).
+ * can interact with. Rendered by the admin Debug → Input Fields page
+ * (blocked in production builds).
  */
 
 import * as React from "react"
@@ -689,7 +690,6 @@ function DropdownMenuDemo() {
 function VisuallyHiddenDemo() {
   const [rating, setRating] = React.useState(3)
   const [submitted, setSubmitted] = React.useState<string | null>(null)
-  const controlRef = React.useRef<HTMLDivElement>(null)
   return (
     <form
       onSubmit={(e) => {
@@ -699,7 +699,7 @@ function VisuallyHiddenDemo() {
       }}
       className="flex items-center gap-3"
     >
-      <div ref={controlRef} className="flex items-center gap-1">
+      <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
@@ -717,11 +717,7 @@ function VisuallyHiddenDemo() {
         ))}
       </div>
       {/* The invisible native input that carries `rating` into the form. */}
-      <VisuallyHiddenInput
-        name="rating"
-        control={controlRef.current}
-        value={String(rating)}
-      />
+      <VisuallyHiddenInput name="rating" value={String(rating)} />
       <Button type="submit" size="sm" variant="outline">
         Submit
       </Button>
@@ -1959,7 +1955,7 @@ export function InputsDebug() {
       </Section>
 
       <footer className="mt-16 border-t border-border/60 pt-4 text-xs text-muted-foreground">
-        Dev-only route · apps/web/app/dev/inputs · blocked in production builds.
+        Admin Debug → Input Fields · blocked in production builds.
       </footer>
     </div>
   )

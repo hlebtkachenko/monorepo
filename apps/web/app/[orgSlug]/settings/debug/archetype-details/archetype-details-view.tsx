@@ -68,46 +68,18 @@ function legalIdentity(): LeafSectionDescriptor {
   })
 }
 
-/** An "Addresses" Tabs section — each address kind is a tab (a group child). */
+/**
+ * An "Addresses" Tabs section — each tab is a DIFFERENT address kind with its
+ * own distinct fields, so switching tabs visibly swaps the form below (not a
+ * placeholder). A group child.
+ */
 function addressesTabs(): LeafSectionDescriptor {
-  const addressFields = (prefix: string) => [
-    {
-      label: "Street",
-      name: `${prefix}_street`,
-      span: 6 as const,
-      control: { kind: "text" as const, placeholder: "Ulice" },
-    },
-    {
-      label: "House no. (č.p.)",
-      name: `${prefix}_cp`,
-      span: 2 as const,
-      control: { kind: "text" as const },
-    },
-    {
-      label: "Orientation (č.o.)",
-      name: `${prefix}_co`,
-      span: 2 as const,
-      control: { kind: "text" as const },
-    },
-    {
-      label: "Postal code",
-      name: `${prefix}_zip`,
-      span: 2 as const,
-      control: { kind: "text" as const },
-    },
-    {
-      label: "City",
-      name: `${prefix}_city`,
-      span: 3 as const,
-      control: { kind: "text" as const },
-    },
-    {
-      label: "Region (kraj)",
-      name: `${prefix}_region`,
-      span: 3 as const,
-      control: { kind: "text" as const },
-    },
-  ]
+  const text = (label: string, name: string, span: 1 | 2 | 3 | 4 | 5 | 6) => ({
+    label,
+    name,
+    span,
+    control: { kind: "text" as const },
+  })
   return sectionTabs({
     anchor: "addresses",
     title: "Addresses",
@@ -117,10 +89,36 @@ function addressesTabs(): LeafSectionDescriptor {
       {
         id: "sidlo",
         label: "Registered seat (sídlo)",
-        fields: addressFields("sidlo"),
+        fields: [
+          text("Street", "sidlo_street", 6),
+          text("House no. (č.p.)", "sidlo_cp", 2),
+          text("Orientation (č.o.)", "sidlo_co", 2),
+          text("Postal code", "sidlo_zip", 2),
+          text("City", "sidlo_city", 3),
+          text("Region (kraj)", "sidlo_region", 3),
+        ],
       },
-      { id: "mail", label: "Mailing address", fields: addressFields("mail") },
-      { id: "prov", label: "Provozovna", fields: addressFields("prov") },
+      {
+        id: "mail",
+        label: "Mailing address",
+        fields: [
+          text("Recipient / c/o", "mail_recipient", 6),
+          text("PO box or street", "mail_street", 6),
+          text("City", "mail_city", 3),
+          text("Postal code", "mail_zip", 3),
+        ],
+      },
+      {
+        id: "prov",
+        label: "Provozovna",
+        fields: [
+          text("Establishment name", "prov_name", 6),
+          text("Street", "prov_street", 4),
+          text("Establishment ID (RÚIAN)", "prov_ruian", 2),
+          text("City", "prov_city", 3),
+          text("Postal code", "prov_zip", 3),
+        ],
+      },
     ],
   })
 }

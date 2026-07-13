@@ -53,7 +53,9 @@ export function GroupFrame({
   children: ReactNode
 }) {
   return (
-    <div className="border-t border-b border-border-subtle">
+    // `pb-4` gives the group's last child 16px of breathing room before the
+    // bottom rule (the child keeps its own padding on top of this).
+    <div className="border-t border-b border-border-subtle pb-4">
       {title != null ? (
         <div className="px-6 pt-8 pb-4">
           <Heading level={2}>{title}</Heading>

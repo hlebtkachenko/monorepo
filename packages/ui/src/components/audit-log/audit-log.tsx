@@ -128,9 +128,9 @@ const auditLogStatusVariants = cva(
     variants: {
       tone: {
         default: "border-border text-muted-foreground",
-        success: "border-success/30 text-success",
-        warning: "border-warning/30 text-warning",
-        danger: "border-destructive/30 text-destructive",
+        success: "border-success/30 bg-success/10 text-foreground",
+        warning: "border-warning/30 bg-warning/10 text-foreground",
+        danger: "border-destructive/30 bg-destructive/10 text-foreground",
       },
     },
     defaultVariants: {

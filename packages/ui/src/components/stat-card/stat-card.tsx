@@ -68,15 +68,13 @@ function StatCardDelta({
 }: StatCardDeltaProps) {
   const Icon =
     trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus
-  const tone = trend === "flat" ? "text-muted-foreground" : "text-foreground"
   return (
     <Badge
       data-slot="stat-card-delta"
       data-trend={trend}
       variant="secondary"
       className={cn(
-        "h-auto gap-1 rounded-sm bg-accent px-1.5 py-0.5 font-mono text-[11px] leading-none",
-        tone,
+        "h-auto gap-1 rounded-sm bg-accent px-1.5 py-0.5 font-mono text-[11px] leading-none text-foreground",
         className,
       )}
       {...props}

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 
-import { InputsDebug } from "./inputs-debug"
+import { InputsDebug } from "@workspace/ui/blocks/inputs-debug"
 
 export const metadata = { title: "Dev · Inputs debug" }
 export const dynamic = "force-dynamic"

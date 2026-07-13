@@ -159,4 +159,3 @@ function VisuallyHiddenInput<T = InputValue>(
 }
 
 export { VisuallyHiddenInput }
-export type { VisuallyHiddenInputProps }

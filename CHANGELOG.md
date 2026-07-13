@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Admin Platform Debug page with Input Fields subpage; shared inputs debug board moved to packages/ui/src/blocks/inputs-debug and consumed by both the web /dev/inputs route and admin
 - DatePicker component: shadcn calendar-with-presets in a Card, vertical (presets below) and horizontal (presets left) orientations, active-preset highlight, our rounded-lg surface radius
 - Dev-only Input components debug board at /dev/inputs (blocked in production) with a dev-only proxy bypass for /dev/* routes
 

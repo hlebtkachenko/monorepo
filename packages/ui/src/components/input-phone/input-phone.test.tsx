@@ -25,7 +25,9 @@ describe("PhoneInput", () => {
   it("calls onValueChange with normalized E.164-ish value on typing", async () => {
     const user = userEvent.setup()
     const onValueChange = vi.fn()
-    render(<Composed defaultCountry="US" onValueChange={onValueChange} />)
+    // Opt out of the default country, so a full international number lands
+    // verbatim without a dial code being pre-loaded.
+    render(<Composed defaultCountry="" onValueChange={onValueChange} />)
 
     const tel = screen.getByRole("textbox")
     await user.type(tel, "+14155552671")
@@ -33,6 +35,54 @@ describe("PhoneInput", () => {
     expect(onValueChange).toHaveBeenCalled()
     const last = onValueChange.mock.calls.at(-1)?.[0]
     expect(last).toBe("+14155552671")
+  })
+
+  it("defaults the country to Czechia (+420)", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<Composed onValueChange={onValueChange} />)
+
+    await user.type(screen.getByRole("textbox"), "777")
+
+    expect(onValueChange).toHaveBeenLastCalledWith("+420777")
+  })
+
+  it("auto-loads the default country dial code on the first digit typed", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<Composed defaultCountry="DE" onValueChange={onValueChange} />)
+
+    const tel = screen.getByRole("textbox")
+    // Typing the local part loads +49 in front of it.
+    await user.type(tel, "1511234")
+
+    expect(onValueChange).toHaveBeenLastCalledWith("+491511234")
+  })
+
+  it("ignores the leading dial-code digit / + on the first keystroke", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<Composed defaultCountry="DE" onValueChange={onValueChange} />)
+
+    const tel = screen.getByRole("textbox")
+    // "4" is the first digit of +49, so it is dropped and only the code shows.
+    await user.type(tel, "4")
+
+    expect(onValueChange).toHaveBeenLastCalledWith("+49")
+  })
+
+  it("rewrites the dial code (keeping the local part) when a country is picked", async () => {
+    const user = userEvent.setup()
+    const onValueChange = vi.fn()
+    render(<Composed value="+420777123456" onValueChange={onValueChange} />)
+
+    // Open the country popover and pick Germany.
+    await user.click(screen.getAllByRole("button")[0]!)
+    const germany = await screen.findByText("Germany")
+    await user.click(germany)
+
+    // +420 (CZ) -> +49 (DE), local part 777123456 preserved.
+    expect(onValueChange).toHaveBeenLastCalledWith("+49777123456")
   })
 
   it("renders disabled state", () => {

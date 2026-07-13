@@ -349,22 +349,16 @@ function SegmentedDateDemo() {
 }
 
 function PhoneDemo({
-  defaultCountry = "CZ",
+  initialValue = "",
   ...props
-}: React.ComponentProps<typeof PhoneInput>) {
-  const [value, setValue] = React.useState("+420")
+}: { initialValue?: string } & React.ComponentProps<typeof PhoneInput>) {
+  const [value, setValue] = React.useState(initialValue)
   return (
     <div className="max-w-sm">
-      <PhoneInput
-        value={value}
-        onValueChange={setValue}
-        defaultCountry={defaultCountry}
-        {...props}
-      >
+      <PhoneInput value={value} onValueChange={setValue} {...props}>
         <PhoneInputCountry />
         <PhoneInputField />
       </PhoneInput>
-      <p className="mt-1 text-xs text-muted-foreground">value: {value}</p>
     </div>
   )
 }
@@ -1381,22 +1375,28 @@ export function InputsDebug() {
       {/* ---------------- InputPhone ---------------- */}
       <Section
         title="InputPhone (PhoneInput)"
-        blurb="International phone field with a country selector + flag. Compose PhoneInputCountry + PhoneInputField. defaultCountry sets the initial dial code; value/onValueChange controls the E.164 string."
+        blurb="International phone field with a country selector + flag. Compose PhoneInputCountry + PhoneInputField. Pick a country to rewrite the dial code (keeps the local part); typing an international number auto-detects the flag. value/onValueChange is the E.164 string."
       >
         <Row
           name="<PhoneInput> controlled"
           desc="country popover + tel formatting; live value below"
         >
-          <PhoneDemo />
+          <PhoneDemo initialValue="+420777123456" />
+        </Row>
+        <Row
+          name="defaultCountry"
+          desc="empty field, flag seeded from the country"
+        >
+          <PhoneDemo defaultCountry="DE" />
         </Row>
         <Row name="disabled" desc="whole group dimmed">
-          <PhoneDemo defaultCountry="DE" disabled />
+          <PhoneDemo initialValue="+491511234567" disabled />
         </Row>
         <Row name="readOnly" desc="value shown, not editable">
-          <PhoneDemo defaultCountry="GB" readOnly />
+          <PhoneDemo initialValue="+441632960961" readOnly />
         </Row>
         <Row name="invalid" desc="error ring">
-          <PhoneDemo defaultCountry="FR" invalid />
+          <PhoneDemo initialValue="+33612345678" invalid />
         </Row>
       </Section>
 

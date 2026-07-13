@@ -30,6 +30,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- PhoneInput: h-9 height, country selection rewrites the dial code (no more revert), CZ/SK pinned atop a scrollable country list, dial code auto-loads on the first digit typed, and the country defaults to Czechia
 - i18n locale resolver no longer crashes page rendering when the auth/session backend is unavailable; it falls back to the cookie/default locale
 
 ## [v0.17.7] — 2026-07-11

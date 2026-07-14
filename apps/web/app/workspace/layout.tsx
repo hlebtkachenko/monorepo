@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
-import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 import {
   Card,
@@ -102,7 +102,9 @@ export default async function WorkspaceLayout({
     <AppContextMenuClient
       user={{ id: session.user.id, email: session.user.email }}
     >
-      <WorkspaceShell header={header}>{children}</WorkspaceShell>
+      <WorkspaceShell header={header} deployment={getBuildIdentity()}>
+        {children}
+      </WorkspaceShell>
     </AppContextMenuClient>
   )
 }

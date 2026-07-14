@@ -7,6 +7,7 @@ import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
 import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 import { Logo } from "@workspace/ui/brand-assets"
+import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import type { ImpersonationState } from "@/lib/admin-impersonation-types"
 
@@ -45,12 +46,14 @@ export function AdminShell({
   header,
   userId,
   impersonation,
+  deployment,
   children,
 }: {
   modules: AdminModule[]
   header: ReactNode
   userId: string
   impersonation: ImpersonationState | null
+  deployment: DeploymentIdentity
   children: ReactNode
 }) {
   const pathname = usePathname() ?? undefined
@@ -81,6 +84,7 @@ export function AdminShell({
         sidebar={active ? <AdminSidebarBody pages={active.pages} /> : undefined}
         sidebarHeader={active?.label}
         assistant={<AssistantPanel label="Sidekick" />}
+        deployment={deployment}
         contentHeader={
           <AdminContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation"
 
 import { auth } from "@workspace/auth/server"
 import { writeAuditEventGlobal } from "@workspace/db"
-import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
 
@@ -106,6 +106,7 @@ export default async function GatedLayout({
       header={header}
       userId={session.user.id}
       impersonation={impersonation}
+      deployment={getBuildIdentity()}
     >
       {children}
     </AdminShell>

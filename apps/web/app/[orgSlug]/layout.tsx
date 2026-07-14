@@ -9,7 +9,7 @@ import {
   organization_membership,
 } from "@workspace/db/schema"
 import { RESERVED_SLUGS } from "@workspace/org-provisioning"
-import { getBuildVersion } from "@workspace/ui/brand-assets"
+import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
@@ -160,7 +160,11 @@ export default async function OrgLayout({
       orgSlug={orgSlug}
       user={{ id: session.user.id, email: session.user.email }}
     >
-      <OrgShell orgSlug={orgSlug} header={header}>
+      <OrgShell
+        orgSlug={orgSlug}
+        header={header}
+        deployment={getBuildIdentity()}
+      >
         {children}
       </OrgShell>
     </AppContextMenuClient>

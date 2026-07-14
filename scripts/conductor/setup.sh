@@ -84,6 +84,19 @@ if [ -n "$DOCKER_OK" ]; then
     || echo "WARN: minting demo credential failed." >&2
   DATABASE_URL="$APPURL" pnpm --filter @workspace/db db:seed \
     || echo "WARN: db:seed failed." >&2
+
+  echo "==> generate apps/admin/.env.local (port $((WEB_PORT + 2)))"
+  # Admin gates on the seeded workspace id; the fresh DB has exactly one.
+  WS_ID="$(docker compose -f "$COMPOSE" exec -T postgres \
+    psql -tAqU app_owner -d "$WS_DB" -c "SELECT id FROM workspace ORDER BY created_at LIMIT 1" 2>/dev/null | tr -d '[:space:]')"
+  if [ -n "$WS_ID" ]; then
+    DB_URL="$APPURL" ADMIN_PORT="$((WEB_PORT + 2))" WEB_PORT="$WEB_PORT" API_PORT="$((WEB_PORT + 1))" \
+      WS_ALLOWLIST="$WS_ID" \
+      BETTER_AUTH_SECRET="${BETTER_AUTH_SECRET:-}" APP_TOKEN_SECRET="${APP_TOKEN_SECRET:-}" \
+      bash scripts/generate-admin-env.sh || echo "WARN: admin env generation failed." >&2
+  else
+    echo "WARN: could not resolve seeded workspace id; skipping admin env." >&2
+  fi
 else
   echo "==> No Docker (cloud workspace?) — skipping DB setup. Coding + typecheck + git still work."
 fi
@@ -94,5 +107,6 @@ pnpm codegraph:ready \
 
 echo "==> Conductor setup complete."
 if [ -n "$DOCKER_OK" ]; then
-  echo "    Run 'web' -> http://localhost:${WEB_PORT}  (sign in: owner@example.com / passwordpassword -> /acme)"
+  echo "    Run 'web'   -> http://localhost:${WEB_PORT}       (owner@example.com / passwordpassword -> /acme)"
+  echo "    Run 'admin' -> http://localhost:$((WEB_PORT + 2)) (same login, gated to the seeded workspace)"
 fi

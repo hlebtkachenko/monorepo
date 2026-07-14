@@ -50,16 +50,22 @@ still enforces FORCE RLS).
      apply per-DB grants (`init.d/00-roles.sql`, `01-grants.sql`) **before**
      migrating, run `db:migrate`, then mint the demo owner
      (`apps/web/scripts/seed-dev-owner.ts`) + `db:seed` the `acme` tenant graph.
-  3. Generate `apps/web/.env.local` from `scripts/generate-env.sh` with this
-     workspace's port + database baked in.
+  3. Generate `apps/web/.env.local` (`scripts/generate-env.sh`) and
+     `apps/admin/.env.local` (`scripts/generate-admin-env.sh`) with this
+     workspace's ports + database baked in. Admin shares the DB + auth secret,
+     runs on its own port, and its `ADMIN_WORKSPACE_ALLOWLIST` is set to the
+     seeded workspace id so `owner@example.com` can enter admin.
   4. Best-effort `pnpm codegraph:ready`.
      Every DB/index step warns but never aborts creation. **No Docker (cloud) → the
      whole DB block is skipped**, so cloud stays usable for coding + typecheck + git.
 - **`scripts.archive` → `scripts/conductor/archive.sh`** (before archive): drops
   the workspace's `ws_p<port>` database so dead databases don't pile up.
-- **Run buttons** (`scripts.run.*`): `web` (default), `api`, `typecheck`,
-  `test`, `codegraph`. All but `typecheck` are `available_in = ["local"]`
-  (they need Docker / the local DB).
+- **Run buttons** (`scripts.run.*`): `web` (default, `$CONDUCTOR_PORT`), `api`
+  (`+1`), `admin` (`+2`), `typecheck`, `test`, `codegraph`. All but `typecheck`
+  are `available_in = ["local"]` (they need Docker / the local DB).
+- **Action button prompts** (`[prompts]`): repo-wide instructions for
+  Conductor's Review / Create PR / Fix errors / Resolve conflicts / Branch
+  rename / general-chat actions. AGENTS.md stays the full source of truth.
 
 ## Add a page / run a workspace
 

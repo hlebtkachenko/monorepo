@@ -19,7 +19,6 @@ import {
   allocateNumber,
   buildZaverka,
   captureDocument,
-  closePeriod,
   closeResult,
   createAsset,
   createCounterparty,
@@ -34,13 +33,13 @@ import {
   monetarySummary,
   openItem,
   openItemsForCounterparty,
-  openNextPeriod,
   postDoubleEntry,
   postFromPredkontace,
   postFxSettlement,
   postMonetary,
   reconcileReadModel,
   reverse,
+  rollForwardPeriod,
   traceEvent,
   unpostedCases,
   UnpostedPeriodError,
@@ -615,13 +614,8 @@ describe("period lifecycle (close + 701 carry-forward)", () => {
     })
 
     const result = await withOrganization(orgB, userId, async (db) => {
-      await closePeriod(db, s.periodId)
-      return openNextPeriod(db, s.ctx, {
+      return rollForwardPeriod(db, s.ctx, {
         priorPeriodId: s.periodId,
-        periodStart: "2034-01-01",
-        periodEnd: "2034-12-31",
-        eventSeriesId: s.eventSeriesId,
-        documentSeriesId: s.documentSeriesId,
         responsibleUserId: userId,
       })
     })

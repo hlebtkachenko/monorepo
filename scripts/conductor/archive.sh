@@ -16,12 +16,11 @@ if [ "$WS_DB" = "ws_p" ] && [ -f apps/web/.env.local ]; then
   WS_DB="$(grep -oE 'DATABASE_DIRECT_URL=[^[:space:]]+' apps/web/.env.local | sed -E 's#.*/##')"
 fi
 
-if [ -z "$WS_DB" ] || [ "$WS_DB" = "ws_p" ]; then
-  echo "No isolated workspace database to drop."
-  exit 0
-fi
-if [ "$WS_DB" = "app_dev" ]; then
-  echo "Refusing to drop the base app_dev database."
+# Allowlist the isolated-workspace naming convention before an irreversible DROP.
+# This refuses the base app_dev database, an empty/garbage grep result, and any
+# injected name in one check (allowlist > denylist).
+if ! [[ "$WS_DB" =~ ^ws_p[0-9]+$ ]]; then
+  echo "No isolated workspace database to drop (name: '${WS_DB:-}')."
   exit 0
 fi
 

@@ -24,12 +24,30 @@ const email = process.env.SEED_OWNER_EMAIL ?? "owner@example.com"
 const password = process.env.SEED_OWNER_PASSWORD ?? "passwordpassword"
 const name = process.env.SEED_OWNER_NAME ?? "Owner"
 
+// This mints a real loginable credential, so refuse to run against anything but
+// a local database — guards against accidentally seeding a remote/prod DB.
+const dbHost = (() => {
+  try {
+    return new URL(process.env.DATABASE_URL ?? "").hostname
+  } catch {
+    return ""
+  }
+})()
+if (!new Set(["localhost", "127.0.0.1", "::1", "[::1]"]).has(dbHost)) {
+  console.error(
+    `Refusing to seed dev owner: DATABASE_URL host "${dbHost}" is not local.`,
+  )
+  process.exit(1)
+}
+
 try {
   const { userId } = await betterAuthSignUp({ email, password, name })
   console.log(`Minted dev owner ${email} (${userId}).`)
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error)
-  if (/exist|already|unique|duplicate/i.test(message)) {
+  // Narrow to genuine duplicate signals; a bare "exist" would also match
+  // "does not exist" and mask a broken (e.g. unmigrated) DB as idempotent.
+  if (/already exists|duplicate key|unique constraint/i.test(message)) {
     console.log(`Dev owner ${email} already exists — skipping.`)
   } else {
     console.error(`Failed to mint dev owner ${email}: ${message}`)

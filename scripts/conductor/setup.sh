@@ -25,10 +25,18 @@ set -uo pipefail
 WEB_PORT="${CONDUCTOR_PORT:-3000}"
 COMPOSE="infra/compose/docker-compose.dev.yml"
 
+# Per-workspace DB isolation runs only when the port is a clean integer (it is
+# interpolated into the database name / SQL) and Docker is reachable. Compute
+# the guard once and reuse it below.
+DOCKER_OK=""
+if [[ "$WEB_PORT" =~ ^[0-9]+$ ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  DOCKER_OK=1
+fi
+
 echo "==> pnpm install (frozen lockfile)"
 pnpm install --frozen-lockfile || exit 1
 
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+if [ -n "$DOCKER_OK" ]; then
   WS_DB="ws_p${WEB_PORT}"
   DIRECT="postgres://app_owner:dev_owner@localhost:5432/${WS_DB}"
   APPURL="postgres://app_user:dev_user@localhost:5432/${WS_DB}"
@@ -74,8 +82,7 @@ if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   fi
   DATABASE_URL="$APPURL" pnpm exec tsx apps/web/scripts/seed-dev-owner.ts \
     || echo "WARN: minting demo credential failed." >&2
-  DATABASE_URL="$APPURL" SEED_OWNER_EMAIL=owner@example.com \
-    pnpm --filter @workspace/db db:seed \
+  DATABASE_URL="$APPURL" pnpm --filter @workspace/db db:seed \
     || echo "WARN: db:seed failed." >&2
 else
   echo "==> No Docker (cloud workspace?) — skipping DB setup. Coding + typecheck + git still work."
@@ -86,6 +93,6 @@ pnpm codegraph:ready \
   || echo "WARN: CodeGraph index unavailable; run 'pnpm codegraph:ready' manually." >&2
 
 echo "==> Conductor setup complete."
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+if [ -n "$DOCKER_OK" ]; then
   echo "    Run 'web' -> http://localhost:${WEB_PORT}  (sign in: owner@example.com / passwordpassword -> /acme)"
 fi

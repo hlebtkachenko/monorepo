@@ -49,6 +49,27 @@ From code: `@workspace/notify` → `ask({question,options,allowCustom})` / `askC
 
 Full reference + the four resolution paths: [`docs/runbooks/AGENT-HITL.md`](docs/runbooks/AGENT-HITL.md). Needs `INGEST_SECRET` (env `NOTIFY_SHARED_SECRET`, or `apps/bot/.dev.vars` locally, materialized via `scripts/bot-dev-vars.sh`).
 
+## Conductor Cloud GitHub Access
+
+In a Conductor **cloud** workspace (Vercel Sandbox) the interactive terminal has
+**no GitHub credential at all**: both `git` (push / fetch of the remote) and the
+`gh` CLI run unauthenticated. The auth broker withholds a token for the
+`terminal` context (`auth broker has no GitHub token for this context (context:
+terminal)`), and `git credential fill` returns nothing — verified. This is a
+deliberate Conductor security boundary, not a misconfiguration, and it cannot be
+bridged from the repo (there is no token to forward).
+
+- Do NOT attempt `git push`, `git fetch`/`pull`, `gh pr create`, or
+  `gh auth login` from a cloud workspace terminal — none can be authenticated
+  there. Do not loop on them.
+- Local commits are fine (`git commit` needs no network). Make your commits, then
+  get them to GitHub through **Conductor's own push / "Create PR" action** (the
+  connected Conductor GitHub app runs in a separate, authorized context).
+- Local (non-cloud) workspaces are unaffected: `git` + `gh` use your machine
+  keyring normally.
+
+Full model + snapshot script: `docs/runbooks/CONDUCTOR.md`.
+
 ## Architecture
 
 - **Monorepo**: Turborepo + pnpm workspaces
@@ -135,6 +156,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 
 Agent-specific runbooks live in `docs/runbooks/`:
 
+- `CONDUCTOR.md`: how Conductor workspaces are wired — committed `.conductor/settings.toml` + `scripts/conductor/*` as the source of truth, full per-workspace isolation (own `$CONDUCTOR_PORT` range + own seeded `ws_p<port>` Postgres database, shared demo login `owner@example.com`), the setup/archive/run scripts, and cloud-workspace GitHub + secrets setup
 - `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the five-archetype catalog (Table / Blank / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the four dev-only `/demo-*` routes as living examples
 - `CODEGRAPH.md`: how the repo-local CodeGraph MCP/index setup works, how to initialize/sync per Conductor worktree, and when agents should use it before grep/read exploration
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL

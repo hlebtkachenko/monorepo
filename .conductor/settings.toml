@@ -1,10 +1,55 @@
 "$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
 
-[scripts]
-# CodeGraph is optional local dev tooling; it must never fail workspace
-# creation. `pnpm install` must succeed; the index build is best-effort.
-setup = "pnpm install --frozen-lockfile && { pnpm codegraph:ready || echo 'Warning: CodeGraph index unavailable; run pnpm codegraph:ready manually.' >&2; }"
+# Committed = source of truth for local AND cloud workspaces. Changes here take
+# effect only after they merge to the default branch. Machine-local, secret, or
+# per-user values (ssh_key_path, cloud GH_TOKEN) belong in the gitignored
+# .conductor/settings.local.toml, never here. See docs/runbooks/CONDUCTOR.md.
 
+[git]
+# Land via PR; keep the branch after archiving. Auto-archive on PR merge.
+delete_branch_on_archive = false
+archive_on_merge = true
+
+[scripts]
+# Full per-workspace isolation: each workspace gets its own $CONDUCTOR_PORT
+# range and its own Postgres database, so many workspaces run their dev servers
+# in parallel without colliding. (This is the mutually-exclusive alternative to
+# spotlight_testing — do NOT enable both.)
+run_mode = "concurrent"
+# Install + per-workspace DB (create, migrate, seed demo owner) + code index.
+# Cloud-safe: the DB block is skipped when Docker is unavailable.
+setup = "bash scripts/conductor/setup.sh"
+# Drop this workspace's isolated database on archive.
+archive = "bash scripts/conductor/archive.sh"
+
+# --- Run buttons -----------------------------------------------------------
+# Web dev server on this workspace's port, against its isolated DB.
+[scripts.run.web]
+command = 'pnpm --filter web exec next dev --turbopack --port "$CONDUCTOR_PORT"'
+default = true
+icon = "globe"
+available_in = ["local"]
+
+# API dev server on $CONDUCTOR_PORT+1. NestJS reads no .env file, so source the
+# generated web env (same isolated DB + secrets) into its process first.
+[scripts.run.api]
+command = 'set -a; . apps/web/.env.local; set +a; PORT="$((CONDUCTOR_PORT + 1))" pnpm --filter api dev'
+icon = "server"
+available_in = ["local"]
+
+# Fast type check — useful everywhere, including cloud workspaces.
+[scripts.run.typecheck]
+command = "pnpm typecheck"
+icon = "check"
+
+# Full test suite. Boots disposable Postgres testcontainers -> Docker required.
+[scripts.run.test]
+command = "pnpm test"
+icon = "test-tube"
+available_in = ["local"]
+
+# Rebuild the local CodeGraph index for this worktree.
 [scripts.run.codegraph]
 command = "if cd \"$CONDUCTOR_WORKSPACE_PATH\" && pnpm codegraph:ready; then echo 'CodeGraph index ready.'; exit 0; else exit_code=$?; echo 'CodeGraph index build failed.' >&2; exit \"$exit_code\"; fi"
 icon = "network"
+available_in = ["local"]

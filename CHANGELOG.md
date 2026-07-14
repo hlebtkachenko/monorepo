@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- S3 DocumentStore interface + S3/minio implementation (packages/storage)
 - Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
 - Notify signed-in web and admin users when a newer deployment is available, with a user-confirmed reload action that stays dismissed until the next deployment.
 - Conductor: full per-workspace isolation (own $CONDUCTOR_PORT range + own seeded Postgres database per workspace, demo login owner@example.com), committed setup/archive scripts replacing untracked local config, and cloud-safe (Docker-gated) setup

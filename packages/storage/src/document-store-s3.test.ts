@@ -1,0 +1,435 @@
+import { createHash } from "node:crypto"
+import {
+  GetObjectTaggingCommand,
+  HeadObjectCommand,
+  NotFound,
+  PutObjectCommand,
+  PutObjectTaggingCommand,
+  S3Client,
+} from "@aws-sdk/client-s3"
+import { mockClient } from "aws-sdk-client-mock"
+import { beforeAll, beforeEach, describe, expect, it } from "vitest"
+import { S3DocumentStore } from "./document-store-s3"
+
+// CAVEAT: this suite mocks the S3 SDK client (aws-sdk-client-mock) and never
+// hits real S3. It only asserts the SHAPE of the requests we send — it
+// proves nothing about S3's server-side enforcement of the POST policy
+// (content-length-range, key, checksum conditions), the x-amz-checksum-sha256
+// recompute-and-compare S3 does on upload, or SSE-KMS behavior. Real-S3
+// verification is the P1 staging gate.
+
+// createPresignedPost/getSignedUrl sign locally (no network call), but still
+// need resolvable static credentials — set env vars so the default provider
+// chain resolves instantly instead of falling through to a local profile or
+// IMDS. AWS_PROFILE is cleared first: the env-credentials provider defers to
+// it when both are set, which would pull in whatever profile the developer's
+// shell happens to have configured.
+beforeAll(() => {
+  delete process.env.AWS_PROFILE
+  process.env.AWS_ACCESS_KEY_ID = "test-access-key-id"
+  process.env.AWS_SECRET_ACCESS_KEY = "test-secret-access-key"
+})
+
+const s3Mock = mockClient(S3Client)
+
+beforeEach(() => {
+  s3Mock.reset()
+})
+
+function makeStore(kmsKeyId?: string): S3DocumentStore {
+  return new S3DocumentStore({
+    bucket: "documents-bucket",
+    region: "us-east-1",
+    kmsKeyId,
+  })
+}
+
+function decodePolicy(fields: Record<string, string>): unknown[] {
+  const policy = fields.Policy
+  expect(policy).toBeDefined()
+  const decoded = JSON.parse(
+    Buffer.from(policy as string, "base64").toString("utf8"),
+  ) as { conditions: unknown[] }
+  return decoded.conditions
+}
+
+describe("key derivation (documents/{workspaceId}/{sha256}.{ext})", () => {
+  it("put() derives the key from the workspaceId, the bytes' own sha256, and the filename extension", async () => {
+    s3Mock.on(PutObjectCommand).resolves({})
+    const store = makeStore()
+    const bytes = Buffer.from("hello world")
+    const expectedSha256 = createHash("sha256").update(bytes).digest("hex")
+
+    const result = await store.put(bytes, {
+      workspaceId: "ws_1",
+      contentType: "text/plain",
+      filename: "notes.TXT",
+    })
+
+    expect(result.key).toBe(`documents/ws_1/${expectedSha256}.txt`)
+    expect(result.sha256).toBe(expectedSha256)
+    expect(result.size).toBe(bytes.byteLength)
+  })
+
+  it("presignPost() derives the key from the caller-supplied sha256 (client computed it before presigning)", async () => {
+    const store = makeStore()
+    const sha256 = "a".repeat(64)
+
+    const result = await store.presignPost({
+      workspaceId: "ws_1",
+      sha256,
+      ext: "pdf",
+      contentType: "application/pdf",
+      maxBytes: 10_000_000,
+      ttlSeconds: 60,
+    })
+
+    expect(result.key).toBe(`documents/ws_1/${sha256}.pdf`)
+  })
+})
+
+describe("presignPost() policy conditions", () => {
+  it("enforces content-length-range, the pinned key, content-type, and the sha256 checksum", async () => {
+    const store = makeStore()
+    const sha256 = "b".repeat(64)
+
+    const result = await store.presignPost({
+      workspaceId: "ws_1",
+      sha256,
+      ext: "pdf",
+      contentType: "application/pdf",
+      maxBytes: 10_000_000,
+      ttlSeconds: 60,
+    })
+
+    const conditions = decodePolicy(result.fields)
+    const checksumBase64 = Buffer.from(sha256, "hex").toString("base64")
+
+    expect(conditions).toContainEqual(["content-length-range", 1, 10_000_000])
+    expect(conditions).toContainEqual(["eq", "$key", result.key])
+    expect(conditions).toContainEqual([
+      "eq",
+      "$Content-Type",
+      "application/pdf",
+    ])
+    expect(conditions).toContainEqual([
+      "eq",
+      "$x-amz-checksum-sha256",
+      checksumBase64,
+    ])
+  })
+
+  it("never adds an x-amz-server-side-encryption condition, even when a CMK is configured", async () => {
+    // A browser presigned POST does not reliably send
+    // x-amz-server-side-encryption* headers, so requiring them via a policy
+    // condition would 403 every KMS-mode upload. Encryption comes from the
+    // bucket's default encryption instead.
+    const kmsKeyId = "arn:aws:kms:eu-central-1:123456789012:key/test-cmk"
+    const store = makeStore(kmsKeyId)
+
+    const result = await store.presignPost({
+      workspaceId: "ws_1",
+      sha256: "c".repeat(64),
+      ext: "pdf",
+      contentType: "application/pdf",
+      maxBytes: 10_000_000,
+      ttlSeconds: 60,
+    })
+
+    const conditions = decodePolicy(result.fields)
+    const hasSseCondition = conditions.some(
+      (condition) =>
+        Array.isArray(condition) &&
+        typeof condition[1] === "string" &&
+        condition[1].startsWith("$x-amz-server-side-encryption"),
+    )
+    expect(hasSseCondition).toBe(false)
+    expect(conditions).toContainEqual(["content-length-range", 1, 10_000_000])
+    expect(conditions).toContainEqual(["eq", "$key", result.key])
+    expect(conditions).toContainEqual([
+      "eq",
+      "$Content-Type",
+      "application/pdf",
+    ])
+  })
+
+  it("omits SSE-KMS conditions when no CMK is configured", async () => {
+    const store = makeStore()
+
+    const result = await store.presignPost({
+      workspaceId: "ws_1",
+      sha256: "d".repeat(64),
+      ext: "pdf",
+      contentType: "application/pdf",
+      maxBytes: 10_000_000,
+      ttlSeconds: 60,
+    })
+
+    const conditions = decodePolicy(result.fields)
+    const hasSseCondition = conditions.some(
+      (condition) =>
+        Array.isArray(condition) &&
+        typeof condition[1] === "string" &&
+        condition[1].startsWith("$x-amz-server-side-encryption"),
+    )
+    expect(hasSseCondition).toBe(false)
+  })
+})
+
+describe("presignPost() input validation", () => {
+  const validInput = {
+    workspaceId: "ws_1",
+    sha256: "e".repeat(64),
+    ext: "pdf",
+    contentType: "application/pdf",
+    maxBytes: 10_000_000,
+    ttlSeconds: 60,
+  }
+
+  it("throws on a sha256 that is not 64 lowercase hex characters", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.presignPost({ ...validInput, sha256: "not-hex" }),
+    ).rejects.toThrow(/sha256/)
+    await expect(
+      store.presignPost({ ...validInput, sha256: "A".repeat(64) }),
+    ).rejects.toThrow(/sha256/)
+  })
+
+  it("throws on an ext with uppercase or symbol characters", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.presignPost({ ...validInput, ext: "PDF" }),
+    ).rejects.toThrow(/extension/)
+    await expect(
+      store.presignPost({ ...validInput, ext: "pdf;drop" }),
+    ).rejects.toThrow(/extension/)
+  })
+
+  it("throws when maxBytes is less than 1", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.presignPost({ ...validInput, maxBytes: 0 }),
+    ).rejects.toThrow(/maxBytes/)
+    await expect(
+      store.presignPost({ ...validInput, maxBytes: -5 }),
+    ).rejects.toThrow(/maxBytes/)
+  })
+
+  it("throws when maxBytes is not an integer", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.presignPost({ ...validInput, maxBytes: 1.5 }),
+    ).rejects.toThrow(/maxBytes/)
+  })
+
+  it("throws when ttlSeconds is out of the [1, 604800] range", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.presignPost({ ...validInput, ttlSeconds: 0 }),
+    ).rejects.toThrow(/ttlSeconds/)
+    await expect(
+      store.presignPost({ ...validInput, ttlSeconds: 604_801 }),
+    ).rejects.toThrow(/ttlSeconds/)
+  })
+})
+
+describe("presignGet()", () => {
+  it("signs ResponseContentDisposition and ResponseContentType into the URL", async () => {
+    const store = makeStore()
+
+    const url = await store.presignGet("documents/ws_1/abc.pdf", {
+      ttlSeconds: 900,
+      disposition: "inline",
+      responseContentType: "application/pdf",
+    })
+
+    const params = new URL(url).searchParams
+    expect(params.get("response-content-disposition")).toBe("inline")
+    expect(params.get("response-content-type")).toBe("application/pdf")
+    expect(params.get("X-Amz-Expires")).toBe("900")
+  })
+
+  it("supports attachment disposition and omits response-content-type when not requested", async () => {
+    const store = makeStore()
+
+    const url = await store.presignGet("documents/ws_1/abc.pdf", {
+      ttlSeconds: 900,
+      disposition: "attachment",
+    })
+
+    const params = new URL(url).searchParams
+    expect(params.get("response-content-disposition")).toBe("attachment")
+    expect(params.has("response-content-type")).toBe(false)
+  })
+})
+
+describe("headExists()", () => {
+  it("returns true when HeadObject succeeds", async () => {
+    s3Mock.on(HeadObjectCommand).resolves({})
+    const store = makeStore()
+
+    await expect(store.headExists("documents/ws_1/abc.pdf")).resolves.toBe(true)
+  })
+
+  it("returns false on a NotFound error", async () => {
+    s3Mock
+      .on(HeadObjectCommand)
+      .rejects(new NotFound({ message: "Not Found", $metadata: {} }))
+    const store = makeStore()
+
+    await expect(store.headExists("documents/ws_1/missing.pdf")).resolves.toBe(
+      false,
+    )
+  })
+
+  it("returns false on a generic 404 error", async () => {
+    s3Mock
+      .on(HeadObjectCommand)
+      .rejects({ name: "SomeOtherName", $metadata: { httpStatusCode: 404 } })
+    const store = makeStore()
+
+    await expect(store.headExists("documents/ws_1/missing.pdf")).resolves.toBe(
+      false,
+    )
+  })
+
+  it("rethrows non-404 errors", async () => {
+    s3Mock.on(HeadObjectCommand).rejects(new Error("boom"))
+    const store = makeStore()
+
+    await expect(store.headExists("documents/ws_1/abc.pdf")).rejects.toThrow(
+      "boom",
+    )
+  })
+})
+
+describe("tag methods — merge, never clobber", () => {
+  function putTaggingCalls() {
+    return s3Mock.commandCalls(PutObjectTaggingCommand)
+  }
+
+  it("setDeletedTag adds deleted-at=<ISO now> and preserves existing tags", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      TagSet: [{ Key: "confirmed-at", Value: "2026-01-01T00:00:00.000Z" }],
+    })
+    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    const store = makeStore()
+
+    const before = new Date().toISOString()
+    await store.setDeletedTag("documents/ws_1/abc.pdf")
+    const after = new Date().toISOString()
+
+    const calls = putTaggingCalls()
+    expect(calls).toHaveLength(1)
+    const call = calls[0]
+    if (!call) throw new Error("expected exactly one PutObjectTagging call")
+    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
+    const tags = Object.fromEntries(tagSet.map((tag) => [tag.Key, tag.Value]))
+
+    expect(tags["confirmed-at"]).toBe("2026-01-01T00:00:00.000Z")
+    const deletedAt = tags["deleted-at"]
+    expect(deletedAt).toBeDefined()
+    expect(
+      (deletedAt as string) >= before && (deletedAt as string) <= after,
+    ).toBe(true)
+  })
+
+  it("clearDeletedTag removes only the deleted-at tag", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      TagSet: [
+        { Key: "deleted-at", Value: "2026-01-01T00:00:00.000Z" },
+        { Key: "confirmed-at", Value: "2025-12-01T00:00:00.000Z" },
+      ],
+    })
+    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    const store = makeStore()
+
+    await store.clearDeletedTag("documents/ws_1/abc.pdf")
+
+    const calls = putTaggingCalls()
+    const call = calls[0]
+    if (!call) throw new Error("expected exactly one PutObjectTagging call")
+    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
+    const keys = tagSet.map((tag) => tag.Key)
+
+    expect(keys).not.toContain("deleted-at")
+    expect(keys).toContain("confirmed-at")
+  })
+
+  it("tagConfirmed adds confirmed-at=<ISO now> and preserves existing tags", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      TagSet: [{ Key: "some-other-tag", Value: "keep-me" }],
+    })
+    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    const store = makeStore()
+
+    const before = new Date().toISOString()
+    await store.tagConfirmed("documents/ws_1/abc.pdf")
+    const after = new Date().toISOString()
+
+    const calls = putTaggingCalls()
+    const call = calls[0]
+    if (!call) throw new Error("expected exactly one PutObjectTagging call")
+    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
+    const tags = Object.fromEntries(tagSet.map((tag) => [tag.Key, tag.Value]))
+
+    expect(tags["some-other-tag"]).toBe("keep-me")
+    const confirmedAt = tags["confirmed-at"]
+    expect(confirmedAt).toBeDefined()
+    expect(
+      (confirmedAt as string) >= before && (confirmedAt as string) <= after,
+    ).toBe(true)
+  })
+
+  it("tagOrphan adds orphan-at=<ISO now> and preserves existing tags", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      TagSet: [{ Key: "some-other-tag", Value: "keep-me" }],
+    })
+    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    const store = makeStore()
+
+    const before = new Date().toISOString()
+    await store.tagOrphan("documents/ws_1/abc.pdf")
+    const after = new Date().toISOString()
+
+    const calls = putTaggingCalls()
+    const call = calls[0]
+    if (!call) throw new Error("expected exactly one PutObjectTagging call")
+    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
+    const tags = Object.fromEntries(tagSet.map((tag) => [tag.Key, tag.Value]))
+
+    expect(tags["some-other-tag"]).toBe("keep-me")
+    const orphanAt = tags["orphan-at"]
+    expect(orphanAt).toBeDefined()
+    expect(
+      (orphanAt as string) >= before && (orphanAt as string) <= after,
+    ).toBe(true)
+  })
+})
+
+describe("head()", () => {
+  it("returns the S3-authoritative values verbatim", async () => {
+    s3Mock.on(HeadObjectCommand).resolves({
+      ContentLength: 1234,
+      ContentType: "application/pdf",
+      ChecksumSHA256: "deadbeef==",
+      ETag: '"abc123"',
+    })
+    const store = makeStore()
+
+    const result = await store.head("documents/ws_1/abc.pdf")
+
+    expect(result).toEqual({
+      size: 1234,
+      contentType: "application/pdf",
+      checksumSha256: "deadbeef==",
+      etag: '"abc123"',
+    })
+  })
+})

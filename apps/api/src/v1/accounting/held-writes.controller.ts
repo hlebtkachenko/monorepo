@@ -30,7 +30,7 @@ import {
 } from "@workspace/db"
 import { tool_call_log } from "@workspace/db/schema"
 import {
-  captureDocument,
+  captureAndBookIfInvoice,
   createEvent,
   post as postPosting,
   type DocumentInput,
@@ -195,6 +195,15 @@ export class HeldWritesController {
               ),
             )
             .limit(1)
+            // FOR UPDATE serializes concurrent resolves of the SAME held row
+            // (double-click / two reviewers): the second approve blocks here until
+            // the first commits, then reads approved_by_user_id set and bails at the
+            // guard below. Load-bearing now that an approved invoice BOOKS — without
+            // the lock both approves pass the stale-read guard, each captureDocument
+            // mints a DISTINCT summary_record, and both book → a duplicate ledger
+            // posting (bookDocument is idempotent only PER summary_record). Mirrors
+            // the web approvals path's FOR UPDATE for the same reason.
+            .for("update")
           const row = rows[0]
           if (!row) {
             throw new NotFoundError("Held write not found")
@@ -350,16 +359,23 @@ export class HeldWritesController {
         // catch a leaked gate field.
         const fields = stripGateEnvelope(parsed.data)
         await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
-        const doc = await captureDocument(
+        // Capture, then book iff invoice type — the SAME capture-approve unit the
+        // web approvals path uses (PR #712 / #715). Approving a captured invoice
+        // via the API now lands the posting per event + its saldokonto obligation
+        // instead of an orphaned capture, closing the drift where the web approve
+        // booked and the API approve did not. Non-invoice vouchers capture only.
+        const { doc, postingIds } = await captureAndBookIfInvoice(
           db,
           ctx,
           fields as unknown as DocumentInput,
+          approverUserId,
         )
         return {
           summaryRecordId: doc.summaryRecordId,
           designation: doc.designation,
           sequenceNumber: doc.sequenceNumber,
           lines: doc.lines,
+          ...(postingIds ? { postingIds } : {}),
         }
       }
       case "createAccountingPosting": {

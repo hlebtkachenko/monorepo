@@ -91,13 +91,17 @@ describe("DocumentsBucket — DataStack shape (S3 document store P1a)", () => {
     expect(doc?.Properties?.ObjectLockConfiguration).toBeUndefined()
   })
 
-  it("puts objects into Intelligent-Tiering at day 0 with NO async archive tiers", () => {
+  it("puts ≥128KiB objects into Intelligent-Tiering at day 0 with NO async archive tiers", () => {
     template.hasResourceProperties("AWS::S3::Bucket", {
       BucketName: DOCUMENTS_BUCKET_NAME,
       LifecycleConfiguration: Match.objectLike({
         Rules: Match.arrayWith([
           Match.objectLike({
             Id: "IntelligentTiering",
+            // S2: only the ≥128KiB tail transitions. Sub-128KiB objects never
+            // auto-tier, so transitioning them is pure lifecycle-request cost.
+            // `128*1024 - 1` (strict >) so an exactly-128KiB object is included.
+            ObjectSizeGreaterThan: 128 * 1024 - 1,
             Transitions: Match.arrayWith([
               Match.objectLike({
                 StorageClass: "INTELLIGENT_TIERING",

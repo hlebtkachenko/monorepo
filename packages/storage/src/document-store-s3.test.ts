@@ -54,6 +54,12 @@ function decodePolicy(fields: Record<string, string>): unknown[] {
   return decoded.conditions
 }
 
+// The workspaceId segment of a document key is a UUID (documentKey() rejects
+// anything else — S1). Keys that reach documentKey (put/presignPost) use this;
+// raw-key tests below (presignGet/headExists never validate the workspaceId)
+// keep their opaque "ws_1" fixtures.
+const WORKSPACE_ID = "11111111-1111-1111-1111-111111111111"
+
 describe("key derivation (documents/{workspaceId}/{sha256}.{ext})", () => {
   it("put() derives the key from the workspaceId, the bytes' own sha256, and the filename extension", async () => {
     s3Mock.on(PutObjectCommand).resolves({})
@@ -62,12 +68,12 @@ describe("key derivation (documents/{workspaceId}/{sha256}.{ext})", () => {
     const expectedSha256 = createHash("sha256").update(bytes).digest("hex")
 
     const result = await store.put(bytes, {
-      workspaceId: "ws_1",
+      workspaceId: WORKSPACE_ID,
       contentType: "text/plain",
       filename: "notes.TXT",
     })
 
-    expect(result.key).toBe(`documents/ws_1/${expectedSha256}.txt`)
+    expect(result.key).toBe(`documents/${WORKSPACE_ID}/${expectedSha256}.txt`)
     expect(result.sha256).toBe(expectedSha256)
     expect(result.size).toBe(bytes.byteLength)
   })
@@ -77,7 +83,7 @@ describe("key derivation (documents/{workspaceId}/{sha256}.{ext})", () => {
     const sha256 = "a".repeat(64)
 
     const result = await store.presignPost({
-      workspaceId: "ws_1",
+      workspaceId: WORKSPACE_ID,
       sha256,
       ext: "pdf",
       contentType: "application/pdf",
@@ -85,7 +91,29 @@ describe("key derivation (documents/{workspaceId}/{sha256}.{ext})", () => {
       ttlSeconds: 60,
     })
 
-    expect(result.key).toBe(`documents/ws_1/${sha256}.pdf`)
+    expect(result.key).toBe(`documents/${WORKSPACE_ID}/${sha256}.pdf`)
+  })
+
+  it("put() and presignPost() reject a workspaceId that is not a UUID (S1 — key must match parseDocumentKey)", async () => {
+    const store = makeStore()
+
+    await expect(
+      store.put(Buffer.from("x"), {
+        workspaceId: "ws_1",
+        contentType: "text/plain",
+        filename: "notes.txt",
+      }),
+    ).rejects.toThrow(/workspaceId/)
+    await expect(
+      store.presignPost({
+        workspaceId: "ws_1",
+        sha256: "a".repeat(64),
+        ext: "pdf",
+        contentType: "application/pdf",
+        maxBytes: 10_000_000,
+        ttlSeconds: 60,
+      }),
+    ).rejects.toThrow(/workspaceId/)
   })
 })
 
@@ -95,7 +123,7 @@ describe("presignPost() policy conditions", () => {
     const sha256 = "b".repeat(64)
 
     const result = await store.presignPost({
-      workspaceId: "ws_1",
+      workspaceId: WORKSPACE_ID,
       sha256,
       ext: "pdf",
       contentType: "application/pdf",
@@ -131,7 +159,7 @@ describe("presignPost() policy conditions", () => {
     const store = makeStore(kmsKeyId)
 
     const result = await store.presignPost({
-      workspaceId: "ws_1",
+      workspaceId: WORKSPACE_ID,
       sha256: "c".repeat(64),
       ext: "pdf",
       contentType: "application/pdf",
@@ -160,7 +188,7 @@ describe("presignPost() policy conditions", () => {
     const store = makeStore()
 
     const result = await store.presignPost({
-      workspaceId: "ws_1",
+      workspaceId: WORKSPACE_ID,
       sha256: "d".repeat(64),
       ext: "pdf",
       contentType: "application/pdf",
@@ -181,7 +209,7 @@ describe("presignPost() policy conditions", () => {
 
 describe("presignPost() input validation", () => {
   const validInput = {
-    workspaceId: "ws_1",
+    workspaceId: WORKSPACE_ID,
     sha256: "e".repeat(64),
     ext: "pdf",
     contentType: "application/pdf",

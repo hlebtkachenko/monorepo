@@ -407,6 +407,19 @@ describe("SecurityStack document reaper (S3 document store P1b)", () => {
     })
   })
 
+  it("alarms when the reaper stops running (Invocations < 1, missing data breaches — S4)", () => {
+    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      AlarmName: "monorepo-test-document-reaper-not-running",
+      MetricName: "Invocations",
+      Namespace: "AWS/Lambda",
+      ComparisonOperator: "LessThanThreshold",
+      Threshold: 1,
+      // Missing metrics (a disabled/broken schedule) MUST breach — the Errors
+      // alarm (NOT_BREACHING) cannot catch absence of runs.
+      TreatMissingData: "breaching",
+    })
+  })
+
   it("reaper role holds s3:DeleteObjectVersion + s3:DeleteObject on the documents bucket", () => {
     expect(reaperPolicies.length).toBeGreaterThan(0)
     expect(reaperActions.has("s3:DeleteObjectVersion")).toBe(true)

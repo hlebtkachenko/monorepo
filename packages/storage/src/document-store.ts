@@ -72,7 +72,16 @@ export interface DocumentStore {
   getBytes(key: string, range?: DocumentByteRange): Promise<Readable>
   /** AUTHORITATIVE S3-side values for confirm — never trust client-declared size/content-type. */
   head(key: string): Promise<HeadResult>
-  /** Mints a short-lived GET URL. `disposition` controls inline preview vs. attachment download. */
+  /**
+   * Mints a short-lived GET URL. `disposition` controls inline preview vs.
+   * attachment download.
+   *
+   * NOT an authorization boundary. This signs ANY key handed to it — the
+   * storage seam has no DB and cannot check tenant membership. The caller
+   * (retrieval route) MUST load the owning row, reject a soft-deleted row, and
+   * reassert the caller's tenant membership BEFORE calling this. Never sign a
+   * raw client-supplied key. See PLAN §7 (M2).
+   */
   presignGet(key: string, input: PresignGetInput): Promise<string>
   /** Dedup check: does an object already exist at this content-addressed key? */
   headExists(key: string): Promise<boolean>

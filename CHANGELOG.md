@@ -56,6 +56,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- S3 document store hardening (advisor Stage 0): UUID-validate document object keys so presign and confirm agree, size-filter Intelligent-Tiering to the ≥128KiB tail, alarm when the sole-delete reaper stops running, and document that presignGet is not an authorization boundary (the route is)
 - Harden S3 document uploads and cleanup with complete presigned POST fields, authoritative file validation, version-safe confirmation and undo, and race-safe reaper deletes.
 - PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
 - Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.

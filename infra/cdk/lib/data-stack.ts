@@ -339,7 +339,20 @@ export class DataStack extends Stack {
           // latency): that would require an `intelligentTieringConfigurations`
           // entry with archiveAccessTierTime / deepArchiveAccessTierTime set,
           // which we omit entirely — so no async tier is ever enabled. PLAN §4.
+          //
+          // Size filter (S2): only objects ≥ 128 KiB transition — S3's IT
+          // auto-tiering eligibility floor. S3 never auto-tiers a sub-128 KiB
+          // object, so transitioning one is pure cost — a day-0 lifecycle
+          // transition request (~$0.01/1k) for zero tiering benefit. A receipt
+          // / ISDOC-XML store is mostly sub-128 KiB; the filter keeps that bulk
+          // in Standard (same storage price) and lets IT work only on the large
+          // PDF tail where it pays off. PLAN §5.
+          //
+          // `objectSizeGreaterThan` is STRICT `>`, so use `128*1024 - 1` to
+          // include an exactly-128 KiB object (which IS IT-eligible) rather
+          // than `128*1024`, which would exclude it.
           id: "IntelligentTiering",
+          objectSizeGreaterThan: 128 * 1024 - 1,
           transitions: [
             {
               storageClass: StorageClass.INTELLIGENT_TIERING,

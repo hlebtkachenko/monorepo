@@ -646,6 +646,38 @@ export class SecurityStack extends Stack {
       new SnsAction(this.killSwitchOpsTopic),
     )
 
+    // The reaper is the SOLE delete principal, scheduled hourly. A DISABLED or
+    // broken EventBridge rule publishes ZERO metrics — the Errors alarm above
+    // (NOT_BREACHING) stays OK while purging silently stops forever, so orphans
+    // and expired soft-deletes accumulate undetected. This alarm watches
+    // Invocations and fires when they stay below 1 across a multi-hour window;
+    // treatMissingData BREACHING means "no data == not running == alarm",
+    // exactly the absence-of-runs case the Errors alarm structurally cannot
+    // catch (S4). A healthy hourly run publishes Invocations=1 (not < 1 = OK).
+    const documentReaperNotRunning = new Alarm(
+      this,
+      "DocumentReaperNotRunningAlarm",
+      {
+        alarmName: `monorepo-${props.envName}-document-reaper-not-running`,
+        alarmDescription:
+          "Document reaper has not run — the sole S3-delete principal is idle and purging has stalled. Check the EventBridge schedule.",
+        metric: new Metric({
+          namespace: "AWS/Lambda",
+          metricName: "Invocations",
+          dimensionsMap: { FunctionName: documentReaperFn.functionName },
+          period: Duration.hours(1),
+          statistic: "Sum",
+        }),
+        threshold: 1,
+        evaluationPeriods: 3,
+        comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.BREACHING,
+      },
+    )
+    documentReaperNotRunning.addAlarmAction(
+      new SnsAction(this.killSwitchOpsTopic),
+    )
+
     // ----- Env auto-cold-pause (max-uptime TTL) -----
     //
     // A 30-min EventBridge schedule COLD-pauses the env (ECS desiredCount=0 +

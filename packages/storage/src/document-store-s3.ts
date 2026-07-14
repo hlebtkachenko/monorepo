@@ -50,11 +50,24 @@ function configFromEnv(): S3DocumentStoreConfig {
   }
 }
 
+// Matches the workspaceId segment of DOCUMENT_KEY_PATTERN in
+// document-validation.ts. presignPost/put and confirm (parseDocumentKey) MUST
+// agree on the key shape — a non-UUID workspaceId would build a key that
+// uploads fine but can never be confirmed (orphaned, reaped at 24h, silently
+// lost). Reject it here, at presign/put time. (S1)
+const WORKSPACE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 function documentKey(
   workspaceId: string,
   sha256Hex: string,
   ext: string,
 ): string {
+  if (!WORKSPACE_ID_PATTERN.test(workspaceId)) {
+    throw new Error(
+      `Invalid workspaceId: expected a lowercase UUID, got "${workspaceId}"`,
+    )
+  }
   if (!/^[0-9a-f]{64}$/.test(sha256Hex)) {
     throw new Error(
       `Invalid sha256: expected 64 lowercase hex characters, got "${sha256Hex}"`,

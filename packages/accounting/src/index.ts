@@ -86,6 +86,7 @@ export {
 // Saldokonto (open items)
 export {
   openItem,
+  openObligation,
   settleOpenItem,
   openItemsForCounterparty,
   unsettledOpenItems,

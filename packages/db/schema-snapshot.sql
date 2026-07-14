@@ -3331,6 +3331,13 @@ ALTER TABLE ONLY public.open_item
     ADD CONSTRAINT open_item_id_org_unique UNIQUE (id, organization_id);
 
 --
+-- Name: open_item open_item_origin_posting_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_item
+    ADD CONSTRAINT open_item_origin_posting_unique UNIQUE (origin_posting_id, organization_id);
+
+--
 -- Name: open_item open_item_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 

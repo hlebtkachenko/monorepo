@@ -38,6 +38,7 @@ import { one, rows } from "../sql"
 import type { RowExecutor } from "../sql"
 import { resolveAccountIds } from "../accounts"
 import { postDoubleEntry } from "../posting/double-entry"
+import { openObligation } from "../saldokonto"
 import {
   classifyEvent,
   type Section92CommodityCode,
@@ -69,12 +70,18 @@ interface DocRow {
   type: string
   period_id: string
   posting_date: string
+  /** datum vystavení (§11/1d) — the open-item issue date, NOT the DUZP/posting date. */
+  issue_date: string
+  /** the period's účetní měna — the currency label on the opened obligation. */
+  accounting_currency: string
   rounding_amount: Decimal
 }
 
 interface PartialRow {
   individual_record_id: string
   accounting_event_id: string
+  /** THEIR side on the event — the obligation partner; null holds the doc at book time. */
+  counterparty_id: string | null
   partial_record_id: string
   supply_kind: SupplyKind | null
   vat_mode: string
@@ -105,12 +112,15 @@ export async function bookDocument(
 ): Promise<BookedDocument> {
   const doc = await one<DocRow>(
     db,
-    sql`SELECT type,
-               period_id::text                                      AS period_id,
-               COALESCE(tax_point_date, issued_at::date)::text      AS posting_date,
-               rounding_amount::text                                AS rounding_amount
-          FROM summary_record
-         WHERE id = ${input.summaryRecordId}::uuid`,
+    sql`SELECT sr.type,
+               sr.period_id::text                                      AS period_id,
+               COALESCE(sr.tax_point_date, sr.issued_at::date)::text    AS posting_date,
+               sr.issued_at::date::text                                 AS issue_date,
+               ap.accounting_currency                                   AS accounting_currency,
+               sr.rounding_amount::text                                 AS rounding_amount
+          FROM summary_record sr
+          JOIN accounting_period ap ON ap.id = sr.period_id
+         WHERE sr.id = ${input.summaryRecordId}::uuid`,
   )
 
   const direction =
@@ -153,6 +163,7 @@ export async function bookDocument(
     // 2 dp) for the reverse-charge/import 343↔343 legs.
     sql`SELECT ir.id::text                                                        AS individual_record_id,
                ir.accounting_event_id::text                                       AS accounting_event_id,
+               ae.counterparty_id::text                                           AS counterparty_id,
                pr.id::text                                                        AS partial_record_id,
                pr.supply_kind                                                     AS supply_kind,
                pr.vat_mode                                                        AS vat_mode,
@@ -165,6 +176,7 @@ export async function bookDocument(
                (pr.base_in_accounting_currency + pr.vat_in_accounting_currency)::text AS gross,
                round(pr.base_in_accounting_currency * COALESCE(pr.vat_rate, 0) / 100, 2)::text AS self_assessed_vat
           FROM individual_record ir
+          JOIN accounting_event ae ON ae.id = ir.accounting_event_id
           JOIN partial_record pr ON pr.individual_record_id = ir.id
          WHERE ir.summary_record_id = ${input.summaryRecordId}::uuid
          ORDER BY ir.id, pr.id`,
@@ -179,6 +191,10 @@ export async function bookDocument(
   // every number so the chart is resolved in one query.
   interface EventLines {
     accountingEventId: string
+    /** THEIR side on this event — the obligation partner (null → held at open time). */
+    counterpartyId: string | null
+    /** open-item account (311/321) for this event's supply direction. */
+    saldoAccount: string | null
     lines: {
       account: string
       side: DoubleEntryLineInput["side"]
@@ -188,6 +204,10 @@ export async function bookDocument(
   }
   const byEvent = new Map<string, EventLines>()
   const numbers = new Set<string>()
+
+  // RECEIVED_INVOICE → we owe the supplier (PAYABLE); ISSUED → the customer owes us.
+  const obligationDirection =
+    direction === "RECEIVED" ? "PAYABLE" : "RECEIVABLE"
 
   for (const p of partials) {
     if (p.supply_kind === null) {
@@ -268,10 +288,28 @@ export async function bookDocument(
       accountOverrides: decision.accountOverrides,
     })
 
+    // The saldokonto leg (311/321) is a pure function of the supply direction; an
+    // invoice always has one. Fail closed if the classifier didn't yield it, and if
+    // one event's partials somehow disagree (mixed saldo accounts on one case).
+    if (decision.saldoAccount === null) {
+      throw new Error(
+        `accounting: partial_record ${p.partial_record_id} (invoice) has no saldokonto account in its předkontace — the obligation leg cannot be identified`,
+      )
+    }
+
     let group = byEvent.get(p.individual_record_id)
     if (!group) {
-      group = { accountingEventId: p.accounting_event_id, lines: [] }
+      group = {
+        accountingEventId: p.accounting_event_id,
+        counterpartyId: p.counterparty_id,
+        saldoAccount: decision.saldoAccount,
+        lines: [],
+      }
       byEvent.set(p.individual_record_id, group)
+    } else if (group.saldoAccount !== decision.saldoAccount) {
+      throw new Error(
+        `accounting: event ${p.accounting_event_id} has partials on differing saldokonto accounts (${group.saldoAccount} vs ${decision.saldoAccount}) — cannot open one obligation`,
+      )
     }
     for (const l of scenarioLines) {
       numbers.add(l.account)
@@ -296,16 +334,30 @@ export async function bookDocument(
       amount: l.amount,
       partialRecordId: l.partialRecordId,
     }))
-    postings.push(
-      await postDoubleEntry(db, ctx, {
-        periodId: doc.period_id,
-        summaryRecordId: input.summaryRecordId,
-        accountingEventId: group.accountingEventId,
-        postingDate: doc.posting_date,
-        responsibleUserId: input.responsibleUserId,
-        lines,
-      }),
-    )
+    const posting = await postDoubleEntry(db, ctx, {
+      periodId: doc.period_id,
+      summaryRecordId: input.summaryRecordId,
+      accountingEventId: group.accountingEventId,
+      postingDate: doc.posting_date,
+      responsibleUserId: input.responsibleUserId,
+      lines,
+    })
+    postings.push(posting)
+
+    // Open the saldokonto obligation this event's counterparty leg represents, in
+    // the SAME tx as the posting (append-only ⇒ if this throws the posting rolls
+    // back too — no orphaned 311/321 leg). openObligation reads the signed movement
+    // off the posted lines: a credit note (net ≤ 0) reduces, opens nothing; a
+    // positive movement with no counterparty holds the whole document.
+    await openObligation(db, ctx, {
+      counterpartyId: group.counterpartyId,
+      originPostingId: posting.postingId,
+      saldoAccountNumber: group.saldoAccount as string,
+      saldoAccountId: accountIds.get(group.saldoAccount as string) as string,
+      direction: obligationDirection,
+      currencyCode: doc.accounting_currency,
+      issueDate: doc.issue_date,
+    })
   }
 
   return { summaryRecordId: input.summaryRecordId, postings }

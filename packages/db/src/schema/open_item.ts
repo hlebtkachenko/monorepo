@@ -71,6 +71,13 @@ export const open_item = pgTable(
   },
   (t) => [
     unique("open_item_id_org_unique").on(t.id, t.organization_id),
+    // One posting opens at most one obligation (one event = one direction = one
+    // saldo account). Belt-and-suspenders against a replayed/duplicate open, which
+    // could never be cleaned up (open_item is append-only). Mirrors migration 0057.
+    unique("open_item_origin_posting_unique").on(
+      t.origin_posting_id,
+      t.organization_id,
+    ),
     foreignKey({
       name: "open_item_org_fk",
       columns: [t.organization_id, t.workspace_id],

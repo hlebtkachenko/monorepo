@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Accounting: approving a captured invoice now opens its saldokonto obligation (pohledávka/závazek) in the same tx — bookDocument calls the new openObligation helper per event, so an approved invoice lands fully-wired into závazky/pohledávky (previously openItem had zero production callers and saldokonto stayed empty). A dobropis (net ≤ 0) opens nothing; an invoice event with no counterparty fails closed (holds); a UNIQUE(origin_posting_id) guards against a duplicate open. Migration 0057.
 - Accounting: fetchDocuments now returns posting status (is_posted / posting_id); new unlinkedInvoiceLines invariant flags any non-generated invoice ledger line missing its partial_record link.
 - Brain: classify_accounting_event echoes supplyKind and the intake harness threads it onto the capture partial, so a derived invoice books to the correct cost/revenue account with no human friction (still held for review).
 - Accounting: deterministic whole-document booking (bookDocument) runs in the capture-approve transaction, so approving a captured invoice lands one fully-wired posting per event with every ledger line linked to its source partial_record (§6/2), replacing the orphaned capture + preview-vs-apply drift.

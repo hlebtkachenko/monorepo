@@ -55,6 +55,77 @@ export async function openItem(
   return r.id
 }
 
+export interface OpenObligationInput {
+  /** THEIR side; an invoice/obligation must have one — null fails closed. */
+  counterpartyId: string | null
+  /** The posting whose saldokonto leg opened the obligation. */
+  originPostingId: string
+  /** saldokonto účet (311/321/…) BY NUMBER — stored on the open item. */
+  saldoAccountNumber: string
+  /** account_id of {@link saldoAccountNumber} in the posting's period, to sum its lines. */
+  saldoAccountId: string
+  direction: OpenItemDirection
+  currencyCode: string
+  issueDate: string
+  dueDate?: string | null
+  variableSymbol?: string | null
+}
+
+/** A decimal string that is zero (or negative-zero). */
+function isZeroDecimal(d: Decimal): boolean {
+  return /^-?0(\.0+)?$/.test(d)
+}
+
+/**
+ * Open the saldokonto obligation (pohledávka / závazek) a posting's counterparty
+ * leg represents — the one production caller of {@link openItem}, reused by every
+ * booker (invoice, contract, internal doklad).
+ *
+ * The amount is the SIGNED net movement on the saldo account read straight from the
+ * posted double-entry lines (exact numeric, never re-derived): the increase side is
+ * CREDIT for a PAYABLE (321) / DEBIT for a RECEIVABLE (311). A net ≤ 0 opens nothing
+ * and returns null — a dobropis REDUCES an obligation (and `open_item.original_amount`
+ * must be > 0), so párování of a standalone credit note against the original is left
+ * to the settlement path (deferred). A positive movement with NO counterparty fails
+ * closed (throws): a 311/321 leg with no open item silently breaks the saldo↔synthetic
+ * tie-out, and open_item is append-only (uncorrectable) — so hold, never guess.
+ */
+export async function openObligation(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: OpenObligationInput,
+): Promise<string | null> {
+  const increaseSide = input.direction === "PAYABLE" ? "CREDIT" : "DEBIT"
+  const { net } = await one<{ net: Decimal }>(
+    db,
+    sql`SELECT COALESCE(
+            SUM(CASE WHEN side = ${increaseSide} THEN amount ELSE -amount END),
+          0)::text AS net
+          FROM posting_double_entry_line
+         WHERE posting_id = ${input.originPostingId}::uuid
+           AND account_id = ${input.saldoAccountId}::uuid`,
+  )
+  if (net.startsWith("-") || isZeroDecimal(net)) {
+    return null
+  }
+  if (input.counterpartyId === null) {
+    throw new Error(
+      `accounting: posting ${input.originPostingId} opens a ${input.direction} on ${input.saldoAccountNumber} but its event has no counterparty — the saldokonto obligation needs a partner; capture the counterparty before booking`,
+    )
+  }
+  return openItem(db, ctx, {
+    counterpartyId: input.counterpartyId,
+    originPostingId: input.originPostingId,
+    accountNumber: input.saldoAccountNumber,
+    direction: input.direction,
+    originalAmount: net,
+    currencyCode: input.currencyCode,
+    issueDate: input.issueDate,
+    dueDate: input.dueDate ?? null,
+    variableSymbol: input.variableSymbol ?? null,
+  })
+}
+
 export interface SettleInput {
   openItemId: string
   /** The payment posting (bank/cash). */

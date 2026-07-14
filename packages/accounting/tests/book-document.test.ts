@@ -21,6 +21,7 @@ import {
 import {
   bookDocument,
   captureDocument,
+  createCounterparty,
   createEvent,
   generalLedger,
   reconcileReadModel,
@@ -57,6 +58,29 @@ async function balance(
   return row ? { td: row.turnover_debit, tc: row.turnover_credit } : null
 }
 
+/** open_item rows opened by the postings of a summary_record (saldokonto obligations). */
+async function openItemsForDoc(
+  db: OrganizationBoundDb,
+  summaryRecordId: string,
+): Promise<
+  {
+    account_number: string
+    direction: string
+    original_amount: string
+    counterparty_id: string
+  }[]
+> {
+  return executeRows(
+    db,
+    sql`SELECT oi.account_number, oi.direction, oi.original_amount::text AS original_amount,
+               oi.counterparty_id::text AS counterparty_id
+          FROM open_item oi
+          JOIN posting p ON p.id = oi.origin_posting_id
+         WHERE p.summary_record_id = ${summaryRecordId}::uuid
+         ORDER BY oi.original_amount`,
+  )
+}
+
 /** How many double-entry lines for a summary_record have a NULL partial_record_id. */
 async function nullPartialLines(
   db: OrganizationBoundDb,
@@ -80,15 +104,19 @@ describe("bookDocument — derive vertical", () => {
       periodEnd: "2026-12-31",
     })
 
-    const { summaryRecordId, postingCount } = await withOrganization(
+    const { summaryRecordId, postingCount, supplier } = await withOrganization(
       orgA,
       userId,
       async (db) => {
+        const supplier = await createCounterparty(db, s.ctx, {
+          name: "Dodavatel s.r.o.",
+        })
         const goods = await createEvent(db, s.ctx, {
           periodId: s.periodId,
           seriesId: s.eventSeriesId,
           description: "Nákup zboží",
           occurredAt: "2026-03-10",
+          counterpartyId: supplier,
           responsibleUserId: userId,
         })
         const services = await createEvent(db, s.ctx, {
@@ -96,6 +124,7 @@ describe("bookDocument — derive vertical", () => {
           seriesId: s.eventSeriesId,
           description: "Přijatá služba",
           occurredAt: "2026-03-10",
+          counterpartyId: supplier,
           responsibleUserId: userId,
         })
         // ONE invoice billing TWO events (§ event lives on individual_record).
@@ -145,6 +174,7 @@ describe("bookDocument — derive vertical", () => {
         return {
           summaryRecordId: doc.summaryRecordId,
           postingCount: booked.postings.length,
+          supplier,
         }
       },
     )
@@ -170,6 +200,20 @@ describe("bookDocument — derive vertical", () => {
 
       // read-model agrees with the journal
       expect(await reconcileReadModel(db, s.periodId)).toEqual([])
+
+      // saldokonto: each event's posting opened a PAYABLE (321) závazek to the
+      // supplier for its gross — 1210 (goods) + 2420 (services) = the 321 credit.
+      const obligations = await openItemsForDoc(db, summaryRecordId)
+      expect(obligations).toHaveLength(2)
+      expect(obligations.every((o) => o.direction === "PAYABLE")).toBe(true)
+      expect(obligations.every((o) => o.account_number === "321")).toBe(true)
+      expect(obligations.every((o) => o.counterparty_id === supplier)).toBe(
+        true,
+      )
+      expect(obligations.map((o) => o.original_amount)).toEqual([
+        "1210.0000",
+        "2420.0000",
+      ])
     })
   })
 
@@ -230,20 +274,27 @@ describe("bookDocument — derive vertical", () => {
       expect(b343!.tc).toBe("105.0000")
       expect(await nullPartialLines(db, summaryRecordId)).toBe(0)
       expect(await reconcileReadModel(db, s.periodId)).toEqual([])
+      // a dobropis REDUCES a payable — it opens NO new obligation (the 321 leg is a
+      // debit/decrease; original_amount must be > 0). Párování is the settlement path.
+      expect(await openItemsForDoc(db, summaryRecordId)).toHaveLength(0)
     })
   })
 
-  it("is idempotent — refuses to double-book an already-booked document", async () => {
+  it("is idempotent — refuses to double-book an already-booked document (no duplicate obligation)", async () => {
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2029-01-01",
       periodEnd: "2029-12-31",
     })
     await withOrganization(orgA, userId, async (db) => {
+      const supplier = await createCounterparty(db, s.ctx, {
+        name: "Nákup a.s.",
+      })
       const ev = await createEvent(db, s.ctx, {
         periodId: s.periodId,
         seriesId: s.eventSeriesId,
         description: "Nákup",
         occurredAt: "2029-02-01",
+        counterpartyId: supplier,
         responsibleUserId: userId,
       })
       const doc = await captureDocument(db, s.ctx, {
@@ -279,7 +330,58 @@ describe("bookDocument — derive vertical", () => {
           responsibleUserId: userId,
         }),
       ).rejects.toThrow(/already booked/)
+      // the refused re-book opened NO second obligation — exactly one payable stands.
+      expect(await openItemsForDoc(db, doc.summaryRecordId)).toHaveLength(1)
     })
+  })
+
+  it("fails closed (rolls back the whole approve) when an invoice event has no counterparty", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2031-01-01",
+      periodEnd: "2031-12-31",
+    })
+    // The throw propagates out of the tx → the capture + posting roll back too, so
+    // the row stays HELD (never a booked posting with no obligation). Mirrors the
+    // real approve path (resolveHeldWrite's withOrganization is not caught).
+    await expect(
+      withOrganization(orgA, userId, async (db) => {
+        // no counterpartyId on the event → the 321 payable has no partner to open.
+        const ev = await createEvent(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.eventSeriesId,
+          description: "Faktura bez protistrany",
+          occurredAt: "2031-02-01",
+          responsibleUserId: userId,
+        })
+        const doc = await captureDocument(db, s.ctx, {
+          periodId: s.periodId,
+          seriesId: s.documentSeriesId,
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2031-02-01",
+          receivedDate: "2031-02-01",
+          lines: [
+            {
+              eventId: ev.eventId,
+              partials: [
+                {
+                  baseAmount: "1000.00",
+                  vatRate: "21",
+                  vatMode: "STANDARD",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "GOODS",
+                  vatAmount: "210.00",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        })
+        await bookDocument(db, s.ctx, {
+          summaryRecordId: doc.summaryRecordId,
+          responsibleUserId: userId,
+        })
+      }),
+    ).rejects.toThrow(/no counterparty/)
   })
 
   it("fails closed on null supply_kind, ASSET, ADVANCE, and a non-zero §37 rounding", async () => {

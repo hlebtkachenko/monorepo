@@ -72,6 +72,16 @@ EMAIL_FROM=no-reply@localhost
 # Set to 0 or remove to disable the endpoint even in dev.
 ENABLE_DEV_OUTBOX=1
 ENABLE_DEV_PREVIEW=1
+
+# S3 document store (packages/storage). Points at the dev-compose minio, which
+# seeds the documents-dev bucket. No CMK locally (DOCUMENTS_KMS_KEY_ID unset →
+# no SSE-KMS enforcement in dev). These are non-secret dev defaults matching
+# infra/compose/docker-compose.dev.yml.
+S3_ENDPOINT=http://localhost:9000
+DOCUMENTS_BUCKET=documents-dev
+AWS_REGION=eu-central-1
+AWS_ACCESS_KEY_ID=dev_minio
+AWS_SECRET_ACCESS_KEY=dev_minio_password
 EOF
 
 chmod 600 "$TARGET"

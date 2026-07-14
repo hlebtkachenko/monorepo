@@ -34,6 +34,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Conductor dev setup: bring up the dev-compose minio + seed the documents-dev bucket, and add the S3 document store env (DOCUMENTS_BUCKET / S3_ENDPOINT / minio creds) to the generated apps/web/.env.local, so the /workspace/debug-documents harness works locally out of the box.
 - Conductor web/api/admin Run buttons now auto-open the app in the default browser once the port answers (bounded, macOS-gated poller in .conductor/settings.toml)
 - Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
 - Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).

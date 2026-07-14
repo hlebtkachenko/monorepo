@@ -41,9 +41,12 @@ if [ -n "$DOCKER_OK" ]; then
   DIRECT="postgres://app_owner:dev_owner@localhost:5432/${WS_DB}"
   APPURL="postgres://app_user:dev_user@localhost:5432/${WS_DB}"
 
-  echo "==> bring up shared dev Postgres"
-  docker compose -f "$COMPOSE" up -d postgres \
-    || echo "WARN: dev Postgres did not start; run: docker compose -f $COMPOSE up -d postgres" >&2
+  echo "==> bring up shared dev Postgres + minio (S3 document store)"
+  # minio + its one-shot bucket seeder back the S3 document store locally
+  # (packages/storage → documents-dev bucket); the generated .env.local points
+  # DOCUMENTS_BUCKET / S3_ENDPOINT at them.
+  docker compose -f "$COMPOSE" up -d postgres minio minio-createbucket \
+    || echo "WARN: dev Postgres/minio did not start; run: docker compose -f $COMPOSE up -d postgres minio minio-createbucket" >&2
 
   echo "==> wait for Postgres health"
   for _ in $(seq 1 30); do

@@ -24,6 +24,7 @@ import {
   createEvent,
   generalLedger,
   reconcileReadModel,
+  unlinkedInvoiceLines,
 } from "../src/index"
 
 let admin: ReturnType<typeof adminClient>
@@ -164,6 +165,8 @@ describe("bookDocument — derive vertical", () => {
 
       // EVERY invoice-derived line carries its source partial_record_id
       expect(await nullPartialLines(db, summaryRecordId)).toBe(0)
+      // …and the partial-link completeness invariant (E2) confirms it period-wide
+      expect(await unlinkedInvoiceLines(db, s.periodId)).toEqual([])
 
       // read-model agrees with the journal
       expect(await reconcileReadModel(db, s.periodId)).toEqual([])

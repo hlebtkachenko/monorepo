@@ -193,12 +193,14 @@ export {
 // Invariants (R5 / R6 / R11 + drift)
 export {
   unpostedCases,
+  unlinkedInvoiceLines,
   reconcileAnalytics,
   reconcileReadModel,
   findUnbalancedPostings,
   traceAccount,
   traceEvent,
   type UnpostedCase,
+  type UnlinkedInvoiceLine,
   type AnalyticalReconcile,
   type ReadModelDrift,
   type UnbalancedPosting,

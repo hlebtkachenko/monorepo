@@ -98,21 +98,11 @@ export function ColumnManagerMenuContent<TData>({
         {over && dropTarget.edge === "top" ? (
           <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
         ) : null}
+        {/* The whole row is one toggle target (like a menu checkbox item); the
+            grip is the only drag handle so a click anywhere else flips
+            visibility. Checkbox is a trailing state indicator, not its own hit
+            target. */}
         <div
-          draggable={draggable}
-          onDragStart={
-            draggable
-              ? (event) => {
-                  event.dataTransfer.effectAllowed = "move"
-                  event.dataTransfer.setData("text/plain", column.id)
-                  setDragId(column.id)
-                }
-              : undefined
-          }
-          onDragEnd={() => {
-            setDragId(null)
-            setDropTarget(null)
-          }}
           onDragOver={(event) => {
             if (!dragId || dragId === column.id || !draggable) return
             event.preventDefault()
@@ -133,23 +123,47 @@ export function ColumnManagerMenuContent<TData>({
             setDropTarget(null)
           }}
           className={cn(
-            "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+            "group/col flex items-center rounded-sm hover:bg-accent",
             dragId === column.id && "opacity-40",
           )}
         >
-          <GripVertical
+          <span
+            draggable={draggable}
+            onDragStart={
+              draggable
+                ? (event) => {
+                    event.dataTransfer.effectAllowed = "move"
+                    event.dataTransfer.setData("text/plain", column.id)
+                    setDragId(column.id)
+                  }
+                : undefined
+            }
+            onDragEnd={() => {
+              setDragId(null)
+              setDropTarget(null)
+            }}
             className={cn(
-              "size-4 shrink-0 text-muted-foreground",
-              draggable && "cursor-grab active:cursor-grabbing",
+              "flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground",
+              draggable ? "cursor-grab active:cursor-grabbing" : "opacity-40",
             )}
-          />
-          <span className="flex-1 truncate text-foreground">{label}</span>
-          <Checkbox
-            checked={visible}
-            onCheckedChange={(value) => column.toggleVisibility(!!value)}
+          >
+            <GripVertical className="size-4" />
+          </span>
+          <button
+            type="button"
+            onClick={() => column.toggleVisibility(!visible)}
             aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-            className="shrink-0"
-          />
+            aria-pressed={visible}
+            className="flex h-8 flex-1 items-center gap-2 pr-2.5 text-left text-sm outline-none"
+          >
+            <span className="flex-1 truncate text-foreground">{label}</span>
+            <Checkbox
+              checked={visible}
+              aria-hidden
+              tabIndex={-1}
+              className="pointer-events-none shrink-0"
+            />
+          </button>
         </div>
         {over && dropTarget.edge === "bottom" ? (
           <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />

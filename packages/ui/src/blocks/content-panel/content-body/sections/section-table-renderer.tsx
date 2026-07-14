@@ -156,16 +156,19 @@ function SelectCell({
   )
 }
 
-/** Right-pinned per-row action buttons (placeholder — handlers land later). */
+/**
+ * Right-pinned per-row actions: ONE primary action placeholder + the overflow
+ * menu. The row's default affordances (select checkbox, open-inspector) live in
+ * the leading `select` column; this trailing column is for the one or two
+ * line-level actions a surface needs (e.g. Approve on Posting Approval). Handlers
+ * land per consumer later — the icons are the placeholder slots.
+ */
 function RowActionsCell() {
   const action =
     "flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
   return (
     <div className="flex items-center justify-center gap-0.5">
       <button type="button" aria-label="Approve" className={action}>
-        <CircleCheckBig className="size-4" />
-      </button>
-      <button type="button" aria-label="Confirm" className={action}>
         <CircleCheckBig className="size-4" />
       </button>
       <button type="button" aria-label="More actions" className={action}>
@@ -330,9 +333,9 @@ export function SectionTableRenderer({
     if (features.rowActions) {
       cols.push({
         id: "actions",
-        size: 108,
-        minSize: 108,
-        maxSize: 108,
+        size: 76,
+        minSize: 76,
+        maxSize: 76,
         meta: { align: "center" },
         header: () => null,
         cell: () => <RowActionsCell />,

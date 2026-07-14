@@ -193,8 +193,6 @@ export async function bookDocument(
     accountingEventId: string
     /** THEIR side on this event — the obligation partner (null → held at open time). */
     counterpartyId: string | null
-    /** open-item account (311/321) for this event's supply direction. */
-    saldoAccount: string | null
     lines: {
       account: string
       side: DoubleEntryLineInput["side"]
@@ -205,9 +203,14 @@ export async function bookDocument(
   const byEvent = new Map<string, EventLines>()
   const numbers = new Set<string>()
 
-  // RECEIVED_INVOICE → we owe the supplier (PAYABLE); ISSUED → the customer owes us.
+  // The saldokonto side is a document-level constant: RECEIVED_INVOICE → we owe the
+  // supplier on 321 (PAYABLE); ISSUED → the customer owes us on 311 (RECEIVABLE). It
+  // enters `numbers` via each scenario's counterparty leg, so resolveAccountIds
+  // covers it. (classifyEvent.saldoAccount carries the same fact per partial, but
+  // here it is invariant for the whole invoice, so derive it once.)
   const obligationDirection =
     direction === "RECEIVED" ? "PAYABLE" : "RECEIVABLE"
+  const saldoAccountNumber = direction === "RECEIVED" ? "321" : "311"
 
   for (const p of partials) {
     if (p.supply_kind === null) {
@@ -288,28 +291,14 @@ export async function bookDocument(
       accountOverrides: decision.accountOverrides,
     })
 
-    // The saldokonto leg (311/321) is a pure function of the supply direction; an
-    // invoice always has one. Fail closed if the classifier didn't yield it, and if
-    // one event's partials somehow disagree (mixed saldo accounts on one case).
-    if (decision.saldoAccount === null) {
-      throw new Error(
-        `accounting: partial_record ${p.partial_record_id} (invoice) has no saldokonto account in its předkontace — the obligation leg cannot be identified`,
-      )
-    }
-
     let group = byEvent.get(p.individual_record_id)
     if (!group) {
       group = {
         accountingEventId: p.accounting_event_id,
         counterpartyId: p.counterparty_id,
-        saldoAccount: decision.saldoAccount,
         lines: [],
       }
       byEvent.set(p.individual_record_id, group)
-    } else if (group.saldoAccount !== decision.saldoAccount) {
-      throw new Error(
-        `accounting: event ${p.accounting_event_id} has partials on differing saldokonto accounts (${group.saldoAccount} vs ${decision.saldoAccount}) — cannot open one obligation`,
-      )
     }
     for (const l of scenarioLines) {
       numbers.add(l.account)
@@ -352,8 +341,8 @@ export async function bookDocument(
     await openObligation(db, ctx, {
       counterpartyId: group.counterpartyId,
       originPostingId: posting.postingId,
-      saldoAccountNumber: group.saldoAccount as string,
-      saldoAccountId: accountIds.get(group.saldoAccount as string) as string,
+      saldoAccountNumber,
+      saldoAccountId: accountIds.get(saldoAccountNumber) as string,
       direction: obligationDirection,
       currencyCode: doc.accounting_currency,
       issueDate: doc.issue_date,

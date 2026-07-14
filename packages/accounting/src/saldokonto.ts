@@ -71,11 +71,6 @@ export interface OpenObligationInput {
   variableSymbol?: string | null
 }
 
-/** A decimal string that is zero (or negative-zero). */
-function isZeroDecimal(d: Decimal): boolean {
-  return /^-?0(\.0+)?$/.test(d)
-}
-
 /**
  * Open the saldokonto obligation (pohledávka / závazek) a posting's counterparty
  * leg represents — the one production caller of {@link openItem}, reused by every
@@ -96,16 +91,22 @@ export async function openObligation(
   input: OpenObligationInput,
 ): Promise<string | null> {
   const increaseSide = input.direction === "PAYABLE" ? "CREDIT" : "DEBIT"
-  const { net } = await one<{ net: Decimal }>(
+  // Sign decision stays in Postgres numeric (exact, no float): `opens` is the
+  // net > 0 test, `net` is the účetní-měna amount for openItem. A net ≤ 0 (a
+  // dobropis reduces) opens nothing.
+  const { net, opens } = await one<{ net: Decimal; opens: boolean }>(
     db,
-    sql`SELECT COALESCE(
-            SUM(CASE WHEN side = ${increaseSide} THEN amount ELSE -amount END),
-          0)::text AS net
-          FROM posting_double_entry_line
-         WHERE posting_id = ${input.originPostingId}::uuid
-           AND account_id = ${input.saldoAccountId}::uuid`,
+    sql`SELECT movement::text AS net, (movement > 0) AS opens
+          FROM (
+            SELECT COALESCE(
+              SUM(CASE WHEN side = ${increaseSide} THEN amount ELSE -amount END),
+            0) AS movement
+              FROM posting_double_entry_line
+             WHERE posting_id = ${input.originPostingId}::uuid
+               AND account_id = ${input.saldoAccountId}::uuid
+          ) m`,
   )
-  if (net.startsWith("-") || isZeroDecimal(net)) {
+  if (!opens) {
     return null
   }
   if (input.counterpartyId === null) {

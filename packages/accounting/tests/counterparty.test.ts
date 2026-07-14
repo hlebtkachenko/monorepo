@@ -177,6 +177,20 @@ describe("resolveCounterparty", () => {
     })
   })
 
+  it("drops an over-8-digit IČO (invalid) and falls through instead of crashing the CHECK", async () => {
+    await withOrganization(orgA, userId, async (db) => {
+      const ctx = { organizationId: orgA, workspaceId }
+      // 9 digits is not a valid IČO — it must not reach the INSERT (DB CHECK ^[0-9]{8}$).
+      const id = await resolveCounterparty(db, ctx, {
+        name: "Overlong ICO GmbH",
+        ico: "123456789",
+        countryCode: "DE",
+      })
+      expect(id).toBeTruthy()
+      expect(await countByIco(db, "123456789")).toBe(0)
+    })
+  })
+
   it("never matches the self-org identity row (its own IČO can be re-used by a supplier)", async () => {
     await withOrganization(orgB, userId, async (db) => {
       const ctx = { organizationId: orgB, workspaceId }

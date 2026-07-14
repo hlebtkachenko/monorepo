@@ -48,7 +48,10 @@ interface Norm {
 function normIco(raw: string): string | null {
   const d = raw.replace(/\D/g, "")
   if (!d) return null
-  return d.length <= 8 ? d.padStart(8, "0") : d
+  // > 8 digits is not a valid IČO (DB CHECK ^[0-9]{8}$). Drop it (fall through to
+  // DIČ / name) rather than let the malformed value crash the INSERT mid approve tx.
+  if (d.length > 8) return null
+  return d.padStart(8, "0")
 }
 
 function normalize(id: CounterpartyIdentity): Norm {

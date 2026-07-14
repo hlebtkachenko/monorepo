@@ -27,9 +27,12 @@ import {
   type BrainDryRunInputs,
   type BrainDryRunPlan,
   type BrainSessionPlan,
+  type IrToEventContext,
   type OnboardingPlan,
   type PostingSessionContext,
 } from "@workspace/intake"
+import { createAfframeClient } from "@afframe/sdk"
+import type { CreateAccountingEventRequest } from "@workspace/shared/api"
 import { assembleLoginSections } from "@workspace/brain"
 import type {
   Invoice,
@@ -65,6 +68,13 @@ import {
   renderOnboardingExecuteResults,
   renderOnboardingPlan,
 } from "./onboard"
+import {
+  buildEventProposal,
+  eventIdempotencyKey,
+  executeEventCreate,
+  renderEventProposal,
+  renderEventResult,
+} from "./event"
 import { classifyExtractionEngine } from "./extraction-engine"
 import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
@@ -413,6 +423,154 @@ export function registerBrainCommand(program: Command): void {
         process.exitCode = 1
       }
     })
+
+  brain
+    .command("event")
+    .description(
+      "Propose the accounting EVENT (case) for an extracted invoice, carrying the supplier/customer " +
+        "IDENTITY (name/IČO/DIČ) so the derived invoice books against the RIGHT counterparty instead of " +
+        "holding on a null one. DETERMINISTIC: a plain operator-key POST /v1/accounting/events (no agent " +
+        "session). The write is GATED — HELD for human review at cold start; approve it, then pass the " +
+        "applied eventId to `brain book`. Default is print-only; --execute POSTs after confirmation. " +
+        "Needs BRAIN_API_KEY.",
+    )
+    .requiredOption(
+      "--extracted <path>",
+      "Path to the IR Invoice JSON a `brain extract` run produced.",
+    )
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { periodId, eventSeriesId, confidence, rationale, conversationId?, signals? }. " +
+        "eventSeriesId is the EVENT number series (NOT the capture's DOCUMENT series).",
+    )
+    .option(
+      "--execute",
+      "POST the create_accounting_event call (gated → HELD for review) after an explicit confirmation. " +
+        "Default is print-only.",
+    )
+    .option(
+      "--allow-missing-counterparty",
+      "Proceed with --execute even when no counterparty identity was extracted (the derived invoice will " +
+        "then HOLD on a null counterparty when booked).",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt on --execute (non-interactive operators).",
+    )
+    .action(
+      async (opts: {
+        extracted: string
+        context: string
+        execute?: boolean
+        allowMissingCounterparty?: boolean
+        yes?: boolean
+      }) => {
+        const invoice = readExtractedInvoice(opts.extracted)
+        const ctx = readEventContext(opts.context)
+        const proposal = buildEventProposal(invoice, ctx)
+        output.write(renderEventProposal(proposal))
+
+        if (!opts.execute) return
+
+        // Fail closed on a missing counterparty: emitting a bare event silently would recreate exactly the
+        // null-counterparty HOLD this command exists to avoid. Require an explicit override.
+        if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
+          output.write(
+            "brain event: refusing --execute — no counterparty identity extracted. Fix the source/IR, or " +
+              "pass --allow-missing-counterparty to propose a bare event anyway.\n",
+          )
+          process.exitCode = 1
+          return
+        }
+
+        const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
+        if (!apiKey) {
+          output.write("brain event blocked: missing BRAIN_API_KEY.\n")
+          process.exit(1)
+        }
+
+        const ok = opts.yes || (await confirmEventExecute(proposal.request))
+        if (!ok) {
+          output.write("brain event: aborted, nothing executed.\n")
+          // A non-interactive run with no --yes auto-refused (fail-closed) — signal non-zero so automation
+          // can tell "refused" from a print-only exit 0. An interactive decline stays exit 0.
+          if (!input.isTTY) process.exitCode = 1
+          return
+        }
+
+        const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
+        const key = eventIdempotencyKey(proposal.request)
+        const result = await executeEventCreate(proposal.request, client, key)
+        output.write("\n" + renderEventResult(result))
+        if (result.status === "failed") process.exitCode = 1
+      },
+    )
+}
+
+/**
+ * Read + shallow-validate the `brain event` `--context` file at the system boundary: the EVENT write needs
+ * `periodId`, `eventSeriesId` (the EVENT number series — NOT the capture's DOCUMENT series), and the gate
+ * envelope (`confidence` / `rationale`, plus optional `conversationId` / `signals`). No `_minor` money
+ * fields exist on an event context, so no bigint reviver is needed. Fails LOUD on a missing required key.
+ */
+function readEventContext(path: string): IrToEventContext {
+  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
+  const required = ["periodId", "eventSeriesId", "confidence", "rationale"]
+  const missing =
+    typeof parsed !== "object" || parsed === null
+      ? required
+      : required.filter((key) => !(key in parsed))
+  if (missing.length > 0) {
+    throw new Error(
+      `--context file ${path} must be a JSON object with keys: ${required.join(", ")} ` +
+        `(optional: conversationId, signals).`,
+    )
+  }
+  const obj = parsed as Record<string, unknown>
+  return {
+    periodId: obj["periodId"] as string,
+    eventSeriesId: obj["eventSeriesId"] as string,
+    confidence: obj["confidence"] as number,
+    rationale: obj["rationale"] as string,
+    ...(obj["conversationId"] != null
+      ? { conversationId: obj["conversationId"] as string }
+      : {}),
+    ...(obj["signals"] != null
+      ? { signals: obj["signals"] as IrToEventContext["signals"] }
+      : {}),
+  }
+}
+
+/**
+ * The `brain event --execute` confirmation gate — mirrors `confirmOnboardingExecute` (same TTY check, same
+ * fail-closed non-interactive default), but names what this is: a GATED write that HOLDS for human review
+ * at cold start (not an immediately-applied create). Spells out the case description + the counterparty the
+ * server will find-or-create, so the operator confirms the partner before the write is queued.
+ */
+async function confirmEventExecute(
+  request: CreateAccountingEventRequest,
+): Promise<boolean> {
+  if (!input.isTTY) {
+    output.write(
+      "brain event: non-interactive and no --yes — refusing to POST without confirmation.\n",
+    )
+    return false
+  }
+  const rl = createInterface({ input, output })
+  const answer = (
+    await rl.question(
+      `This will POST create_accounting_event (a GATED write — HELD for human review at cold start):\n` +
+        `  ${request.description}\n` +
+        `  counterparty: ${
+          request.counterparty ? JSON.stringify(request.counterparty) : "(none)"
+        }\n` +
+        `Proceed? [y/N]: `,
+    )
+  )
+    .trim()
+    .toLowerCase()
+  rl.close()
+  return answer === "y" || answer === "yes"
 }
 
 /**

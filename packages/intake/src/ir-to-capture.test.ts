@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { CaptureAccountingDocumentRequestSchema } from "@workspace/shared/api"
+import {
+  CaptureAccountingDocumentRequestSchema,
+  CreateAccountingEventRequestSchema,
+} from "@workspace/shared/api"
 import type { BankTransaction, CashDocument, Invoice } from "@workspace/brain"
 import { BOOKABLE_IR_RECORD_TYPES } from "@workspace/brain"
 
@@ -10,9 +13,11 @@ import {
   bankToCapture,
   cashDocumentToCapture,
   invoiceToCapture,
+  invoiceToEvent,
   parseClassifyThreading,
   type ClassifyThreading,
   type IrToCaptureContext,
+  type IrToEventContext,
 } from "./ir-to-capture"
 
 const ctx: IrToCaptureContext = {
@@ -21,6 +26,13 @@ const ctx: IrToCaptureContext = {
   eventId: "00000000-0000-4000-8000-000000000003",
   confidence: 0.95,
   rationale: "Standard domestic service invoice, VAT 21% deductible.",
+}
+
+const eventCtx: IrToEventContext = {
+  periodId: "00000000-0000-4000-8000-000000000001",
+  eventSeriesId: "00000000-0000-4000-8000-000000000009",
+  confidence: 0.95,
+  rationale: "Received invoice from a domestic supplier.",
 }
 
 // The provenance envelope every IR record carries. The adapter never reads it, but the IR types require
@@ -564,5 +576,137 @@ describe("GLEntry is never a booking source (Control 2)", () => {
     ])
     expect(BOOKABLE_IR_RECORD_TYPES).not.toContain("gl_entry")
     expect(BOOKABLE_IR_RECORD_TYPES).not.toContain("attachment")
+  })
+})
+
+describe("invoiceToEvent — IR invoice → accounting EVENT with the counterparty identity", () => {
+  const supplier = {
+    name: "Dodavatel s.r.o.",
+    ico: "10000001",
+    dic: "CZ10000001",
+    address: { country: "CZ" },
+  }
+  const customer = { name: "Odběratel a.s.", ico: "20000002" }
+
+  it("emits a valid CreateAccountingEventRequest for a received invoice (supplier identity)", () => {
+    const request = invoiceToEvent(invoice({ supplier }), eventCtx)
+    // Always re-validates against the SERVER's own request schema (the write is gated by it).
+    expect(CreateAccountingEventRequestSchema.safeParse(request).success).toBe(
+      true,
+    )
+    expect(request.periodId).toBe(eventCtx.periodId)
+    // seriesId is the EVENT series, NOT any document series.
+    expect(request.seriesId).toBe(eventCtx.eventSeriesId)
+    expect(request.counterparty).toEqual({
+      name: "Dodavatel s.r.o.",
+      ico: "10000001",
+      dic: "CZ10000001",
+      countryCode: "CZ",
+    })
+  })
+
+  it("picks the party by DIRECTION: issued → customer, received → supplier", () => {
+    const received = invoiceToEvent(
+      invoice({ direction: "received", supplier, customer }),
+      eventCtx,
+    )
+    expect(received.counterparty?.name).toBe("Dodavatel s.r.o.")
+    const issued = invoiceToEvent(
+      invoice({ direction: "issued", supplier, customer }),
+      eventCtx,
+    )
+    expect(issued.counterparty?.name).toBe("Odběratel a.s.")
+  })
+
+  it("occurredAt = tax_point_date ?? issue_date (the §11/1e plnění, not the §11/1d vyhotovení)", () => {
+    expect(invoiceToEvent(invoice({ supplier }), eventCtx).occurredAt).toBe(
+      "2025-03-14",
+    )
+    expect(
+      invoiceToEvent(
+        invoice({ supplier, tax_point_date: "2025-03-20" }),
+        eventCtx,
+      ).occurredAt,
+    ).toBe("2025-03-20")
+  })
+
+  it("description carries the FP/FV label + number + party name (bounded to 2000)", () => {
+    expect(invoiceToEvent(invoice({ supplier }), eventCtx).description).toBe(
+      "FP FP-2025-0042 — Dodavatel s.r.o.",
+    )
+    expect(
+      invoiceToEvent(invoice({ direction: "issued", customer }), eventCtx)
+        .description,
+    ).toBe("FV FP-2025-0042 — Odběratel a.s.")
+  })
+
+  it("omits counterparty when there is no party (bare event still validates — reproduces today's behavior)", () => {
+    const request = invoiceToEvent(invoice({ supplier: undefined }), eventCtx)
+    expect(request.counterparty).toBeUndefined()
+    expect(CreateAccountingEventRequestSchema.safeParse(request).success).toBe(
+      true,
+    )
+    // description still satisfies min(1) — the number alone.
+    expect(request.description).toBe("FP FP-2025-0042")
+  })
+
+  it("drops a malformed IČO (>8 digits or non-digit) — never coerces, never crashes the CHECK", () => {
+    const overlong = invoiceToEvent(
+      invoice({ supplier: { name: "X GmbH", ico: "123456789" } }),
+      eventCtx,
+    )
+    expect(overlong.counterparty).toEqual({ name: "X GmbH" })
+    // A formatted IČO ("123 456 78") is normalized to digits when it fits.
+    const spaced = invoiceToEvent(
+      invoice({ supplier: { name: "Y", ico: "123 456 78" } }),
+      eventCtx,
+    )
+    expect(spaced.counterparty?.ico).toBe("12345678")
+  })
+
+  it("drops a non-2-letter country (free-form IR) — never coerces 'Česká republika' to 'CZ'", () => {
+    const request = invoiceToEvent(
+      invoice({
+        supplier: { name: "Z", address: { country: "Česká republika" } },
+      }),
+      eventCtx,
+    )
+    expect(request.counterparty).toEqual({ name: "Z" })
+    // A genuine alpha-2 is uppercased and kept.
+    const de = invoiceToEvent(
+      invoice({ supplier: { name: "W", address: { country: "de" } } }),
+      eventCtx,
+    )
+    expect(de.counterparty?.countryCode).toBe("DE")
+  })
+
+  it("an individual (no IČO/DIČ) emits name-only — never synthesizes an IČO", () => {
+    const request = invoiceToEvent(
+      invoice({ supplier: { name: "Jan Novák", is_individual: true } }),
+      eventCtx,
+    )
+    expect(request.counterparty).toEqual({ name: "Jan Novák" })
+  })
+
+  it("emits NO tenancy keys and NO capture-only gate fields (templateId / extractionMethod)", () => {
+    const request = invoiceToEvent(invoice({ supplier }), {
+      ...eventCtx,
+      conversationId: "00000000-0000-4000-8000-0000000000c1",
+    })
+    for (const forbidden of [
+      "organization_id",
+      "user_id",
+      "workspace_id",
+      "role",
+      "templateId",
+      "extractionMethod",
+    ]) {
+      expect(request).not.toHaveProperty(forbidden)
+    }
+    // conversationId is single-sourced from the context (present only when supplied).
+    expect(request.conversationId).toBe("00000000-0000-4000-8000-0000000000c1")
+    expect(invoiceToEvent(invoice({ supplier }), eventCtx)).not.toHaveProperty(
+      "conversationId",
+    )
   })
 })

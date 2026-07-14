@@ -47,11 +47,14 @@ function TextEditCell({
   value,
   numeric,
   name,
+  ariaLabel,
   onCommit,
 }: {
   value: TableCellValue
   numeric: boolean
   name?: string
+  /** Accessible name for the bare inline input (no visible label in a cell). */
+  ariaLabel: string
   onCommit: (value: TableCellValue) => void
 }) {
   const [draft, setDraft] = React.useState(String(value ?? ""))
@@ -65,6 +68,7 @@ function TextEditCell({
   return (
     <Input
       name={name}
+      aria-label={ariaLabel}
       value={draft}
       inputMode={numeric ? "numeric" : "text"}
       onChange={(e) => setDraft(e.target.value)}
@@ -98,6 +102,7 @@ function SelectEditCell({
     <Select value={String(value ?? "")} onValueChange={onCommit} name={name}>
       <SelectTrigger
         size="sm"
+        aria-label={spec.header}
         className="h-8 w-full rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
       >
         <SelectValue placeholder="—" />
@@ -312,6 +317,7 @@ export function SectionTableRenderer({
               <TextEditCell
                 value={value}
                 numeric={spec.kind === "number"}
+                ariaLabel={spec.header}
                 name={name ? `${name}[${rowId}][${spec.id}]` : undefined}
                 onCommit={(v) => updateCell(rowId, spec.id, v)}
               />

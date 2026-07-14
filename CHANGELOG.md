@@ -33,6 +33,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Table archetype hardening: controlled column pinning + order in useDataTable (pinned columns drag-reorder within their group; a header-menu pin lands before the action column, never outside it); row actions trimmed to one primary action + overflow; the columns dropdown rows became clean whole-row toggles; and the per-column header menu gained Filter (opens the shared toolbar filter at that column) + AI-analyze items.
 - ContentToolbar/filter polish: option-filter count badges pinned to the right edge, Reset chip restyle (no icon/shadow), date filter as a range picker with a preset sidebar + dropdown month/year caption, 5px inter-line gap; Columns manager reordered by live columnOrder with pinned-left/right + unpinned sections and checkboxes; removed the Inspector panel/dialog mode toggle from the toolbar
 - ContentToolbar: 42px bar matching ContentHeader, default-size controls, faceted status-filter live update fix, search clear button, and the multi-filter slot wired into the archetype-table debug demo
 - Reworked ContentHeader: merged breadcrumb+back-link+title nav (icon crumbs, collapsible native BreadcrumbEllipsis dropdown, Single-only back link), rebuilt view tabs (mandatory count badges, flush underline, no per-tab icons, mandatory All + active kept inline), container-query responsive collapse driven by the header's own width, uniform gaps, 42px height, Favorite-only actions; added a Pin icon to the icon packs

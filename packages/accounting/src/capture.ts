@@ -21,6 +21,7 @@ import { one } from "./sql"
 import type { RowExecutor } from "./sql"
 import { allocateNumber } from "./number-series"
 import { resolveCounterparty } from "./counterparty"
+import { isInvoiceType } from "./types"
 import type {
   CapturedDocument,
   CapturedEvent,
@@ -182,8 +183,7 @@ export async function captureDocument(
   ctx: OrgCtx,
   input: DocumentInput,
 ): Promise<CapturedDocument> {
-  const isInvoice =
-    input.type === "RECEIVED_INVOICE" || input.type === "ISSUED_INVOICE"
+  const isInvoice = isInvoiceType(input.type)
   if (input.taxPointDate != null && !isInvoice) {
     throw new Error("accounting: taxPointDate is only valid for an invoice")
   }

@@ -43,6 +43,10 @@ export {
 
 // Capture (UC-1 steps 1-3)
 export { createEvent, captureDocument } from "./capture"
+export {
+  captureAndBookIfInvoice,
+  type CaptureAndBookResult,
+} from "./capture-and-book"
 export { resolveCounterparty } from "./counterparty"
 export type { CounterpartyIdentity } from "./types"
 

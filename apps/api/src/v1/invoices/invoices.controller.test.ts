@@ -326,8 +326,11 @@ vi.mock("../accounting/accounting-writes.gate", () => ({
 const { verifyApiKey } = await import("@workspace/auth/api-key-verifier")
 const accounting = await import("@workspace/accounting")
 const accountingVeto = await import("../accounting/accounting-veto")
-const { ListInvoicesResponseSchema, GetInvoiceResponseSchema } =
-  await import("@workspace/shared/api")
+const {
+  ListInvoicesResponseSchema,
+  GetInvoiceResponseSchema,
+  CaptureAccountingDocumentRequestSchema,
+} = await import("@workspace/shared/api")
 const { InvoicesController } = await import("./invoices.controller")
 const { DomainExceptionFilter } = await import("../domain-exception.filter")
 
@@ -676,8 +679,26 @@ describe("InvoicesController (/v1/invoices)", () => {
       deriveVeto: unknown
       screenTemplateBasis: unknown
       principal: { organizationId: string }
+      body: Record<string, unknown>
     }
-    expect(opts.operationId).toBe("createInvoice")
+    // Collapsed at the gate onto the SHARED capture tool_name so a held invoice is
+    // approvable through the same replay case as POST /v1/accounting/documents. A
+    // novel "createInvoice" tool_name had no replay case anywhere → a held invoice
+    // was permanently unapprovable; this closes that dead-end at the root.
+    expect(opts.operationId).toBe("captureAccountingDocument")
+    // The PERSISTED body is normalized (direction → type, gate envelope kept), so
+    // it re-validates against CaptureAccountingDocumentRequestSchema on replay.
+    expect(opts.body).toMatchObject({ type: "RECEIVED_INVOICE" })
+    expect(opts.body).not.toHaveProperty("direction")
+    expect(opts.body).toHaveProperty("confidence")
+    // Drift guard: the entire dead-end fix rests on the persisted invoice body
+    // re-validating against the CAPTURE schema (the held-write replay safeParses
+    // it there). CreateInvoiceRequestSchema and CaptureAccountingDocumentRequestSchema
+    // are hand-authored independently, so this asserts they stay field-compatible —
+    // if a future edit diverges them, a held invoice would silently 422 on approve.
+    expect(
+      CaptureAccountingDocumentRequestSchema.safeParse(opts.body).success,
+    ).toBe(true)
     expect(opts.principal.organizationId).toBe(ORG_A)
     expect(opts.idempotencyKey).toBe("idem-1")
     expect(opts.periodId).toBe(PERIOD_1)

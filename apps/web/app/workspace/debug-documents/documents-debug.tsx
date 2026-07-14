@@ -142,7 +142,10 @@ export function DocumentsDebug({ workspaceName }: { workspaceName: string }) {
     })
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+    // The app-shell content slot is `overflow-hidden` (archetypes own their
+    // own scroll). This dev harness isn't an archetype, so it scrolls itself —
+    // else a tall preview (image / PDF) is clipped with no scrollbar.
+    <div className="mx-auto flex h-full max-w-5xl flex-col gap-6 overflow-y-auto p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold">S3 document store — debug</h1>
         <p className="text-sm text-muted-foreground">

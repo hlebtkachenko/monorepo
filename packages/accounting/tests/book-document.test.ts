@@ -217,6 +217,129 @@ describe("bookDocument — derive vertical", () => {
     })
   })
 
+  it("opens a RECEIVABLE (311) obligation for an issued invoice — the sales-side branch", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2032-01-01",
+      periodEnd: "2032-12-31",
+    })
+    const res = await withOrganization(orgA, userId, async (db) => {
+      const customer = await createCounterparty(db, s.ctx, {
+        name: "Odběratel s.r.o.",
+      })
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Prodej služby",
+        occurredAt: "2032-03-10",
+        counterpartyId: customer,
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "ISSUED_INVOICE",
+        issuedAt: "2032-03-10",
+        taxPointDate: "2032-03-10",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                baseAmount: "5000.00",
+                vatRate: "21",
+                vatMode: "STANDARD",
+                vatJurisdiction: "DOMESTIC",
+                supplyKind: "SERVICES",
+                vatAmount: "1050.00",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await bookDocument(db, s.ctx, {
+        summaryRecordId: doc.summaryRecordId,
+        responsibleUserId: userId,
+      })
+      return { summaryRecordId: doc.summaryRecordId, customer }
+    })
+
+    await withOrganization(orgA, userId, async (db) => {
+      // the customer OWES us — a RECEIVABLE on 311 for the gross (increase = DEBIT).
+      const obligations = await openItemsForDoc(db, res.summaryRecordId)
+      expect(obligations).toHaveLength(1)
+      const oi = obligations[0]!
+      expect(oi.direction).toBe("RECEIVABLE")
+      expect(oi.account_number).toBe("311")
+      expect(oi.counterparty_id).toBe(res.customer)
+      expect(oi.original_amount).toBe("6050.0000") // 5000 + 1050 VAT
+      expect(await reconcileReadModel(db, s.periodId)).toEqual([])
+    })
+  })
+
+  it("opens the PAYABLE for the NET (not gross) on a reverse-charge purchase (§16 EU acquisition)", async () => {
+    const s = await seedDoubleEntryOrg(orgB, workspaceId, userId, {
+      periodStart: "2034-01-01",
+      periodEnd: "2034-12-31",
+    })
+    const res = await withOrganization(orgB, userId, async (db) => {
+      const supplier = await createCounterparty(db, s.ctx, {
+        name: "EU Lieferant GmbH",
+        countryCode: "DE",
+      })
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Pořízení zboží z EU",
+        occurredAt: "2034-03-10",
+        counterpartyId: supplier,
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2034-03-10",
+        taxPointDate: "2034-03-10",
+        receivedDate: "2034-03-10",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                // §16 intra-EU acquisition: supplier invoices WITHOUT CZ VAT; the
+                // 21 % is self-assessed 343↔343, so the 321 payable is NET only.
+                baseAmount: "10000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "EU",
+                supplyKind: "GOODS",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await bookDocument(db, s.ctx, {
+        summaryRecordId: doc.summaryRecordId,
+        responsibleUserId: userId,
+      })
+      return { summaryRecordId: doc.summaryRecordId, supplier }
+    })
+
+    await withOrganization(orgB, userId, async (db) => {
+      const obligations = await openItemsForDoc(db, res.summaryRecordId)
+      expect(obligations).toHaveLength(1)
+      const oi = obligations[0]!
+      expect(oi.direction).toBe("PAYABLE")
+      expect(oi.account_number).toBe("321")
+      expect(oi.counterparty_id).toBe(res.supplier)
+      // NET, not gross: the supplier is owed 10000; the self-assessed VAT is not owed.
+      expect(oi.original_amount).toBe("10000.0000")
+      expect(await reconcileReadModel(db, s.periodId)).toEqual([])
+    })
+  })
+
   it("books a STANDARD credit note (dobropis) with reversed sides from a negative capture", async () => {
     const s = await seedDoubleEntryOrg(orgB, workspaceId, userId, {
       periodStart: "2026-01-01",

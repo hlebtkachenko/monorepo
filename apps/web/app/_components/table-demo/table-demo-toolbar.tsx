@@ -3,7 +3,6 @@
 import type { Table } from "@tanstack/react-table"
 
 import { ContentToolbar } from "@workspace/ui/blocks/content-panel"
-import type { InspectorMode } from "@workspace/ui/blocks/content-panel"
 import type {
   Column as FilterColumn,
   DataTableFilterActions,
@@ -33,16 +32,14 @@ export interface TableDemoToolbarProps {
   /** Universal text search across every column. */
   search: string
   onSearchChange: (value: string) => void
-  inspectorMode: InspectorMode
-  onInspectorModeChange: (mode: InspectorMode) => void
 }
 
 /**
  * The invoices toolbar — the CANONICAL reference for the closed `ContentToolbar`
  * vocabulary. Everything is a DATA descriptor (no raw controls): the SSF-style
  * `statusFilter`, a universal `search`, the multi-`filter` (chips render in the
- * band below the bar), then `viewTools` (Columns + Sort), the split `add`, and
- * the Inspector `modeToggle`. The container owns the order + the filters band.
+ * band below the bar), then `viewTools` (Columns + Sort) and the split `add`.
+ * The container owns the order + the filters band.
  */
 export function TableDemoToolbar({
   table,
@@ -58,8 +55,6 @@ export function TableDemoToolbar({
   onStatusOpenChange,
   search,
   onSearchChange,
-  inspectorMode,
-  onInspectorModeChange,
 }: TableDemoToolbarProps) {
   const statusColumn = table.getColumn("status")
   const statusValue = (statusColumn?.getFilterValue() as string[]) ?? []
@@ -94,7 +89,6 @@ export function TableDemoToolbar({
         variants: ADD_TYPES.map((type) => ({ id: type, label: type })),
         onSelectVariant: () => {},
       }}
-      modeToggle={{ value: inspectorMode, onChange: onInspectorModeChange }}
     />
   )
 }

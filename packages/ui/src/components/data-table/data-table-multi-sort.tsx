@@ -33,12 +33,15 @@ interface DataTableMultiSortProps<TData> {
   className?: string
   /** Optional tooltip on the trigger button. */
   tooltip?: string
+  /** Trigger button size — defaults to `sm` for legacy toolbars. */
+  triggerSize?: React.ComponentProps<typeof Button>["size"]
 }
 
 export function DataTableMultiSort<TData>({
   table,
   className,
   tooltip,
+  triggerSize = "sm",
 }: DataTableMultiSortProps<TData>) {
   const sorting = table.getState().sorting
   const setSorting = table.setSorting
@@ -88,7 +91,7 @@ export function DataTableMultiSort<TData>({
     <Button
       data-slot="data-table-multi-sort-trigger"
       variant="outline"
-      size="sm"
+      size={triggerSize}
       className={cn(className)}
     >
       <ArrowUpDown />

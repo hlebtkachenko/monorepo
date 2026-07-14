@@ -94,7 +94,6 @@ export function ContentToolbarStatusFilter({
         <Button
           data-slot="content-toolbar-status-filter-trigger"
           variant="outline"
-          size="sm"
           className="border-dashed font-normal"
         >
           {selectedValues.size > 0 ? (

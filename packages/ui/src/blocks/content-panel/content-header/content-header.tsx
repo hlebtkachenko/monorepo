@@ -1,12 +1,14 @@
 "use client"
 
-import * as React from "react"
-
 import { Separator } from "@workspace/ui/components/separator"
 import type { IconName } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { ContentHeaderActions } from "./content-header-actions"
+import {
+  ContentHeaderBackLink,
+  type ContentHeaderBackLinkData,
+} from "./content-header-back-link"
 import {
   ContentHeaderBreadcrumb,
   type ContentHeaderBreadcrumbItem,
@@ -18,83 +20,99 @@ import {
   type ViewTabsConfigure,
 } from "./content-header-view-tabs"
 
-// Below this header width the inline views collapse into a single dropdown.
-// (Approximate — tuned for a handful of short views; revisit per surface.)
-const COLLAPSE_AT = 560
-
 export interface ContentHeaderProps {
   /** The active Page/Subpage name. Scalar string — never a node. */
   title: string
   /** Optional decorative leading icon (closed `IconName`, never a node). */
   titleIcon?: IconName
-  /** Optional ancestor trail, shown left of the title. */
+  /**
+   * Optional `‹ Back to {label}` link — the Single archetype only (a record
+   * opened from its source list). A vertical separator then leads into the trail.
+   */
+  backTo?: ContentHeaderBackLinkData
+  /** Optional ancestor trail, shown left of the title (crumbs may carry icons). */
   breadcrumb?: ContentHeaderBreadcrumbItem[]
-  /** The visible views after the separator (underline "line" style). */
+  /** The visible views after the separator (underline strip, mandatory badges). */
   viewTabs?: ViewTab[]
   /** Controlled active view value. */
   value?: string
   onValueChange?: (value: string) => void
-  /** Optional configure (⋯) menu DATA — show/hide views. Omit to hide it. */
+  /** Adds the trailing "+ Add view" button to the views strip. */
+  onAddView?: () => void
+  /**
+   * @deprecated Ignored. The old ⋯ configure menu is gone; view show/hide/pin/
+   * save moves into the "+ Add view" dropdown (deferred). Kept so un-migrated
+   * callers still type-check.
+   */
   manageViews?: ViewTabsConfigure
   className?: string
 }
 
 /**
- * The content panel's header — general, closed chrome for EVERY page. It sits
- * inside the app-shell's 45px panel header (via the `contentHeader` slot), to
- * the right of the sidebar toggle and left of the assistant toggle.
+ * The one vertical divider used across the header (native). `mx-2` on top of the
+ * row's `gap-2` gives it 16px of breathing room each side — matching the
+ * left-edge→title-icon indent (`px-2` + `ml-2`).
+ */
+function HeaderSeparator() {
+  return (
+    <Separator orientation="vertical" inset className="mx-2 h-5 shrink-0" />
+  )
+}
+
+/**
+ * The content panel's header — general, closed chrome for EVERY page, in the
+ * app-shell's panel header (via the `contentHeader` slot).
  *
- * Layout: `⟨breadcrumb⟩ [titleIcon] Title │ ⟨views⟩ ⋯ ……… {Favorite, Configure}`.
- * The action cluster is a fixed internal set — there is NO page-injection slot.
- * When the header is too narrow, the views collapse into a single dropdown.
- * Views are controlled — wire `value`/`onValueChange` to whatever drives the body.
+ * Layout: `⟨‹ Back to X │⟩ ⟨[icon] trail ›⟩ Title ⟨│ views + Add view⟩ … {Favorite}`.
+ * ONE flat flex row with a SINGLE gap between every item (back-link, separators,
+ * crumbs, chevrons, title, tabs) — so all gaps are equal. The breadcrumb + title
+ * are fixed at the left, the actions are fixed at the right, and the views strip
+ * is the flex-grow middle that scrolls horizontally when the row runs out of room
+ * (so nothing overlaps). Views are controlled via `value`/`onValueChange`.
  */
 export function ContentHeader({
   title,
   titleIcon,
+  backTo,
   breadcrumb,
   viewTabs,
   value,
   onValueChange,
-  manageViews,
+  onAddView,
   className,
 }: ContentHeaderProps) {
-  const rootRef = React.useRef<HTMLDivElement>(null)
-  const [collapsed, setCollapsed] = React.useState(false)
-
-  React.useEffect(() => {
-    const el = rootRef.current
-    if (!el) return
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0
-      setCollapsed(w > 0 && w < COLLAPSE_AT)
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
   const hasTabs = viewTabs != null && viewTabs.length > 0
   const hasBreadcrumb = breadcrumb != null && breadcrumb.length > 0
 
   return (
     <div
-      ref={rootRef}
       data-slot="content-header"
-      className={cn("flex min-w-0 flex-1 items-center gap-1", className)}
+      // `@container/ch` makes the whole row responsive to ITS OWN width (which
+      // shrinks as the sidebar / assistant panels widen), driving the progressive
+      // collapse in the back-link, breadcrumb, and view tabs.
+      className={cn(
+        "@container/ch flex h-full min-w-0 flex-1 items-center gap-2",
+        className,
+      )}
     >
+      {backTo ? (
+        <>
+          <ContentHeaderBackLink label={backTo.label} href={backTo.href} />
+          <HeaderSeparator />
+        </>
+      ) : null}
+
       {hasBreadcrumb ? <ContentHeaderBreadcrumb items={breadcrumb} /> : null}
       <ContentHeaderTitle title={title} titleIcon={titleIcon} />
 
       {hasTabs ? (
         <>
-          {/* Inset divider between the page name and the views. */}
-          <Separator orientation="vertical" inset className="mx-2 !h-6" />
+          <HeaderSeparator />
           <ContentHeaderViewTabs
             viewTabs={viewTabs}
             value={value}
             onValueChange={onValueChange}
-            manageViews={manageViews}
-            collapsed={collapsed}
+            onAddView={onAddView}
           />
         </>
       ) : null}

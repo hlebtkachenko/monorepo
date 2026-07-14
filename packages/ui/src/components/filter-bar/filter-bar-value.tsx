@@ -2,7 +2,22 @@
 
 import * as React from "react"
 import { Ellipsis } from "@workspace/ui/lib/icons"
-import { format, isEqual } from "date-fns"
+import {
+  endOfDay,
+  endOfMonth,
+  endOfQuarter,
+  endOfWeek,
+  format,
+  isEqual,
+  isSameDay,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfWeek,
+  subMonths,
+  subQuarters,
+  subWeeks,
+} from "date-fns"
 import type { DateRange } from "react-day-picker"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -402,7 +417,10 @@ const OptionItem = React.memo(function OptionItem({
     <CommandItem
       key={value}
       onSelect={handleSelect}
-      className="group flex items-center justify-between gap-1.5"
+      // `[&>svg]:hidden` drops CommandItem's built-in trailing check icon — it
+      // also carries `ml-auto`, and two auto-margins in one flex row split the
+      // free space, stranding the count badge mid-row instead of the right edge.
+      className="group flex items-center gap-1.5 [&>svg]:hidden"
     >
       <div className="flex items-center gap-1.5">
         <Checkbox
@@ -417,10 +435,11 @@ const OptionItem = React.memo(function OptionItem({
           ))}
         <span>{label}</span>
       </div>
-      {/* Number of matching rows — a trailing count badge, same treatment as
-          the sidebar nav counts. */}
+      {/* Count of matching rows — pinned to the column's right edge (`ml-auto`),
+          not hugging the label. The list min-width (on the controller's Command)
+          gives it a column to align in. */}
       {typeof count === "number" && count > 0 ? (
-        <Badge variant="secondary" className="shrink-0 tabular-nums">
+        <Badge variant="secondary" className="ml-auto shrink-0 tabular-nums">
           {count < 100 ? count : "100+"}
         </Badge>
       ) : null}
@@ -475,7 +494,7 @@ export function FilterValueOptionController<TData>({
   }, [options])
 
   return (
-    <Command loop>
+    <Command loop className="min-w-56">
       <CommandInput autoFocus placeholder={strings.search} />
       <CommandEmpty>{strings.noResults}</CommandEmpty>
       <CommandList className="max-h-fit">
@@ -488,7 +507,13 @@ export function FilterValueOptionController<TData>({
             />
           ))}
         </CommandGroup>
-        <CommandSeparator />
+        {/* Only bracket the two groups with a divider when BOTH exist. Otherwise
+            (nothing was selected when the popover opened) a lone separator hangs
+            directly under the search box. Grouping stays snapshot-at-open, so it
+            never reshuffles mid-session. */}
+        {selectedOptions.length > 0 && unselectedOptions.length > 0 ? (
+          <CommandSeparator />
+        ) : null}
         <CommandGroup
           className={cn(unselectedOptions.length === 0 && "hidden")}
         >
@@ -555,7 +580,7 @@ export function FilterValueMultiOptionController<TData>({
   }, [options])
 
   return (
-    <Command loop>
+    <Command loop className="min-w-56">
       <CommandInput autoFocus placeholder={strings.search} />
       <CommandEmpty>{strings.noResults}</CommandEmpty>
       <CommandList>
@@ -568,7 +593,10 @@ export function FilterValueMultiOptionController<TData>({
             />
           ))}
         </CommandGroup>
-        <CommandSeparator />
+        {/* Divider only when both groups exist (see the option controller). */}
+        {selectedOptions.length > 0 && unselectedOptions.length > 0 ? (
+          <CommandSeparator />
+        ) : null}
         <CommandGroup
           className={cn(unselectedOptions.length === 0 && "hidden")}
         >
@@ -585,48 +613,131 @@ export function FilterValueMultiOptionController<TData>({
   )
 }
 
+// Range presets for the date filter's left column. Each returns a [start, end]
+// window relative to now, evaluated on click (never at module load).
+const DATE_RANGE_PRESETS: { label: string; getRange: () => [Date, Date] }[] = [
+  {
+    label: "Today",
+    getRange: () => [startOfDay(new Date()), endOfDay(new Date())],
+  },
+  {
+    label: "This week",
+    getRange: () => [startOfWeek(new Date()), endOfWeek(new Date())],
+  },
+  {
+    label: "Last week",
+    getRange: () => {
+      const ref = subWeeks(new Date(), 1)
+      return [startOfWeek(ref), endOfWeek(ref)]
+    },
+  },
+  {
+    label: "This month",
+    getRange: () => [startOfMonth(new Date()), endOfMonth(new Date())],
+  },
+  {
+    label: "Last 3 months",
+    getRange: () => [
+      startOfMonth(subMonths(new Date(), 2)),
+      endOfMonth(new Date()),
+    ],
+  },
+  {
+    label: "This quarter",
+    getRange: () => [startOfQuarter(new Date()), endOfQuarter(new Date())],
+  },
+  {
+    label: "Last quarter",
+    getRange: () => {
+      const ref = subQuarters(new Date(), 1)
+      return [startOfQuarter(ref), endOfQuarter(ref)]
+    },
+  },
+]
+
 export function FilterValueDateController<TData>({
   filter,
   column,
   actions,
 }: FilterValueControllerProps<TData, "date">) {
   const [date, setDate] = React.useState<DateRange | undefined>({
-    from: filter?.values[0] ?? new Date(),
+    from: filter?.values[0] ?? undefined,
     to: filter?.values[1] ?? undefined,
   })
+
+  const applyRange = React.useCallback(
+    (from: Date | undefined, to: Date | undefined) => {
+      setDate({ from, to })
+      const values = from && to ? [from, to] : from ? [from] : []
+      if (values.length === 2)
+        actions.setFilterOperator(column.id, "is between")
+      if (values.length > 0) actions.setFilterValue(column, values)
+    },
+    [actions, column.id],
+  )
 
   function changeDateRange(value: DateRange | undefined) {
     const start = value?.from
     const end =
-      start && value && value.to && !isEqual(start, value.to)
-        ? value.to
-        : undefined
-
-    setDate({ from: start, to: end })
-
-    const isRange = start && end
-    const newValues = isRange ? [start, end] : start ? [start] : []
-
-    actions.setFilterValue(column, newValues)
+      start && value?.to && !isEqual(start, value.to) ? value.to : undefined
+    applyRange(start, end)
   }
 
+  const activePreset = DATE_RANGE_PRESETS.find((preset) => {
+    if (!date?.from || !date?.to) return false
+    const [start, end] = preset.getRange()
+    return isSameDay(start, date.from) && isSameDay(end, date.to)
+  })
+
+  // Left preset column (grey surface, dark-grey outline on the active preset,
+  // red Clear) + our range Calendar on the right.
   return (
-    <Command>
-      <CommandList className="max-h-fit">
-        <CommandGroup>
-          <div>
-            <Calendar
-              autoFocus
-              mode="range"
-              defaultMonth={date?.from}
-              selected={date}
-              onSelect={changeDateRange}
-              numberOfMonths={1}
-            />
-          </div>
-        </CommandGroup>
-      </CommandList>
-    </Command>
+    <div className="flex w-fit">
+      <div className="flex w-40 flex-col gap-0.5 border-r bg-muted/50 p-2">
+        {DATE_RANGE_PRESETS.map((preset) => {
+          const active = activePreset?.label === preset.label
+          return (
+            <button
+              key={preset.label}
+              type="button"
+              onClick={() => {
+                const [start, end] = preset.getRange()
+                applyRange(start, end)
+              }}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-left text-sm transition-colors hover:bg-muted",
+                active && "bg-background ring-1 ring-foreground/30",
+              )}
+            >
+              {preset.label}
+            </button>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            setDate(undefined)
+            actions.removeFilter(column.id)
+          }}
+          className="mt-1 rounded-md px-2.5 py-1.5 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
+        >
+          Clear
+        </button>
+      </div>
+      <div className="p-3">
+        <Calendar
+          autoFocus
+          mode="range"
+          captionLayout="dropdown"
+          defaultMonth={date?.from}
+          startMonth={new Date(new Date().getFullYear() - 5, 0)}
+          endMonth={new Date(new Date().getFullYear() + 1, 11)}
+          selected={date}
+          onSelect={changeDateRange}
+          numberOfMonths={1}
+        />
+      </div>
+    </div>
   )
 }
 

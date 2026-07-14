@@ -2,6 +2,8 @@
 
 import {
   type ColumnFiltersState,
+  type ColumnOrderState,
+  type ColumnPinningState,
   type PaginationState,
   type RowSelectionState,
   type SortingState,
@@ -64,6 +66,14 @@ interface UseDataTableProps<TData> extends Omit<
    */
   onParamsChange?: (params: URLSearchParams) => void
   queryKeys?: Partial<UseDataTableQueryKeys>
+  /**
+   * Optional invariant applied to every `columnPinning` write (which is now
+   * controlled here). Use it to keep structural columns anchored — e.g. a
+   * leading `select` first in `left` and a trailing `actions` last in `right`
+   * — so a user pinning a data column via the header menu can never land it
+   * outside those anchors.
+   */
+  normalizeColumnPinning?: (pinning: ColumnPinningState) => ColumnPinningState
 }
 
 function readPagination(
@@ -163,6 +173,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     onParamsChange,
     queryKeys,
     pageCount,
+    normalizeColumnPinning,
     ...tableProps
   } = props
 
@@ -198,6 +209,43 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     React.useState<VisibilityState>(initialState?.columnVisibility ?? {})
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>(
     initialState?.rowSelection ?? {},
+  )
+  // Column pinning + order are controlled here (they were seed-only before, so
+  // the renderer could neither normalize a dynamic pin nor observe reorders
+  // without the JSON-signature hack). Sizing stays uncontrolled on purpose:
+  // the grid resizes live through CSS vars, and controlling it would re-render
+  // every cell on each mouse-move during a drag-resize.
+  const normalizePinningRef = React.useRef(normalizeColumnPinning)
+  React.useEffect(() => {
+    normalizePinningRef.current = normalizeColumnPinning
+  }, [normalizeColumnPinning])
+  const [columnPinning, setColumnPinning] = React.useState<ColumnPinningState>(
+    () => {
+      const seed = initialState?.columnPinning ?? {}
+      return normalizeColumnPinning ? normalizeColumnPinning(seed) : seed
+    },
+  )
+  const [columnOrder, setColumnOrder] = React.useState<ColumnOrderState>(
+    initialState?.columnOrder ?? [],
+  )
+
+  const onColumnPinningChange = React.useCallback(
+    (updater: Updater<ColumnPinningState>) => {
+      setColumnPinning((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater
+        const normalize = normalizePinningRef.current
+        return normalize ? normalize(next) : next
+      })
+    },
+    [],
+  )
+  const onColumnOrderChange = React.useCallback(
+    (updater: Updater<ColumnOrderState>) => {
+      setColumnOrder((prev) =>
+        typeof updater === "function" ? updater(prev) : updater,
+      )
+    },
+    [],
   )
 
   const onParamsChangeRef = React.useRef(onParamsChange)
@@ -250,17 +298,11 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     columns,
     data,
     ...(pageCount !== undefined ? { pageCount } : {}),
-    // Pagination / sorting / filters / visibility / selection are controlled
-    // above, so only the uncontrolled features need an initial seed forwarded.
-    // Spread only the keys that are set — passing `undefined` would clobber
-    // TanStack's defaults (e.g. an undefined columnSizing breaks getSize()).
+    // Column sizing stays uncontrolled (live CSS-var resize), so it is the only
+    // slice still seeded via initialState. Spread only when set — passing
+    // `undefined` would clobber TanStack's default (an undefined columnSizing
+    // breaks getSize()).
     initialState: {
-      ...(initialState?.columnPinning
-        ? { columnPinning: initialState.columnPinning }
-        : {}),
-      ...(initialState?.columnOrder
-        ? { columnOrder: initialState.columnOrder }
-        : {}),
       ...(initialState?.columnSizing
         ? { columnSizing: initialState.columnSizing }
         : {}),
@@ -271,6 +313,8 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       columnFilters,
       columnVisibility,
       rowSelection,
+      columnPinning,
+      columnOrder,
     },
     enableRowSelection: true,
     onPaginationChange,
@@ -278,6 +322,8 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
+    onColumnPinningChange,
+    onColumnOrderChange,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),

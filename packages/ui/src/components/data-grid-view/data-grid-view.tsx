@@ -4,79 +4,43 @@ import * as React from "react"
 import {
   flexRender,
   type Cell,
-  type Column,
   type Header,
   type Table,
 } from "@tanstack/react-table"
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable"
 
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
   DataGridViewColumnHeader,
-  type ColumnDropTarget,
+  commitCenter,
+  commitPinnedGroup,
+  getCenterIds,
 } from "./data-grid-view-column-header"
-
-/** Sticky positioning for a pinned column (the edge shadow is a separate span). */
-function pinStyle<TData>(column: Column<TData>): React.CSSProperties {
-  const pinned = column.getIsPinned()
-  if (!pinned) return {}
-  return {
-    position: "sticky",
-    left: pinned === "left" ? `${column.getStart("left")}px` : undefined,
-    right: pinned === "right" ? `${column.getAfter("right")}px` : undefined,
-    zIndex: 2,
-  }
-}
-
-/** Vertical separator for a cell — same hairline as the row borders. */
-function borderClass<TData>(column: Column<TData>): string {
-  return column.getIsPinned() === "right"
-    ? "border-s border-border-subtle/60"
-    : "border-e border-border-subtle/60"
-}
-
-/** Whether the grid is scrolled away from each horizontal edge. */
-interface ScrollEdges {
-  left: boolean
-  right: boolean
-}
-
-/**
- * The continuous edge shadow for a pinned column. Rendered as one `inset-y-0`
- * gradient span per cell — because the span has sharp top/bottom edges (no
- * blur), the per-cell spans stack into a single smooth strip down the whole
- * column, instead of a scalloped per-row box-shadow.
- *
- * Only shown when there is actually scrolled-under content on that side — a
- * pinned column sitting over empty space (a narrow table, e.g. with the
- * assistant open) draws no phantom shadow.
- */
-function PinShadow<TData>({
-  column,
-  edges,
-}: {
-  column: Column<TData>
-  edges: ScrollEdges
-}) {
-  const pinned = column.getIsPinned()
-  if (pinned === "left" && column.getIsLastColumn("left") && edges.left) {
-    return (
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 -right-2.5 z-10 w-2.5 bg-gradient-to-r from-black/10 to-transparent dark:from-black/25"
-      />
-    )
-  }
-  if (pinned === "right" && column.getIsFirstColumn("right") && edges.right) {
-    return (
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 -left-2.5 z-10 w-2.5 bg-gradient-to-l from-black/10 to-transparent dark:from-black/25"
-      />
-    )
-  }
-  return null
-}
+import { SortableHeaderCell } from "./data-grid-view-sortable-header"
+import {
+  PinShadow,
+  borderClass,
+  pinStyle,
+  type ScrollEdges,
+} from "./data-grid-view-pin"
 
 interface DataGridViewProps<TData> extends Omit<
   React.ComponentProps<"div">,
@@ -130,8 +94,52 @@ export function DataGridView<TData>({
     row: number
     col: number
   } | null>(null)
-  const [dropTarget, setDropTarget] = React.useState<ColumnDropTarget | null>(
+  const [activeColumnId, setActiveColumnId] = React.useState<string | null>(
     null,
+  )
+
+  // Pointer covers mouse + touch; the 8px activation distance lets a stationary
+  // click still reach the header menu / grip without starting a drag. Keyboard
+  // sensor makes the grip button drag with Space + arrows.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  const onColumnDragStart = React.useCallback((event: DragStartEvent) => {
+    setActiveColumnId(String(event.active.id))
+  }, [])
+
+  const onColumnDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      setActiveColumnId(null)
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      const activeId = String(active.id)
+      const overId = String(over.id)
+      // Reorder WITHIN a group only — each group is its own SortableContext, so
+      // `over` is always a sibling of `active`. Centre writes `columnOrder`
+      // (shared with the Columns manager); a pinned column writes its
+      // `columnPinning` slice (left/right), which the section's pin invariant
+      // then re-anchors (select first, actions last).
+      const pinned = table.getColumn(activeId)?.getIsPinned()
+      if (pinned === "left" || pinned === "right") {
+        const group = (table.getState().columnPinning[pinned] ?? []).slice()
+        const from = group.indexOf(activeId)
+        const to = group.indexOf(overId)
+        if (from < 0 || to < 0) return
+        commitPinnedGroup(table, pinned, arrayMove(group, from, to))
+        return
+      }
+      const center = getCenterIds(table)
+      const from = center.indexOf(activeId)
+      const to = center.indexOf(overId)
+      if (from < 0 || to < 0) return
+      commitCenter(table, arrayMove(center, from, to))
+    },
+    [table],
   )
   // Track whether the grid is scrolled away from each edge so the pinned
   // columns only cast a shadow when they actually overlap scrolled content.
@@ -276,54 +284,26 @@ export function DataGridView<TData>({
     return () => observer.disconnect()
   }, [updateEdges])
 
-  const renderHeaderCell = (header: Header<TData, unknown>) => {
-    const interactive = header.column.getCanSort() || header.column.getCanHide()
-    const align = header.column.columnDef.meta?.align
-    return (
-      <div
-        key={header.id}
-        role="columnheader"
-        data-slot="grid-header-cell"
-        className={cn(
-          "relative flex h-9 shrink-0 items-center bg-muted text-muted-foreground",
-          borderClass(header.column),
-        )}
-        style={{
-          ...pinStyle(header.column),
-          width: `calc(var(--header-${header.id}-size) * 1px)`,
-        }}
-      >
-        {header.isPlaceholder ? null : interactive ? (
-          <DataGridViewColumnHeader
-            header={header}
-            table={table}
-            onColumnFilter={onColumnFilter}
-            onColumnAnalyze={onColumnAnalyze}
-            onDropTargetChange={setDropTarget}
-          />
-        ) : (
-          <div
-            className={cn(
-              "flex size-full items-center",
-              align === "center" ? "justify-center px-0" : "px-3",
-            )}
-          >
-            {flexRender(header.column.columnDef.header, header.getContext())}
-          </div>
-        )}
-        <PinShadow column={header.column} edges={edges} />
-        {dropTarget?.columnId === header.column.id ? (
-          <span
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-y-0 z-30 w-0.5 bg-primary",
-              dropTarget.side === "before" ? "left-0" : "right-0",
-            )}
-          />
-        ) : null}
-      </div>
-    )
-  }
+  // One group (left-pinned / centre / right-pinned) as its own SortableContext,
+  // so a header only reorders among its siblings — a pinned column drags within
+  // the pinned area, a centre column within the centre, never across.
+  const renderHeaderGroup = (headers: Header<TData, unknown>[]) => (
+    <SortableContext
+      items={headers.map((h) => h.column.id)}
+      strategy={horizontalListSortingStrategy}
+    >
+      {headers.map((header) => (
+        <SortableHeaderCell
+          key={header.id}
+          header={header}
+          table={table}
+          edges={edges}
+          onColumnFilter={onColumnFilter}
+          onColumnAnalyze={onColumnAnalyze}
+        />
+      ))}
+    </SortableContext>
+  )
 
   return (
     <div
@@ -344,11 +324,29 @@ export function DataGridView<TData>({
       style={columnSizeVars}
       {...props}
     >
-      <div style={{ width: totalWidth, minWidth: "100%" }}>
+      {/* The rowgroups are DIRECT children of role="grid" (axe
+          aria-required-children needs that) and each carries the scroll width,
+          so no intermediate wrapper sits between the grid and its rows.
+          dnd-kit's screen-reader elements (a role="status" live region + hidden
+          instructions) are portaled to <body> instead of rendering inline as
+          disallowed grid children. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis]}
+        onDragStart={onColumnDragStart}
+        onDragEnd={onColumnDragEnd}
+        onDragCancel={() => setActiveColumnId(null)}
+        accessibility={{
+          container:
+            typeof document !== "undefined" ? document.body : undefined,
+        }}
+      >
         <div
           role="rowgroup"
           data-slot="grid-header"
           className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
+          style={{ width: totalWidth, minWidth: "100%" }}
         >
           {table.getHeaderGroups().map((headerGroup) => {
             const left = headerGroup.headers.filter(
@@ -367,79 +365,91 @@ export function DataGridView<TData>({
                 data-slot="grid-header-row"
                 className="flex w-full"
               >
-                {left.map(renderHeaderCell)}
-                {center.map(renderHeaderCell)}
+                {renderHeaderGroup(left)}
+                {renderHeaderGroup(center)}
                 <div
                   data-slot="grid-header-spacer"
                   className="flex flex-1 items-center bg-muted"
                 >
                   {headerTrailing}
                 </div>
-                {right.map(renderHeaderCell)}
+                {renderHeaderGroup(right)}
               </div>
             )
           })}
         </div>
-        <div role="rowgroup" data-slot="grid-body">
-          {rowCount === 0 ? (
-            <div role="row" className="flex w-full">
-              <div
-                role="gridcell"
-                className="flex h-24 w-full items-center justify-center text-sm text-muted-foreground"
-              >
-                {emptyMessage}
-              </div>
+        <DragOverlay modifiers={[restrictToHorizontalAxis]}>
+          {activeColumnId ? (
+            <div className="flex h-9 items-center border bg-muted px-3 text-sm font-medium text-foreground shadow">
+              {String(
+                table.getColumn(activeColumnId)?.columnDef.meta?.label ??
+                  activeColumnId,
+              )}
             </div>
-          ) : (
-            rows.map((row, rowIndex) => {
-              const selected = row.getIsSelected()
-              const cells = row.getVisibleCells()
-              const left = cells.filter(
-                (c) => c.column.getIsPinned() === "left",
-              )
-              const center = cells.filter((c) => !c.column.getIsPinned())
-              const right = cells.filter(
-                (c) => c.column.getIsPinned() === "right",
-              )
-              const renderCell = (cell: Cell<TData, unknown>) => (
-                <DataGridViewCell
-                  key={cell.id}
-                  cell={cell}
-                  rowIndex={rowIndex}
-                  colIndex={cells.indexOf(cell)}
-                  selected={selected}
-                  edges={edges}
-                  isFocused={
-                    hasFocus &&
-                    focusRow === rowIndex &&
-                    focusCol === cells.indexOf(cell)
-                  }
-                  onFocusCell={() =>
-                    setFocused({ row: rowIndex, col: cells.indexOf(cell) })
-                  }
-                />
-              )
-              return (
-                <div
-                  key={row.id}
-                  role="row"
-                  aria-selected={selected}
-                  data-state={selected ? "selected" : undefined}
-                  data-slot="grid-row"
-                  className={cn(
-                    "flex w-full border-b border-border-subtle/60",
-                    selected ? "bg-muted/50" : "hover:bg-muted/30",
-                  )}
-                >
-                  {left.map(renderCell)}
-                  {center.map(renderCell)}
-                  <div data-slot="grid-row-spacer" className="flex-1" />
-                  {right.map(renderCell)}
-                </div>
-              )
-            })
-          )}
-        </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+      <div
+        role="rowgroup"
+        data-slot="grid-body"
+        style={{ width: totalWidth, minWidth: "100%" }}
+      >
+        {rowCount === 0 ? (
+          <div role="row" className="flex w-full">
+            <div
+              role="gridcell"
+              className="flex h-24 w-full items-center justify-center text-sm text-muted-foreground"
+            >
+              {emptyMessage}
+            </div>
+          </div>
+        ) : (
+          rows.map((row, rowIndex) => {
+            const selected = row.getIsSelected()
+            const cells = row.getVisibleCells()
+            const left = cells.filter((c) => c.column.getIsPinned() === "left")
+            const center = cells.filter((c) => !c.column.getIsPinned())
+            const right = cells.filter(
+              (c) => c.column.getIsPinned() === "right",
+            )
+            const renderCell = (cell: Cell<TData, unknown>) => (
+              <DataGridViewCell
+                key={cell.id}
+                cell={cell}
+                rowIndex={rowIndex}
+                colIndex={cells.indexOf(cell)}
+                selected={selected}
+                edges={edges}
+                isFocused={
+                  hasFocus &&
+                  focusRow === rowIndex &&
+                  focusCol === cells.indexOf(cell)
+                }
+                onFocusCell={() =>
+                  setFocused({ row: rowIndex, col: cells.indexOf(cell) })
+                }
+              />
+            )
+            return (
+              <div
+                key={row.id}
+                role="row"
+                aria-selected={selected}
+                data-state={selected ? "selected" : undefined}
+                data-slot="grid-row"
+                className={cn(
+                  "group/row flex w-full border-b border-border-subtle/60",
+                  selected ? "bg-muted/50" : "hover:bg-muted/30",
+                )}
+              >
+                {left.map(renderCell)}
+                {center.map(renderCell)}
+                <div data-slot="grid-row-spacer" className="flex-1" />
+                {right.map(renderCell)}
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

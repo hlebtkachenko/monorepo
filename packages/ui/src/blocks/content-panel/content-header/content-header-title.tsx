@@ -11,10 +11,11 @@ export interface ContentHeaderTitleProps {
 }
 
 /**
- * ContentHeaderTitle — the page title shown left of the view-tabs separator.
- * Truncates. The optional `titleIcon` is decorative only (a name from the
- * closed `IconName` union, resolved via `useIcons()`); it is not a back-button
- * or any interactive control — the header is closed chrome.
+ * ContentHeaderTitle — the current page's (sub)title, the ONE selected item in
+ * the left cluster: `font-medium`, and the REVERSE hover of the muted items —
+ * foreground (black) when idle, muted (grey) on hover. Truncates under pressure.
+ * The optional `titleIcon` is decorative (sidebar-matched width); the header is
+ * closed chrome, not a control.
  */
 export function ContentHeaderTitle({
   title,
@@ -23,11 +24,9 @@ export function ContentHeaderTitle({
   const icons = useIcons()
   const Icon = titleIcon ? icons[titleIcon] : null
   return (
-    <div className="flex min-w-0 shrink-0 items-center gap-1.5">
-      {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
-      <span className="truncate text-sm font-semibold text-foreground">
-        {title}
-      </span>
+    <div className="flex min-w-0 shrink items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-muted-foreground">
+      {Icon ? <Icon className="size-4 shrink-0" /> : null}
+      <span className="truncate">{title}</span>
     </div>
   )
 }

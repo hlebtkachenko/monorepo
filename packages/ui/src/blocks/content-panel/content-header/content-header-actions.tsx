@@ -20,30 +20,21 @@ function FavoriteButton() {
   )
 }
 
-/** Config / settings button. */
-function ConfigButton() {
-  return (
-    <IconButton
-      icon="Settings2"
-      aria-label="Configure"
-      tooltip="Configure"
-      tooltipSide="bottom"
-    />
-  )
-}
-
 /**
- * The content-header's right-aligned action cluster — a CLOSED set
- * `{Favorite, Configure}`, rendered for EVERY page. There is no page-injection
- * slot: the header is general chrome, not page content. A new global action is
- * added here (for all pages), never per-page. The assistant toggle sits to the
- * right of this cluster and is owned by the shell.
+ * The content-header's right-aligned action cluster — a CLOSED set `{Favorite}`,
+ * rendered for EVERY page. There is no page-injection slot: the header is general
+ * chrome, not page content. A new global action is added here (for all pages),
+ * never per-page. The Configure button was removed. The assistant toggle sits to
+ * the right of this cluster and is owned by the shell.
+ *
+ * Favorite is a local toggle today; wiring it to the followed-pages store (so a
+ * user's starred pages surface in an overview, queried by where/what) is a
+ * tracked follow-up.
  */
 export function ContentHeaderActions() {
   return (
     <div className="ml-auto flex shrink-0 items-center gap-0.5">
       <FavoriteButton />
-      <ConfigButton />
     </div>
   )
 }

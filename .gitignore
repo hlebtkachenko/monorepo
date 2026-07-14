@@ -89,3 +89,6 @@ mlive.local.sh
 # Misc
 .DS_Store
 *.pem
+
+# Playwright CLI skill scratch artifacts (snapshots/screenshots)
+.playwright-cli/

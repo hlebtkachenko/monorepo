@@ -21,6 +21,7 @@ export const SECTION_KINDS = [
   "details-form",
   "details-tabs",
   "details-table",
+  "table",
   "space",
   "details-group",
 ] as const

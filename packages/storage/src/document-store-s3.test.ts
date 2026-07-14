@@ -403,6 +403,7 @@ describe("tag methods — merge, never clobber", () => {
       ],
     })
     s3Mock.on(HeadObjectCommand).resolves({
+      VersionId: "source+version/1",
       ETag: '"source-etag"',
       ContentType: "application/pdf",
       ContentDisposition: "inline",
@@ -435,8 +436,10 @@ describe("tag methods — merge, never clobber", () => {
     expect(input.StorageClass).toBe("STANDARD_IA")
     expect(input.TaggingDirective).toBe("REPLACE")
     expect(input.ChecksumAlgorithm).toBe("SHA256")
-    const headCall = s3Mock.commandCalls(HeadObjectCommand)[0]
-    expect(headCall?.args[0].input.VersionId).toBe("source+version/1")
+    // The pinned VersionId now comes from HEAD (portable), and the tags are
+    // read for that exact version.
+    const tagCall = s3Mock.commandCalls(GetObjectTaggingCommand)[0]
+    expect(tagCall?.args[0].input.VersionId).toBe("source+version/1")
     expect(putTaggingCalls()).toHaveLength(0)
   })
 
@@ -451,6 +454,7 @@ describe("tag methods — merge, never clobber", () => {
       ],
     })
     s3Mock.on(HeadObjectCommand).resolves({
+      VersionId: "source-version",
       ETag: '"source-etag"',
       ContentType: "application/pdf",
     })
@@ -495,7 +499,10 @@ describe("tag methods — merge, never clobber", () => {
       VersionId: "reaped-source",
       TagSet: [],
     })
-    s3Mock.on(HeadObjectCommand).resolves({ ETag: '"source-etag"' })
+    s3Mock.on(HeadObjectCommand).resolves({
+      VersionId: "reaped-source",
+      ETag: '"source-etag"',
+    })
     s3Mock.on(CopyObjectCommand).rejects(new Error("NoSuchKey"))
     const store = makeStore()
 

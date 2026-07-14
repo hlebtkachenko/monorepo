@@ -36,6 +36,14 @@ export interface S3DocumentStoreConfig {
   endpoint?: string
   /** Dedicated KMS CMK. When set, server-side put/copy operations set SSE-KMS explicitly; presigned POST uploads rely on the bucket's default encryption instead. */
   kmsKeyId?: string
+  /**
+   * Static credentials for a custom endpoint (minio dev). Pins them explicitly
+   * so the SDK never consults the node provider chain, which errors when BOTH
+   * `AWS_PROFILE` and `AWS_ACCESS_KEY_ID`/`SECRET` are set (common on a dev
+   * machine with a global profile). Left unset in production so the ECS
+   * task-role provider chain resolves normally.
+   */
+  credentials?: { accessKeyId: string; secretAccessKey: string }
 }
 
 function configFromEnv(): S3DocumentStoreConfig {
@@ -43,11 +51,19 @@ function configFromEnv(): S3DocumentStoreConfig {
   if (!bucket) {
     throw new Error("DOCUMENTS_BUCKET is not set")
   }
+  const endpoint = process.env.S3_ENDPOINT
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
   return {
     bucket,
     region: process.env.AWS_REGION,
-    endpoint: process.env.S3_ENDPOINT,
+    endpoint,
     kmsKeyId: process.env.DOCUMENTS_KMS_KEY_ID,
+    // Only for the custom-endpoint (dev/minio) path, and only when both are
+    // present — production leaves these unset and uses the task-role chain.
+    ...(endpoint && accessKeyId && secretAccessKey
+      ? { credentials: { accessKeyId, secretAccessKey } }
+      : {}),
   }
 }
 
@@ -152,6 +168,7 @@ export class S3DocumentStore implements DocumentStore {
       ...(config.endpoint
         ? { endpoint: config.endpoint, forcePathStyle: true }
         : {}),
+      ...(config.credentials ? { credentials: config.credentials } : {}),
     })
   }
 
@@ -320,24 +337,28 @@ export class S3DocumentStore implements DocumentStore {
     key: string,
     changes: Record<string, string | null>,
   ): Promise<void> {
-    const existing = await this.client.send(
-      new GetObjectTaggingCommand({ Bucket: this.bucket, Key: key }),
+    // Pin the current version via HeadObject, which returns the VersionId on
+    // every S3 implementation. (Real S3 also returns it on GetObjectTagging, but
+    // minio omits it there — so HEAD is the portable source of the pinned id.)
+    const source = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
     )
-    const sourceVersionId = existing.VersionId
+    const sourceVersionId = source.VersionId
     if (!sourceVersionId) {
       throw new Error("S3 did not return a source VersionId for tag transition")
     }
+    if (!source.ETag) {
+      throw new Error("S3 did not return a source ETag for tag transition")
+    }
 
-    const source = await this.client.send(
-      new HeadObjectCommand({
+    // Read the tags of that exact version (explicit VersionId works everywhere).
+    const existing = await this.client.send(
+      new GetObjectTaggingCommand({
         Bucket: this.bucket,
         Key: key,
         VersionId: sourceVersionId,
       }),
     )
-    if (!source.ETag) {
-      throw new Error("S3 did not return a source ETag for tag transition")
-    }
 
     const tags = this.applyTagChanges(existing.TagSet, changes)
     await this.client.send(

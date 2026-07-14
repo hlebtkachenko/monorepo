@@ -64,6 +64,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- S3 document store now works against S3-compatible endpoints (minio dev): pin explicit static credentials when a custom S3_ENDPOINT is set (avoids the AWS SDK error when both AWS_PROFILE and AWS_ACCESS_KEY_ID are present), and source the pinned VersionId for version-safe confirm/undo from HeadObject (which every implementation returns) instead of GetObjectTagging (which minio omits). Dev-compose minio bucket now has versioning enabled.
 - S3 document store hardening (advisor Stage 0): UUID-validate document object keys so presign and confirm agree, size-filter Intelligent-Tiering to the ≥128KiB tail, alarm when the sole-delete reaper stops running, and document that presignGet is not an authorization boundary (the route is)
 - Harden S3 document uploads and cleanup with complete presigned POST fields, authoritative file validation, version-safe confirmation and undo, and race-safe reaper deletes.
 - Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.

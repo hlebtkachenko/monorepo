@@ -68,7 +68,7 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/content-panel",
     sourceType: "custom",
     description:
-      "Block — the Content Panel: the page surface below the shell's 45px panel header. Composed from closed sub-blocks: ContentHeader (title/breadcrumb/view-tabs + a fixed {Favorite, Configure} action cluster; no page injection), ContentToolbar (a closed named-data-slot vocabulary — statusFilter/search/filter/viewTools/actions/add/modeToggle, never ReactNode; the legacy left/right ReactNode toolbar survives as ContentToolbarLegacy for not-yet-migrated pages), ContentBody (the section-blocker — the body holds ONLY branded Section descriptors via a module-private symbol, never bespoke JSX), ContentFooter (the sticky bottom action surface: selection + save modes), and the Inspector (right-docked detail, panel/dialog). Also ships the Empty archetype + the Section rulebook (SectionEmpty) and the deferred archetype prototypes (LaunchpadGrid/DashboardGrid/RecordWorkspace). Chrome uses the shell token family; in-flow body uses shadcn tokens.",
+      "Block — the Content Panel: the page surface below the shell's 45px panel header. Composed from closed sub-blocks: ContentHeader (title/breadcrumb/view-tabs + a fixed {Favorite, Configure} action cluster; no page injection), ContentToolbar (a closed named-data-slot vocabulary — statusFilter/search/filter/viewTools/actions/add, never ReactNode; the legacy left/right ReactNode toolbar survives as ContentToolbarLegacy for not-yet-migrated pages), ContentBody (the section-blocker — the body holds ONLY branded Section descriptors via a module-private symbol, never bespoke JSX), ContentFooter (the sticky bottom action surface: selection + save modes), the Inspector (right-docked detail, panel/dialog), and the InspectorSheet (a right-docked detail Sheet for the row chosen via the Table section's maximize affordance — pinned header + meta grid, a scroll body composed from InspectorSection/Detail/LineItem/Evidence/Dropzone parts, and a sticky action footer). Also ships the Empty archetype + the Section rulebook (SectionEmpty) and the deferred archetype prototypes (LaunchpadGrid/DashboardGrid/RecordWorkspace). Chrome uses the shell token family; in-flow body uses shadcn tokens.",
     categories: ["block", "layout", "app"],
     dependencies: [
       "action-bar",
@@ -90,6 +90,7 @@ export const registry: Record<string, ComponentMeta> = {
       "input",
       "popover",
       "separator",
+      "sheet",
       "tabs",
       "toggle-group",
       "tooltip",
@@ -541,10 +542,16 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/components/data-grid-view",
     sourceType: "custom",
     description:
-      "Full-width presentational grid bound to an external TanStack table (e.g. useDataTable): drag-resize columns, drag/menu reorder, in-header sort, hide, a fixed select column, and arrow-key cell navigation. Every interaction writes to the shared table, so a toolbar bound to the same instance stays in sync. Unlike data-grid (the editable spreadsheet) it owns no state and renders whatever the table is filtered/paginated to.",
+      "Full-width presentational grid bound to an external TanStack table (e.g. useDataTable): drag-resize columns, dnd-kit header reorder (mouse/touch/keyboard) sharing columnOrder with the Columns manager, in-header sort, hide, a fixed select column, and arrow-key cell navigation. Every interaction writes to the shared table, so a toolbar bound to the same instance stays in sync. Unlike data-grid (the editable spreadsheet) it owns no state and renders whatever the table is filtered/paginated to.",
     categories: ["data"],
     dependencies: ["dropdown-menu"],
-    packages: ["@tanstack/react-table"],
+    packages: [
+      "@tanstack/react-table",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@dnd-kit/modifiers",
+      "@dnd-kit/utilities",
+    ],
   },
   "data-table": {
     source: "diceui",

@@ -18,8 +18,16 @@ export function ContentToolbarViewTools<TData>({
 }: ViewToolsDescriptor<TData>) {
   return (
     <>
-      <DataTableColumnManager table={table} label={columnsLabel} />
-      <DataTableMultiSort table={table} tooltip={sortTooltip} />
+      <DataTableColumnManager
+        table={table}
+        label={columnsLabel}
+        triggerSize="default"
+      />
+      <DataTableMultiSort
+        table={table}
+        tooltip={sortTooltip}
+        triggerSize="default"
+      />
     </>
   )
 }

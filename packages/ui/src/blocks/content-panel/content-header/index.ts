@@ -1,5 +1,6 @@
 export { ContentHeader } from "./content-header"
 export type { ContentHeaderProps } from "./content-header"
 export type { ContentHeaderBreadcrumbItem } from "./content-header-breadcrumb"
+export type { ContentHeaderBackLinkData } from "./content-header-back-link"
 export type { ViewTab, ViewTabsConfigure } from "./content-header-view-tabs"
 export { ContentHeaderActions } from "./content-header-actions"

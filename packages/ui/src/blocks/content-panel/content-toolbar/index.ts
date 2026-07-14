@@ -12,5 +12,4 @@ export type {
   ActionVariant,
   AddDescriptor,
   AddVariant,
-  ModeToggleDescriptor,
 } from "./toolbar-descriptors"

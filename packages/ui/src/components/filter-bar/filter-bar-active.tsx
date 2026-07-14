@@ -96,7 +96,7 @@ export function ActiveFilter<TData, TType extends ColumnDataType>({
   return (
     <div
       data-slot="filter-bar-pill"
-      className="flex h-7 items-center rounded-2xl border border-border bg-background text-xs text-foreground shadow-xs"
+      className="flex h-7 items-center rounded-2xl border border-border bg-background text-xs text-foreground"
     >
       <FilterSubject column={column} />
       <Separator orientation="vertical" />

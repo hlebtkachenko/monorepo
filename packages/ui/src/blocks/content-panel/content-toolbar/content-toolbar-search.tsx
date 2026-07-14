@@ -2,6 +2,7 @@
 
 import { Input } from "@workspace/ui/components/input"
 import { useIcons } from "@workspace/ui/icon-packs"
+import { cn } from "@workspace/ui/lib/utils"
 
 import type { SearchDescriptor } from "./toolbar-descriptors"
 
@@ -17,16 +18,28 @@ export function ContentToolbarSearch({
 }: SearchDescriptor) {
   const icons = useIcons()
   const SearchIcon = icons.Search
+  const ClearIcon = icons.X
+  const hasValue = value.length > 0
 
   return (
-    <div className="relative flex h-7 w-80 items-center">
+    <div className="relative flex h-8 w-80 items-center">
       <SearchIcon className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
       <Input
         placeholder={placeholder}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-7 w-full pl-8"
+        className={cn("h-8 w-full pl-8", hasValue && "pr-8")}
       />
+      {hasValue ? (
+        <button
+          type="button"
+          aria-label="Clear search"
+          onClick={() => onChange("")}
+          className="absolute inset-y-0 right-1.5 my-auto flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-destructive focus-visible:outline-none"
+        >
+          <ClearIcon className="size-4" />
+        </button>
+      ) : null}
     </div>
   )
 }

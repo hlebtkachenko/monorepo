@@ -6,7 +6,6 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ContentToolbar } from "./content-toolbar"
 import { ContentToolbarAddButton } from "./content-toolbar-add-button"
-import { ContentToolbarModeToggle } from "./content-toolbar-mode-toggle"
 import { ContentToolbarStatusFilter } from "./content-toolbar-status-filter"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
@@ -80,15 +79,6 @@ describe("ContentToolbarStatusFilter", () => {
   })
 })
 
-describe("ContentToolbarModeToggle", () => {
-  it("fires onChange with the picked inspector mode", async () => {
-    const onChange = vi.fn()
-    wrap(<ContentToolbarModeToggle value="panel" onChange={onChange} />)
-    await userEvent.click(screen.getByLabelText("Inspector as dialog"))
-    expect(onChange).toHaveBeenCalledWith("dialog")
-  })
-})
-
 describe("ContentToolbarAddButton", () => {
   it("fires onAdd from the primary button", async () => {
     const onAdd = vi.fn()
@@ -129,7 +119,6 @@ describe("ContentToolbar (container)", () => {
         }}
         actions={[{ id: "refresh", label: "Refresh", onSelect: () => {} }]}
         add={{ label: "New", onAdd: () => {} }}
-        modeToggle={{ value: "panel", onChange: () => {} }}
       />,
     )
     // The active-filters band mounts only when filter.filters.length > 0.

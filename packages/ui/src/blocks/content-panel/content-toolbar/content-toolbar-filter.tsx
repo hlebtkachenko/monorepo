@@ -2,16 +2,26 @@
 
 import {
   ActiveFilters,
+  FILTER_BAR_DEFAULT_STRINGS,
   FilterActions,
   FilterSelector,
 } from "@workspace/ui/components/filter-bar"
 
 import type { FilterDescriptor } from "./toolbar-descriptors"
 
+// The ContentToolbar labels its filter entry "Add filter" (vs the standalone
+// bar's "Filter") and keeps that label visible even once filters are applied.
+const TOOLBAR_FILTER_STRINGS = {
+  ...FILTER_BAR_DEFAULT_STRINGS,
+  filter: "Add filter",
+}
+
 /**
- * The in-bar filter control (left #3) — ONLY the funnel selector. The active
- * chips + Clear live in a distinct band below the bar and render through
- * {@link ContentToolbarFilterActiveBand}, which the container places.
+ * The toolbar filter band (left #3) — the "Add filter" selector, the active
+ * filter chips, and the Clear action, all in ONE inline flex-wrap group. The
+ * whole band wraps to the next line as a unit when it no longer fits between the
+ * search box and the toolbar's right cluster; the chips then wrap within it.
+ * Default-size trigger, design-system tokens — no separate always-open band.
  */
 export function ContentToolbarFilter<TData>({
   columns,
@@ -24,39 +34,35 @@ export function ContentToolbarFilter<TData>({
   onPropertyChange,
 }: FilterDescriptor<TData>) {
   return (
-    <FilterSelector
-      columns={columns}
-      filters={filters}
-      actions={actions}
-      strategy={strategy}
-      open={open}
-      onOpenChange={onOpenChange}
-      property={property}
-      onPropertyChange={onPropertyChange}
-    />
-  )
-}
-
-/**
- * The filter band below the bar — the active-filter chips + Clear. The
- * container owns the band's wrapper (it only mounts it when filters exist), so
- * this wrapper renders just the two filter-bar primitives.
- */
-export function ContentToolbarFilterActiveBand<TData>({
-  columns,
-  filters,
-  actions,
-  strategy,
-}: FilterDescriptor<TData>) {
-  return (
-    <>
+    <div
+      data-slot="content-toolbar-filter"
+      className="flex min-w-0 flex-wrap items-center gap-1.5"
+    >
+      <FilterSelector
+        columns={columns}
+        filters={filters}
+        actions={actions}
+        strategy={strategy}
+        strings={TOOLBAR_FILTER_STRINGS}
+        open={open}
+        onOpenChange={onOpenChange}
+        property={property}
+        onPropertyChange={onPropertyChange}
+        size="default"
+        alwaysShowLabel
+      />
       <ActiveFilters
         columns={columns}
         filters={filters}
         actions={actions}
         strategy={strategy}
+        strings={TOOLBAR_FILTER_STRINGS}
       />
-      <FilterActions hasFilters={filters.length > 0} actions={actions} />
-    </>
+      <FilterActions
+        hasFilters={filters.length > 0}
+        actions={actions}
+        strings={TOOLBAR_FILTER_STRINGS}
+      />
+    </div>
   )
 }

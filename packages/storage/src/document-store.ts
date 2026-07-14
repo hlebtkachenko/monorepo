@@ -49,6 +49,16 @@ export interface PresignGetInput {
   ttlSeconds: number
   disposition: DocumentDisposition
   responseContentType?: string
+  /**
+   * The caller's workspace id. Fail-closed backstop (defense in depth): the
+   * store refuses to sign a key whose `documents/{workspaceId}/…` segment does
+   * not match. This does NOT replace the route's own authorization (load the
+   * owning row, reject soft-deleted, assert membership) — it only guarantees a
+   * bug there can never mint a cross-workspace URL.
+   */
+  callerWorkspaceId: string
+  /** Optional download filename for `disposition: "attachment"` (Content-Disposition). */
+  filename?: string
 }
 
 /**

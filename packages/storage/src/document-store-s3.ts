@@ -15,6 +15,7 @@ import {
   type PresignedPostOptions,
 } from "@aws-sdk/s3-presigned-post"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { parseDocumentKey } from "./document-validation"
 import type {
   DocumentByteRange,
   DocumentStore,
@@ -98,6 +99,20 @@ function encodeCopySource(
     )
   const encodedKey = objectKey.split("/").map(encodeComponent).join("/")
   return `${encodeComponent(bucket)}/${encodedKey}?versionId=${encodeComponent(versionId)}`
+}
+
+/**
+ * Builds a `Content-Disposition` value. For a download we include the original
+ * filename (falling back to the object key's basename otherwise), sanitized to
+ * a quoted ASCII token so it can never break the header or the signature.
+ */
+function contentDisposition(
+  disposition: "inline" | "attachment",
+  filename?: string,
+): string {
+  if (disposition !== "attachment" || !filename) return disposition
+  const safe = filename.replace(/[^\w.\- ]+/g, "_").slice(0, 200)
+  return `attachment; filename="${safe}"`
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -231,12 +246,23 @@ export class S3DocumentStore implements DocumentStore {
   }
 
   async presignGet(key: string, input: PresignGetInput): Promise<string> {
+    // Fail-closed backstop: never sign a key outside the caller's workspace,
+    // whatever the route did. Not a replacement for route-level authorization.
+    const parsed = parseDocumentKey(key)
+    if (!parsed || parsed.workspaceId !== input.callerWorkspaceId) {
+      throw new Error(
+        "presignGet: object key does not belong to the caller's workspace",
+      )
+    }
     return getSignedUrl(
       this.client,
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        ResponseContentDisposition: input.disposition,
+        ResponseContentDisposition: contentDisposition(
+          input.disposition,
+          input.filename,
+        ),
         ...(input.responseContentType
           ? { ResponseContentType: input.responseContentType }
           : {}),

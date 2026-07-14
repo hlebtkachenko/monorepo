@@ -271,13 +271,16 @@ describe("presignPost() input validation", () => {
 })
 
 describe("presignGet()", () => {
+  const GET_KEY = `documents/${WORKSPACE_ID}/${"a".repeat(64)}.pdf`
+
   it("signs ResponseContentDisposition and ResponseContentType into the URL", async () => {
     const store = makeStore()
 
-    const url = await store.presignGet("documents/ws_1/abc.pdf", {
+    const url = await store.presignGet(GET_KEY, {
       ttlSeconds: 900,
       disposition: "inline",
       responseContentType: "application/pdf",
+      callerWorkspaceId: WORKSPACE_ID,
     })
 
     const params = new URL(url).searchParams
@@ -286,17 +289,32 @@ describe("presignGet()", () => {
     expect(params.get("X-Amz-Expires")).toBe("900")
   })
 
-  it("supports attachment disposition and omits response-content-type when not requested", async () => {
+  it("supports attachment disposition with a sanitized filename", async () => {
     const store = makeStore()
 
-    const url = await store.presignGet("documents/ws_1/abc.pdf", {
+    const url = await store.presignGet(GET_KEY, {
       ttlSeconds: 900,
       disposition: "attachment",
+      filename: 'faktura "2025".pdf',
+      callerWorkspaceId: WORKSPACE_ID,
     })
 
     const params = new URL(url).searchParams
-    expect(params.get("response-content-disposition")).toBe("attachment")
+    expect(params.get("response-content-disposition")).toBe(
+      'attachment; filename="faktura _2025_.pdf"',
+    )
     expect(params.has("response-content-type")).toBe(false)
+  })
+
+  it("throws when the key does not belong to the caller's workspace (IDOR backstop)", async () => {
+    const store = makeStore()
+    await expect(
+      store.presignGet(GET_KEY, {
+        ttlSeconds: 900,
+        disposition: "inline",
+        callerWorkspaceId: "22222222-2222-2222-2222-222222222222",
+      }),
+    ).rejects.toThrow(/does not belong to the caller's workspace/)
   })
 })
 

@@ -247,7 +247,12 @@ export async function fetchHeldWrites(
                  l.input_json, l.output_json,
                  (l.output_json->'serverGate'->>'templateId') as template_id,
                  (t.human_confirmed_at is not null) as template_confirmed,
-                 cp.name as counterparty_name,
+                 coalesce(
+                   cp.name,
+                   case when l.tool_name = 'createAccountingEvent'
+                     then l.input_json->'counterparty'->>'name'
+                   end
+                 ) as counterparty_name,
                  ae.designation as case_designation,
                  ae.description as case_description,
                  sr.designation as document_designation

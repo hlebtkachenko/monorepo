@@ -133,14 +133,15 @@ describe("resolveCounterparty", () => {
     })
   })
 
-  it("back-fills only NULL fields on a match — never overwrites curated data", async () => {
+  it("back-fills only NULL non-key fields (name/country), never the unique keys or curated data", async () => {
     await withOrganization(orgA, userId, async (db) => {
       const ctx = { organizationId: orgA, workspaceId }
       const id = await resolveCounterparty(db, ctx, {
         name: "Fill Co",
         ico: "10000004",
       })
-      // fills the missing DIČ + country
+      // matched by IČO: fills the missing country, but NOT tax_id (an indexed key —
+      // back-filling it could hit the unique index and poison the approve tx).
       await resolveCounterparty(db, ctx, {
         name: "Fill Co",
         ico: "10000004",
@@ -153,9 +154,26 @@ describe("resolveCounterparty", () => {
         ico: "10000004",
       })
       const f = await fieldsOf(db, id)
-      expect(f.tax_id).toBe("CZ10000004")
-      expect(f.country_code).toBe("CZ")
-      expect(f.name).toBe("Fill Co")
+      expect(f.tax_id).toBeNull() // indexed key left as-is
+      expect(f.country_code).toBe("CZ") // non-key null → filled
+      expect(f.name).toBe("Fill Co") // populated → never overwritten
+    })
+  })
+
+  it("left-pads a short IČO to 8 digits so it matches the zero-padded stored row (DB CHECK ^[0-9]{8}$)", async () => {
+    await withOrganization(orgA, userId, async (db) => {
+      const ctx = { organizationId: orgA, workspaceId }
+      // "1234567" (7 digits, dropped leading zero) and "01234567" are the same IČO.
+      const a = await resolveCounterparty(db, ctx, {
+        name: "Padded s.r.o.",
+        ico: "1234567",
+      })
+      const b = await resolveCounterparty(db, ctx, {
+        name: "Padded",
+        ico: "01234567",
+      })
+      expect(b).toBe(a)
+      expect(await countByIco(db, "01234567")).toBe(1)
     })
   })
 

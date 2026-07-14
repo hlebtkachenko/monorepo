@@ -316,13 +316,21 @@ export async function createCounterparty(
         RETURNING id`,
   )
   if (inserted[0]) return inserted[0].id
+  // Re-select the row that won the conflict. A self-org row conflicts on the
+  // self_of_organization_id UNIQUE (not tax_id), so key the re-select off the
+  // actual conflict target; a non-self row conflicts on the (workspace_id, tax_id)
+  // partial unique index.
   const existing = await one<{ id: string }>(
     db,
-    sql`SELECT id FROM counterparty
-         WHERE workspace_id = ${ctx.workspaceId}::uuid
-           AND self_of_organization_id IS NULL
-           AND tax_id = ${input.taxId ?? null}
-         LIMIT 1`,
+    input.selfOfOrganizationId != null
+      ? sql`SELECT id FROM counterparty
+             WHERE self_of_organization_id = ${input.selfOfOrganizationId}::uuid
+             LIMIT 1`
+      : sql`SELECT id FROM counterparty
+             WHERE workspace_id = ${ctx.workspaceId}::uuid
+               AND self_of_organization_id IS NULL
+               AND tax_id = ${input.taxId ?? null}
+             LIMIT 1`,
   )
   return existing.id
 }

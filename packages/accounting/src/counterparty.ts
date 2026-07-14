@@ -39,9 +39,21 @@ interface Norm {
   country: string | null
 }
 
+/**
+ * IČO is stored as EXACTLY 8 digits (DB CHECK `^[0-9]{8}$`), leading zeros
+ * significant. Sources often drop the leading zeros ("1234567"), so left-pad to 8
+ * — otherwise the INSERT would crash the CHECK at approve time, and an unpadded
+ * incoming value would false-miss the zero-padded stored row (duplicate + crash).
+ */
+function normIco(raw: string): string | null {
+  const d = raw.replace(/\D/g, "")
+  if (!d) return null
+  return d.length <= 8 ? d.padStart(8, "0") : d
+}
+
 function normalize(id: CounterpartyIdentity): Norm {
   return {
-    ico: (id.ico ?? "").replace(/\D/g, "") || null,
+    ico: normIco(id.ico ?? ""),
     taxId: (id.dic ?? "").toUpperCase().replace(/\s+/g, "") || null,
     name: (id.name ?? "").normalize("NFC").trim().replace(/\s+/g, " ") || null,
     country: (id.countryCode ?? "").toUpperCase().trim() || null,
@@ -96,13 +108,18 @@ async function matchExisting(
 }
 
 async function backfill(db: RowExecutor, id: string, n: Norm): Promise<void> {
-  // Fill NULLs only — never overwrite a populated (possibly human-curated) field.
+  // Fill NULLs only, and ONLY the non-unique display fields (name, country). The
+  // identity keys (ico, tax_id) are set at INSERT when the entity is first seen
+  // (Czech invoices carry both) — back-filling them onto an already-matched row
+  // could hit the (workspace_id, ico)/(workspace_id, tax_id) partial unique index
+  // when a sibling row already holds that value, and a unique violation inside the
+  // approve tx poisons the whole transaction (no in-tx recovery). So never touch the
+  // indexed keys here; a same-entity split that later needs re-keying is the far
+  // rarer, non-fatal case.
   await rows(
     db,
     sql`UPDATE counterparty
-           SET ico = COALESCE(ico, ${n.ico}),
-               tax_id = COALESCE(tax_id, ${n.taxId}),
-               name = COALESCE(name, ${n.name}),
+           SET name = COALESCE(name, ${n.name}),
                country_code = COALESCE(country_code, ${n.country}),
                updated_at = now()
          WHERE id = ${id}::uuid`,

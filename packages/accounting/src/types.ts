@@ -97,6 +97,17 @@ export type VatEvidenceScope =
 // --- capture (UC-1 steps 1-3, all regimes) ---------------------------------
 
 /** An účetní případ (the economic fact, §6/1). number_series allocates the Označení. */
+/** A partner identity to find-or-create (resolveCounterparty), when no id is known. */
+export interface CounterpartyIdentity {
+  name?: string | null
+  /** IČO — CZ registration number (8 digits). Primary match key. */
+  ico?: string | null
+  /** DIČ / EU VAT id, with country prefix (e.g. "CZ12345678"). */
+  dic?: string | null
+  /** ISO 3166-1 alpha-2 member state. */
+  countryCode?: string | null
+}
+
 export interface EventInput {
   /** The účetní období this case belongs to (occurred_on ∈ period). */
   periodId: string
@@ -104,8 +115,14 @@ export interface EventInput {
   seriesId: string
   /** OUR side (a counterparty row); null for an internal event. */
   partyId?: string | null
-  /** THEIR side (a counterparty row). */
+  /** THEIR side (a counterparty row) — takes precedence over {@link counterparty}. */
   counterpartyId?: string | null
+  /**
+   * THEIR side by IDENTITY — resolved (find-or-create) to a counterparty row inside
+   * createEvent when counterpartyId is absent. The derive path passes this so the
+   * booked invoice opens its saldokonto obligation against the right partner.
+   */
+  counterparty?: CounterpartyIdentity | null
   description: string
   content?: string | null
   /** okamžik uskutečnění (§11/1e) — ISO date/timestamp; must fall in the period. */

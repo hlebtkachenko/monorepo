@@ -43,6 +43,8 @@ export {
 
 // Capture (UC-1 steps 1-3)
 export { createEvent, captureDocument } from "./capture"
+export { resolveCounterparty } from "./counterparty"
+export type { CounterpartyIdentity } from "./types"
 
 // Posting (UC-1 step 4 — Zaúčtování)
 export {

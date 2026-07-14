@@ -3475,6 +3475,29 @@ export interface components {
              * @description THEIR side (counterparty row).
              */
             counterpartyId?: string | null;
+            /** @description THEIR side by IDENTITY — the server finds-or-creates the counterparty (dedup by IČO → DIČ → name). Used when counterpartyId is unknown; counterpartyId takes precedence. */
+            counterparty?: {
+                /**
+                 * @description Obchodní jméno / jméno osoby.
+                 * @example ACME s.r.o.
+                 */
+                name: string;
+                /**
+                 * @description IČO (up to 8 digits).
+                 * @example 12345678
+                 */
+                ico?: string | null;
+                /**
+                 * @description DIČ / EU VAT id.
+                 * @example CZ12345678
+                 */
+                dic?: string | null;
+                /**
+                 * @description ISO 3166-1 alpha-2.
+                 * @example CZ
+                 */
+                countryCode?: string | null;
+            } | null;
             /**
              * @description Case description.
              * @example FP — nájem kanceláře

@@ -303,14 +303,36 @@ export async function createCounterparty(
     countryCode?: string | null
   } = {},
 ): Promise<string> {
-  const r = await one<{ id: string }>(
+  // Find-or-create: a counterparty is one workspace-shared row per DIČ (the
+  // (workspace_id, tax_id) dedup index, migration 0058), perennial across periods.
+  // ON CONFLICT DO NOTHING + re-select so re-declaring the same partner (self-org
+  // rows excluded from the index) returns the existing row instead of erroring.
+  const inserted = await rows<{ id: string }>(
     db,
     sql`INSERT INTO counterparty (workspace_id, self_of_organization_id, name, tax_id, country_code)
         VALUES (${ctx.workspaceId}::uuid, ${input.selfOfOrganizationId ?? null},
                 ${input.name ?? null}, ${input.taxId ?? null}, ${input.countryCode ?? null})
+        ON CONFLICT DO NOTHING
         RETURNING id`,
   )
-  return r.id
+  if (inserted[0]) return inserted[0].id
+  // Re-select the row that won the conflict. A self-org row conflicts on the
+  // self_of_organization_id UNIQUE (not tax_id), so key the re-select off the
+  // actual conflict target; a non-self row conflicts on the (workspace_id, tax_id)
+  // partial unique index.
+  const existing = await one<{ id: string }>(
+    db,
+    input.selfOfOrganizationId != null
+      ? sql`SELECT id FROM counterparty
+             WHERE self_of_organization_id = ${input.selfOfOrganizationId}::uuid
+             LIMIT 1`
+      : sql`SELECT id FROM counterparty
+             WHERE workspace_id = ${ctx.workspaceId}::uuid
+               AND self_of_organization_id IS NULL
+               AND tax_id = ${input.taxId ?? null}
+             LIMIT 1`,
+  )
+  return existing.id
 }
 
 export async function createCategory(

@@ -28,18 +28,15 @@ archive = "bash scripts/conductor/archive.sh"
 # need coding. Pick web/admin/api from the Run menu when you actually want a
 # server.
 #
-# Each web-facing run script auto-opens its URL in the default browser once the
-# port answers. The leading `( … ) &` subshell polls the port (bounded to ~60s,
-# then gives up quietly) and opens on the first response; the dev server runs in
-# the foreground so Conductor's SIGHUP stops the whole group. `kill -0 "$P"`
-# rechecks the parent shell each tick, so if the server self-exits (crash /
-# EADDRINUSE) the poller stops before it can open a stray tab. `open` is
-# macOS-only and gated by `[ "$(uname)" = Darwin ]` so a non-Mac local teammate
-# just skips it (`available_in = ["local"]` only excludes cloud, not other OSes).
+# Each web-facing run path auto-opens its URL once the port answers. Web keeps
+# the bounded poller in `run-web.sh`; API and admin keep it inline below. The
+# dev server stays in the foreground so Conductor's SIGHUP stops the process
+# group. The poller rechecks the parent process, preventing stray tabs after a
+# crash, and gates macOS-only `open` behind `uname`.
 
 # Web dev server on this workspace's port, against its isolated DB.
 [scripts.run.web]
-command = '( P=$$; for _ in $(seq 1 120); do kill -0 "$P" 2>/dev/null || exit; curl -s -m 5 -o /dev/null "http://localhost:$CONDUCTOR_PORT" && { [ "$(uname)" = Darwin ] && open "http://localhost:$CONDUCTOR_PORT"; break; }; sleep 0.5; done ) & pnpm --filter web exec next dev --turbopack --port "$CONDUCTOR_PORT"'
+command = "bash scripts/conductor/run-web.sh"
 icon = "globe"
 available_in = ["local"]
 

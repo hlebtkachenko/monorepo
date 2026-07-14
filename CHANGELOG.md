@@ -58,6 +58,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Fixed
 
 - Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
+- Conductor Web Run now starts Postgres, repairs a missing or unseeded workspace database, and applies any pending migrations before launching Next.js.
 - PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
 - Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load

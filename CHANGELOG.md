@@ -3,10 +3,13 @@
 All notable changes to this project. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` for release candidates. See [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md) for the full rule set + cut workflow.
+
 ## [Unreleased]
 
 ### Added
 
+- Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
+- Conductor: full per-workspace isolation (own $CONDUCTOR_PORT range + own seeded Postgres database per workspace, demo login owner@example.com), committed setup/archive scripts replacing untracked local config, and cloud-safe (Docker-gated) setup
 - Section Details Table — a data-driven content-panel section (Data Table on the right of a Details Form), with readonly (display + add editable rows) and editable (edit rows in place) modes; action buttons as data (add-row local state, link navigation).
 - UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)
 - UI: **Group** section (`sectionGroup`) — a titled, rule-bracketed container that nests other sections (one level); subsumes and replaces the standalone Title + Divider sections (its chrome = the h2 + top/bottom rules). ContentBody now delegates to a shared recursive `SectionList` so the brand guard runs at every level; the closed registry stays leaf-only (no import cycle)
@@ -48,6 +51,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load
 - Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.
 

@@ -362,6 +362,28 @@ export function SectionTableRenderer({
     return { left, right }
   }, [specs, features.selection, features.rowActions])
 
+  // Keep the structural columns anchored on every pinning write: `select`
+  // stays first in the left group, `actions` stays last in the right group.
+  // So a user pinning a data column via the header menu (TanStack appends it to
+  // the end of the group) can never land it outside the checkbox or the action
+  // column — it slots between them. Fed to the controlled pinning in useDataTable.
+  const normalizeColumnPinning = React.useCallback(
+    (pinning: ColumnPinningState): ColumnPinningState => {
+      const left = pinning.left ?? []
+      const right = pinning.right ?? []
+      return {
+        left:
+          features.selection === "multi"
+            ? ["select", ...left.filter((id) => id !== "select")]
+            : left,
+        right: features.rowActions
+          ? [...right.filter((id) => id !== "actions"), "actions"]
+          : right,
+      }
+    },
+    [features.selection, features.rowActions],
+  )
+
   const { table } = useDataTable<TableSectionRow>({
     data,
     columns,
@@ -370,6 +392,7 @@ export function SectionTableRenderer({
     enableGlobalFilter: features.search,
     globalFilterFn: "includesString",
     defaultColumn: { minSize: 56, size: 160, maxSize: 640 },
+    normalizeColumnPinning,
     initialState: {
       pagination: { pageIndex: 0, pageSize: 50 },
       columnPinning,

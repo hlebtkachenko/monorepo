@@ -62,6 +62,31 @@ export interface InspectorSheetRender {
   body: React.ReactNode
 }
 
+/**
+ * Route a per-column header "Filter" request to the right toolbar control.
+ *
+ * - a column the multi-filter owns → preselect it in that selector (`property`)
+ * - the column delegated to the faceted statusFilter (`statusColumnId`) →
+ *   `routeToStatus` (the chrome opens that control instead)
+ * - anything else (or no request) → neither, so the multi-filter never receives
+ *   an unknown id, which would throw in the FilterSelector's `getColumn`.
+ *
+ * Exported for unit testing; the chrome is the only caller.
+ */
+export function resolveHeaderFilterTarget(
+  requestedColumnId: string | undefined,
+  filterColumnIds: readonly string[],
+  statusColumnId: string | undefined,
+): { property: string | undefined; routeToStatus: boolean } {
+  if (requestedColumnId == null)
+    return { property: undefined, routeToStatus: false }
+  if (filterColumnIds.includes(requestedColumnId))
+    return { property: requestedColumnId, routeToStatus: false }
+  if (statusColumnId != null && requestedColumnId === statusColumnId)
+    return { property: undefined, routeToStatus: true }
+  return { property: undefined, routeToStatus: false }
+}
+
 export interface ArchetypeTableProps<TData> {
   /** Page title shown in the content header. */
   title: string
@@ -178,14 +203,29 @@ function ArchetypeTableChrome<TData>({
   // selector share a single source of truth.
   const columnFilter = useSectionColumnFilter()
   const toolbarProps = toolbar(table)
+  const filterTarget = resolveHeaderFilterTarget(
+    columnFilter.filterColumnId,
+    toolbarProps.filter?.columns.map((c) => c.id) ?? [],
+    toolbarProps.statusFilter?.columnId,
+  )
+  const openStatusFilter = toolbarProps.statusFilter?.onOpenChange
+  React.useEffect(() => {
+    if (!filterTarget.routeToStatus || !columnFilter.filterOpen) return
+    openStatusFilter?.(true)
+    // Consume the bridge request so the multi-filter never sees the delegated id.
+    columnFilter.setFilterOpen(false)
+    columnFilter.setFilterColumnId(undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterTarget.routeToStatus, columnFilter.filterOpen])
   const wiredToolbar: ContentToolbarProps<TData> = toolbarProps.filter
     ? {
         ...toolbarProps,
         filter: {
           ...toolbarProps.filter,
-          property: columnFilter.filterColumnId,
+          property: filterTarget.property,
           onPropertyChange: columnFilter.setFilterColumnId,
-          open: columnFilter.filterOpen,
+          // Keep the multi-filter closed while a statusFilter request is in flight.
+          open: filterTarget.routeToStatus ? false : columnFilter.filterOpen,
           onOpenChange: columnFilter.setFilterOpen,
         },
       }

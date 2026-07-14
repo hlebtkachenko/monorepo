@@ -1,8 +1,25 @@
 "use client"
 
 import * as React from "react"
-import { PdfViewer } from "@workspace/ui/components/pdf-viewer"
+import dynamic from "next/dynamic"
 import { Button } from "@workspace/ui/components/button"
+
+// react-pdf (pdf.js) evaluates browser-only globals (DOMMatrix) at module load,
+// so it must never be imported into the server/SSR pass. Load it client-only.
+const PdfViewer = dynamic(
+  () =>
+    import("@workspace/ui/components/pdf-viewer").then((m) => ({
+      default: m.PdfViewer,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center p-6 text-sm text-muted-foreground">
+        Loading PDF viewer…
+      </div>
+    ),
+  },
+)
 
 import {
   DocumentClientError,

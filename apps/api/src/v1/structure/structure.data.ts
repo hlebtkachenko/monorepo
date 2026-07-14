@@ -2149,6 +2149,38 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "archetype": null,
           "purpose": null,
           "subpages": []
+        },
+        {
+          "group": "Debug",
+          "label": "Debug",
+          "route": "settings/debug",
+          "icon": "Bug",
+          "tba": false,
+          "archetype": null,
+          "purpose": null,
+          "subpages": [
+            {
+              "label": "Archetype Blank",
+              "route": "settings/debug/archetype-blank",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Details",
+              "route": "settings/debug/archetype-details",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Section Details Form",
+              "route": "settings/debug/section-form",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            }
+          ]
         }
       ]
     }

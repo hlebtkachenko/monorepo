@@ -328,9 +328,13 @@ export interface DocumentListRow {
   base_total: string
   vat_total: string
   counterparty_name: string | null
+  /** true once the document is booked (a posting references its summary_record). */
+  is_posted: boolean
+  /** A posting id to drill into (one per event; the earliest), or null if unposted. */
+  posting_id: string | null
 }
 
-/** Captured documents (summary records) with per-document totals. */
+/** Captured documents (summary records) with per-document totals + posting status. */
 export async function fetchDocuments(
   ctx: OrgAccountingContext,
 ): Promise<DocumentListRow[]> {
@@ -338,20 +342,32 @@ export async function fetchDocuments(
   return withOrganization(ctx.organizationId, ctx.userId, (db) =>
     executeRows<DocumentListRow>(
       db,
+      // `pg` (a posting-per-summary_record aggregate) is joined ONCE so its
+      // count/id don't multiply the per-partial sums above. is_posted lets a list
+      // show which captured documents are booked; posting_id is a drill target.
       sql`select sr.id,
                  sr.designation,
                  sr.type::text as type,
                  sr.issued_at::date::text as issued_at,
                  coalesce(sum(pr.base_in_accounting_currency), 0)::text as base_total,
                  coalesce(sum(pr.vat_in_accounting_currency), 0)::text as vat_total,
-                 max(cp.name) as counterparty_name
+                 max(cp.name) as counterparty_name,
+                 (pg.posting_id is not null) as is_posted,
+                 pg.posting_id::text as posting_id
           from summary_record sr
           left join individual_record ir on ir.summary_record_id = sr.id
           left join partial_record pr on pr.individual_record_id = ir.id
           left join accounting_event ae on ae.id = ir.accounting_event_id
           left join counterparty cp on cp.id = ae.counterparty_id
+          left join lateral (
+            select p.id as posting_id
+              from posting p
+             where p.summary_record_id = sr.id
+             order by p.posted_at, p.id
+             limit 1
+          ) pg on true
           where sr.period_id = ${ctx.periodId}
-          group by sr.id, sr.designation, sr.type, sr.issued_at
+          group by sr.id, sr.designation, sr.type, sr.issued_at, pg.posting_id
           order by sr.issued_at desc, sr.designation desc`,
     ),
   )

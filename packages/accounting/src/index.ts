@@ -62,6 +62,7 @@ export {
   expandPartialRecord,
   expandScenarioEntries,
   postFromPredkontace,
+  bookDocument,
   type AmountBasis,
   type PredkontaceEntry,
   type PredkontaceScenario,
@@ -69,6 +70,8 @@ export {
   type PartialAmounts,
   type PostFromPredkontaceInput,
   type ScenarioLine,
+  type BookDocumentInput,
+  type BookedDocument,
 } from "./predkontace/index"
 
 // FX engine
@@ -190,12 +193,14 @@ export {
 // Invariants (R5 / R6 / R11 + drift)
 export {
   unpostedCases,
+  unlinkedInvoiceLines,
   reconcileAnalytics,
   reconcileReadModel,
   findUnbalancedPostings,
   traceAccount,
   traceEvent,
   type UnpostedCase,
+  type UnlinkedInvoiceLine,
   type AnalyticalReconcile,
   type ReadModelDrift,
   type UnbalancedPosting,

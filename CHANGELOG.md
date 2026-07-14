@@ -8,6 +8,9 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Accounting: fetchDocuments now returns posting status (is_posted / posting_id); new unlinkedInvoiceLines invariant flags any non-generated invoice ledger line missing its partial_record link.
+- Brain: classify_accounting_event echoes supplyKind and the intake harness threads it onto the capture partial, so a derived invoice books to the correct cost/revenue account with no human friction (still held for review).
+- Accounting: deterministic whole-document booking (bookDocument) runs in the capture-approve transaction, so approving a captured invoice lands one fully-wired posting per event with every ledger line linked to its source partial_record (§6/2), replacing the orphaned capture + preview-vs-apply drift.
 - Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
 - Notify signed-in web and admin users when a newer deployment is available, with a user-confirmed reload action that stays dismissed until the next deployment.
 - Conductor: full per-workspace isolation (own $CONDUCTOR_PORT range + own seeded Postgres database per workspace, demo login owner@example.com), committed setup/archive scripts replacing untracked local config, and cloud-safe (Docker-gated) setup
@@ -53,6 +56,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
 - PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
 - Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load

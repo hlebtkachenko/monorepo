@@ -625,7 +625,14 @@ export class AccountingController {
   @ApiOkResponse({ type: ClassifyEventResponseDto })
   classify(@Body() body: ClassifyEventRequestDto): ClassifyEventResponse {
     try {
-      return classifyEvent(body as unknown as EconomicEvent)
+      // Echo the request's supplyKind so the harness can thread it onto the
+      // capture partial — the deterministic booker (bookDocument) needs it to
+      // pick the cost/revenue account. classifyEvent consumes supplyKind; it
+      // does not return it, so echo it here.
+      return {
+        ...classifyEvent(body as unknown as EconomicEvent),
+        supplyKind: body.supplyKind,
+      }
     } catch (e) {
       // classifyEvent throws `accounting: …` on a boundary-invalid fact (e.g. an
       // implausible vat_rate); route it through the same 4xx seam as the writes.

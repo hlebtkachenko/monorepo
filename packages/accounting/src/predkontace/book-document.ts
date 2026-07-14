@@ -200,6 +200,16 @@ export async function bookDocument(
         `accounting: partial_record ${p.partial_record_id} is a durable ASSET — capitalisation (042 vs direct expense) depends on durable/threshold facts not persisted on the partial; book it via the asset-lifecycle path`,
       )
     }
+    if (p.supply_kind === "ADVANCE") {
+      // §37a záloha s daní: the advance carries VAT that is later cleared against
+      // the final invoice (314/324 + 343 with a settlement) — NOT the plain
+      // GOODS/SERVICES scenario classifyEvent would route it through. That
+      // treatment is not modeled here, so fail closed rather than post a
+      // plausible-but-wrong advance entry.
+      throw new Error(
+        `accounting: partial_record ${p.partial_record_id} is an ADVANCE (§37a záloha) — the advance-VAT settlement treatment is not modeled by bookDocument; book it via the advances path`,
+      )
+    }
 
     const isCreditNote = p.supply_kind === "CREDIT_NOTE" || Number(p.net) < 0
 

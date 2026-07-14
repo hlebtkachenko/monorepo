@@ -282,14 +282,14 @@ describe("bookDocument — derive vertical", () => {
     })
   })
 
-  it("fails closed on a null supply_kind, an ASSET, and a non-zero §37 rounding", async () => {
+  it("fails closed on null supply_kind, ASSET, ADVANCE, and a non-zero §37 rounding", async () => {
     const s = await seedDoubleEntryOrg(orgB, workspaceId, userId, {
       periodStart: "2030-01-01",
       periodEnd: "2030-12-31",
     })
     await withOrganization(orgB, userId, async (db) => {
       const mkDoc = async (
-        supplyKind: "GOODS" | "ASSET" | null,
+        supplyKind: "GOODS" | "ASSET" | "ADVANCE" | null,
         roundingAmount: string,
       ): Promise<string> => {
         const ev = await createEvent(db, s.ctx, {
@@ -342,6 +342,14 @@ describe("bookDocument — derive vertical", () => {
         }),
       ).rejects.toThrow(/ASSET/)
 
+      const advance = await mkDoc("ADVANCE", "0")
+      await expect(
+        bookDocument(db, s.ctx, {
+          summaryRecordId: advance,
+          responsibleUserId: userId,
+        }),
+      ).rejects.toThrow(/ADVANCE/)
+
       const rounded = await mkDoc("GOODS", "0.40")
       await expect(
         bookDocument(db, s.ctx, {
@@ -349,6 +357,110 @@ describe("bookDocument — derive vertical", () => {
           responsibleUserId: userId,
         }),
       ).rejects.toThrow(/rounding/)
+    })
+  })
+
+  it("books a NON-STANDARD credit note (PDP) as a signed storno on the normal scenario", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2031-01-01",
+      periodEnd: "2031-12-31",
+    })
+    const summaryRecordId = await withOrganization(orgA, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "Dobropis k PDP službě",
+        occurredAt: "2031-04-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2031-04-01",
+        receivedDate: "2031-04-01",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                // reverse-charge dobropis captured NEGATIVE — no CREDIT-NOTE-STD
+                // scenario (mode != STANDARD), so it books the normal P-PDP with
+                // signed (negative) amounts = storno on the original sides.
+                baseAmount: "-1000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "REVERSE_CHARGE",
+                supplyKind: "SERVICES",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      const booked = await bookDocument(db, s.ctx, {
+        summaryRecordId: doc.summaryRecordId,
+        responsibleUserId: userId,
+      })
+      expect(booked.postings).toHaveLength(1)
+      expect(booked.postings[0]!.lineIds).toHaveLength(4) // 518 / 321 / 343↔343
+      return doc.summaryRecordId
+    })
+    await withOrganization(orgA, userId, async (db) => {
+      // signed storno: 518 debit turnover is NEGATIVE; 343 self-assessed nets to 0
+      const b518 = await balance(db, s.periodId, s.accounts["518"]!)
+      const b343 = await balance(db, s.periodId, s.accounts["343"]!)
+      expect(b518!.td).toBe("-1000.0000")
+      expect(b343!.td).toBe("-210.0000")
+      expect(b343!.tc).toBe("-210.0000")
+      expect(await nullPartialLines(db, summaryRecordId)).toBe(0)
+      expect(await reconcileReadModel(db, s.periodId)).toEqual([])
+    })
+  })
+
+  it("fails closed when the derived vat_mode disagrees with the stored one (inconsistent capture)", async () => {
+    const s = await seedDoubleEntryOrg(orgB, workspaceId, userId, {
+      periodStart: "2032-01-01",
+      periodEnd: "2032-12-31",
+    })
+    await withOrganization(orgB, userId, async (db) => {
+      const ev = await createEvent(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.eventSeriesId,
+        description: "nekonzistentní zachycení",
+        occurredAt: "2032-02-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: s.periodId,
+        seriesId: s.documentSeriesId,
+        type: "RECEIVED_INVOICE",
+        issuedAt: "2032-02-01",
+        receivedDate: "2032-02-01",
+        lines: [
+          {
+            eventId: ev.eventId,
+            partials: [
+              {
+                // stored REVERSE_CHARGE but jurisdiction DOMESTIC → classifyEvent
+                // derives STANDARD → the mode-consistency guard must throw.
+                baseAmount: "1000.00",
+                vatRate: "21",
+                vatMode: "REVERSE_CHARGE",
+                vatJurisdiction: "DOMESTIC",
+                supplyKind: "SERVICES",
+                currencyCode: "CZK",
+              },
+            ],
+          },
+        ],
+      })
+      await expect(
+        bookDocument(db, s.ctx, {
+          summaryRecordId: doc.summaryRecordId,
+          responsibleUserId: userId,
+        }),
+      ).rejects.toThrow(/vat_mode/)
     })
   })
 })

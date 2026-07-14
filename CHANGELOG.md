@@ -56,6 +56,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Auth: dev session cookies are namespaced per Conductor workspace (advanced.cookiePrefix keyed on $CONDUCTOR_PORT), so parallel workspace dev servers on localhost no longer clobber each other's session and silently sign you out; production cookie name is unchanged.
 - Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
 - Conductor Web Run now starts Postgres, repairs a missing or unseeded workspace database, and applies any pending migrations before launching Next.js.
 - PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG

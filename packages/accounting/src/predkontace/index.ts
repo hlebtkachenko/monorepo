@@ -23,3 +23,8 @@ export {
   type PostFromPredkontaceInput,
   type ScenarioLine,
 } from "./expand"
+export {
+  bookDocument,
+  type BookDocumentInput,
+  type BookedDocument,
+} from "./book-document"

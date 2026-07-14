@@ -15,6 +15,7 @@ import {
 } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 import {
+  bookDocument,
   captureDocument,
   createEvent,
   post,
@@ -49,6 +50,16 @@ export type ResolveHeldWriteInput = z.infer<typeof ResolveSchema>
 export interface ResolveHeldWriteResult {
   ok: boolean
   error?: string
+  /**
+   * On a successful approve, the ids of what actually LANDED in the domain — so
+   * the UI can link the reviewer to the booked invoice / journal entry instead of
+   * the row silently vanishing on revalidate. Absent on reject / failure.
+   */
+  landed?: {
+    summaryRecordId?: string
+    postingIds?: string[]
+    eventId?: string
+  }
 }
 
 interface HeldLogRow {
@@ -126,12 +137,20 @@ export async function resolveHeldWrite(
       async (db): Promise<ResolveHeldWriteResult> => {
         const rows = await executeRows<HeldLogRow>(
           db,
+          // FOR UPDATE serializes concurrent resolves of the SAME held row: a
+          // second approve (double-click / two tabs / two reviewers) blocks here
+          // until the first commits, then reads approved_by_user_id set and bails
+          // at the guard below. Without the lock both pass the stale-read guard,
+          // each captureDocument mints a DISTINCT summary_record, and bookDocument
+          // (idempotent only PER summary_record) books BOTH → a duplicate ledger
+          // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
                      (output_json->'serverGate'->>'templateId') as template_id,
                      (output_json->'serverGate') as server_gate
               from tool_call_log
-              where id = ${id}::uuid`,
+              where id = ${id}::uuid
+              for update`,
         )
         const row = rows[0]
         if (!row) {
@@ -217,21 +236,36 @@ export async function resolveHeldWrite(
             break
           }
           case "captureAccountingDocument": {
-            await lockPeriodInTx(
-              db,
-              orgCtx.organizationId,
-              (fields as { periodId: string }).periodId,
-            )
-            const doc = await captureDocument(
-              db,
-              orgCtx,
-              fields as unknown as DocumentInput,
-            )
+            const docInput = fields as unknown as DocumentInput
+            await lockPeriodInTx(db, orgCtx.organizationId, docInput.periodId)
+            const doc = await captureDocument(db, orgCtx, docInput)
             applied = {
               summaryRecordId: doc.summaryRecordId,
               designation: doc.designation,
               sequenceNumber: doc.sequenceNumber,
               lines: doc.lines,
+            }
+            // Derive mode: a captured INVOICE is booked deterministically in the
+            // SAME tx, so "approve a captured invoice" lands ONE fully-wired
+            // accounting fact (event + doc + posting per event, every line linked
+            // to its source partial_record) instead of an orphaned capture. The
+            // předkontace is derived from each partial's facts — no caller-supplied
+            // account lines — so what the reviewer previewed IS what posts.
+            // bookDocument fails closed (throws → the whole approve rolls back, the
+            // row stays held with the reason) on any fact it cannot book safely.
+            // Non-invoice vouchers (cash/bank) do not book through předkontace.
+            if (
+              docInput.type === "RECEIVED_INVOICE" ||
+              docInput.type === "ISSUED_INVOICE"
+            ) {
+              const booked = await bookDocument(db, orgCtx, {
+                summaryRecordId: doc.summaryRecordId,
+                responsibleUserId: ctx.userId,
+              })
+              applied = {
+                ...applied,
+                postingIds: booked.postings.map((p) => p.postingId),
+              }
             }
             break
           }
@@ -279,7 +313,20 @@ export async function resolveHeldWrite(
           },
           approvedByUserId: ctx.userId,
         })
-        return { ok: true }
+        // Surface what landed so the UI can link to the booked invoice / journal
+        // (a posting held-write returns a single `postingId`; a captured invoice
+        // booked via bookDocument returns `postingIds`, one per event).
+        const postingIds =
+          (applied["postingIds"] as string[] | undefined) ??
+          (applied["postingId"] ? [applied["postingId"] as string] : undefined)
+        return {
+          ok: true,
+          landed: {
+            summaryRecordId: applied["summaryRecordId"] as string | undefined,
+            postingIds,
+            eventId: applied["eventId"] as string | undefined,
+          },
+        }
       },
     )
   } catch (err) {

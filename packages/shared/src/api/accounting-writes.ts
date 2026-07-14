@@ -188,6 +188,13 @@ export const ClassifyEventResponseSchema = z
       description: "VAT mode to stamp on the partial record.",
       example: "STANDARD",
     }),
+    supplyKind: SUPPLY_KIND.optional().openapi({
+      description:
+        "The supply nature (echoed from the request) to stamp on the capture " +
+        "partial — the deterministic booker reads it to pick the cost/revenue " +
+        "account (504 goods / 518 services / …). Optional for backward compat.",
+      example: "SERVICES",
+    }),
     vatJurisdiction: VAT_JURISDICTION.openapi({
       description:
         "vat_jurisdiction to stamp on the capture partial — splits an EU supply " +

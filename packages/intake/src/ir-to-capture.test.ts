@@ -496,6 +496,29 @@ describe("applyClassifyToCapture — harness-deterministic, NARROW-ONLY treatmen
     expect(rateless!.vatMode).toBe("OUTSIDE_VAT") // adapter held → never widened
   })
 
+  it("stamps supplyKind onto EVERY partial (incl. a held non-STANDARD row) — the booker needs it", () => {
+    // supplyKind is a benign classification fact (not a regime), so it rides onto
+    // every partial regardless of vatMode — including an adapter-held OUTSIDE_VAT
+    // row that books through human review later (bookDocument reads it to pick the
+    // cost account). It never widens a held row into an auto-appliable STANDARD one.
+    const withKind: ClassifyThreading = {
+      ...reverseCharge,
+      supplyKind: "SERVICES",
+    }
+    const invReq = applyClassifyToCapture(
+      invoiceToCapture(invoice(), ctx),
+      withKind,
+    )
+    expect(invReq.lines[0]!.partials[0]!.supplyKind).toBe("SERVICES")
+    const cashReq = applyClassifyToCapture(
+      cashDocumentToCapture(cashDocument(), ctx),
+      withKind,
+    )
+    const held = cashReq.lines[0]!.partials[0]!
+    expect(held.vatMode).toBe("OUTSIDE_VAT") // still held (never widened)
+    expect(held.supplyKind).toBe("SERVICES") // but supplyKind stamped
+  })
+
   it("derives the rationale from classify reasoning (additive — operator rationale preserved, audit-only)", () => {
     const req = invoiceToCapture(invoice(), ctx)
     const merged = applyClassifyToCapture(req, reverseCharge)

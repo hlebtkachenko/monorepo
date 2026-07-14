@@ -55,6 +55,45 @@ export function unpostedCases(
   )
 }
 
+export interface UnlinkedInvoiceLine {
+  posting_id: string
+  line_id: string
+  summary_record_id: string
+  summary_designation: string
+}
+
+/**
+ * Partial-link completeness (the derive-vertical invariant). Every double-entry
+ * line of a NON-GENERATED invoice posting must carry its source partial_record_id
+ * (§6/2 line → dílčí link) — this is what `bookDocument` stamps and what the old
+ * hand-built posting path left NULL. Generated postings legitimately post lines
+ * with a null partial_record_id (opening 701, depreciation, inventory difference,
+ * correction/storno — all keyed by their own header column), so they are excluded
+ * by the scope predicate. Empty = every invoice-derived line is linked to its
+ * partial; a non-empty result is a wiring regression the CI drift job flags.
+ */
+export function unlinkedInvoiceLines(
+  db: RowExecutor,
+  periodId: string,
+): Promise<UnlinkedInvoiceLine[]> {
+  return rows<UnlinkedInvoiceLine>(
+    db,
+    sql`SELECT p.id AS posting_id, l.id AS line_id,
+               s.id AS summary_record_id, s.designation AS summary_designation
+          FROM posting_double_entry_line l
+          JOIN posting        p ON l.posting_id = p.id
+          JOIN summary_record s ON p.summary_record_id = s.id
+         WHERE p.period_id = ${periodId}::uuid
+           AND s.type IN ('RECEIVED_INVOICE', 'ISSUED_INVOICE')
+           AND p.corrects_posting_id  IS NULL
+           AND p.depreciation_plan_id IS NULL
+           AND p.inventory_count_id   IS NULL
+           AND p.is_opening = false
+           AND l.partial_record_id IS NULL
+         ORDER BY p.id, l.id`,
+  )
+}
+
 export interface AnalyticalReconcile {
   synthetic_code: string
   analytical_sum: Decimal

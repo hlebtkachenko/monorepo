@@ -3340,6 +3340,12 @@ export interface components {
              */
             vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
             /**
+             * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+             * @example SERVICES
+             * @enum {string}
+             */
+            supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+            /**
              * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
              * @example EU
              * @enum {string}
@@ -5279,6 +5285,12 @@ export interface components {
                  */
                 vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
                 /**
+                 * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+                 * @example SERVICES
+                 * @enum {string}
+                 */
+                supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                /**
                  * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
                  * @example EU
                  * @enum {string}
@@ -5408,6 +5420,12 @@ export interface components {
                      * @enum {string}
                      */
                     vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
                     /**
                      * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
                      * @example EU
@@ -5540,6 +5558,12 @@ export interface components {
                      */
                     vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
                     /**
+                     * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                    /**
                      * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
                      * @example EU
                      * @enum {string}
@@ -5663,6 +5687,12 @@ export interface components {
                  */
                 vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
                 /**
+                 * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+                 * @example SERVICES
+                 * @enum {string}
+                 */
+                supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
+                /**
                  * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
                  * @example EU
                  * @enum {string}
@@ -5777,6 +5807,12 @@ export interface components {
                      * @enum {string}
                      */
                     vatMode: "STANDARD" | "REVERSE_CHARGE" | "EXEMPT" | "OUTSIDE_VAT" | "IMPORT";
+                    /**
+                     * @description The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.
+                     * @example SERVICES
+                     * @enum {string}
+                     */
+                    supplyKind?: "GOODS" | "MATERIAL" | "SERVICES" | "UTILITY" | "RENT" | "INSURANCE" | "ASSET" | "ADVANCE" | "CREDIT_NOTE" | "OTHER";
                     /**
                      * @description vat_jurisdiction to stamp on the capture partial — splits an EU supply (ř.20/21 + Souhrnné hlášení) from a domestic §92 PDP (ř.25 + KH A.1).
                      * @example EU

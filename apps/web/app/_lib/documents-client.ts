@@ -39,6 +39,28 @@ async function sha256Hex(blob: Blob): Promise<string> {
     .join("")
 }
 
+// Browsers report an empty `File.type` for several of our supported types
+// (notably .csv / .xml / .isdoc). Fall back to the extension so the presigned
+// POST policy Content-Type condition can be satisfied. The server still
+// validates the S3-authoritative content-type at confirm — this only fixes the
+// browser-side blank.
+const EXTENSION_CONTENT_TYPE: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  csv: "text/csv",
+  xml: "application/xml",
+  isdoc: "text/isdoc",
+}
+
+function resolveContentType(file: File): string {
+  if (file.type) return file.type
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? ""
+  return EXTENSION_CONTENT_TYPE[ext] ?? ""
+}
+
 async function readError(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { error?: string }
@@ -55,6 +77,7 @@ async function readError(res: Response): Promise<string> {
  */
 export async function uploadDocument(file: File): Promise<UploadedDocument> {
   const sha256 = await sha256Hex(file)
+  const contentType = resolveContentType(file)
 
   const presignRes = await fetch("/api/documents/presign-upload", {
     method: "POST",
@@ -62,7 +85,7 @@ export async function uploadDocument(file: File): Promise<UploadedDocument> {
     body: JSON.stringify({
       sha256,
       filename: file.name,
-      contentType: file.type,
+      contentType,
       size: file.size,
     }),
   })
@@ -82,11 +105,17 @@ export async function uploadDocument(file: File): Promise<UploadedDocument> {
   }
 
   // Direct-to-S3 POST. Every policy field first, the file LAST (S3 requires it).
+  // When the browser gave no MIME, re-wrap the bytes with the resolved type so
+  // the part's Content-Type matches the presigned policy's eq condition.
+  const uploadPart =
+    contentType && contentType !== file.type
+      ? new Blob([file], { type: contentType })
+      : file
   const form = new FormData()
   for (const [name, value] of Object.entries(presign.fields)) {
     form.append(name, value)
   }
-  form.append("file", file)
+  form.append("file", uploadPart, file.name)
   const s3Res = await fetch(presign.url, { method: "POST", body: form })
   if (!s3Res.ok) {
     throw new DocumentClientError(

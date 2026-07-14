@@ -107,6 +107,25 @@ describe("uploadDocument", () => {
       status: 400,
     })
   })
+
+  it("infers content-type from the extension when the browser gives none (.isdoc)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        json({ url: "https://s3", key: "documents/ws/x.isdoc", fields: {} }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(json({ id: "att-2", key: "documents/ws/x.isdoc" }))
+    const noType = new File(
+      [Buffer.from("<?xml version='1.0'?>")],
+      "faktura.isdoc",
+      {
+        type: "",
+      },
+    )
+    await uploadDocument(noType)
+    const presignBody = JSON.parse(fetchMock.mock.calls[0]![1]!.body as string)
+    expect(presignBody.contentType).toBe("text/isdoc")
+  })
 })
 
 describe("getDocumentUrl / delete / restore", () => {

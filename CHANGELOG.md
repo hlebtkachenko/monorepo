@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- S3 document store (Stage 4b): public /v1 read/retrieve API twin — GET /v1/documents (list, workspace-scoped, includeDeleted filter) and GET /v1/documents/{id}/download-url (short-lived presigned URL, bytes fetched direct from S3, never proxied). Workspace derived from the API key, no tenant identifiers accepted; internal S3 key never exposed. OpenAPI/SDK/MCP regenerated (2 new MCP tools).
 - S3 document store (Stage 4): reusable UI-agnostic browser client (app/_lib/documents-client.ts — uploadDocument/getDocumentUrl/deleteDocument/restoreDocument, bytes direct to S3, sha256 computed in-browser) + a dev-only /workspace/debug-documents harness exercising upload→confirm→preview(PdfViewer/img)→download→soft-delete→undo end-to-end. Storage stays decoupled from any product surface.
 - S3 document store (Stage 3): authenticated web routes for document upload/confirm/preview/download/delete/undo (apps/web/app/api/documents/*) — workspace derived server-side, dedup via the inbox_attachment row not S3, confirm tags-then-writes-row (never DB-first), delete/undo asymmetric S3-tag↔DB ordering, and a fail-closed callerWorkspaceId backstop on presignGet
 - S3 document store: inbox_attachment table (migration 0057) — workspace-scoped durable identity of a confirmed upload, FORCE RLS with 4 command-specific policies, content-addressed dedup UNIQUE(workspace_id, sha256), composite-FK target, sha256/size CHECKs

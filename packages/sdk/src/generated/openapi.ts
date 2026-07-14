@@ -578,6 +578,46 @@ export interface paths {
         patch: operations["updateAccount"];
         trace?: never;
     };
+    "/v1/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List documents
+         * @description Returns the caller's workspace documents (confirmed source-document blobs in the S3 document store). WORKSPACE-scoped (FORCE RLS). By default soft-deleted documents are excluded; pass `includeDeleted=true` to include those still inside the 60-day redemption window. The workspace comes from the API key; no tenant identifiers are accepted.
+         */
+        get: operations["listDocuments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/documents/{id}/download-url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a document download URL
+         * @description Mints a short-lived presigned S3 URL for a document's bytes (attachment disposition). The caller fetches the bytes DIRECT from S3 — they never pass through the API. Returns 404 when the document is not visible to the caller's workspace or has been soft-deleted.
+         */
+        get: operations["getDocumentDownloadUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ocr-templates": {
         parameters: {
             query?: never;
@@ -4997,6 +5037,121 @@ export interface components {
              */
             tracksOpenItems?: boolean;
         };
+        /** @description A confirmed source-document in the workspace's document store (workspace-scoped, FORCE RLS). */
+        Document: {
+            /**
+             * Format: uuid
+             * @description Document (attachment) id.
+             * @example 0196f1de-0000-7000-8000-0000000000d1
+             */
+            id: string;
+            /**
+             * @description Original filename supplied at upload.
+             * @example faktura-2025-014.pdf
+             */
+            filename: string;
+            /**
+             * @description S3-authoritative content type recorded at confirm.
+             * @example application/pdf
+             */
+            contentType: string;
+            /**
+             * @description Size in bytes (S3-authoritative).
+             * @example 84213
+             */
+            size: number;
+            /**
+             * @description Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.
+             * @example e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+             */
+            sha256: string;
+            /**
+             * @description When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.
+             * @example null
+             */
+            deletedAt: string | null;
+            /**
+             * @description When the upload was confirmed (the row exists only after).
+             * @example 2026-07-14T10:15:00.000Z
+             */
+            confirmedAt: string;
+            /**
+             * @description Row creation timestamp.
+             * @example 2026-07-14T10:15:00.000Z
+             */
+            createdAt: string;
+            /**
+             * @description Row last-update timestamp.
+             * @example 2026-07-14T10:15:00.000Z
+             */
+            updatedAt: string;
+        };
+        /** @description The workspace's confirmed documents (workspace-scoped, FORCE RLS). */
+        ListDocumentsResponse: {
+            /** @description Documents in the caller's workspace. */
+            documents: {
+                /**
+                 * Format: uuid
+                 * @description Document (attachment) id.
+                 * @example 0196f1de-0000-7000-8000-0000000000d1
+                 */
+                id: string;
+                /**
+                 * @description Original filename supplied at upload.
+                 * @example faktura-2025-014.pdf
+                 */
+                filename: string;
+                /**
+                 * @description S3-authoritative content type recorded at confirm.
+                 * @example application/pdf
+                 */
+                contentType: string;
+                /**
+                 * @description Size in bytes (S3-authoritative).
+                 * @example 84213
+                 */
+                size: number;
+                /**
+                 * @description Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.
+                 * @example e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+                 */
+                sha256: string;
+                /**
+                 * @description When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.
+                 * @example null
+                 */
+                deletedAt: string | null;
+                /**
+                 * @description When the upload was confirmed (the row exists only after).
+                 * @example 2026-07-14T10:15:00.000Z
+                 */
+                confirmedAt: string;
+                /**
+                 * @description Row creation timestamp.
+                 * @example 2026-07-14T10:15:00.000Z
+                 */
+                createdAt: string;
+                /**
+                 * @description Row last-update timestamp.
+                 * @example 2026-07-14T10:15:00.000Z
+                 */
+                updatedAt: string;
+            }[];
+        };
+        /** @description A short-lived presigned download URL for a document's bytes. */
+        DocumentDownloadUrlResponse: {
+            /**
+             * Format: uri
+             * @description Short-lived presigned S3 URL (attachment disposition). Fetch the bytes directly; the URL expires.
+             * @example https://bucket.s3.eu-central-1.amazonaws.com/documents/ws/doc.pdf?X-Amz-Signature=abc123
+             */
+            url: string;
+            /**
+             * @description Seconds until the presigned URL expires.
+             * @example 900
+             */
+            expiresInSeconds: number;
+        };
         /** @description A workspace-shared OCR extraction template. Workspace-scoped (FORCE RLS) — shared across every organization in the office. */
         OcrTemplate: {
             /**
@@ -7389,6 +7544,64 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GetAccountResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    listDocuments: {
+        parameters: {
+            query?: {
+                /** @description When 'true', include soft-deleted documents (still within the 60-day redemption window). Defaults to excluding them. */
+                includeDeleted?: "true" | "false";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The workspace's documents. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListDocumentsResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    getDocumentDownloadUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Document id, resolved within the API key's workspace. */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A short-lived presigned download URL. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DocumentDownloadUrlResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

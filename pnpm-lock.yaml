@@ -223,6 +223,9 @@ importers:
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@workspace/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@workspace/ui':
         specifier: workspace:*
         version: link:../../packages/ui

@@ -28,6 +28,7 @@
     "@workspace/notify": "workspace:*",
     "@workspace/org-provisioning": "workspace:*",
     "@workspace/shared": "workspace:*",
+    "@workspace/storage": "workspace:*",
     "@workspace/ui": "workspace:*",
     "express": "^5.2.1",
     "helmet": "^8.2.0",

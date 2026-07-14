@@ -7917,6 +7917,172 @@
         },
         "description": "Partial edit of an account. At least one editable field must be provided (the api rejects an empty body with 422)."
       },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Document (attachment) id.",
+            "example": "0196f1de-0000-7000-8000-0000000000d1"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename supplied at upload.",
+            "example": "faktura-2025-014.pdf"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "S3-authoritative content type recorded at confirm.",
+            "example": "application/pdf"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Size in bytes (S3-authoritative).",
+            "example": 84213
+          },
+          "sha256": {
+            "type": "string",
+            "description": "Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.",
+            "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "deletedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.",
+            "example": null
+          },
+          "confirmedAt": {
+            "type": "string",
+            "description": "When the upload was confirmed (the row exists only after).",
+            "example": "2026-07-14T10:15:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Row creation timestamp.",
+            "example": "2026-07-14T10:15:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Row last-update timestamp.",
+            "example": "2026-07-14T10:15:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "contentType",
+          "size",
+          "sha256",
+          "deletedAt",
+          "confirmedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A confirmed source-document in the workspace's document store (workspace-scoped, FORCE RLS)."
+      },
+      "ListDocumentsResponse": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Document (attachment) id.",
+                  "example": "0196f1de-0000-7000-8000-0000000000d1"
+                },
+                "filename": {
+                  "type": "string",
+                  "description": "Original filename supplied at upload.",
+                  "example": "faktura-2025-014.pdf"
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "S3-authoritative content type recorded at confirm.",
+                  "example": "application/pdf"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "Size in bytes (S3-authoritative).",
+                  "example": 84213
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.",
+                  "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                "deletedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.",
+                  "example": null
+                },
+                "confirmedAt": {
+                  "type": "string",
+                  "description": "When the upload was confirmed (the row exists only after).",
+                  "example": "2026-07-14T10:15:00.000Z"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "Row creation timestamp.",
+                  "example": "2026-07-14T10:15:00.000Z"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "description": "Row last-update timestamp.",
+                  "example": "2026-07-14T10:15:00.000Z"
+                }
+              },
+              "required": [
+                "id",
+                "filename",
+                "contentType",
+                "size",
+                "sha256",
+                "deletedAt",
+                "confirmedAt",
+                "createdAt",
+                "updatedAt"
+              ],
+              "description": "A confirmed source-document in the workspace's document store (workspace-scoped, FORCE RLS)."
+            },
+            "description": "Documents in the caller's workspace."
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "description": "The workspace's confirmed documents (workspace-scoped, FORCE RLS)."
+      },
+      "DocumentDownloadUrlResponse": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Short-lived presigned S3 URL (attachment disposition). Fetch the bytes directly; the URL expires.",
+            "example": "https://bucket.s3.eu-central-1.amazonaws.com/documents/ws/doc.pdf?X-Amz-Signature=abc123"
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "description": "Seconds until the presigned URL expires.",
+            "example": 900
+          }
+        },
+        "required": [
+          "url",
+          "expiresInSeconds"
+        ],
+        "description": "A short-lived presigned download URL for a document's bytes."
+      },
       "OcrTemplate": {
         "type": "object",
         "properties": {
@@ -12329,6 +12495,127 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetAccountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/documents": {
+      "get": {
+        "operationId": "listDocuments",
+        "summary": "List documents",
+        "description": "Returns the caller's workspace documents (confirmed source-document blobs in the S3 document store). WORKSPACE-scoped (FORCE RLS). By default soft-deleted documents are excluded; pass `includeDeleted=true` to include those still inside the 60-day redemption window. The workspace comes from the API key; no tenant identifiers are accepted.",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "When 'true', include soft-deleted documents (still within the 60-day redemption window). Defaults to excluding them.",
+              "example": "false"
+            },
+            "required": false,
+            "description": "When 'true', include soft-deleted documents (still within the 60-day redemption window). Defaults to excluding them.",
+            "name": "includeDeleted",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/documents/{id}/download-url": {
+      "get": {
+        "operationId": "getDocumentDownloadUrl",
+        "summary": "Get a document download URL",
+        "description": "Mints a short-lived presigned S3 URL for a document's bytes (attachment disposition). The caller fetches the bytes DIRECT from S3 — they never pass through the API. Returns 404 when the document is not visible to the caller's workspace or has been soft-deleted.",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Document id, resolved within the API key's workspace.",
+              "example": "0196f1de-0000-7000-8000-0000000000d1"
+            },
+            "required": true,
+            "description": "Document id, resolved within the API key's workspace.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived presigned download URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrlResponse"
                 }
               }
             }

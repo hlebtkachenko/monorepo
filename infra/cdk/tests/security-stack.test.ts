@@ -352,7 +352,7 @@ describe("SecurityStack account-wide guard (production env only)", () => {
   })
 })
 
-describe("SecurityStack document reaper (S3 document store P1b)", () => {
+describe("SecurityStack document reaper (ADR-0031)", () => {
   const { security } = buildTestApp()
   const template = Template.fromStack(security)
 
@@ -407,7 +407,7 @@ describe("SecurityStack document reaper (S3 document store P1b)", () => {
     })
   })
 
-  it("alarms when the reaper stops running (Invocations < 1, missing data breaches — S4)", () => {
+  it("alarms when the reaper stops running (Invocations < 1, missing data breaches)", () => {
     template.hasResourceProperties("AWS::CloudWatch::Alarm", {
       AlarmName: "monorepo-test-document-reaper-not-running",
       MetricName: "Invocations",
@@ -478,7 +478,7 @@ describe("SecurityStack document reaper (S3 document store P1b)", () => {
     // Within SecurityStack the reaper holds Delete on the documents bucket.
     expect(reaperActions.has("s3:DeleteObjectVersion")).toBe(true)
     // And the App stack's shared task role holds NO Delete on that bucket —
-    // proving the reaper is the SOLE delete principal (design A, PLAN §3).
+    // proving the reaper is the SOLE runtime delete principal (ADR-0031).
     const appTemplate = Template.fromStack(buildTestApp().appStack)
     const appDocDeletes = new Set<string>()
     for (const p of Object.values(

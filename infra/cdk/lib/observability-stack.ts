@@ -262,7 +262,7 @@ export class ObservabilityStack extends Stack {
     })
     s3BucketSize.addAlarmAction(snsAction)
 
-    // 3b) Documents bucket (S3 document store, P1a) — write-flood ALERT only.
+    // 3b) Documents bucket (ADR-0031) — write-flood ALERT only.
     // Deliberately does NOT carry the kill-switch, unlike the app bucket: a
     // legitimate bulk invoice onboarding can exceed the threshold, and hard-
     // stopping the whole ECS service over documents writes would be a multi-

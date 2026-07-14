@@ -16,8 +16,8 @@ import { S3DocumentStore } from "./document-store-s3"
 // hits real S3. It only asserts the SHAPE of the requests we send — it
 // proves nothing about S3's server-side enforcement of the POST policy
 // (content-length-range, key, checksum conditions), the x-amz-checksum-sha256
-// recompute-and-compare S3 does on upload, or SSE-KMS behavior. Real-S3
-// verification is the P1 staging gate.
+// recompute-and-compare S3 does on upload, or SSE-KMS behavior. PR #722 records
+// the real-S3 verification evidence for those boundaries.
 
 // createPresignedPost/getSignedUrl sign locally (no network call), but still
 // need resolvable static credentials — set env vars so the default provider

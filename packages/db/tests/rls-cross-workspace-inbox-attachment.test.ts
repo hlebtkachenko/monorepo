@@ -1,7 +1,7 @@
 /**
  * RLS cross-workspace leak harness (inbox_attachment, S3 document store #518).
  *
- * inbox_attachment is WORKSPACE-scoped (ADR-0029, PLAN §2): a received file
+ * inbox_attachment is WORKSPACE-scoped (ADR-0029 and ADR-0031): a received file
  * precedes org filing and the same blob can be re-filed between companies
  * without re-uploading, so isolation is on `app.workspace_id`. This verifies
  * the four command-specific policies (0057) plus the durable-identity

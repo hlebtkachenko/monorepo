@@ -19,7 +19,7 @@
  * (never DB-first — the reaper's untagged>24h branch depends on it), so
  * `confirmed_at` is NOT NULL. RLS / grants live in the migration, not this DSL.
  *
- * See ADR-0029 and .context/s3-document-store/PLAN.md §2, §7.
+ * See ADR-0029, ADR-0031, and docs/runbooks/DOCUMENT-STORE.md.
  */
 import {
   bigint,

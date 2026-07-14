@@ -15,16 +15,17 @@
 -- (inbox_attachment_id, workspace_id) and close the cross-workspace FK-bypass
 -- hole (a plain single-column FK check skips RLS).
 --
--- SAFETY CONTRACT (S3 reaper invariant, PLAN §3 / EXECUTE.md): a row here is
+-- SAFETY CONTRACT (S3 reaper invariant, ADR-0031 and the document-store
+-- runbook): a row here is
 -- created ONLY after confirm has done `tagConfirmed` and gotten S3 200 — never
 -- DB-first — so the reaper's "untagged > 24h → purge" branch can never reap a
 -- blob that already has a DB row. `confirmed_at` is therefore NOT NULL. Soft
 -- delete sets `deleted_at` (and the caller calls setDeletedTag); undo clears it
 -- (clearDeletedTag). The reaper purges the S3 bytes 60 days after `deleted-at`.
 --
--- See ADR-0029 "Brain learned state is workspace-scoped" and
--- .context/s3-document-store/PLAN.md §2, §7. Handwritten SQL (ADR-0009). One
--- whole-file transaction; runs through the safe runner path.
+-- See ADR-0029 "Brain learned state is workspace-scoped", ADR-0031, and
+-- docs/runbooks/DOCUMENT-STORE.md. Handwritten SQL (ADR-0009). One whole-file
+-- transaction; runs through the safe runner path.
 
 BEGIN;
 

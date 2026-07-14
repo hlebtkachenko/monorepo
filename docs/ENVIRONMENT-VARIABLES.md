@@ -164,18 +164,27 @@ role. CI reads the account id from a GitHub Actions secret only.
 
 ## Documents (packages/storage — `S3DocumentStore`)
 
-| Var                    | Required | Notes                                                                                                                                                                                                              |
-| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `DOCUMENTS_BUCKET`     | yes      | S3 bucket backing the `DocumentStore` (`packages/storage/src/document-store-s3.ts`). Content-addressed key convention `documents/{workspaceId}/{sha256}.{ext}`. `S3DocumentStore` throws at construction if unset. |
-| `DOCUMENTS_KMS_KEY_ID` | no       | Dedicated KMS CMK id/ARN. When set, `put`/`presignPost` enforce SSE-KMS (`ServerSideEncryption: "aws:kms"` on `put`; matching presigned-POST conditions). Unset = no CMK enforcement at this layer.                |
-| `S3_ENDPOINT`          | no       | S3-compatible endpoint override for local dev (minio). When set, forces `forcePathStyle: true` (minio does not support virtual-hosted-style addressing). Unset in staging/production (real S3 endpoint).           |
+| Var                              | Required | Notes                                                                                                                                                                                                                                        |
+| -------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DOCUMENTS_BUCKET`               | yes      | S3 bucket backing the `DocumentStore` (`packages/storage/src/document-store-s3.ts`). Content-addressed key convention `documents/{workspaceId}/{sha256}.{ext}`. `S3DocumentStore` throws at construction if unset.                           |
+| `DOCUMENTS_KMS_KEY_ID`           | no       | Dedicated KMS CMK id/ARN. Server-side `put` and same-key confirm/restore copies set SSE-KMS explicitly. Browser presigned POSTs intentionally omit KMS form fields and rely on the bucket's default CMK encryption. Unset locally for MinIO. |
+| `S3_ENDPOINT`                    | no       | S3-compatible endpoint override for local development. When set, forces path-style addressing. Unset in staging/production.                                                                                                                  |
+| `DOCUMENTS_S3_ACCESS_KEY_ID`     | no       | Static access id used only when `S3_ENDPOINT` is set. Preferred over the process-global AWS credential variable so MinIO credentials do not affect avatar storage or other AWS clients.                                                      |
+| `DOCUMENTS_S3_SECRET_ACCESS_KEY` | no       | Static credential paired with `DOCUMENTS_S3_ACCESS_KEY_ID`, used only for a custom endpoint. Production leaves both unset and uses the ECS task-role provider chain.                                                                         |
+
+Bucket purpose, lifecycle, deletion boundaries, and the pricing decision are in
+[ADR-0031](adr/0031-s3-storage-and-document-working-store.md). Implemented
+flows, limits, local setup, and troubleshooting are in the
+[document-store runbook](runbooks/DOCUMENT-STORE.md).
 
 Local dev: `infra/compose/docker-compose.dev.yml` runs a default (no-profile)
 `minio` service — `:9000` (S3 API), `:9001` (console) — plus a one-shot
 `minio-createbucket` service that seeds the `documents-dev` bucket. Point
 `S3_ENDPOINT=http://localhost:9000` and `DOCUMENTS_BUCKET=documents-dev` at it;
-dev credentials (`dev_minio` / `dev_minio_password`) resolve via the standard
-AWS env-var credential provider, same as production's task-role chain.
+the generated document-scoped credentials are pinned only on the custom-endpoint
+client. The bucket seeder enables versioning because confirm, restore, and
+reaper behavior require VersionIds. Production has no custom endpoint or static
+document credentials and resolves the ECS task role normally.
 
 ## Observability (apps/api, apps/web)
 

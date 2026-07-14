@@ -21,6 +21,7 @@ Choose the narrowest runbook matching the task.
 - [`CI-TURBO-REMOTE-CACHE.md`](CI-TURBO-REMOTE-CACHE.md)
 - [`DB-ACCESS.md`](DB-ACCESS.md)
 - [`DEPLOY.md`](DEPLOY.md)
+- [`DOCUMENT-STORE.md`](DOCUMENT-STORE.md)
 - [`ENV-POWER.md`](ENV-POWER.md)
 - [`ROLLBACK.md`](ROLLBACK.md)
 - [`STAGING.md`](STAGING.md)

@@ -2,7 +2,7 @@
 // tag-state model is unit-testable without S3. `index.mjs` imports this and
 // wraps it with S3 List/GetTagging/DeleteObjects I/O.
 //
-// Tag-state model (PLAN §3, design A — NO Object Lock). Storage owns the S3
+// Tag-state model (ADR-0031, no Object Lock). Storage owns the S3
 // object tags; the reaper reads tag VALUES only (never any DB) and purges by
 // age:
 //   - `orphan-at`   older than 1h  → purge (bad-magic-byte / rejected upload,
@@ -76,7 +76,7 @@ export function decideReap({ tags, lastModifiedMs, nowMs }) {
   }
 
   // Untagged: never-confirmed, client-abandoned upload. Purge 24 hours after
-  // creation (LastModified). SAFE ONLY IF the P3 confirm endpoint tags
+  // creation (LastModified). SAFE ONLY IF the confirm endpoint tags
   // `confirmed-at` on EVERY kept object at/with the DB write, so a live
   // document is never left untagged (see the invariant note in index.mjs).
   return nowMs - lastModifiedMs >= UNCONFIRMED_TTL_MS

@@ -1,11 +1,12 @@
-// Document reaper — the SOLE S3-delete principal for the documents bucket.
+// Document reaper — the SOLE runtime S3-delete principal for the documents bucket.
 //
-// Design A (PLAN §1, §3): the documents bucket is a WORKING store, not the
+// Per ADR-0031, the documents bucket is a WORKING store, not the
 // statutory archive of record, so there is NO Object Lock. Tamper/wipe
 // protection is IAM (the shared app/api/admin + Brain task role holds Get +
 // Put + tag but NEVER Delete) + versioning + this ONE dedicated reaper. This
-// Lambda's execution role is the only principal in the account that holds
-// s3:DeleteObject / s3:DeleteObjectVersion on the bucket.
+// Lambda's execution role is the only application runtime principal that holds
+// s3:DeleteObject / s3:DeleteObjectVersion on the bucket. The CDK auto-delete
+// custom resource is a non-production stack-teardown exception.
 //
 // An hourly EventBridge schedule invokes it. It reads S3 object tag VALUES
 // only (never any DB — that avoids coupling to the Inbox track) and purges by
@@ -25,7 +26,7 @@
 // toward keep. Confirm/undo create a new current same-key version, so whichever
 // operation wins the race leaves acknowledged bytes available.
 //
-// CROSS-TRACK INVARIANT (contract the P3 confirm endpoint MUST honor; NOT
+// CROSS-TRACK INVARIANT (contract the confirm endpoint MUST honor; NOT
 // enforced here): the "untagged > 24h → purge" branch is safe ONLY if confirm
 // promotes EVERY kept object into a new `confirmed-at` current version before
 // the DB write, so a live document is never left untagged and reaped as

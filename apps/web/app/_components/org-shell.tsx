@@ -7,6 +7,7 @@ import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
 import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
+import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import {
   MODULE_NAV,
@@ -37,10 +38,12 @@ import { SidebarModuleTitle } from "./sidebar-module-title"
 export function OrgShell({
   orgSlug,
   header,
+  deployment,
   children,
 }: {
   orgSlug: string
   header: React.ReactNode
+  deployment: DeploymentIdentity
   children: React.ReactNode
 }) {
   const pathname = usePathname() ?? undefined
@@ -65,6 +68,7 @@ export function OrgShell({
         }
         assistant={<AssistantPanel />}
         logoHref={`/${orgSlug}`}
+        deployment={deployment}
       >
         {children}
       </AppShell>

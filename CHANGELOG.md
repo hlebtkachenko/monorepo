@@ -9,6 +9,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Added
 
 - Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
+- Notify signed-in web and admin users when a newer deployment is available, with a user-confirmed reload action that stays dismissed until the next deployment.
 - Conductor: full per-workspace isolation (own $CONDUCTOR_PORT range + own seeded Postgres database per workspace, demo login owner@example.com), committed setup/archive scripts replacing untracked local config, and cloud-safe (Docker-gated) setup
 - Section Details Table — a data-driven content-panel section (Data Table on the right of a Details Form), with readonly (display + add editable rows) and editable (edit rows in place) modes; action buttons as data (add-row local state, link navigation).
 - UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)

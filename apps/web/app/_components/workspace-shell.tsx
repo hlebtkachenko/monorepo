@@ -8,6 +8,7 @@ import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import { activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppShell } from "@workspace/ui/blocks/app-shell"
 import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
+import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import {
   WORKSPACE_MODULE_NAV,
@@ -41,9 +42,11 @@ import { WorkspaceSidebar } from "./workspace-sidebar"
  */
 export function WorkspaceShell({
   header,
+  deployment,
   children,
 }: {
   header: React.ReactNode
+  deployment: DeploymentIdentity
   children: React.ReactNode
 }) {
   const pathname = usePathname() ?? undefined
@@ -84,6 +87,7 @@ export function WorkspaceShell({
           }
           assistant={<AssistantPanel />}
           logoHref="/workspace"
+          deployment={deployment}
         >
           {children}
         </AppShell>

@@ -13,7 +13,8 @@
     "./env": "./src/env.ts",
     "./test-support": "./src/test-support.ts",
     "./login-flow": "./src/login-flow.ts",
-    "./fresh-age": "./src/fresh-age.ts"
+    "./fresh-age": "./src/fresh-age.ts",
+    "./dev-cookie-prefix": "./src/dev-cookie-prefix.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

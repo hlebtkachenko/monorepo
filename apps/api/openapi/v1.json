@@ -4783,6 +4783,23 @@
             "description": "VAT mode to stamp on the partial record.",
             "example": "STANDARD"
           },
+          "supplyKind": {
+            "type": "string",
+            "enum": [
+              "GOODS",
+              "MATERIAL",
+              "SERVICES",
+              "UTILITY",
+              "RENT",
+              "INSURANCE",
+              "ASSET",
+              "ADVANCE",
+              "CREDIT_NOTE",
+              "OTHER"
+            ],
+            "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+            "example": "SERVICES"
+          },
           "vatJurisdiction": {
             "type": "string",
             "enum": [
@@ -8363,6 +8380,23 @@
                 "description": "VAT mode to stamp on the partial record.",
                 "example": "STANDARD"
               },
+              "supplyKind": {
+                "type": "string",
+                "enum": [
+                  "GOODS",
+                  "MATERIAL",
+                  "SERVICES",
+                  "UTILITY",
+                  "RENT",
+                  "INSURANCE",
+                  "ASSET",
+                  "ADVANCE",
+                  "CREDIT_NOTE",
+                  "OTHER"
+                ],
+                "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+                "example": "SERVICES"
+              },
               "vatJurisdiction": {
                 "type": "string",
                 "enum": [
@@ -8623,6 +8657,23 @@
                       ],
                       "description": "VAT mode to stamp on the partial record.",
                       "example": "STANDARD"
+                    },
+                    "supplyKind": {
+                      "type": "string",
+                      "enum": [
+                        "GOODS",
+                        "MATERIAL",
+                        "SERVICES",
+                        "UTILITY",
+                        "RENT",
+                        "INSURANCE",
+                        "ASSET",
+                        "ADVANCE",
+                        "CREDIT_NOTE",
+                        "OTHER"
+                      ],
+                      "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+                      "example": "SERVICES"
                     },
                     "vatJurisdiction": {
                       "type": "string",
@@ -8891,6 +8942,23 @@
                     "description": "VAT mode to stamp on the partial record.",
                     "example": "STANDARD"
                   },
+                  "supplyKind": {
+                    "type": "string",
+                    "enum": [
+                      "GOODS",
+                      "MATERIAL",
+                      "SERVICES",
+                      "UTILITY",
+                      "RENT",
+                      "INSURANCE",
+                      "ASSET",
+                      "ADVANCE",
+                      "CREDIT_NOTE",
+                      "OTHER"
+                    ],
+                    "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+                    "example": "SERVICES"
+                  },
                   "vatJurisdiction": {
                     "type": "string",
                     "enum": [
@@ -9146,6 +9214,23 @@
                 ],
                 "description": "VAT mode to stamp on the partial record.",
                 "example": "STANDARD"
+              },
+              "supplyKind": {
+                "type": "string",
+                "enum": [
+                  "GOODS",
+                  "MATERIAL",
+                  "SERVICES",
+                  "UTILITY",
+                  "RENT",
+                  "INSURANCE",
+                  "ASSET",
+                  "ADVANCE",
+                  "CREDIT_NOTE",
+                  "OTHER"
+                ],
+                "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+                "example": "SERVICES"
               },
               "vatJurisdiction": {
                 "type": "string",
@@ -9409,6 +9494,23 @@
                     ],
                     "description": "VAT mode to stamp on the partial record.",
                     "example": "STANDARD"
+                  },
+                  "supplyKind": {
+                    "type": "string",
+                    "enum": [
+                      "GOODS",
+                      "MATERIAL",
+                      "SERVICES",
+                      "UTILITY",
+                      "RENT",
+                      "INSURANCE",
+                      "ASSET",
+                      "ADVANCE",
+                      "CREDIT_NOTE",
+                      "OTHER"
+                    ],
+                    "description": "The supply nature (echoed from the request) to stamp on the capture partial — the deterministic booker reads it to pick the cost/revenue account (504 goods / 518 services / …). Optional for backward compat.",
+                    "example": "SERVICES"
                   },
                   "vatJurisdiction": {
                     "type": "string",

@@ -271,7 +271,7 @@ export function bankToCapture(
  */
 export type ClassifyThreading = Pick<
   ClassifyEventResponse,
-  "vatMode" | "vatJurisdiction" | "commodityCode" | "reasoning"
+  "vatMode" | "vatJurisdiction" | "commodityCode" | "reasoning" | "supplyKind"
 >
 
 /** Mirrors the RATIONALE cap in accounting-writes.ts (the capture `rationale` is `.max(2000)`). */
@@ -295,8 +295,9 @@ export function parseClassifyThreading(
   }
   const result = ClassifyEventResponseSchema.safeParse(body)
   if (!result.success) return undefined
-  const { vatMode, vatJurisdiction, commodityCode, reasoning } = result.data
-  return { vatMode, vatJurisdiction, commodityCode, reasoning }
+  const { vatMode, vatJurisdiction, commodityCode, reasoning, supplyKind } =
+    result.data
+  return { vatMode, vatJurisdiction, commodityCode, reasoning, supplyKind }
 }
 
 /**
@@ -314,10 +315,18 @@ function narrowMergePartial(
   partial: CapturePartial,
   t: ClassifyThreading,
 ): CapturePartial {
-  if (partial.vatMode !== "STANDARD") return partial
-  if (t.vatMode === "STANDARD") return partial
+  // supplyKind is the agent-decided supply nature (goods/services/…) — a benign
+  // classification fact the deterministic booker (bookDocument) needs to pick the
+  // cost/revenue account. It NEVER affects the veto / auto-apply decision (that
+  // keys on vatMode), so stamp it on EVERY partial — including one held at a
+  // non-STANDARD regime, which still books (through human review) later.
+  const withKind: CapturePartial = t.supplyKind
+    ? { ...partial, supplyKind: t.supplyKind }
+    : partial
+  if (withKind.vatMode !== "STANDARD") return withKind
+  if (t.vatMode === "STANDARD") return withKind
   return {
-    ...partial,
+    ...withKind,
     vatMode: t.vatMode,
     ...(t.vatJurisdiction ? { vatJurisdiction: t.vatJurisdiction } : {}),
     ...(t.commodityCode ? { commodityCode: t.commodityCode } : {}),

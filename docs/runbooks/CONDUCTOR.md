@@ -60,9 +60,12 @@ still enforces FORCE RLS).
      whole DB block is skipped**, so cloud stays usable for coding + typecheck + git.
 - **`scripts.archive` → `scripts/conductor/archive.sh`** (before archive): drops
   the workspace's `ws_p<port>` database so dead databases don't pile up.
-- **Run buttons** (`scripts.run.*`): `web` (default, `$CONDUCTOR_PORT`), `api`
-  (`+1`), `admin` (`+2`), `typecheck`, `test`, `codegraph`. All but `typecheck`
-  are `available_in = ["local"]` (they need Docker / the local DB).
+- **Run buttons** (`scripts.run.*`): `web` (`$CONDUCTOR_PORT`), `api` (`+1`),
+  `admin` (`+2`), `typecheck`, `test`, `codegraph`. Web calls
+  `scripts/conductor/run-web.sh`, which starts/waits for shared Postgres,
+  repairs a missing or unseeded workspace DB, and applies any pending migrations
+  before launching. All but `typecheck` are `available_in = ["local"]` (they
+  need Docker / the local DB).
 - **Action button prompts** (`[prompts]`): repo-wide instructions for
   Conductor's Review / Create PR / Fix errors / Resolve conflicts / Branch
   rename / general-chat actions. AGENTS.md stays the full source of truth.
@@ -118,9 +121,11 @@ reproducible goes in the committed file.
 
 ## Troubleshooting
 
-- **`web` fails / login rejected** — the workspace DB probably didn't build.
-  Re-run: `bash scripts/conductor/setup.sh` (idempotent). Confirm Docker is up
-  and `docker compose -f infra/compose/docker-compose.dev.yml ps` shows postgres
+- **`web` fails / login rejected** — Run now repairs a missing or unseeded
+  workspace DB and applies pending migrations automatically. If repair fails,
+  review its setup warnings and re-run `bash scripts/conductor/setup.sh`.
+  Confirm Docker is up and
+  `docker compose -f infra/compose/docker-compose.dev.yml ps` shows postgres
   healthy.
 - **Port already in use** — another workspace is on the same port; that shouldn't
   happen (each gets its own `$CONDUCTOR_PORT`). Check you didn't launch two dev

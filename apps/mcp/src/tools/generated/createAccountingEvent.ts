@@ -11,6 +11,7 @@ const inputShape = {
   "seriesId": z.string().uuid().describe("EVENT number series (see GET number-series)."),
   "partyId": z.string().uuid().nullable().describe("OUR side (counterparty row); null for internal.").optional(),
   "counterpartyId": z.string().uuid().nullable().describe("THEIR side (counterparty row).").optional(),
+  "counterparty": z.object({ "name": z.string().min(1).max(400).describe("Obchodní jméno / jméno osoby."), "ico": z.string().nullable().describe("IČO (up to 8 digits).").optional(), "dic": z.string().max(20).nullable().describe("DIČ / EU VAT id.").optional(), "countryCode": z.string().min(2).max(2).nullable().describe("ISO 3166-1 alpha-2.").optional() }).nullable().describe("THEIR side by IDENTITY — the server finds-or-creates the counterparty (dedup by IČO → DIČ → name). Used when counterpartyId is unknown; counterpartyId takes precedence.").optional(),
   "description": z.string().min(1).max(2000).describe("Case description."),
   "content": z.string().max(10000).nullable().describe("Optional detail.").optional(),
   "occurredAt": z.string().describe("Okamžik uskutečnění (§11/1e) — ISO date/datetime in the period."),

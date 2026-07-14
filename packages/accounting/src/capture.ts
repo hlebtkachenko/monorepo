@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm"
 import { one } from "./sql"
 import type { RowExecutor } from "./sql"
 import { allocateNumber } from "./number-series"
+import { resolveCounterparty } from "./counterparty"
 import type {
   CapturedDocument,
   CapturedEvent,
@@ -145,6 +146,13 @@ export async function createEvent(
     input.occurredAt,
     "EVENT",
   )
+  // Explicit id wins; else resolve the partner identity (find-or-create) so the
+  // derive booker can open the saldokonto obligation against the right counterparty.
+  const counterpartyId =
+    input.counterpartyId ??
+    (input.counterparty
+      ? await resolveCounterparty(db, ctx, input.counterparty)
+      : null)
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO accounting_event
@@ -152,7 +160,7 @@ export async function createEvent(
            party_id, counterparty_id, description, content, occurred_at, occurred_on, responsible_user_id)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
-           ${allocated.sequenceNumber}, ${allocated.designation}, ${input.partyId ?? null}, ${input.counterpartyId ?? null},
+           ${allocated.sequenceNumber}, ${allocated.designation}, ${input.partyId ?? null}, ${counterpartyId},
            ${input.description}, ${input.content ?? null}, ${occurredAt}, ${occurredOn}, ${input.responsibleUserId}::uuid)
         RETURNING id`,
   )

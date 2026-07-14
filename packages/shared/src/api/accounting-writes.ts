@@ -518,6 +518,38 @@ export const CreateAccountingEventRequestSchema = z
       .uuid()
       .nullish()
       .openapi({ description: "THEIR side (counterparty row)." }),
+    counterparty: z
+      .object({
+        name: z.string().min(1).max(400).openapi({
+          description: "Obchodní jméno / jméno osoby.",
+          example: "ACME s.r.o.",
+        }),
+        ico: z
+          .string()
+          .regex(/^\d{1,8}$/)
+          .nullish()
+          .openapi({
+            description: "IČO (up to 8 digits).",
+            example: "12345678",
+          }),
+        dic: z
+          .string()
+          .max(20)
+          .nullish()
+          .openapi({ description: "DIČ / EU VAT id.", example: "CZ12345678" }),
+        countryCode: z
+          .string()
+          .length(2)
+          .nullish()
+          .openapi({ description: "ISO 3166-1 alpha-2.", example: "CZ" }),
+      })
+      .nullish()
+      .openapi({
+        description:
+          "THEIR side by IDENTITY — the server finds-or-creates the counterparty " +
+          "(dedup by IČO → DIČ → name). Used when counterpartyId is unknown; " +
+          "counterpartyId takes precedence.",
+      }),
     description: z.string().min(1).max(2000).openapi({
       description: "Case description.",
       example: "FP — nájem kanceláře",

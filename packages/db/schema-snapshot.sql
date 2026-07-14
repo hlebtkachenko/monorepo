@@ -3331,6 +3331,13 @@ ALTER TABLE ONLY public.open_item
     ADD CONSTRAINT open_item_id_org_unique UNIQUE (id, organization_id);
 
 --
+-- Name: open_item open_item_origin_posting_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_item
+    ADD CONSTRAINT open_item_origin_posting_unique UNIQUE (origin_posting_id, organization_id);
+
+--
 -- Name: open_item open_item_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3865,6 +3872,18 @@ CREATE INDEX auth_verification_workspace_idx ON public.auth_verification USING b
 --
 
 CREATE UNIQUE INDEX booking_template_confirmed_signature_unique ON public.booking_template USING btree (workspace_id, counterparty_key, direction, supply_kind, jurisdiction) WHERE (human_confirmed_at IS NOT NULL);
+
+--
+-- Name: counterparty_workspace_ico_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX counterparty_workspace_ico_unique ON public.counterparty USING btree (workspace_id, ico) WHERE ((ico IS NOT NULL) AND (self_of_organization_id IS NULL));
+
+--
+-- Name: counterparty_workspace_tax_id_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX counterparty_workspace_tax_id_unique ON public.counterparty USING btree (workspace_id, tax_id) WHERE ((tax_id IS NOT NULL) AND (self_of_organization_id IS NULL));
 
 --
 -- Name: depreciation_plan_asset_idx; Type: INDEX; Schema: public; Owner: -

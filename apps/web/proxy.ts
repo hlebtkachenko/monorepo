@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { getSessionCookie } from "better-auth/cookies"
+import { devCookiePrefix } from "@workspace/auth/dev-cookie-prefix"
 
 import { publicOrigin } from "./lib/request-origin"
 import { safeNext } from "./lib/safe-next"
@@ -59,8 +60,16 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.next()
   }
 
-  // Optimistic auth check on every other matched route.
-  const sessionCookie = getSessionCookie(request)
+  // Optimistic auth check on every other matched route. Pass the dev cookie
+  // prefix so the presence check reads the SAME cookie name the server set
+  // (per-Conductor-workspace namespacing) — without it, every dev request with
+  // CONDUCTOR_PORT set looks for the default name, misses the prefixed cookie,
+  // and redirect-loops to /auth/login. Prod returns undefined → default name.
+  const prefix = devCookiePrefix()
+  const sessionCookie = getSessionCookie(
+    request,
+    prefix ? { cookiePrefix: prefix } : undefined,
+  )
   if (!sessionCookie) {
     const loginUrl = new URL("/auth/login", publicOrigin(request))
     // Pass ONLY the pathname through `safeNext`. We deliberately drop

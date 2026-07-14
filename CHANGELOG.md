@@ -58,6 +58,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Auth: the edge proxy session-presence check now reads the per-workspace cookie prefix ($CONDUCTOR_PORT), fixing a redirect loop to /auth/login introduced when the dev cookie was namespaced — getSessionCookie was still looking for the default cookie name.
 - Auth: dev session cookies are namespaced per Conductor workspace (advanced.cookiePrefix keyed on $CONDUCTOR_PORT), so parallel workspace dev servers on localhost no longer clobber each other's session and silently sign you out; production cookie name is unchanged.
 - Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
 - Conductor Web Run now starts Postgres, repairs a missing or unseeded workspace database, and applies any pending migrations before launching Next.js.

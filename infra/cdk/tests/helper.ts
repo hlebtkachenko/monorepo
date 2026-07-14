@@ -83,6 +83,7 @@ export function buildTestApp(
     envName,
     appStack,
     dataStack: data,
+    documentsBucket: data.documentsBucket,
   })
 
   const observability = new ObservabilityStack(

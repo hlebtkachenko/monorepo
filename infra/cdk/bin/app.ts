@@ -122,6 +122,8 @@ const security = new SecurityStack(app, `Security-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
+  // The document reaper (SOLE S3-delete principal) lives in SecurityStack.
+  documentsBucket: data.documentsBucket,
 })
 
 new ObservabilityStack(app, `Observability-${env}`, {

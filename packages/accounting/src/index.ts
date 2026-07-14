@@ -62,6 +62,7 @@ export {
   expandPartialRecord,
   expandScenarioEntries,
   postFromPredkontace,
+  bookDocument,
   type AmountBasis,
   type PredkontaceEntry,
   type PredkontaceScenario,
@@ -69,6 +70,8 @@ export {
   type PartialAmounts,
   type PostFromPredkontaceInput,
   type ScenarioLine,
+  type BookDocumentInput,
+  type BookedDocument,
 } from "./predkontace/index"
 
 // FX engine

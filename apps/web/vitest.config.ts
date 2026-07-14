@@ -24,9 +24,11 @@
  *     no-ops included only to satisfy the module graph at import time.
  */
 import { resolve } from "node:path"
+import react from "@vitejs/plugin-react"
 import { defineConfig } from "vitest/config"
 
 export default defineConfig({
+  plugins: [react()],
   resolve: {
     alias: {
       // server-only: use the package's own empty stub (exported as

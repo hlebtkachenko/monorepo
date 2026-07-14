@@ -8,28 +8,19 @@ import "server-only"
 import { sql } from "drizzle-orm"
 import { executeRows, withOrganization } from "@workspace/db"
 import {
+  assessPeriodCloseReadiness,
   backfillDefaultNumberSeries,
   createTaxProfile,
   createVatStatus,
   rollForwardPeriod,
   type OrgCtx,
+  type PeriodCloseReadiness,
   type VatFilingPeriod,
   type VatRegime,
 } from "@workspace/accounting"
 import { getRequestSession } from "../../_lib/request-session"
 import { resolveOrgContext, type OrgContext } from "../../_lib/org-authz"
 import { collectOrgUpdates, type OrgSettingsUpdate } from "./org-update"
-
-/** Next účetní období bounds: prior end + 1 day → + 1 year − 1 day. */
-function nextBounds(priorEnd: string): { start: string; end: string } {
-  const d = new Date(`${priorEnd}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + 1)
-  const start = d.toISOString().slice(0, 10)
-  const e = new Date(d)
-  e.setUTCFullYear(e.getUTCFullYear() + 1)
-  e.setUTCDate(e.getUTCDate() - 1)
-  return { start, end: e.toISOString().slice(0, 10) }
-}
 
 /**
  * Resolve the session + org context for a settings page (server components).
@@ -213,6 +204,21 @@ export async function loadPeriods(
       status: p.status,
       regimeCode: p.regime_code,
     }))
+  })
+}
+
+/** Read-only close readiness for the existing periods confirmation surface. */
+export async function loadPeriodCloseReadiness(
+  ctx: OrgContext,
+  userId: string,
+  periodId: string,
+): Promise<PeriodCloseReadiness> {
+  return await withOrganization(ctx.organizationId, userId, async (db) => {
+    const orgCtx: OrgCtx = {
+      organizationId: ctx.organizationId,
+      workspaceId: ctx.workspaceId,
+    }
+    return await assessPeriodCloseReadiness(db, orgCtx, periodId)
   })
 }
 
@@ -638,43 +644,20 @@ export async function rollForwardOrgPeriod(
   ctx: OrgContext,
   userId: string,
   periodId: string,
-): Promise<{ newPeriodId: string }> {
+): Promise<{ newPeriodId: string; periodOutputId: string }> {
   return await withOrganization(ctx.organizationId, userId, async (db) => {
-    const [prior] = await executeRows<{ period_end: string }>(
-      db,
-      sql`SELECT period_end::text FROM accounting_period
-            WHERE id = ${periodId}::uuid AND organization_id = ${ctx.organizationId}::uuid
-              AND status = 'OPEN'`,
-    )
-    if (!prior) throw new Error("open period not found")
-    const [ev] = await executeRows<{ id: string }>(
-      db,
-      sql`SELECT id FROM number_series
-            WHERE organization_id = ${ctx.organizationId}::uuid AND entity_type = 'EVENT'
-            ORDER BY created_at LIMIT 1`,
-    )
-    const [doc] = await executeRows<{ id: string }>(
-      db,
-      sql`SELECT id FROM number_series
-            WHERE organization_id = ${ctx.organizationId}::uuid AND entity_type = 'DOCUMENT'
-            ORDER BY (code = 'ID') DESC, created_at LIMIT 1`,
-    )
-    if (!ev || !doc) throw new Error("number series missing")
-
-    const bounds = nextBounds(prior.period_end)
     const orgCtx: OrgCtx = {
       organizationId: ctx.organizationId,
       workspaceId: ctx.workspaceId,
     }
     const res = await rollForwardPeriod(db, orgCtx, {
       priorPeriodId: periodId,
-      periodStart: bounds.start,
-      periodEnd: bounds.end,
-      eventSeriesId: ev.id,
-      documentSeriesId: doc.id,
       responsibleUserId: userId,
     })
-    return { newPeriodId: res.newPeriodId }
+    return {
+      newPeriodId: res.newPeriodId,
+      periodOutputId: res.periodOutputId,
+    }
   })
 }
 

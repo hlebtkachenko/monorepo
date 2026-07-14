@@ -3,220 +3,170 @@
 import * as React from "react"
 
 import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { Tabs, TabsList, TabsTrigger } from "@workspace/ui/components/tabs"
 import { useIcons } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-/** One view — a segment of the current page (e.g. All, Advances). */
+/**
+ * One view — a saved segment of the current page (e.g. To do, Posted). Always
+ * carries a `count` (the badge is mandatory, 0 or more). The FIRST view is the
+ * mandatory "All" view — it (plus the active view) always stays inline when the
+ * header narrows. Views carry no per-tab icons.
+ */
 export interface ViewTab {
   value: string
   label: string
+  /** The badge value — always shown (0+). */
+  count?: number
+  /** @deprecated legacy alias for `count`; migrate to `count`. */
   badge?: string | number
 }
 
 /**
- * Data for the views' configure (⋯) menu. Presence adds the button. It carries
- * the FULL view list (so hidden ones can be re-shown) plus the visibility
- * toggle — all DATA, never a page-supplied menu node.
+ * @deprecated The old ⋯ configure menu is gone — view show/hide/pin/save moves
+ * into the "+ Add view" dropdown (deferred). Kept only so un-migrated callers
+ * still type-check; the prop is ignored.
  */
 export interface ViewTabsConfigure {
-  /** The full set of views (incl. hidden), for the "Choose views" list. */
   tabs: ViewTab[]
-  /** Hidden view values. The first view is always-on and cannot be hidden. */
   hidden: ReadonlySet<string>
-  /** Toggle a view's visibility. */
   onToggle: (value: string) => void
 }
 
 export interface ContentHeaderViewTabsProps {
-  /** The visible views, rendered as the underline tab strip. */
+  /** The views, rendered as the underline tab strip. */
   viewTabs: ViewTab[]
   /** Controlled active view value. */
   value?: string
   onValueChange?: (value: string) => void
-  /** Optional configure (⋯) menu data — omit to hide the button. */
-  manageViews?: ViewTabsConfigure
-  /** When true (narrow header), collapse the strip into a single dropdown. */
-  collapsed: boolean
-}
-
-/** The configure (⋯) menu body — Choose views + scope + sort, all from data. */
-function ConfigureBody({ manageViews }: { manageViews: ViewTabsConfigure }) {
-  const icons = useIcons()
-  const EyeIcon = icons.Eye
-  const EyeOffIcon = icons.EyeOff
-  const [scope, setScope] = React.useState("all")
-  const [sort, setSort] = React.useState("alpha")
-  return (
-    <>
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger>Choose views</DropdownMenuSubTrigger>
-        <DropdownMenuSubContent className="min-w-44">
-          {manageViews.tabs.map((tab, i) => {
-            const isHidden = manageViews.hidden.has(tab.value)
-            const alwaysOn = i === 0
-            const Icon = isHidden ? EyeOffIcon : EyeIcon
-            return (
-              <DropdownMenuItem
-                key={tab.value}
-                disabled={alwaysOn}
-                onSelect={(event) => {
-                  event.preventDefault()
-                  if (!alwaysOn) manageViews.onToggle(tab.value)
-                }}
-                className="justify-between gap-6"
-              >
-                <span className={cn(isHidden && "text-muted-foreground")}>
-                  {tab.label}
-                </span>
-                <Icon className="text-muted-foreground" />
-              </DropdownMenuItem>
-            )
-          })}
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel>Show in this section</DropdownMenuLabel>
-      <DropdownMenuRadioGroup value={scope} onValueChange={setScope}>
-        <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-        <DropdownMenuRadioItem value="unread">
-          Unread updates only
-        </DropdownMenuRadioItem>
-        <DropdownMenuRadioItem value="mentions">
-          Mentions only
-        </DropdownMenuRadioItem>
-      </DropdownMenuRadioGroup>
-      <DropdownMenuSeparator />
-      <DropdownMenuLabel>Sort this section</DropdownMenuLabel>
-      <DropdownMenuRadioGroup value={sort} onValueChange={setSort}>
-        <DropdownMenuRadioItem value="alpha">
-          Alphabetically
-        </DropdownMenuRadioItem>
-        <DropdownMenuRadioItem value="recent">
-          By most recent
-        </DropdownMenuRadioItem>
-      </DropdownMenuRadioGroup>
-    </>
-  )
+  /** Adds the trailing "+ Add view" button. Its dropdown is wired later. */
+  onAddView?: () => void
 }
 
 /**
- * ContentHeaderViewTabs — the views strip after the title separator. Renders the
- * underline tabs plus a data-driven configure (⋯) menu. When the header is too
- * narrow (`collapsed`), the strip becomes a single dropdown whose last item
- * ("Manage views") holds the same configure body. Controlled via
- * `value`/`onValueChange`.
+ * ContentHeaderViewTabs — the views strip. Underline tabs flush on the panel
+ * header's bottom hairline: the active tab draws a 2px underline exactly its own
+ * width (no overhang, no padding), covering label + count badge. No box/ring.
+ * Inactive tabs share the exact non-selected style of the back-link + crumbs; the
+ * active tab shares the selected title style. A mandatory count badge (primary
+ * active / muted inactive). No per-tab icons.
+ *
+ * Responsive (container query on the header, `/ch`): when the header narrows,
+ * every view except the mandatory first ("All") and the active one folds into a
+ * trailing chevron-down dropdown that lists ALL views + "+ Add view". The strip
+ * is also the flex-grow middle and scrolls horizontally as the last resort.
  */
 export function ContentHeaderViewTabs({
   viewTabs,
   value,
   onValueChange,
-  manageViews,
-  collapsed,
+  onAddView,
 }: ContentHeaderViewTabsProps) {
   const icons = useIcons()
-  const ChevronDown = icons.ChevronDown
-  const activeLabel =
-    viewTabs.find((tab) => tab.value === value)?.label ?? "Views"
+  const PlusIcon = icons.Plus
 
-  if (collapsed) {
-    return (
+  return (
+    <div
+      role="tablist"
+      aria-label="Views"
+      // flex-1 middle that scrolls; drop the bottom edge onto the header's bottom
+      // hairline (the bar's `py-1` = 4px) so each tab's underline lands on it.
+      className="-mb-1 flex min-w-0 flex-1 items-stretch gap-2 self-stretch overflow-x-auto"
+    >
+      {viewTabs.map((tab, index) => {
+        const active = tab.value === value
+        // The mandatory first view ("All") + the active view always stay inline;
+        // the rest fold into the dropdown when the header narrows.
+        const priority = index === 0 || active
+        const badgeValue = tab.count ?? tab.badge
+        return (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onValueChange?.(tab.value)}
+            className={cn(
+              "group relative flex h-full shrink-0 items-center gap-1.5 px-1.5 pb-1 whitespace-nowrap",
+              // The underline: flush on the hairline, spanning the padded tab.
+              "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:transition-colors",
+              active
+                ? "text-sm font-medium text-foreground after:bg-foreground"
+                : "text-sm font-normal text-muted-foreground transition-colors after:bg-transparent hover:text-foreground",
+              !priority && "@max-[36rem]/ch:hidden",
+            )}
+          >
+            <span className="truncate">{tab.label}</span>
+            {badgeValue != null ? (
+              <Badge variant={active ? "default" : "secondary"}>
+                {badgeValue}
+              </Badge>
+            ) : null}
+          </button>
+        )
+      })}
+
+      {/* Inline "+ Add view" — hidden when narrow (it moves into the dropdown). */}
+      {onAddView ? (
+        <button
+          type="button"
+          onClick={onAddView}
+          className="flex h-full shrink-0 items-center gap-1.5 px-1.5 pb-1 text-sm font-normal whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground @max-[36rem]/ch:hidden"
+        >
+          <PlusIcon className="size-4 shrink-0" />
+          Add view
+        </button>
+      ) : null}
+
+      {/* Overflow "…" dropdown — shown only when narrow; ALL views + Add view.
+          The trigger is an action-button-style IconButton (same size-8 square +
+          hover box as the header's Favorite / assistant buttons). */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          {/* Compose our Button (ghost) so hover/focus tokens track the
-              primitive; keep the bespoke h-7 / shrink tab-selector sizing. */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 min-w-0 shrink gap-1 px-2 font-medium"
-          >
-            <span className="truncate">{activeLabel}</span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-          </Button>
+          <IconButton
+            icon="ChevronDown"
+            aria-label="More views"
+            className="hidden self-center @max-[36rem]/ch:inline-flex"
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-44">
-          <DropdownMenuRadioGroup value={value} onValueChange={onValueChange}>
-            {viewTabs.map((tab) => (
-              <DropdownMenuRadioItem key={tab.value} value={tab.value}>
-                {tab.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-          {manageViews != null ? (
+        <DropdownMenuContent align="start" className="min-w-48">
+          {viewTabs.map((tab) => {
+            const badgeValue = tab.count ?? tab.badge
+            return (
+              <DropdownMenuItem
+                key={tab.value}
+                onSelect={() => onValueChange?.(tab.value)}
+                className="justify-between gap-6"
+              >
+                <span className="flex items-center gap-1.5">{tab.label}</span>
+                {badgeValue != null ? (
+                  <Badge
+                    variant={tab.value === value ? "default" : "secondary"}
+                  >
+                    {badgeValue}
+                  </Badge>
+                ) : null}
+              </DropdownMenuItem>
+            )
+          })}
+          {onAddView ? (
             <>
               <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Manage views</DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="min-w-56">
-                  <ConfigureBody manageViews={manageViews} />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              <DropdownMenuItem onSelect={onAddView} className="gap-1.5">
+                <PlusIcon className="size-4 shrink-0" />
+                Add view
+              </DropdownMenuItem>
             </>
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
-    )
-  }
-
-  return (
-    <>
-      {/* `contents` keeps Radix Tabs context without adding a layout box, so
-          the List flows inline in the header row. */}
-      <Tabs value={value} onValueChange={onValueChange} className="contents">
-        {/* `overflow-visible` (not `-x-auto`) so the active tab's underline can
-            sit below the list, on the header's bottom hairline — a scroll
-            container would clip it. The header collapses to a dropdown when it
-            runs out of room. */}
-        <TabsList variant="line" className="h-8 min-w-0 overflow-visible">
-          {viewTabs.map((tab) => (
-            <TabsTrigger
-              key={tab.value}
-              value={tab.value}
-              // Drop the active underline onto the panel header's bottom
-              // hairline (its bottom pixel sits on the 45px border line).
-              className="group-data-horizontal/tabs:after:bottom-[-7px]"
-            >
-              {tab.label}
-              {tab.badge != null ? (
-                <Badge variant="secondary" className="ml-1">
-                  {tab.badge}
-                </Badge>
-              ) : null}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
-      {manageViews != null ? (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            {/* No `tooltip`: a tooltip'd IconButton returns a TooltipProvider
-                tree and can't double as a Radix trigger. */}
-            <IconButton
-              icon="Ellipsis"
-              aria-label="Manage views"
-              className="shrink-0"
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-56">
-            <ConfigureBody manageViews={manageViews} />
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ) : null}
-    </>
+    </div>
   )
 }

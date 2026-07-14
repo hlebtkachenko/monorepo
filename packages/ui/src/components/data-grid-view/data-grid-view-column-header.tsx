@@ -30,15 +30,6 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 
-/** Which side of a column the dragged column will land on. */
-export type ColumnDropSide = "before" | "after"
-
-/** The live drop position while a column is being dragged. */
-export interface ColumnDropTarget {
-  columnId: string
-  side: ColumnDropSide
-}
-
 /** The visible name of a column — `meta.label`, a string header, or the id. */
 function getColumnLabel<TData, TValue>(header: Header<TData, TValue>): string {
   const { column } = header
@@ -56,12 +47,15 @@ function getFullOrder<TData>(table: Table<TData>): string[] {
 }
 
 /** Ids of the reorderable (non-pinned) columns, in their current order. */
-function getCenterIds<TData>(table: Table<TData>): string[] {
+export function getCenterIds<TData>(table: Table<TData>): string[] {
   return getFullOrder(table).filter((id) => !table.getColumn(id)?.getIsPinned())
 }
 
 /** Re-emit the column order with the center group changed, pins kept at edges. */
-function commitCenter<TData>(table: Table<TData>, nextCenter: string[]): void {
+export function commitCenter<TData>(
+  table: Table<TData>,
+  nextCenter: string[],
+): void {
   const full = getFullOrder(table)
   const left = full.filter(
     (id) => table.getColumn(id)?.getIsPinned() === "left",
@@ -88,25 +82,6 @@ function moveColumn<TData>(
   commitCenter(table, next)
 }
 
-/** Drop `sourceId` before/after `targetId` within the center group (used by DnD). */
-function reorderRelative<TData>(
-  table: Table<TData>,
-  sourceId: string,
-  targetId: string,
-  side: ColumnDropSide,
-): void {
-  const center = getCenterIds(table)
-  const from = center.indexOf(sourceId)
-  if (from < 0) return
-  const next = [...center]
-  const [moved] = next.splice(from, 1)
-  if (moved == null) return
-  const targetIdx = next.indexOf(targetId)
-  if (targetIdx < 0) return
-  next.splice(side === "before" ? targetIdx : targetIdx + 1, 0, moved)
-  commitCenter(table, next)
-}
-
 interface DataGridViewColumnHeaderProps<TData, TValue> {
   header: Header<TData, TValue>
   table: Table<TData>
@@ -114,24 +89,22 @@ interface DataGridViewColumnHeaderProps<TData, TValue> {
   onColumnFilter?: (columnId: string) => void
   /** Sends this column to Sidekick (shows the "AI analyze" item when set). */
   onColumnAnalyze?: (columnId: string) => void
-  /** Reports the live drop position during a header drag (for the indicator). */
-  onDropTargetChange?: (target: ColumnDropTarget | null) => void
 }
 
 /**
  * A column header with the interactions living on the column name itself: a
- * dropdown to analyze, sort, filter, pin, move, and hide the column — plus a
- * resize handle on the trailing edge and HTML drag-and-drop to reorder. Every
- * action writes to the shared TanStack `table`, so toolbar controls (Sort,
- * Hide) stay in sync automatically. A `ChevronsUpDown` glyph on the name marks
- * the column as configurable.
+ * dropdown to analyze, sort, filter, pin, move, and hide the column, plus a
+ * resize handle on the trailing edge. Reordering is by dragging the header's
+ * grip handle (dnd-kit, wired by `SortableHeaderCell`) or the Move left/right
+ * menu items. Every action writes to the shared TanStack `table`, so toolbar
+ * controls (Sort, Hide) stay in sync automatically. A `ChevronsUpDown` glyph on
+ * the name marks the column as configurable.
  */
 export function DataGridViewColumnHeader<TData, TValue>({
   header,
   table,
   onColumnFilter,
   onColumnAnalyze,
-  onDropTargetChange,
 }: DataGridViewColumnHeaderProps<TData, TValue>) {
   const { column } = header
   const label = getColumnLabel(header)
@@ -144,7 +117,6 @@ export function DataGridViewColumnHeader<TData, TValue>({
   const isResizing =
     table.getState().columnSizingInfo.isResizingColumn !== false
   const canReorder = (canSort || canHide) && !pinned
-  const acceptsDrop = !pinned
 
   const center = getCenterIds(table)
   const pos = center.indexOf(column.id)
@@ -171,59 +143,14 @@ export function DataGridViewColumnHeader<TData, TValue>({
     table.setSorting((prev) => prev.filter((s) => s.id !== column.id))
   }, [column.id, table])
 
-  const onDragStart = React.useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!canReorder) return
-      event.dataTransfer.effectAllowed = "move"
-      event.dataTransfer.setData("text/plain", column.id)
-    },
-    [canReorder, column.id],
-  )
-
-  const onDragOver = React.useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!acceptsDrop) return
-      event.preventDefault()
-      const rect = event.currentTarget.getBoundingClientRect()
-      const side: ColumnDropSide =
-        event.clientX < rect.left + rect.width / 2 ? "before" : "after"
-      onDropTargetChange?.({ columnId: column.id, side })
-    },
-    [acceptsDrop, column.id, onDropTargetChange],
-  )
-
-  const onDrop = React.useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!acceptsDrop) return
-      event.preventDefault()
-      onDropTargetChange?.(null)
-      const sourceId = event.dataTransfer.getData("text/plain")
-      if (!sourceId || sourceId === column.id) return
-      const rect = event.currentTarget.getBoundingClientRect()
-      const side: ColumnDropSide =
-        event.clientX < rect.left + rect.width / 2 ? "before" : "after"
-      reorderRelative(table, sourceId, column.id, side)
-    },
-    [acceptsDrop, column.id, onDropTargetChange, table],
-  )
-
-  const onDragEnd = React.useCallback(() => {
-    onDropTargetChange?.(null)
-  }, [onDropTargetChange])
-
   return (
     <>
-      {/* Drag lives on a plain wrapper (not the Radix trigger, which doesn't
-          reliably forward native drag events) so the drop indicator updates. */}
+      {/* Plain wrapper for the dropdown; reorder drag lives on the grip handle
+          in SortableHeaderCell. `pointer-events-none` while resizing keeps the
+          menu from opening mid-drag of the resize handle. */}
       <div
-        draggable={canReorder}
-        onDragStart={onDragStart}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
-        onDragEnd={onDragEnd}
         className={cn(
           "flex size-full items-center",
-          canReorder && "cursor-grab active:cursor-grabbing",
           isResizing && "pointer-events-none",
         )}
       >

@@ -8,13 +8,33 @@ import {
   type Header,
   type Table,
 } from "@tanstack/react-table"
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core"
+import { restrictToHorizontalAxis } from "@dnd-kit/modifiers"
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable"
 
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
   DataGridViewColumnHeader,
-  type ColumnDropTarget,
+  commitCenter,
+  getCenterIds,
 } from "./data-grid-view-column-header"
+import { SortableHeaderCell } from "./data-grid-view-sortable-header"
 
 /** Sticky positioning for a pinned column (the edge shadow is a separate span). */
 function pinStyle<TData>(column: Column<TData>): React.CSSProperties {
@@ -130,8 +150,38 @@ export function DataGridView<TData>({
     row: number
     col: number
   } | null>(null)
-  const [dropTarget, setDropTarget] = React.useState<ColumnDropTarget | null>(
+  const [activeColumnId, setActiveColumnId] = React.useState<string | null>(
     null,
+  )
+
+  // Pointer covers mouse + touch; the 8px activation distance lets a stationary
+  // click still reach the header menu / grip without starting a drag. Keyboard
+  // sensor makes the grip button drag with Space + arrows.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  const onColumnDragStart = React.useCallback((event: DragStartEvent) => {
+    setActiveColumnId(String(event.active.id))
+  }, [])
+
+  const onColumnDragEnd = React.useCallback(
+    (event: DragEndEvent) => {
+      setActiveColumnId(null)
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      // Reorder WITHIN the non-pinned centre group only — reads and writes the
+      // shared `columnOrder`, the same state the Columns manager writes.
+      const center = getCenterIds(table)
+      const from = center.indexOf(String(active.id))
+      const to = center.indexOf(String(over.id))
+      if (from < 0 || to < 0) return
+      commitCenter(table, arrayMove(center, from, to))
+    },
+    [table],
   )
   // Track whether the grid is scrolled away from each edge so the pinned
   // columns only cast a shadow when they actually overlap scrolled content.
@@ -299,7 +349,6 @@ export function DataGridView<TData>({
             table={table}
             onColumnFilter={onColumnFilter}
             onColumnAnalyze={onColumnAnalyze}
-            onDropTargetChange={setDropTarget}
           />
         ) : (
           <div
@@ -312,15 +361,6 @@ export function DataGridView<TData>({
           </div>
         )}
         <PinShadow column={header.column} edges={edges} />
-        {dropTarget?.columnId === header.column.id ? (
-          <span
-            aria-hidden
-            className={cn(
-              "pointer-events-none absolute inset-y-0 z-30 w-0.5 bg-primary",
-              dropTarget.side === "before" ? "left-0" : "right-0",
-            )}
-          />
-        ) : null}
       </div>
     )
   }
@@ -345,41 +385,74 @@ export function DataGridView<TData>({
       {...props}
     >
       <div style={{ width: totalWidth, minWidth: "100%" }}>
-        <div
-          role="rowgroup"
-          data-slot="grid-header"
-          className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToHorizontalAxis]}
+          onDragStart={onColumnDragStart}
+          onDragEnd={onColumnDragEnd}
+          onDragCancel={() => setActiveColumnId(null)}
         >
-          {table.getHeaderGroups().map((headerGroup) => {
-            const left = headerGroup.headers.filter(
-              (h) => h.column.getIsPinned() === "left",
-            )
-            const center = headerGroup.headers.filter(
-              (h) => !h.column.getIsPinned(),
-            )
-            const right = headerGroup.headers.filter(
-              (h) => h.column.getIsPinned() === "right",
-            )
-            return (
-              <div
-                key={headerGroup.id}
-                role="row"
-                data-slot="grid-header-row"
-                className="flex w-full"
-              >
-                {left.map(renderHeaderCell)}
-                {center.map(renderHeaderCell)}
+          <div
+            role="rowgroup"
+            data-slot="grid-header"
+            className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
+          >
+            {table.getHeaderGroups().map((headerGroup) => {
+              const left = headerGroup.headers.filter(
+                (h) => h.column.getIsPinned() === "left",
+              )
+              const center = headerGroup.headers.filter(
+                (h) => !h.column.getIsPinned(),
+              )
+              const right = headerGroup.headers.filter(
+                (h) => h.column.getIsPinned() === "right",
+              )
+              const centerIds = center.map((h) => h.column.id)
+              return (
                 <div
-                  data-slot="grid-header-spacer"
-                  className="flex flex-1 items-center bg-muted"
+                  key={headerGroup.id}
+                  role="row"
+                  data-slot="grid-header-row"
+                  className="flex w-full"
                 >
-                  {headerTrailing}
+                  {left.map(renderHeaderCell)}
+                  <SortableContext
+                    items={centerIds}
+                    strategy={horizontalListSortingStrategy}
+                  >
+                    {center.map((header) => (
+                      <SortableHeaderCell
+                        key={header.id}
+                        header={header}
+                        table={table}
+                        onColumnFilter={onColumnFilter}
+                        onColumnAnalyze={onColumnAnalyze}
+                      />
+                    ))}
+                  </SortableContext>
+                  <div
+                    data-slot="grid-header-spacer"
+                    className="flex flex-1 items-center bg-muted"
+                  >
+                    {headerTrailing}
+                  </div>
+                  {right.map(renderHeaderCell)}
                 </div>
-                {right.map(renderHeaderCell)}
+              )
+            })}
+          </div>
+          <DragOverlay modifiers={[restrictToHorizontalAxis]}>
+            {activeColumnId ? (
+              <div className="flex h-9 items-center border bg-muted px-3 text-sm font-medium text-foreground shadow">
+                {String(
+                  table.getColumn(activeColumnId)?.columnDef.meta?.label ??
+                    activeColumnId,
+                )}
               </div>
-            )
-          })}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
         <div role="rowgroup" data-slot="grid-body">
           {rowCount === 0 ? (
             <div role="row" className="flex w-full">
@@ -427,7 +500,7 @@ export function DataGridView<TData>({
                   data-state={selected ? "selected" : undefined}
                   data-slot="grid-row"
                   className={cn(
-                    "flex w-full border-b border-border-subtle/60",
+                    "group/row flex w-full border-b border-border-subtle/60",
                     selected ? "bg-muted/50" : "hover:bg-muted/30",
                   )}
                 >

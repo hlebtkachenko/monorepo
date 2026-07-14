@@ -127,6 +127,7 @@ export const ICON_NAMES = [
   "PanelRightOpen",
   "Pencil",
   "PiggyBank",
+  "Pin",
   "Plus",
   "PlusCircle",
   "PlusIcon",

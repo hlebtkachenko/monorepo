@@ -28,6 +28,24 @@ export type {
   DetailsTableMode,
   DetailsTableEditHint,
 } from "./section-details-table"
+export { sectionTable } from "./section-table"
+export type {
+  SectionTableProps,
+  TableColumnKind,
+  TableColumnAlign,
+  TableColumnOption,
+  TableColumnSpec,
+  TableCellValue,
+  TableSectionRow,
+  TableSectionFeatures,
+} from "./section-table"
+export {
+  SectionTableProvider,
+  useSectionTable,
+  useSectionInspectOpener,
+  useSectionInspect,
+} from "./section-table-context"
+export type { SectionTableRegistration } from "./section-table-context"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"
 export { sectionDetailsGroup } from "./section-details-group"

@@ -8,6 +8,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Row Inspector Sheet (`InspectorSheet` + parts) for the Table archetype: a right-docked detail Sheet opened by the per-row maximize affordance, with pinned header/meta grid, Details/Review/Line items/Evidence sections, and a sticky action footer
+- dnd-kit column header drag-reorder in DataGridView (mouse/touch/keyboard) sharing columnOrder with the Columns manager; Table section gains inspect (row maximize affordance) + rowActions (right-pinned action column) feature flags
+- Table section (sectionTable) — a TanStack Table v8 data grid with pure-data column/row descriptors, inline cell editing, row selection, sort/resize/reorder/pin; ArchetypeTable now owns a SectionTable bridge so the toolbar viewTools + selection footer drive the live grid. Demo at Settings → Debug → Archetype Table
+- ArchetypeTable whole-panel archetype (ContentHeader with views + fully-wired ContentToolbar + branded body Sections + selection ContentFooter, no legacy status bar) with a Settings → Debug → Archetype Table reference page
 - Accounting: fetchDocuments now returns posting status (is_posted / posting_id); new unlinkedInvoiceLines invariant flags any non-generated invoice ledger line missing its partial_record link.
 - Brain: classify_accounting_event echoes supplyKind and the intake harness threads it onto the capture partial, so a derived invoice books to the correct cost/revenue account with no human friction (still held for review).
 - Accounting: deterministic whole-document booking (bookDocument) runs in the capture-approve transaction, so approving a captured invoice lands one fully-wired posting per event with every ledger line linked to its source partial_record (§6/2), replacing the orphaned capture + preview-vs-apply drift.
@@ -27,6 +31,9 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- ContentToolbar/filter polish: option-filter count badges pinned to the right edge, Reset chip restyle (no icon/shadow), date filter as a range picker with a preset sidebar + dropdown month/year caption, 5px inter-line gap; Columns manager reordered by live columnOrder with pinned-left/right + unpinned sections and checkboxes; removed the Inspector panel/dialog mode toggle from the toolbar
+- ContentToolbar: 42px bar matching ContentHeader, default-size controls, faceted status-filter live update fix, search clear button, and the multi-filter slot wired into the archetype-table debug demo
+- Reworked ContentHeader: merged breadcrumb+back-link+title nav (icon crumbs, collapsible native BreadcrumbEllipsis dropdown, Single-only back link), rebuilt view tabs (mandatory count badges, flush underline, no per-tab icons, mandatory All + active kept inline), container-query responsive collapse driven by the header's own width, uniform gaps, 42px height, Favorite-only actions; added a Pin icon to the icon packs
 - Conductor web/api/admin Run buttons now auto-open the app in the default browser once the port answers (bounded, macOS-gated poller in .conductor/settings.toml)
 - Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
 - Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).

@@ -33,7 +33,7 @@ export function ContentToolbarAddButton({
   const ChevronIcon = icons.ChevronDown
 
   const primary = (
-    <Button size="sm" disabled={disabled} onClick={onAdd}>
+    <Button disabled={disabled} onClick={onAdd}>
       <AddIcon />
       {label}
     </Button>
@@ -46,7 +46,7 @@ export function ContentToolbarAddButton({
       {primary}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon-sm" aria-label="Choose type" disabled={disabled}>
+          <Button size="icon" aria-label="Choose type" disabled={disabled}>
             <ChevronIcon />
           </Button>
         </DropdownMenuTrigger>

@@ -1,8 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { FilterXIcon } from "@workspace/ui/lib/icons"
-import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 import type {
   DataTableFilterActions,
@@ -21,17 +19,21 @@ function FilterActionsImpl({
   actions,
   strings = FILTER_BAR_DEFAULT_STRINGS,
 }: FilterActionsProps) {
+  // Chip-matched: same h-7 pill + border as the active-filter chips, normal
+  // (foreground) label, destructive red on hover — mirrors the search clear (X)
+  // affordance. No icon, no shadow.
   return (
-    <Button
+    <button
       data-slot="filter-bar-actions"
-      className={cn("!px-2", !hasFilters && "hidden")}
-      variant="destructive"
-      size="sm"
+      type="button"
       onClick={actions?.removeAllFilters}
+      className={cn(
+        "flex h-7 items-center rounded-2xl border border-border bg-background px-2.5 text-xs text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-1 focus-visible:ring-destructive focus-visible:outline-none",
+        !hasFilters && "hidden",
+      )}
     >
-      <FilterXIcon />
-      <span className="hidden md:block">{strings.clear}</span>
-    </Button>
+      {strings.clear}
+    </button>
   )
 }
 

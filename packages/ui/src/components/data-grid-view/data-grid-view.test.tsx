@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react"
+import { act, render, renderHook, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { ColumnDef } from "@tanstack/react-table"
+import { arrayMove } from "@dnd-kit/sortable"
 import * as React from "react"
 import { describe, expect, it } from "vitest"
 
@@ -8,6 +9,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { useDataTable } from "../data-table/use-data-table"
 import { DataGridView } from "./data-grid-view"
+import { commitCenter, getCenterIds } from "./data-grid-view-column-header"
 
 interface Row {
   id: string
@@ -106,5 +108,29 @@ describe("DataGridView", () => {
     expect(
       screen.queryByRole("button", { name: /Age/ }),
     ).not.toBeInTheDocument()
+  })
+})
+
+describe("column reorder (shared columnOrder helpers)", () => {
+  it("moves a centre column while keeping the pinned column at the edge", () => {
+    const { result } = renderHook(() =>
+      useDataTable<Row>({
+        data: seed,
+        columns,
+        getRowId: (row) => row.id,
+        columnResizeMode: "onChange",
+        initialState: { columnPinning: { left: ["select"] } },
+      }),
+    )
+    const table = result.current.table
+    // The centre (non-pinned) group, in order; `select` is pinned out of it.
+    expect(getCenterIds(table)).toEqual(["name", "age"])
+
+    const center = getCenterIds(table)
+    act(() => commitCenter(table, arrayMove(center, 0, 1)))
+
+    // Centre reordered, pinned `select` still leads the full order.
+    expect(getCenterIds(result.current.table)).toEqual(["age", "name"])
+    expect(result.current.table.getState().columnOrder[0]).toBe("select")
   })
 })

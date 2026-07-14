@@ -14,11 +14,11 @@
 // A live confirmed document (`confirmed-at` set, no `deleted-at`) is NEVER
 // purged, whatever its age.
 //
-// Undo is preserved two ways: storage's `clearDeletedTag` removes `deleted-at`
-// before the reaper fires (the guard below then keeps the object), and the
-// handler re-reads tags immediately before deleting and re-runs this same
-// function (TOCTOU guard) — a document undone or confirmed in the scan window
-// is skipped.
+// Undo/confirm promote an exact source VersionId into a new current same-key
+// version with safe tags. The handler also re-reads the evaluated version's
+// tags immediately before deleting and re-runs this same function. Either the
+// transition fails because its source was reaped, or its new version survives
+// deletion of the old evaluated version.
 
 export const ORPHAN_TTL_MS = 60 * 60 * 1000 // 1 hour
 export const UNCONFIRMED_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours

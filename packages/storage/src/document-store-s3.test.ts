@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import {
+  CopyObjectCommand,
   GetObjectTaggingCommand,
   HeadObjectCommand,
   NotFound,
@@ -8,7 +9,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3"
 import { mockClient } from "aws-sdk-client-mock"
-import { beforeAll, beforeEach, describe, expect, it } from "vitest"
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest"
 import { S3DocumentStore } from "./document-store-s3"
 
 // CAVEAT: this suite mocks the S3 SDK client (aws-sdk-client-mock) and never
@@ -117,6 +118,8 @@ describe("presignPost() policy conditions", () => {
       "$x-amz-checksum-sha256",
       checksumBase64,
     ])
+    expect(result.fields["Content-Type"]).toBe("application/pdf")
+    expect(result.fields["x-amz-checksum-sha256"]).toBe(checksumBase64)
   })
 
   it("never adds an x-amz-server-side-encryption condition, even when a CMK is configured", async () => {
@@ -314,6 +317,10 @@ describe("tag methods — merge, never clobber", () => {
     return s3Mock.commandCalls(PutObjectTaggingCommand)
   }
 
+  function copyCalls() {
+    return s3Mock.commandCalls(CopyObjectCommand)
+  }
+
   it("setDeletedTag adds deleted-at=<ISO now> and preserves existing tags", async () => {
     s3Mock.on(GetObjectTaggingCommand).resolves({
       TagSet: [{ Key: "confirmed-at", Value: "2026-01-01T00:00:00.000Z" }],
@@ -340,51 +347,116 @@ describe("tag methods — merge, never clobber", () => {
     ).toBe(true)
   })
 
-  it("clearDeletedTag removes only the deleted-at tag", async () => {
+  it("clearDeletedTag copies the pinned version and removes only deleted-at", async () => {
     s3Mock.on(GetObjectTaggingCommand).resolves({
+      VersionId: "source+version/1",
       TagSet: [
         { Key: "deleted-at", Value: "2026-01-01T00:00:00.000Z" },
         { Key: "confirmed-at", Value: "2025-12-01T00:00:00.000Z" },
+        { Key: "unrelated", Value: "keep me" },
       ],
     })
-    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    s3Mock.on(HeadObjectCommand).resolves({
+      ETag: '"source-etag"',
+      ContentType: "application/pdf",
+      ContentDisposition: "inline",
+      Metadata: { originalname: "invoice.pdf" },
+      StorageClass: "STANDARD_IA",
+    })
+    s3Mock.on(CopyObjectCommand).resolves({})
     const store = makeStore()
 
     await store.clearDeletedTag("documents/ws_1/abc.pdf")
 
-    const calls = putTaggingCalls()
+    const calls = copyCalls()
+    expect(calls).toHaveLength(1)
     const call = calls[0]
-    if (!call) throw new Error("expected exactly one PutObjectTagging call")
-    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
-    const keys = tagSet.map((tag) => tag.Key)
+    if (!call) throw new Error("expected exactly one CopyObject call")
+    const input = call.args[0].input
+    const tags = Object.fromEntries(new URLSearchParams(input.Tagging))
 
-    expect(keys).not.toContain("deleted-at")
-    expect(keys).toContain("confirmed-at")
+    expect(tags).not.toHaveProperty("deleted-at")
+    expect(tags["confirmed-at"]).toBe("2025-12-01T00:00:00.000Z")
+    expect(tags["unrelated"]).toBe("keep me")
+    expect(input.CopySource).toBe(
+      "documents-bucket/documents/ws_1/abc.pdf?versionId=source%2Bversion%2F1",
+    )
+    expect(input.CopySourceIfMatch).toBe('"source-etag"')
+    expect(input.MetadataDirective).toBe("REPLACE")
+    expect(input.ContentType).toBe("application/pdf")
+    expect(input.ContentDisposition).toBe("inline")
+    expect(input.Metadata).toEqual({ originalname: "invoice.pdf" })
+    expect(input.StorageClass).toBe("STANDARD_IA")
+    expect(input.TaggingDirective).toBe("REPLACE")
+    expect(input.ChecksumAlgorithm).toBe("SHA256")
+    const headCall = s3Mock.commandCalls(HeadObjectCommand)[0]
+    expect(headCall?.args[0].input.VersionId).toBe("source+version/1")
+    expect(putTaggingCalls()).toHaveLength(0)
   })
 
-  it("tagConfirmed adds confirmed-at=<ISO now> and preserves existing tags", async () => {
+  it("tagConfirmed copies the pinned version with fresh live tags and KMS encryption", async () => {
     s3Mock.on(GetObjectTaggingCommand).resolves({
-      TagSet: [{ Key: "some-other-tag", Value: "keep-me" }],
+      VersionId: "source-version",
+      TagSet: [
+        { Key: "some-other-tag", Value: "keep-me" },
+        { Key: "confirmed-at", Value: "2025-12-01T00:00:00.000Z" },
+        { Key: "deleted-at", Value: "2026-01-01T00:00:00.000Z" },
+        { Key: "orphan-at", Value: "2026-01-02T00:00:00.000Z" },
+      ],
     })
-    s3Mock.on(PutObjectTaggingCommand).resolves({})
-    const store = makeStore()
+    s3Mock.on(HeadObjectCommand).resolves({
+      ETag: '"source-etag"',
+      ContentType: "application/pdf",
+    })
+    s3Mock.on(CopyObjectCommand).resolves({})
+    const kmsKeyId = "arn:aws:kms:eu-central-1:123456789012:key/test-cmk"
+    const store = makeStore(kmsKeyId)
+    const confirmedAt = "2026-07-14T08:00:00.000Z"
 
-    const before = new Date().toISOString()
-    await store.tagConfirmed("documents/ws_1/abc.pdf")
-    const after = new Date().toISOString()
+    vi.useFakeTimers()
+    vi.setSystemTime(confirmedAt)
+    try {
+      await store.tagConfirmed("documents/ws_1/abc.pdf")
+    } finally {
+      vi.useRealTimers()
+    }
 
-    const calls = putTaggingCalls()
+    const calls = copyCalls()
+    expect(calls).toHaveLength(1)
     const call = calls[0]
-    if (!call) throw new Error("expected exactly one PutObjectTagging call")
-    const tagSet = call.args[0].input.Tagging?.TagSet ?? []
-    const tags = Object.fromEntries(tagSet.map((tag) => [tag.Key, tag.Value]))
+    if (!call) throw new Error("expected exactly one CopyObject call")
+    const input = call.args[0].input
+    const tags = Object.fromEntries(new URLSearchParams(input.Tagging))
 
     expect(tags["some-other-tag"]).toBe("keep-me")
-    const confirmedAt = tags["confirmed-at"]
-    expect(confirmedAt).toBeDefined()
-    expect(
-      (confirmedAt as string) >= before && (confirmedAt as string) <= after,
-    ).toBe(true)
+    expect(tags["confirmed-at"]).toBe(confirmedAt)
+    expect(tags).not.toHaveProperty("deleted-at")
+    expect(tags).not.toHaveProperty("orphan-at")
+    expect(input.CopySource).toBe(
+      "documents-bucket/documents/ws_1/abc.pdf?versionId=source-version",
+    )
+    expect(input.ServerSideEncryption).toBe("aws:kms")
+    expect(input.SSEKMSKeyId).toBe(kmsKeyId)
+    expect(input.CopySourceIfMatch).toBe('"source-etag"')
+    expect(input.MetadataDirective).toBe("REPLACE")
+    expect(input.ContentType).toBe("application/pdf")
+    expect(input.ChecksumAlgorithm).toBe("SHA256")
+    expect(putTaggingCalls()).toHaveLength(0)
+  })
+
+  it("does not report confirmation success when the pinned source was reaped", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      VersionId: "reaped-source",
+      TagSet: [],
+    })
+    s3Mock.on(HeadObjectCommand).resolves({ ETag: '"source-etag"' })
+    s3Mock.on(CopyObjectCommand).rejects(new Error("NoSuchKey"))
+    const store = makeStore()
+
+    await expect(store.tagConfirmed("documents/ws_1/abc.pdf")).rejects.toThrow(
+      "NoSuchKey",
+    )
+    expect(putTaggingCalls()).toHaveLength(0)
   })
 
   it("tagOrphan adds orphan-at=<ISO now> and preserves existing tags", async () => {

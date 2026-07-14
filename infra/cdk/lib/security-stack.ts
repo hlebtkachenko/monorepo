@@ -527,10 +527,10 @@ export class SecurityStack extends Stack {
     //   - untagged     older than 24h → purge (never-confirmed abandoned upload)
     //   - `deleted-at` older than 60d → purge (user soft-delete past redemption)
     // A live confirmed doc (`confirmed-at`, no `deleted-at`) is NEVER purged.
-    // "Purge" = delete ALL versions of the key (versioning is ON) = a true byte
-    // purge. Undo is preserved because storage's `clearDeletedTag` drops
-    // `deleted-at` before the reaper fires AND the handler re-reads tags at
-    // delete time (TOCTOU guard). Runs in every env (the bucket exists in all).
+    // Decisions are pinned to a specific VersionId. Orphan/abandoned cleanup
+    // removes only that version; expired soft-delete cleanup removes the
+    // evaluated version plus older history, preserving concurrent re-uploads.
+    // Runs in every env (the bucket exists in all).
     //
     // CROSS-TRACK INVARIANT (contract the P3 confirm endpoint MUST honor; NOT
     // enforced here): the "untagged > 24h → purge" branch is safe ONLY if
@@ -557,7 +557,7 @@ export class SecurityStack extends Stack {
         DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
       },
       description:
-        "Sole S3-delete principal for the documents bucket. Hourly; purges orphan-at>1h, untagged>24h, deleted-at>60d by deleting all versions of the key (PLAN §3).",
+        "Sole S3-delete principal for the documents bucket. Hourly, version-pinned cleanup for orphan-at>1h, untagged>24h, and deleted-at>60d (PLAN §3).",
     })
 
     // Enumerate keys + versions on the BUCKET arn.
@@ -568,15 +568,16 @@ export class SecurityStack extends Stack {
         resources: [props.documentsBucket.bucketArn],
       }),
     )
-    // Read tag VALUES + delete all versions on ${bucket}/*. This role — and
-    // ONLY this role — holds Delete on the documents bucket. Deliberately NO
-    // kms:* (deleting an SSE-KMS object never decrypts it) and NO PutObject /
-    // PutObjectTagging (the reaper never writes).
+    // Read version-specific tag VALUES + delete selected versions on
+    // ${bucket}/*. This role — and ONLY this role — holds Delete on the
+    // documents bucket. Deliberately NO kms:* (deleting an SSE-KMS object never
+    // decrypts it) and NO PutObject / PutObjectTagging (the reaper never writes).
     documentReaperFn.addToRolePolicy(
       new PolicyStatement({
         effect: Effect.ALLOW,
         actions: [
           "s3:GetObjectTagging",
+          "s3:GetObjectVersionTagging",
           "s3:DeleteObject",
           "s3:DeleteObjectVersion",
         ],

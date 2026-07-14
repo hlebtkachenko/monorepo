@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 import type { Readable } from "node:stream"
 import {
+  CopyObjectCommand,
   GetObjectCommand,
   GetObjectTaggingCommand,
   HeadObjectCommand,
@@ -32,7 +33,7 @@ export interface S3DocumentStoreConfig {
   region?: string
   /** Set for minio dev / any S3-compatible endpoint. Forces path-style addressing. */
   endpoint?: string
-  /** Dedicated KMS CMK. When set, `put()` sets SSE-KMS explicitly; presigned POST uploads rely on the bucket's default encryption instead. */
+  /** Dedicated KMS CMK. When set, server-side put/copy operations set SSE-KMS explicitly; presigned POST uploads rely on the bucket's default encryption instead. */
   kmsKeyId?: string
 }
 
@@ -70,6 +71,20 @@ function documentKey(
 function extensionFromFilename(filename: string): string {
   const dot = filename.lastIndexOf(".")
   return dot === -1 ? "" : filename.slice(dot + 1).toLowerCase()
+}
+
+function encodeCopySource(
+  bucket: string,
+  objectKey: string,
+  versionId: string,
+): string {
+  const encodeComponent = (value: string): string =>
+    encodeURIComponent(value).replace(
+      /[!'()*]/g,
+      (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
+    )
+  const encodedKey = objectKey.split("/").map(encodeComponent).join("/")
+  return `${encodeComponent(bucket)}/${encodedKey}?versionId=${encodeComponent(versionId)}`
 }
 
 function isNotFoundError(error: unknown): boolean {
@@ -137,6 +152,10 @@ export class S3DocumentStore implements DocumentStore {
       Bucket: this.bucket,
       Key: key,
       Conditions: conditions,
+      Fields: {
+        "Content-Type": input.contentType,
+        "x-amz-checksum-sha256": checksumBase64,
+      },
       Expires: input.ttlSeconds,
     })
 
@@ -230,15 +249,79 @@ export class S3DocumentStore implements DocumentStore {
   }
 
   async clearDeletedTag(key: string): Promise<void> {
-    await this.mergeTags(key, { "deleted-at": null })
+    await this.copyWithMergedTags(key, { "deleted-at": null })
   }
 
   async tagConfirmed(key: string): Promise<void> {
-    await this.mergeTags(key, { "confirmed-at": new Date().toISOString() })
+    await this.copyWithMergedTags(key, {
+      "confirmed-at": new Date().toISOString(),
+      "deleted-at": null,
+      "orphan-at": null,
+    })
   }
 
   async tagOrphan(key: string): Promise<void> {
     await this.mergeTags(key, { "orphan-at": new Date().toISOString() })
+  }
+
+  /**
+   * Promotes an exact source VersionId into a new current same-key version
+   * while replacing its tags. This closes the reaper TOCTOU window: if the
+   * source is deleted before CopyObject, the transition fails; if the copy
+   * wins, the new current version survives deletion of the old one.
+   * Metadata is copied unchanged and S3 calculates a fresh SHA256 checksum.
+   */
+  private async copyWithMergedTags(
+    key: string,
+    changes: Record<string, string | null>,
+  ): Promise<void> {
+    const existing = await this.client.send(
+      new GetObjectTaggingCommand({ Bucket: this.bucket, Key: key }),
+    )
+    const sourceVersionId = existing.VersionId
+    if (!sourceVersionId) {
+      throw new Error("S3 did not return a source VersionId for tag transition")
+    }
+
+    const source = await this.client.send(
+      new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        VersionId: sourceVersionId,
+      }),
+    )
+    if (!source.ETag) {
+      throw new Error("S3 did not return a source ETag for tag transition")
+    }
+
+    const tags = this.applyTagChanges(existing.TagSet, changes)
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        CopySource: encodeCopySource(this.bucket, key, sourceVersionId),
+        CopySourceIfMatch: source.ETag,
+        MetadataDirective: "REPLACE",
+        Metadata: source.Metadata,
+        CacheControl: source.CacheControl,
+        ContentDisposition: source.ContentDisposition,
+        ContentEncoding: source.ContentEncoding,
+        ContentLanguage: source.ContentLanguage,
+        ContentType: source.ContentType,
+        Expires: source.Expires,
+        StorageClass: source.StorageClass,
+        WebsiteRedirectLocation: source.WebsiteRedirectLocation,
+        TaggingDirective: "REPLACE",
+        Tagging: new URLSearchParams(Array.from(tags)).toString(),
+        ChecksumAlgorithm: "SHA256",
+        ...(this.kmsKeyId
+          ? {
+              ServerSideEncryption: "aws:kms" as const,
+              SSEKMSKeyId: this.kmsKeyId,
+            }
+          : {}),
+      }),
+    )
   }
 
   /**
@@ -247,9 +330,8 @@ export class S3DocumentStore implements DocumentStore {
    * every write reads the current set first and preserves untouched tags.
    *
    * Read-modify-write is non-atomic (no compare-and-swap between the Get and
-   * the Put). Acceptable for P0: document tag transitions are app-serialized
-   * (e.g. confirm happens once, before any user delete). Revisit if
-   * concurrent taggers show up.
+   * the Put). It is used only for delete/orphan marking. Safety-critical
+   * confirm and undo transitions use `copyWithMergedTags` instead.
    */
   private async mergeTags(
     key: string,
@@ -258,17 +340,7 @@ export class S3DocumentStore implements DocumentStore {
     const existing = await this.client.send(
       new GetObjectTaggingCommand({ Bucket: this.bucket, Key: key }),
     )
-    const tags = new Map<string, string>()
-    for (const tag of existing.TagSet ?? []) {
-      if (tag.Key) tags.set(tag.Key, tag.Value ?? "")
-    }
-    for (const [tagKey, value] of Object.entries(changes)) {
-      if (value === null) {
-        tags.delete(tagKey)
-      } else {
-        tags.set(tagKey, value)
-      }
-    }
+    const tags = this.applyTagChanges(existing.TagSet, changes)
     await this.client.send(
       new PutObjectTaggingCommand({
         Bucket: this.bucket,
@@ -278,5 +350,23 @@ export class S3DocumentStore implements DocumentStore {
         },
       }),
     )
+  }
+
+  private applyTagChanges(
+    tagSet: Array<{ Key?: string; Value?: string }> | undefined,
+    changes: Record<string, string | null>,
+  ): Map<string, string> {
+    const tags = new Map<string, string>()
+    for (const tag of tagSet ?? []) {
+      if (tag.Key) tags.set(tag.Key, tag.Value ?? "")
+    }
+    for (const [tagKey, value] of Object.entries(changes)) {
+      if (value === null) {
+        tags.delete(tagKey)
+      } else {
+        tags.set(tagKey, value)
+      }
+    }
+    return tags
   }
 }

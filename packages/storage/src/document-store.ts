@@ -54,7 +54,9 @@ export interface PresignGetInput {
 /**
  * Storage-agnostic seam for documents (receipts, invoices, ISDOC/XML, Brain
  * artifacts). Key convention: `documents/{workspaceId}/{sha256}.{ext}` —
- * content-addressed, workspace-scoped, immutable. See
+ * content-addressed and workspace-scoped. Confirmation and undo promote an
+ * exact source version into a new current same-key version so reaper races
+ * cannot erase an acknowledged transition. See
  * `.context/s3-document-store/PLAN.md` §3, §7 for the full design.
  *
  * Ownership boundary: storage owns the bucket + this interface + all S3
@@ -76,9 +78,9 @@ export interface DocumentStore {
   headExists(key: string): Promise<boolean>
   /** Soft-delete: tags `deleted-at=<ISO now>`. Reaper purges 60d later unless undone. */
   setDeletedTag(key: string): Promise<void>
-  /** Undo within the 60d window: removes the `deleted-at` tag. */
+  /** Undo within the 60d window: copies the pinned source into a new current version without `deleted-at`. */
   clearDeletedTag(key: string): Promise<void>
-  /** Marks a confirmed, live object: tags `confirmed-at=<ISO now>`. */
+  /** Marks a confirmed, live object by copying the pinned source into a new current version with `confirmed-at=<ISO now>`. */
   tagConfirmed(key: string): Promise<void>
   /** Marks a failed-validation object: tags `orphan-at=<ISO now>`. Reaper purges within ~1h. */
   tagOrphan(key: string): Promise<void>

@@ -438,10 +438,11 @@ describe("SecurityStack document reaper (S3 document store P1b)", () => {
     }
   })
 
-  it("reaper role can enumerate + read tags (ListBucket, ListBucketVersions, GetObjectTagging)", () => {
+  it("reaper role can enumerate + read tags for pinned versions", () => {
     expect(reaperActions.has("s3:ListBucket")).toBe(true)
     expect(reaperActions.has("s3:ListBucketVersions")).toBe(true)
     expect(reaperActions.has("s3:GetObjectTagging")).toBe(true)
+    expect(reaperActions.has("s3:GetObjectVersionTagging")).toBe(true)
   })
 
   it("reaper role has NO PutObject / PutObjectTagging (it never writes)", () => {

@@ -15,19 +15,22 @@
 //   - `deleted-at` older than 60d → purge (user soft-delete past redemption)
 // A live confirmed doc (`confirmed-at`, no `deleted-at`) is NEVER purged.
 //
-// "Purge" = delete ALL versions (and delete markers) of the key — a true byte
-// purge, since versioning is ON. Undo is preserved because storage's
-// `clearDeletedTag` removes `deleted-at` before the reaper fires, AND because
-// the handler re-reads tags immediately before deleting and re-runs the same
-// pure decision (TOCTOU guard): a document undone or confirmed in the scan
-// window is skipped.
+// Every decision is pinned to a concrete S3 VersionId. Abandoned/orphaned
+// current versions delete only themselves, so an older confirmed version can
+// never be collateral damage. An expired soft-delete removes the evaluated
+// version plus unambiguously older history, while preserving every newer
+// concurrent re-upload. Old history is deleted first; only a fully successful
+// history phase permits a separate final request for the evaluated current
+// version. Tags for that VersionId are re-read before deletion; drift fails
+// toward keep. Confirm/undo create a new current same-key version, so whichever
+// operation wins the race leaves acknowledged bytes available.
 //
 // CROSS-TRACK INVARIANT (contract the P3 confirm endpoint MUST honor; NOT
 // enforced here): the "untagged > 24h → purge" branch is safe ONLY if confirm
-// applies `confirmed-at` to EVERY kept object at/with the DB write, so a live
-// document is never left untagged and reaped as "abandoned". If confirm ever
-// persists a row without first tagging `confirmed-at`, that document becomes
-// reapable — this branch trusts the tag, not the DB.
+// promotes EVERY kept object into a new `confirmed-at` current version before
+// the DB write, so a live document is never left untagged and reaped as
+// "abandoned". If confirm ever persists a row before that copy succeeds, the
+// underlying document remains reapable — this branch trusts the tag, not the DB.
 //
 // No KMS: deleting an SSE-KMS object does not decrypt it, so the reaper role
 // carries no kms:* — it only enumerates, reads tags, and deletes.
@@ -38,12 +41,15 @@
 import {
   DeleteObjectsCommand,
   GetObjectTaggingCommand,
-  ListObjectsV2Command,
   ListObjectVersionsCommand,
   S3Client,
 } from "@aws-sdk/client-s3"
 
-import { decideReap } from "./decide.mjs"
+import {
+  assertSweepSucceeded,
+  processEvaluatedVersion,
+  throwOnDeleteErrors,
+} from "./sweep.mjs"
 
 const s3 = new S3Client({})
 const DOCUMENTS_BUCKET = process.env.DOCUMENTS_BUCKET
@@ -55,9 +61,13 @@ function log(event, fields) {
   console.log(JSON.stringify({ event, ...fields }))
 }
 
-async function readTags(key) {
+async function readTags(key, versionId) {
   const res = await s3.send(
-    new GetObjectTaggingCommand({ Bucket: DOCUMENTS_BUCKET, Key: key }),
+    new GetObjectTaggingCommand({
+      Bucket: DOCUMENTS_BUCKET,
+      Key: key,
+      VersionId: versionId,
+    }),
   )
   const tags = {}
   for (const t of res.TagSet ?? []) {
@@ -66,13 +76,21 @@ async function readTags(key) {
   return tags
 }
 
-// Delete every version + delete-marker of a single key = a true byte purge
-// (versioning is ON). ListObjectVersions matches by PREFIX, so filter to the
-// EXACT key — a content-addressed key could be a prefix of another.
-async function purgeAllVersions(key) {
+function isNotFoundError(error) {
+  return (
+    error?.name === "NotFound" ||
+    error?.name === "NoSuchKey" ||
+    error?.name === "NoSuchVersion" ||
+    error?.$metadata?.httpStatusCode === 404
+  )
+}
+
+// List exact-key history. Prefix matching alone is insufficient because one
+// content-addressed key can be a prefix of another.
+async function listVersionHistory(key) {
   let keyMarker
   let versionIdMarker
-  let deleted = 0
+  const history = []
   do {
     const listed = await s3.send(
       new ListObjectVersionsCommand({
@@ -82,34 +100,25 @@ async function purgeAllVersions(key) {
         VersionIdMarker: versionIdMarker,
       }),
     )
-    const objects = [
-      ...(listed.Versions ?? []),
-      ...(listed.DeleteMarkers ?? []),
-    ]
-      .filter((v) => v.Key === key && v.VersionId)
-      .map((v) => ({ Key: v.Key, VersionId: v.VersionId }))
-
-    for (let i = 0; i < objects.length; i += DELETE_BATCH) {
-      const batch = objects.slice(i, i + DELETE_BATCH)
-      // Quiet:true returns only per-object failures. A throttle/5xx on a
-      // version is a SAFE direction (the object survives), but must NOT be
-      // counted as deleted, and must surface — the reaper is the only delete
-      // path, so a persistently-failing delete needs to be visible.
-      const res = await s3.send(
-        new DeleteObjectsCommand({
-          Bucket: DOCUMENTS_BUCKET,
-          Delete: { Objects: batch, Quiet: true },
-        }),
-      )
-      const failed = res.Errors ?? []
-      if (failed.length > 0) {
-        log("reap-delete-errors", {
-          key,
-          failed: failed.length,
-          firstError: { code: failed[0]?.Code, message: failed[0]?.Message },
-        })
+    for (const version of listed.Versions ?? []) {
+      if (version.Key !== key || !version.VersionId || !version.LastModified) {
+        continue
       }
-      deleted += batch.length - failed.length
+      history.push({
+        key,
+        versionId: version.VersionId,
+        lastModifiedMs: version.LastModified.getTime(),
+      })
+    }
+    for (const marker of listed.DeleteMarkers ?? []) {
+      if (marker.Key !== key || !marker.VersionId || !marker.LastModified) {
+        continue
+      }
+      history.push({
+        key,
+        versionId: marker.VersionId,
+        lastModifiedMs: marker.LastModified.getTime(),
+      })
     }
 
     keyMarker = listed.IsTruncated ? listed.NextKeyMarker : undefined
@@ -117,6 +126,39 @@ async function purgeAllVersions(key) {
       ? listed.NextVersionIdMarker
       : undefined
   } while (keyMarker || versionIdMarker)
+  return history
+}
+
+async function deleteVersions(versions) {
+  let deleted = 0
+  for (let i = 0; i < versions.length; i += DELETE_BATCH) {
+    const batch = versions.slice(i, i + DELETE_BATCH)
+    const objects = batch.map((version) => {
+      const { key, versionId } = version
+      return { Key: key, VersionId: versionId }
+    })
+    // Quiet:true returns only per-object failures. Any reported failure must
+    // throw into the per-key catch and later the aggregate Lambda error. For
+    // soft-deleted objects, history and evaluated-current requests are
+    // separated, so a partial history failure leaves current intact.
+    const res = await s3.send(
+      new DeleteObjectsCommand({
+        Bucket: DOCUMENTS_BUCKET,
+        Delete: { Objects: objects, Quiet: true },
+      }),
+    )
+    const failed = res.Errors ?? []
+    if (failed.length > 0) {
+      const first = batch[0]
+      log("reap-delete-errors", {
+        key: first?.["key"],
+        failed: failed.length,
+        firstError: { code: failed[0]?.Code, message: failed[0]?.Message },
+      })
+    }
+    throwOnDeleteErrors(failed)
+    deleted += batch.length
+  }
   return deleted
 }
 
@@ -137,18 +179,27 @@ export const handler = async () => {
     byBranch: {},
   }
 
-  let continuationToken
+  let keyMarker
+  let versionIdMarker
   do {
     const listed = await s3.send(
-      new ListObjectsV2Command({
+      new ListObjectVersionsCommand({
         Bucket: DOCUMENTS_BUCKET,
-        ContinuationToken: continuationToken,
+        KeyMarker: keyMarker,
+        VersionIdMarker: versionIdMarker,
       }),
     )
 
-    for (const obj of listed.Contents ?? []) {
-      const key = obj.Key
-      if (!key) continue
+    for (const version of listed.Versions ?? []) {
+      const key = version.Key
+      if (
+        !version.IsLatest ||
+        !key ||
+        !version.VersionId ||
+        !version.LastModified
+      ) {
+        continue
+      }
       counts.scanned += 1
 
       // Isolate per-key failures: a transient S3 error (throttle/5xx/404 from a
@@ -156,47 +207,58 @@ export const handler = async () => {
       // key. Count + log it and move on; the direction is safe (nothing gets
       // over-deleted — a purge only proceeds after a clean read + recheck).
       try {
-        const lastModifiedMs = obj.LastModified
-          ? new Date(obj.LastModified).getTime()
-          : nowMs
-        const tags = await readTags(key)
-        const decision = decideReap({ tags, lastModifiedMs, nowMs })
-        counts.byBranch[decision.branch] =
-          (counts.byBranch[decision.branch] ?? 0) + 1
-
-        if (!decision.purge) continue
-
-        // TOCTOU guard for undo: re-read tags immediately before deleting and
-        // re-run the SAME pure decision. If storage cleared `deleted-at` (undo)
-        // or tagged `confirmed-at` in the window since the first read, the
-        // decision flips to keep and we skip — a live/undone doc is never purged.
-        const freshTags = await readTags(key)
-        const recheck = decideReap({ tags: freshTags, lastModifiedMs, nowMs })
-        if (!recheck.purge) {
+        const evaluated = {
+          key,
+          versionId: version.VersionId,
+          lastModifiedMs: version.LastModified.getTime(),
+        }
+        const result = await processEvaluatedVersion({
+          evaluated,
+          nowMs,
+          readTags,
+          listVersionHistory,
+          deleteVersions,
+          isNotFoundError,
+        })
+        if (result.branch) {
+          counts.byBranch[result.branch] =
+            (counts.byBranch[result.branch] ?? 0) + 1
+        }
+        if (result.skippedByRecheck) {
           counts.skippedByRecheck += 1
           log("reap-skip-recheck", {
             key,
-            firstBranch: decision.branch,
-            recheckBranch: recheck.branch,
+            versionId: version.VersionId,
+            branch: result.branch,
+            recheckBranch: result.recheckBranch,
           })
           continue
         }
+        if (!result.purged) continue
 
-        const versions = await purgeAllVersions(key)
         counts.purged += 1
-        counts.versionsDeleted += versions
-        log("reap-purge", { key, branch: recheck.branch, versions })
+        counts.versionsDeleted += result.versionsDeleted
+        log("reap-purge", {
+          key,
+          versionId: version.VersionId,
+          branch: result.branch,
+          versions: result.versionsDeleted,
+        })
       } catch (err) {
         counts.errors += 1
         log("reap-key-error", { key, error: err?.message ?? String(err) })
       }
     }
 
-    continuationToken = listed.IsTruncated
-      ? listed.NextContinuationToken
+    keyMarker = listed.IsTruncated ? listed.NextKeyMarker : undefined
+    versionIdMarker = listed.IsTruncated
+      ? listed.NextVersionIdMarker
       : undefined
-  } while (continuationToken)
+  } while (keyMarker || versionIdMarker)
 
   log("reap-summary", counts)
+  // Per-key isolation covers the full sweep, then the aggregate failure is
+  // rethrown so Lambda's Errors metric increments and the alarm fires.
+  assertSweepSucceeded(counts)
   return counts
 }

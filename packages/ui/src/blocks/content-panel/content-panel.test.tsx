@@ -16,8 +16,8 @@ import { RecordWorkspace, type RecordWorkspaceProps } from "./record-workspace"
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
 const TABS: ViewTab[] = [
-  { value: "all", label: "Všechny" },
-  { value: "tax", label: "Daňové doklady" },
+  { value: "all", label: "Všechny", count: 12 },
+  { value: "tax", label: "Daňové doklady", count: 3 },
 ]
 
 describe("ContentHeader", () => {
@@ -26,14 +26,20 @@ describe("ContentHeader", () => {
     expect(screen.getByText("Faktury přijaté")).toBeInTheDocument()
   })
 
-  it("renders tabs as a tablist when tabs are provided", () => {
+  it("renders tabs as a tablist with the active tab selected", () => {
     wrap(<ContentHeader title="Faktury" viewTabs={TABS} value="all" />)
     expect(screen.getByRole("tablist")).toBeInTheDocument()
     expect(screen.getAllByRole("tab")).toHaveLength(2)
-    expect(screen.getByRole("tab", { name: "Všechny" })).toHaveAttribute(
-      "data-state",
-      "active",
+    expect(screen.getByRole("tab", { name: /Všechny/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
     )
+  })
+
+  it("renders a mandatory count badge on every view", () => {
+    wrap(<ContentHeader title="Faktury" viewTabs={TABS} value="all" />)
+    expect(screen.getByText("12")).toBeInTheDocument()
+    expect(screen.getByText("3")).toBeInTheDocument()
   })
 
   it("omits the tablist when there are no tabs", () => {
@@ -41,33 +47,47 @@ describe("ContentHeader", () => {
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument()
   })
 
-  it("shows the manage-tabs trigger only when a menu is passed", () => {
+  it("shows the + Add view button only when onAddView is passed", () => {
     const { rerender } = wrap(
       <ContentHeader title="Faktury" viewTabs={TABS} value="all" />,
     )
     expect(
-      screen.queryByRole("button", { name: /manage views/i }),
+      screen.queryByRole("button", { name: /add view/i }),
     ).not.toBeInTheDocument()
     rerender(
       <ContentHeader
         title="Faktury"
         viewTabs={TABS}
         value="all"
-        manageViews={{ tabs: TABS, hidden: new Set(), onToggle: () => {} }}
+        onAddView={() => {}}
       />,
     )
     expect(
-      screen.getByRole("button", { name: /manage views/i }),
+      screen.getByRole("button", { name: /add view/i }),
     ).toBeInTheDocument()
   })
 
-  it("renders the closed favorite + configure actions on every header", () => {
+  it("renders the favorite action and no configure button", () => {
     wrap(<ContentHeader title="Faktury" />)
     expect(
       screen.getByRole("button", { name: /favorite/i }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: /configure/i }),
+      screen.queryByRole("button", { name: /configure/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("renders a back link when backTo is provided", () => {
+    wrap(
+      <ContentHeader
+        title="#20260602"
+        backTo={{ label: "Issued invoices", href: "/x" }}
+      />,
+    )
+    // The label is split (`Back` + ` to {label}`) for the responsive collapse,
+    // so match the link's concatenated accessible name.
+    expect(
+      screen.getByRole("link", { name: /Back to Issued invoices/i }),
     ).toBeInTheDocument()
   })
 

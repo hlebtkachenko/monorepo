@@ -168,14 +168,8 @@ function InvoiceDetail({ row }: { row: InvoiceRow }) {
  * `children`.
  */
 export function TableDemoBody() {
-  const {
-    activeTab,
-    inspected,
-    inspectorOpen,
-    inspectorMode,
-    setInspectorMode,
-    closeInspector,
-  } = useOrgContent()
+  const { activeTab, inspected, inspectorOpen, inspectorMode, closeInspector } =
+    useOrgContent()
 
   const [fbFilters, setFbFilters] = React.useState<FiltersState>([])
   // Controls the FilterBar selector so a column header's "Filter" can open
@@ -299,8 +293,6 @@ export function TableDemoBody() {
           onStatusOpenChange={setStatusFilterOpen}
           search={search}
           onSearchChange={setSearch}
-          inspectorMode={inspectorMode}
-          onInspectorModeChange={setInspectorMode}
         />
       }
       statusBar={

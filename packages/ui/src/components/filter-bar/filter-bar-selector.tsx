@@ -4,7 +4,7 @@ import * as React from "react"
 import {
   ArrowRightIcon,
   ChevronRightIcon,
-  FilterIcon,
+  ListFilter,
 } from "@workspace/ui/lib/icons"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
@@ -47,6 +47,14 @@ interface FilterSelectorProps<TData> {
   /** Controlled active column — jumps straight to that column's value editor. */
   property?: string
   onPropertyChange?: (property: string | undefined) => void
+  /** Trigger button size — defaults to `sm` for the standalone filter bar. */
+  size?: React.ComponentProps<typeof Button>["size"]
+  /**
+   * Keep the text label on the trigger even once filters are applied. Off by
+   * default (the standalone bar collapses to the icon to save space); the
+   * ContentToolbar turns it on so the "Add filter" affordance never vanishes.
+   */
+  alwaysShowLabel?: boolean
 }
 
 function FilterSelectorImpl<TData>({
@@ -59,6 +67,8 @@ function FilterSelectorImpl<TData>({
   onOpenChange,
   property: propertyProp,
   onPropertyChange,
+  size = "sm",
+  alwaysShowLabel = false,
 }: FilterSelectorProps<TData>) {
   const [openState, setOpenState] = React.useState(false)
   const open = openProp ?? openState
@@ -171,11 +181,11 @@ function FilterSelectorImpl<TData>({
         <Button
           data-slot="filter-bar-selector"
           variant="outline"
-          size="sm"
-          className={cn(hasFilters && "w-fit !px-2")}
+          size={size}
+          className={cn(hasFilters && !alwaysShowLabel && "w-fit !px-2")}
         >
-          <FilterIcon className="size-4" />
-          {!hasFilters && <span>{strings.filter}</span>}
+          <ListFilter className="size-4" />
+          {(!hasFilters || alwaysShowLabel) && <span>{strings.filter}</span>}
         </Button>
       </PopoverTrigger>
       <PopoverContent

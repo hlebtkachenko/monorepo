@@ -21,19 +21,19 @@ const SHELL_CARD_CLASS =
 const ASSISTANT_DROPDOWN_CARD =
   "rounded-lg border border-foreground/10 bg-popover text-popover-foreground"
 
-// Per-panel header bar: full width, 45px tall, bottom hairline in the shell
-// border tone (same token the panels/rail use). Every panel (sidebar /
-// content / assistant) opens with one; it holds the panel's open/close
-// toggle(s) and, later, its title content.
+// Per-panel header bar: full width, 42px tall (excl. its 1px bottom hairline),
+// in the shell border tone (same token the panels/rail use). Every panel
+// (sidebar / content / assistant) opens with one; it holds the panel's
+// open/close toggle(s) and its title content.
 //
-// Inside sits the "safe zone": content is inset 8px on the sides and 6px top/
-// bottom (the header's padding). 45 − 1px border − 12px = a 32px content row,
-// exactly the toggle height.
+// Inside sits the "safe zone": content is inset 8px on the sides and 4px top/
+// bottom (the header's padding). 42 − 1px border − 8px = a 33px content row,
+// which clears the 32px toggle height.
 function PanelHeader({ children }: { children?: React.ReactNode }) {
   return (
     <div
       data-slot="app-shell-panel-header"
-      className="flex h-[45px] shrink-0 items-stretch border-b border-border-subtle px-2 py-1.5"
+      className="flex h-[42px] shrink-0 items-stretch border-b border-border-subtle px-2 py-1"
     >
       <div
         data-slot="app-shell-panel-header-safe-zone"
@@ -198,7 +198,11 @@ export function AppBody({
           <PanelHeader>
             {(!sidebarIsOpen || isMobile) && renderSidebarToggle("left")}
             {contentHeader != null && (
-              <div className="ml-1 min-w-0 flex-1">{contentHeader}</div>
+              // `self-stretch` fills the full bar height so the view-tab underline
+              // can reach the header's bottom hairline (no 1px gap).
+              <div className="ml-2 min-w-0 flex-1 self-stretch">
+                {contentHeader}
+              </div>
             )}
             {assistant !== undefined && (
               <IconButton

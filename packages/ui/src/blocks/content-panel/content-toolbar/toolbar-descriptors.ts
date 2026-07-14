@@ -8,8 +8,6 @@ import type {
 } from "@workspace/ui/components/filter-bar"
 import type { IconName } from "@workspace/ui/icon-packs"
 
-import type { InspectorMode } from "../inspector"
-
 // The closed, DATA-only vocabulary the ContentToolbar container composes. Every
 // slot is a descriptor — never a ReactNode — so a page cannot paste a raw
 // control in (which would reopen the hardcoding hole ContentToolbarLegacy has).
@@ -100,13 +98,6 @@ export type AddDescriptor = AddDescriptorBase &
     | { variants: AddVariant[]; onSelectVariant: (id: string) => void }
   )
 
-/** The `modeToggle` slot descriptor (right #4) — binds to the Inspector mode. */
-export interface ModeToggleDescriptor {
-  value: InspectorMode
-  onChange: (mode: InspectorMode) => void
-  tooltip?: string
-}
-
 export interface ContentToolbarProps<TData> {
   statusFilter?: StatusFilterDescriptor // left #1 (always first)
   search?: SearchDescriptor // left #2
@@ -114,6 +105,5 @@ export interface ContentToolbarProps<TData> {
   viewTools?: ViewToolsDescriptor<TData> // right #1
   actions?: ActionDescriptor[] // right #2 (plural)
   add?: AddDescriptor // right #3
-  modeToggle?: ModeToggleDescriptor // right #4
   className?: string
 }

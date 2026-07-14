@@ -16,11 +16,7 @@ export interface ColumnOptionExtended extends ColumnOption {
 }
 
 export type ColumnDataType =
-  | "text"
-  | "number"
-  | "date"
-  | "option"
-  | "multiOption"
+  "text" | "number" | "date" | "option" | "multiOption"
 
 export type OptionBasedColumnDataType = Extract<
   ColumnDataType,
@@ -268,7 +264,7 @@ export type FilterBarStrings = {
 
 export const FILTER_BAR_DEFAULT_STRINGS: FilterBarStrings = {
   filter: "Filter",
-  clear: "Clear",
+  clear: "Reset",
   search: "Search...",
   noResults: "No results.",
   operators: "Operators",

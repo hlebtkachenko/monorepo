@@ -4,13 +4,14 @@ import type { Table } from "@tanstack/react-table"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
+import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
-import { Columns3, Eye, EyeOff, GripVertical } from "@workspace/ui/lib/icons"
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@workspace/ui/components/popover"
+import { Separator } from "@workspace/ui/components/separator"
+import { Columns3, GripVertical } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { getColumnLabel } from "./data-table-utils"
@@ -49,12 +50,14 @@ function reorderColumn<TData>(
 }
 
 /**
- * The column manager menu body — a titled, drag-reorderable list (grip handle +
- * a dark separator at the drop position) where each row's eye toggles
- * visibility. Generic over any TanStack `Table<TData>`; reads only `getCanHide`
- * / `getIsVisible` / column order, so it has zero per-table knowledge.
+ * The column manager body — pinned + unpinned sections (divider between), each
+ * row a grey grip handle (drag to reorder), a black column label, and a
+ * right-edge Checkbox that toggles visibility. Unpinned rows reorder via drag
+ * (writing the table's `columnOrder`); pinned rows stay in their pinned area
+ * (grip is decorative there). Generic over any TanStack `Table<TData>` — reads
+ * only `getCanHide` / `getIsVisible` / `getIsPinned` / column order.
  *
- * Render it inside any dropdown surface — a toolbar "Columns" button (see
+ * Render it inside any surface — the toolbar "Columns" popover (see
  * `DataTableColumnManager`) or a grid's "+ Add column" trigger.
  */
 export function ColumnManagerMenuContent<TData>({
@@ -67,117 +70,171 @@ export function ColumnManagerMenuContent<TData>({
     id: string
     edge: "top" | "bottom"
   } | null>(null)
+
+  // Order the list by the table's live `columnOrder` so a header reorder shows
+  // here too (both write the same state). Fall back to definition order before
+  // any reorder has happened (columnOrder empty).
+  const orderIds = table.getState().columnOrder
+  const orderIndex = (id: string) => {
+    const index = orderIds.indexOf(id)
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index
+  }
   const columns = table.getAllColumns().filter((column) => column.getCanHide())
+  const ordered = orderIds.length
+    ? [...columns].sort((a, b) => orderIndex(a.id) - orderIndex(b.id))
+    : columns
+  const pinnedLeft = ordered.filter((column) => column.getIsPinned() === "left")
+  const pinnedRight = ordered.filter(
+    (column) => column.getIsPinned() === "right",
+  )
+  const unpinned = ordered.filter((column) => !column.getIsPinned())
+
+  const renderRow = (column: (typeof columns)[number], draggable: boolean) => {
+    const visible = column.getIsVisible()
+    const label = getColumnLabel(column)
+    const over = dropTarget?.id === column.id
+    return (
+      <div key={column.id} className="relative">
+        {over && dropTarget.edge === "top" ? (
+          <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
+        ) : null}
+        {/* The whole row is one toggle target (like a menu checkbox item); the
+            grip is the only drag handle so a click anywhere else flips
+            visibility. Checkbox is a trailing state indicator, not its own hit
+            target. */}
+        <div
+          onDragOver={(event) => {
+            if (!dragId || dragId === column.id || !draggable) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = "move"
+            const rect = event.currentTarget.getBoundingClientRect()
+            const edge =
+              event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
+            setDropTarget({ id: column.id, edge })
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (dragId) {
+              reorderColumn(table, dragId, column.id, dropTarget?.edge ?? "top")
+            }
+            setDragId(null)
+            setDropTarget(null)
+          }}
+          className={cn(
+            "group/col flex items-center rounded-sm hover:bg-accent",
+            dragId === column.id && "opacity-40",
+          )}
+        >
+          <span
+            draggable={draggable}
+            onDragStart={
+              draggable
+                ? (event) => {
+                    event.dataTransfer.effectAllowed = "move"
+                    event.dataTransfer.setData("text/plain", column.id)
+                    setDragId(column.id)
+                  }
+                : undefined
+            }
+            onDragEnd={() => {
+              setDragId(null)
+              setDropTarget(null)
+            }}
+            className={cn(
+              "flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground",
+              draggable ? "cursor-grab active:cursor-grabbing" : "opacity-40",
+            )}
+          >
+            <GripVertical className="size-4" />
+          </span>
+          <button
+            type="button"
+            onClick={() => column.toggleVisibility(!visible)}
+            aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+            aria-pressed={visible}
+            className="flex h-8 flex-1 items-center gap-2 pr-2.5 text-left text-sm outline-none"
+          >
+            <span className="flex-1 truncate text-foreground">{label}</span>
+            <Checkbox
+              checked={visible}
+              aria-hidden
+              tabIndex={-1}
+              className="pointer-events-none shrink-0"
+            />
+          </button>
+        </div>
+        {over && dropTarget.edge === "bottom" ? (
+          <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />
+        ) : null}
+      </div>
+    )
+  }
+
+  const sectionLabel = (text: string) => (
+    <div className="px-2 pt-1.5 pb-1 text-xs font-medium text-muted-foreground">
+      {text}
+    </div>
+  )
 
   return (
     <>
-      <DropdownMenuLabel>Columns</DropdownMenuLabel>
-      {columns.map((column) => {
-        const visible = column.getIsVisible()
-        const ToggleIcon = visible ? Eye : EyeOff
-        const label = getColumnLabel(column)
-        const over = dropTarget?.id === column.id
-        return (
-          <div key={column.id} className="relative">
-            {over && dropTarget.edge === "top" ? (
-              <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
-            ) : null}
-            <div
-              draggable
-              onDragStart={(event) => {
-                // setData + effectAllowed are required for the drag to actually
-                // start (Firefox) and for the native "held" drag image to show.
-                event.dataTransfer.effectAllowed = "move"
-                event.dataTransfer.setData("text/plain", column.id)
-                setDragId(column.id)
-              }}
-              onDragEnd={() => {
-                setDragId(null)
-                setDropTarget(null)
-              }}
-              onDragOver={(event) => {
-                if (!dragId || dragId === column.id) return
-                event.preventDefault()
-                event.stopPropagation()
-                event.dataTransfer.dropEffect = "move"
-                const rect = event.currentTarget.getBoundingClientRect()
-                const edge =
-                  event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
-                setDropTarget({ id: column.id, edge })
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                event.stopPropagation()
-                if (dragId) {
-                  reorderColumn(
-                    table,
-                    dragId,
-                    column.id,
-                    dropTarget?.edge ?? "top",
-                  )
-                }
-                setDragId(null)
-                setDropTarget(null)
-              }}
-              className={cn(
-                "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
-                // The dragged row "lifts": it dims in place while its full-opacity
-                // native ghost follows the cursor.
-                dragId === column.id && "opacity-40",
-              )}
-            >
-              <GripVertical className="size-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
-              <span
-                className={cn(
-                  "flex-1 truncate",
-                  !visible && "text-muted-foreground",
-                )}
-              >
-                {label}
-              </span>
-              <button
-                type="button"
-                aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-                onClick={() => column.toggleVisibility(!visible)}
-                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <ToggleIcon className="size-4" />
-              </button>
-            </div>
-            {over && dropTarget.edge === "bottom" ? (
-              <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />
-            ) : null}
-          </div>
-        )
-      })}
+      {pinnedLeft.length > 0 ? (
+        <>
+          {sectionLabel("Pinned left")}
+          {pinnedLeft.map((column) => renderRow(column, false))}
+        </>
+      ) : null}
+      {pinnedRight.length > 0 ? (
+        <>
+          {pinnedLeft.length > 0 ? <Separator className="my-1" /> : null}
+          {sectionLabel("Pinned right")}
+          {pinnedRight.map((column) => renderRow(column, false))}
+        </>
+      ) : null}
+      {unpinned.length > 0 ? (
+        <>
+          {pinnedLeft.length > 0 || pinnedRight.length > 0 ? (
+            <Separator className="my-1" />
+          ) : null}
+          {sectionLabel("Unpinned")}
+          {unpinned.map((column) => renderRow(column, true))}
+        </>
+      ) : null}
     </>
   )
 }
 
 /**
- * Ready-made toolbar control: an outline "Columns" button that opens the
- * `ColumnManagerMenuContent` in a dropdown. Drop it in a `ContentToolbar`'s
- * right cluster; for a different trigger (e.g. a grid's "+ Add column") render
- * `ColumnManagerMenuContent` inside your own dropdown instead.
+ * Ready-made toolbar control: an outline "Columns" button opening a Popover with
+ * the `ColumnManagerMenuContent` list. A Popover (not a menu) so the checkboxes
+ * and drag handles behave as normal interactive content.
  */
 export function DataTableColumnManager<TData>({
   table,
   label = "Columns",
+  triggerSize = "sm",
+  disabled = false,
 }: {
   table: Table<TData>
   label?: string
+  /** Trigger button size — defaults to `sm` for legacy toolbars. */
+  triggerSize?: React.ComponentProps<typeof Button>["size"]
+  /** Disable the trigger (popover can't open). */
+  disabled?: boolean
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm">
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size={triggerSize} disabled={disabled}>
           <Columns3 />
           {label}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-56">
+      </PopoverTrigger>
+      <PopoverContent align="end" className="max-h-96 w-64 overflow-y-auto p-1">
         <ColumnManagerMenuContent table={table} />
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </PopoverContent>
+    </Popover>
   )
 }

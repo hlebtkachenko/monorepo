@@ -28,7 +28,7 @@ export function ContentToolbarActionButton({
   const Icon = icon ? icons[icon] : null
 
   const button = (
-    <Button variant={variant} size="sm" disabled={disabled} onClick={onSelect}>
+    <Button variant={variant} disabled={disabled} onClick={onSelect}>
       {Icon ? <Icon /> : null}
       {label}
     </Button>

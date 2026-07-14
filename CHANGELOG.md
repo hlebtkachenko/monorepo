@@ -24,6 +24,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Conductor web/api/admin Run buttons now auto-open the app in the default browser once the port answers (bounded, macOS-gated poller in .conductor/settings.toml)
 - Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
 - Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).
 - Details Table polish: the per-row Edit icon toggles to an Apply (check) action that returns the row to read mode keeping its edits; read-only tables can show a 'to edit, go to <link> ↗' hint; two Details groups stacked with no Space now collapse to a single divider (no gap) via a 1px overlap.
@@ -52,6 +53,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
 - Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load
 - Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.

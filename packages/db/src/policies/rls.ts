@@ -118,6 +118,7 @@ export const WORKSPACE_SCOPED_TABLES = [
   "ocr_extraction_template",
   "brain_confident_wrong",
   "booking_template",
+  "inbox_attachment",
 ] as const
 
 export type WorkspaceScopedTable = (typeof WORKSPACE_SCOPED_TABLES)[number]

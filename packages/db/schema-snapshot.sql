@@ -2047,6 +2047,28 @@ CREATE TABLE public.impersonation (
 ALTER TABLE ONLY public.impersonation FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: inbox_attachment; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inbox_attachment (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    storage_key text NOT NULL,
+    sha256 text NOT NULL,
+    content_type text NOT NULL,
+    size bigint NOT NULL,
+    filename text NOT NULL,
+    confirmed_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT inbox_attachment_sha256_hex CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT inbox_attachment_size_positive CHECK ((size > 0))
+);
+
+ALTER TABLE ONLY public.inbox_attachment FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: individual_record; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3210,6 +3232,27 @@ ALTER TABLE ONLY public.feature_flag
 
 ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_pkey PRIMARY KEY (id);
+
+--
+-- Name: inbox_attachment inbox_attachment_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: inbox_attachment inbox_attachment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_pkey PRIMARY KEY (id);
+
+--
+-- Name: inbox_attachment inbox_attachment_workspace_sha256_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_workspace_sha256_unique UNIQUE (workspace_id, sha256);
 
 --
 -- Name: individual_record individual_record_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4992,6 +5035,13 @@ ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
+-- Name: inbox_attachment inbox_attachment_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
 -- Name: individual_record individual_record_doc_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5784,6 +5834,36 @@ CREATE POLICY impersonation_target_self_read ON public.impersonation FOR SELECT 
 --
 
 CREATE POLICY impersonation_ws_admin_read ON public.impersonation FOR SELECT TO app_user USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+
+--
+-- Name: inbox_attachment; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.inbox_attachment ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: inbox_attachment inbox_attachment_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_delete ON public.inbox_attachment FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_insert ON public.inbox_attachment FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_select ON public.inbox_attachment FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_update ON public.inbox_attachment FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record; Type: ROW SECURITY; Schema: public; Owner: -

@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- S3 document store: inbox_attachment table (migration 0057) — workspace-scoped durable identity of a confirmed upload, FORCE RLS with 4 command-specific policies, content-addressed dedup UNIQUE(workspace_id, sha256), composite-FK target, sha256/size CHECKs
 - S3 document store P1b: document-reaper Lambda (sole S3-delete principal, hourly EventBridge, tag-age purge of orphaned/abandoned/soft-deleted objects) + errors/duration alarms
 - S3 document store P1a: KMS-CMK-encrypted DocumentsBucket (Intelligent-Tiering, versioned, SSE-KMS + SSE-C deny policy) + no-delete task-role grants + write-flood alert (SNS-only, no kill-switch)
 - S3 DocumentStore interface + S3/minio implementation (packages/storage)

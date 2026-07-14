@@ -13,6 +13,7 @@ import {
   magicLinkEmail,
 } from "@workspace/email"
 import { truncateIp, hashUserAgent } from "./tokens/auth-token"
+import { devCookiePrefix } from "./dev-cookie-prefix"
 
 // ---------------------------------------------------------------------------
 // Better Auth version assertion (ADR-0022 / C2).
@@ -172,6 +173,10 @@ export function resolveBaseURL(): string {
  */
 const IS_PROD = process.env.NODE_ENV === "production"
 const MIN_BA_SECRET_BYTES = 32
+
+// Per-workspace dev session-cookie prefix (isolates Conductor workspaces that
+// share the `localhost` cookie jar across ports) — see `dev-cookie-prefix.ts`.
+const DEV_COOKIE_PREFIX = devCookiePrefix()
 // Next.js sets NEXT_PHASE to phase-production-build while pre-rendering
 // pages and collecting page data. Module evaluation runs in that phase
 // with NODE_ENV=production but BETTER_AUTH_SECRET unavailable. The
@@ -363,6 +368,8 @@ export const auth = betterAuth({
     },
   },
   advanced: {
+    // Per-workspace dev session-cookie isolation — see `devCookiePrefix()`.
+    ...(DEV_COOKIE_PREFIX ? { cookiePrefix: DEV_COOKIE_PREFIX } : {}),
     database: {
       // Schema declares uuid for every BA-managed primary key + FK; main
       // uses uuidv7() at insert time. Force BA's TS-side ID generator to

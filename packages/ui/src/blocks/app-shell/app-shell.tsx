@@ -8,8 +8,10 @@ import { Sheet, SheetContent, SheetTitle } from "@workspace/ui/components/sheet"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { useResizeHandle } from "@workspace/ui/lib/use-resize-handle"
 import { cn } from "@workspace/ui/lib/utils"
+import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import { AppBody } from "./app-body"
+import { DeploymentUpdatePrompt } from "./deployment-update-prompt"
 
 interface AppShellProps {
   header?: React.ReactNode
@@ -78,6 +80,13 @@ interface AppShellProps {
    * Default `false`: identical pixel output to today for any square logo.
    */
   logoOverflow?: boolean
+  /**
+   * Build identity rendered into the initial server response. When present,
+   * the shell polls the version endpoint and asks the user to reload after a
+   * newer deployment becomes available.
+   */
+  deployment?: DeploymentIdentity
+  deploymentVersionEndpoint?: string
 }
 
 const DEFAULT_LOGO = (
@@ -176,6 +185,8 @@ export function AppShell({
   logo = DEFAULT_LOGO,
   logoHref,
   logoOverflow = false,
+  deployment,
+  deploymentVersionEndpoint,
 }: AppShellProps) {
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = React.useState(defaultSidebarOpen)
@@ -425,6 +436,13 @@ export function AppShell({
             {bottomNav}
           </div>
         )}
+
+        {deployment ? (
+          <DeploymentUpdatePrompt
+            initialDeployment={deployment}
+            endpoint={deploymentVersionEndpoint}
+          />
+        ) : null}
       </div>
     </AppShellContext.Provider>
   )

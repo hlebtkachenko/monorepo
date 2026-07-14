@@ -1,3 +1,5 @@
+import type { DeploymentIdentity } from "../lib/deployment-version"
+
 /**
  * Build version read from BUILD_VERSION env at SSR / process-start time.
  *
@@ -18,6 +20,13 @@
  * See `docs/conventions/RELEASES.md` for the full release flow.
  */
 export function getBuildVersion(): string {
-  const raw = process.env.BUILD_VERSION ?? "dev"
+  const raw = getBuildIdentity().version
   return /^\d+\.\d+\.\d+/.test(raw) ? `v${raw}` : raw
+}
+
+export function getBuildIdentity(): DeploymentIdentity {
+  return {
+    sha: process.env.BUILD_SHA ?? "unknown",
+    version: process.env.BUILD_VERSION ?? "dev",
+  }
 }

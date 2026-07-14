@@ -676,8 +676,18 @@ describe("InvoicesController (/v1/invoices)", () => {
       deriveVeto: unknown
       screenTemplateBasis: unknown
       principal: { organizationId: string }
+      body: Record<string, unknown>
     }
-    expect(opts.operationId).toBe("createInvoice")
+    // Collapsed at the gate onto the SHARED capture tool_name so a held invoice is
+    // approvable through the same replay case as POST /v1/accounting/documents. A
+    // novel "createInvoice" tool_name had no replay case anywhere → a held invoice
+    // was permanently unapprovable; this closes that dead-end at the root.
+    expect(opts.operationId).toBe("captureAccountingDocument")
+    // The PERSISTED body is normalized (direction → type, gate envelope kept), so
+    // it re-validates against CaptureAccountingDocumentRequestSchema on replay.
+    expect(opts.body).toMatchObject({ type: "RECEIVED_INVOICE" })
+    expect(opts.body).not.toHaveProperty("direction")
+    expect(opts.body).toHaveProperty("confidence")
     expect(opts.principal.organizationId).toBe(ORG_A)
     expect(opts.idempotencyKey).toBe("idem-1")
     expect(opts.periodId).toBe(PERIOD_1)

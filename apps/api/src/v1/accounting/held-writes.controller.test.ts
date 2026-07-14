@@ -57,7 +57,10 @@ vi.mock("@workspace/auth/api-key-verifier", () => ({
 
 vi.mock("@workspace/accounting", () => ({
   createEvent: vi.fn(),
-  captureDocument: vi.fn(),
+  // The capture-approve path now calls the shared capture-then-book unit (parity
+  // with the web approvals path); it composes captureDocument + bookDocument, so
+  // we spy on it directly and let its return shape drive the response.
+  captureAndBookIfInvoice: vi.fn(),
   post: vi.fn(),
 }))
 
@@ -127,6 +130,7 @@ vi.mock("@workspace/db", () => {
             },
           )
         }
+        let limitN: number | undefined
         const chain = {
           from: () => chain,
           where: (pred: Pred) => {
@@ -134,7 +138,14 @@ vi.mock("@workspace/db", () => {
             return chain
           },
           orderBy: () => Promise.resolve(materialize()),
-          limit: (n: number) => Promise.resolve(materialize(n)),
+          // The resolve read is `.limit(1).for("update")`; the list read is
+          // terminal `.orderBy(...)`. `.limit` now stores the bound and returns the
+          // chain so the trailing `.for("update")` (row lock) resolves the rows.
+          limit: (n: number) => {
+            limitN = n
+            return chain
+          },
+          for: () => Promise.resolve(materialize(limitN)),
         }
         return chain
       },
@@ -168,7 +179,7 @@ const { DomainExceptionFilter } = await import("../domain-exception.filter")
 
 const verifyApiKeyMock = vi.mocked(verifyApiKey)
 const createEventMock = vi.mocked(accounting.createEvent)
-const captureDocumentMock = vi.mocked(accounting.captureDocument)
+const captureAndBookMock = vi.mocked(accounting.captureAndBookIfInvoice)
 const postMock = vi.mocked(accounting.post)
 const updateLogMock = vi.mocked(db.updateToolCallLogOutput)
 const unconfirmMock = vi.mocked(db.unconfirmTemplateOnReject)
@@ -272,7 +283,7 @@ describe("HeldWritesController", () => {
   beforeEach(() => {
     verifyApiKeyMock.mockReset()
     createEventMock.mockReset()
-    captureDocumentMock.mockReset()
+    captureAndBookMock.mockReset()
     postMock.mockReset()
     updateLogMock.mockClear()
     unconfirmMock.mockClear()
@@ -346,7 +357,7 @@ describe("HeldWritesController", () => {
 
       expect(res.body).toEqual({ id: HELD_A1, resolution: "rejected" })
       expect(createEventMock).not.toHaveBeenCalled()
-      expect(captureDocumentMock).not.toHaveBeenCalled()
+      expect(captureAndBookMock).not.toHaveBeenCalled()
       expect(postMock).not.toHaveBeenCalled()
       expect(updateLogMock).toHaveBeenCalledOnce()
       expect(updateLogMock).toHaveBeenCalledWith(expect.anything(), {
@@ -530,25 +541,39 @@ describe("HeldWritesController", () => {
         }),
       )
       verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
-      captureDocumentMock.mockResolvedValue({
-        summaryRecordId: "0196f1de-0000-7000-8000-000000000501",
-        designation: "FP2026001",
-        sequenceNumber: 1,
-        lines: [],
+      // VALID_CAPTURE_INPUT is a RECEIVED_INVOICE, so the shared unit books it and
+      // returns postingIds — the API approve now lands the posting (parity with the
+      // web approvals path) instead of an orphaned capture.
+      captureAndBookMock.mockResolvedValue({
+        doc: {
+          summaryRecordId: "0196f1de-0000-7000-8000-000000000501",
+          designation: "FP2026001",
+          sequenceNumber: 1,
+          lines: [],
+        },
+        postingIds: ["0196f1de-0000-7000-8000-000000000601"],
       } as never)
-      await supertest(app.getHttpServer())
+      const res = await supertest(app.getHttpServer())
         .post(
           "/v1/accounting/held-writes/0196f1de-0000-7000-8000-000000000020/resolve",
         )
         .set("Authorization", "Bearer affk_live_a")
         .send({ action: "approve" })
         .expect(200)
-      expect(captureDocumentMock).toHaveBeenCalledOnce()
-      const [, , input] = captureDocumentMock.mock.calls[0] as unknown as [
+      // Parity: the booked posting id is surfaced on the resolve result.
+      expect(res.body.result.postingIds).toEqual([
+        "0196f1de-0000-7000-8000-000000000601",
+      ])
+      expect(captureAndBookMock).toHaveBeenCalledOnce()
+      // 4th arg is the APPROVER (responsibleUserId), not the author.
+      const [, , input, responsibleUserId] = captureAndBookMock.mock
+        .calls[0] as unknown as [
         unknown,
         unknown,
         Record<string, unknown>,
+        string,
       ]
+      expect(responsibleUserId).toBe(APPROVER)
       expect(input).not.toHaveProperty("templateId")
       expect(input).not.toHaveProperty("extractionMethod")
       expect(input).not.toHaveProperty("signals")

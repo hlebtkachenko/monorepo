@@ -488,11 +488,26 @@ export class InvoicesController {
       ...(fields.roundingAmount != null ? [fields.roundingAmount] : []),
     ]
 
+    // Persist this invoice capture under the SHARED capture `tool_name` with a
+    // NORMALIZED body (drop `direction`, pin `type`), so a held `/v1/invoices`
+    // write is indistinguishable from a `POST /v1/accounting/documents` capture
+    // at EVERY downstream surface — the held-write replay switch, the approvals
+    // view-model, the edit model, and the preview query all already dispatch
+    // "captureAccountingDocument". Minting a novel "createInvoice" tool_name is
+    // exactly what left a held invoice permanently unapprovable (no replay case
+    // knew it); collapsing it here fixes that dead-end at the root, in one place,
+    // instead of adding a parallel `createInvoice` branch to all of them. The
+    // normalized body still validates against `CaptureAccountingDocumentRequestSchema`
+    // (it is that shape minus `direction`), so the replay re-validation passes.
+    const { direction: _omitDirection, ...bodyWithoutDirection } =
+      body as unknown as Record<string, unknown>
+    const normalizedBody = { ...bodyWithoutDirection, type }
+
     const result = await runGatedWrite<CapturedDocument>({
       principal,
       idempotencyKey,
-      operationId: "createInvoice",
-      body,
+      operationId: "captureAccountingDocument",
+      body: normalizedBody,
       periodId: fields.periodId,
       confidence,
       rationale,

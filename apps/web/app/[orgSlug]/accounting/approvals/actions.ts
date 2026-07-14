@@ -15,8 +15,7 @@ import {
 } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 import {
-  bookDocument,
-  captureDocument,
+  captureAndBookIfInvoice,
   createEvent,
   post,
   type DocumentInput,
@@ -238,34 +237,29 @@ export async function resolveHeldWrite(
           case "captureAccountingDocument": {
             const docInput = fields as unknown as DocumentInput
             await lockPeriodInTx(db, orgCtx.organizationId, docInput.periodId)
-            const doc = await captureDocument(db, orgCtx, docInput)
-            applied = {
-              summaryRecordId: doc.summaryRecordId,
-              designation: doc.designation,
-              sequenceNumber: doc.sequenceNumber,
-              lines: doc.lines,
-            }
             // Derive mode: a captured INVOICE is booked deterministically in the
             // SAME tx, so "approve a captured invoice" lands ONE fully-wired
             // accounting fact (event + doc + posting per event, every line linked
             // to its source partial_record) instead of an orphaned capture. The
             // předkontace is derived from each partial's facts — no caller-supplied
             // account lines — so what the reviewer previewed IS what posts.
-            // bookDocument fails closed (throws → the whole approve rolls back, the
-            // row stays held with the reason) on any fact it cannot book safely.
             // Non-invoice vouchers (cash/bank) do not book through předkontace.
-            if (
-              docInput.type === "RECEIVED_INVOICE" ||
-              docInput.type === "ISSUED_INVOICE"
-            ) {
-              const booked = await bookDocument(db, orgCtx, {
-                summaryRecordId: doc.summaryRecordId,
-                responsibleUserId: ctx.userId,
-              })
-              applied = {
-                ...applied,
-                postingIds: booked.postings.map((p) => p.postingId),
-              }
+            // captureAndBookIfInvoice is the SAME unit the API held-write resolve
+            // path uses, so the two approve surfaces can never drift on whether
+            // they book (that drift is what this task closes). It fails closed
+            // (throws → the whole approve rolls back, the row stays held).
+            const { doc, postingIds } = await captureAndBookIfInvoice(
+              db,
+              orgCtx,
+              docInput,
+              ctx.userId,
+            )
+            applied = {
+              summaryRecordId: doc.summaryRecordId,
+              designation: doc.designation,
+              sequenceNumber: doc.sequenceNumber,
+              lines: doc.lines,
+              ...(postingIds ? { postingIds } : {}),
             }
             break
           }

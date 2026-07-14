@@ -58,6 +58,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Brain: approving a captured invoice through the public API (POST /v1/accounting/held-writes/:id/resolve) now books it (posting per event + saldokonto obligation) instead of leaving an orphaned capture — parity with the web approvals path (PR #712/#715). POST /v1/invoices now persists its held write under the shared captureAccountingDocument tool_name (normalized body), so a held invoice is approvable through the existing replay case instead of dead-ending on an unknown 'createInvoice' operation. Both approve surfaces share one captureAndBookIfInvoice unit; the API held-row read takes FOR UPDATE so a concurrent double-approve cannot double-book.
 - Auth: the edge proxy session-presence check now reads the per-workspace cookie prefix ($CONDUCTOR_PORT), fixing a redirect loop to /auth/login introduced when the dev cookie was namespaced — getSessionCookie was still looking for the default cookie name.
 - Auth: dev session cookies are namespaced per Conductor workspace (advanced.cookiePrefix keyed on $CONDUCTOR_PORT), so parallel workspace dev servers on localhost no longer clobber each other's session and silently sign you out; production cookie name is unchanged.
 - Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.

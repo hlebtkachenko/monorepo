@@ -50,6 +50,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load
 - Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.
 

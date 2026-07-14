@@ -5045,6 +5045,53 @@
             "format": "uuid",
             "description": "THEIR side (counterparty row)."
           },
+          "counterparty": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400,
+                "description": "Obchodní jméno / jméno osoby.",
+                "example": "ACME s.r.o."
+              },
+              "ico": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^\\d{1,8}$",
+                "description": "IČO (up to 8 digits).",
+                "example": "12345678"
+              },
+              "dic": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 20,
+                "description": "DIČ / EU VAT id.",
+                "example": "CZ12345678"
+              },
+              "countryCode": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "minLength": 2,
+                "maxLength": 2,
+                "description": "ISO 3166-1 alpha-2.",
+                "example": "CZ"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "description": "THEIR side by IDENTITY — the server finds-or-creates the counterparty (dedup by IČO → DIČ → name). Used when counterpartyId is unknown; counterpartyId takes precedence."
+          },
           "description": {
             "type": "string",
             "minLength": 1,

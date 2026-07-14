@@ -17,6 +17,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
   varchar,
 } from "drizzle-orm/pg-core"
@@ -50,5 +51,16 @@ export const counterparty = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique("counterparty_id_workspace_unique").on(t.id, t.workspace_id)],
+  (t) => [
+    unique("counterparty_id_workspace_unique").on(t.id, t.workspace_id),
+    // Race-safe dedup keys for supplier→counterparty resolution (resolveCounterparty
+    // upserts ON CONFLICT against these). IČO and DIČ are independent identities.
+    // Mirrors migration 0058.
+    uniqueIndex("counterparty_workspace_ico_unique")
+      .on(t.workspace_id, t.ico)
+      .where(sql`ico IS NOT NULL AND self_of_organization_id IS NULL`),
+    uniqueIndex("counterparty_workspace_tax_id_unique")
+      .on(t.workspace_id, t.tax_id)
+      .where(sql`tax_id IS NOT NULL AND self_of_organization_id IS NULL`),
+  ],
 )

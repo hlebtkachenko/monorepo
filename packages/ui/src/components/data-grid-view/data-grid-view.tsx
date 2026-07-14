@@ -324,121 +324,132 @@ export function DataGridView<TData>({
       style={columnSizeVars}
       {...props}
     >
-      <div style={{ width: totalWidth, minWidth: "100%" }}>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[restrictToHorizontalAxis]}
-          onDragStart={onColumnDragStart}
-          onDragEnd={onColumnDragEnd}
-          onDragCancel={() => setActiveColumnId(null)}
+      {/* The rowgroups are DIRECT children of role="grid" (axe
+          aria-required-children needs that) and each carries the scroll width,
+          so no intermediate wrapper sits between the grid and its rows.
+          dnd-kit's screen-reader elements (a role="status" live region + hidden
+          instructions) are portaled to <body> instead of rendering inline as
+          disallowed grid children. */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToHorizontalAxis]}
+        onDragStart={onColumnDragStart}
+        onDragEnd={onColumnDragEnd}
+        onDragCancel={() => setActiveColumnId(null)}
+        accessibility={{
+          container:
+            typeof document !== "undefined" ? document.body : undefined,
+        }}
+      >
+        <div
+          role="rowgroup"
+          data-slot="grid-header"
+          className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
+          style={{ width: totalWidth, minWidth: "100%" }}
         >
-          <div
-            role="rowgroup"
-            data-slot="grid-header"
-            className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
-          >
-            {table.getHeaderGroups().map((headerGroup) => {
-              const left = headerGroup.headers.filter(
-                (h) => h.column.getIsPinned() === "left",
-              )
-              const center = headerGroup.headers.filter(
-                (h) => !h.column.getIsPinned(),
-              )
-              const right = headerGroup.headers.filter(
-                (h) => h.column.getIsPinned() === "right",
-              )
-              return (
-                <div
-                  key={headerGroup.id}
-                  role="row"
-                  data-slot="grid-header-row"
-                  className="flex w-full"
-                >
-                  {renderHeaderGroup(left)}
-                  {renderHeaderGroup(center)}
-                  <div
-                    data-slot="grid-header-spacer"
-                    className="flex flex-1 items-center bg-muted"
-                  >
-                    {headerTrailing}
-                  </div>
-                  {renderHeaderGroup(right)}
-                </div>
-              )
-            })}
-          </div>
-          <DragOverlay modifiers={[restrictToHorizontalAxis]}>
-            {activeColumnId ? (
-              <div className="flex h-9 items-center border bg-muted px-3 text-sm font-medium text-foreground shadow">
-                {String(
-                  table.getColumn(activeColumnId)?.columnDef.meta?.label ??
-                    activeColumnId,
-                )}
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-        <div role="rowgroup" data-slot="grid-body">
-          {rowCount === 0 ? (
-            <div role="row" className="flex w-full">
+          {table.getHeaderGroups().map((headerGroup) => {
+            const left = headerGroup.headers.filter(
+              (h) => h.column.getIsPinned() === "left",
+            )
+            const center = headerGroup.headers.filter(
+              (h) => !h.column.getIsPinned(),
+            )
+            const right = headerGroup.headers.filter(
+              (h) => h.column.getIsPinned() === "right",
+            )
+            return (
               <div
-                role="gridcell"
-                className="flex h-24 w-full items-center justify-center text-sm text-muted-foreground"
+                key={headerGroup.id}
+                role="row"
+                data-slot="grid-header-row"
+                className="flex w-full"
               >
-                {emptyMessage}
-              </div>
-            </div>
-          ) : (
-            rows.map((row, rowIndex) => {
-              const selected = row.getIsSelected()
-              const cells = row.getVisibleCells()
-              const left = cells.filter(
-                (c) => c.column.getIsPinned() === "left",
-              )
-              const center = cells.filter((c) => !c.column.getIsPinned())
-              const right = cells.filter(
-                (c) => c.column.getIsPinned() === "right",
-              )
-              const renderCell = (cell: Cell<TData, unknown>) => (
-                <DataGridViewCell
-                  key={cell.id}
-                  cell={cell}
-                  rowIndex={rowIndex}
-                  colIndex={cells.indexOf(cell)}
-                  selected={selected}
-                  edges={edges}
-                  isFocused={
-                    hasFocus &&
-                    focusRow === rowIndex &&
-                    focusCol === cells.indexOf(cell)
-                  }
-                  onFocusCell={() =>
-                    setFocused({ row: rowIndex, col: cells.indexOf(cell) })
-                  }
-                />
-              )
-              return (
+                {renderHeaderGroup(left)}
+                {renderHeaderGroup(center)}
                 <div
-                  key={row.id}
-                  role="row"
-                  aria-selected={selected}
-                  data-state={selected ? "selected" : undefined}
-                  data-slot="grid-row"
-                  className={cn(
-                    "group/row flex w-full border-b border-border-subtle/60",
-                    selected ? "bg-muted/50" : "hover:bg-muted/30",
-                  )}
+                  data-slot="grid-header-spacer"
+                  className="flex flex-1 items-center bg-muted"
                 >
-                  {left.map(renderCell)}
-                  {center.map(renderCell)}
-                  <div data-slot="grid-row-spacer" className="flex-1" />
-                  {right.map(renderCell)}
+                  {headerTrailing}
                 </div>
-              )
-            })
-          )}
+                {renderHeaderGroup(right)}
+              </div>
+            )
+          })}
         </div>
+        <DragOverlay modifiers={[restrictToHorizontalAxis]}>
+          {activeColumnId ? (
+            <div className="flex h-9 items-center border bg-muted px-3 text-sm font-medium text-foreground shadow">
+              {String(
+                table.getColumn(activeColumnId)?.columnDef.meta?.label ??
+                  activeColumnId,
+              )}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+      <div
+        role="rowgroup"
+        data-slot="grid-body"
+        style={{ width: totalWidth, minWidth: "100%" }}
+      >
+        {rowCount === 0 ? (
+          <div role="row" className="flex w-full">
+            <div
+              role="gridcell"
+              className="flex h-24 w-full items-center justify-center text-sm text-muted-foreground"
+            >
+              {emptyMessage}
+            </div>
+          </div>
+        ) : (
+          rows.map((row, rowIndex) => {
+            const selected = row.getIsSelected()
+            const cells = row.getVisibleCells()
+            const left = cells.filter((c) => c.column.getIsPinned() === "left")
+            const center = cells.filter((c) => !c.column.getIsPinned())
+            const right = cells.filter(
+              (c) => c.column.getIsPinned() === "right",
+            )
+            const renderCell = (cell: Cell<TData, unknown>) => (
+              <DataGridViewCell
+                key={cell.id}
+                cell={cell}
+                rowIndex={rowIndex}
+                colIndex={cells.indexOf(cell)}
+                selected={selected}
+                edges={edges}
+                isFocused={
+                  hasFocus &&
+                  focusRow === rowIndex &&
+                  focusCol === cells.indexOf(cell)
+                }
+                onFocusCell={() =>
+                  setFocused({ row: rowIndex, col: cells.indexOf(cell) })
+                }
+              />
+            )
+            return (
+              <div
+                key={row.id}
+                role="row"
+                aria-selected={selected}
+                data-state={selected ? "selected" : undefined}
+                data-slot="grid-row"
+                className={cn(
+                  "group/row flex w-full border-b border-border-subtle/60",
+                  selected ? "bg-muted/50" : "hover:bg-muted/30",
+                )}
+              >
+                {left.map(renderCell)}
+                {center.map(renderCell)}
+                <div data-slot="grid-row-spacer" className="flex-1" />
+                {right.map(renderCell)}
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

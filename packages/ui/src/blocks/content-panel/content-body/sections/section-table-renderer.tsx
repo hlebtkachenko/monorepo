@@ -25,6 +25,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import {
   useRegisterSectionTable,
+  useSectionColumnMenu,
   useSectionInspectOpener,
 } from "./section-table-context"
 import { anchorStructuralPins } from "./section-table"
@@ -199,6 +200,9 @@ export function SectionTableRenderer({
   // Opener published by the archetype's bridge; the maximize affordance calls it
   // with the clicked row. Null (inert) outside `ArchetypeTable`.
   const openInspect = useSectionInspectOpener()
+  // Header-menu callbacks (Filter → toolbar filter, AI analyze → request) from
+  // the bridge; null outside `ArchetypeTable`, so the menu drops both items.
+  const columnMenu = useSectionColumnMenu()
 
   // Rows are held as local draft state so inline edits stick; seeded from the
   // descriptor. A new `rows` reference (fresh data) reseeds it — the render-time
@@ -417,6 +421,8 @@ export function SectionTableRenderer({
       table={table}
       className="min-h-0 flex-1"
       emptyMessage={emptyText ?? "No rows."}
+      onColumnFilter={columnMenu?.onColumnFilter}
+      onColumnAnalyze={columnMenu?.onColumnAnalyze}
     />
   )
 }

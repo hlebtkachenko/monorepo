@@ -11,9 +11,12 @@ import {
   ContentToolbar,
   InspectorSheet,
   SectionTableProvider,
+  useSectionColumnAnalyze,
+  useSectionColumnFilter,
   useSectionInspect,
   useSectionTable,
 } from "@workspace/ui/blocks/content-panel"
+import { toast } from "@workspace/ui/components/sonner"
 import type {
   ContentFooterAction,
   ContentHeaderBackLinkData,
@@ -169,6 +172,41 @@ function ArchetypeTableChrome<TData>({
       ? renderInspector(inspectRow as TData, closeInspect)
       : null
 
+  // Per-column header "Filter" opens the ONE toolbar filter at that column: the
+  // chrome injects the bridge's shared open-state into the consumer-supplied
+  // `filter` descriptor, so the header action and the toolbar's own "Add filter"
+  // selector share a single source of truth.
+  const columnFilter = useSectionColumnFilter()
+  const toolbarProps = toolbar(table)
+  const wiredToolbar: ContentToolbarProps<TData> = toolbarProps.filter
+    ? {
+        ...toolbarProps,
+        filter: {
+          ...toolbarProps.filter,
+          property: columnFilter.filterColumnId,
+          onPropertyChange: columnFilter.setFilterColumnId,
+          open: columnFilter.filterOpen,
+          onOpenChange: columnFilter.setFilterOpen,
+        },
+      }
+    : toolbarProps
+
+  // Per-column header "AI analyze" — placeholder feedback until Sidekick column
+  // analysis lands; the nonce re-fires on repeat clicks of the same column.
+  const analyzeRequest = useSectionColumnAnalyze()
+  const analyzeNonce = analyzeRequest?.nonce
+  React.useEffect(() => {
+    if (!analyzeRequest) return
+    const label =
+      table?.getColumn(analyzeRequest.columnId)?.columnDef.meta?.label ??
+      analyzeRequest.columnId
+    toast(`Ask AI about “${label}”`, {
+      description: "Column analysis is coming soon.",
+    })
+    // Fire once per request (nonce); label/table read at fire time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyzeNonce])
+
   const footer =
     selectionActions && selectionActions.length > 0 ? (
       <ContentFooter
@@ -195,7 +233,7 @@ function ArchetypeTableChrome<TData>({
         />
       </AppPageHeader>
       <ContentPanel
-        toolbar={<ContentToolbar<TData> {...toolbar(table)} />}
+        toolbar={<ContentToolbar<TData> {...wiredToolbar} />}
         sections={sections}
         footer={footer}
         inspector={inspector}

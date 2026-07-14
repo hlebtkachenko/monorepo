@@ -34,6 +34,21 @@ interface SectionTableContextValue {
   readonly openInspect: (row: unknown) => void
   /** Drive the inspector open state (the Sheet's `onOpenChange`). */
   readonly setInspectOpen: (open: boolean) => void
+  /** The column whose toolbar filter is currently targeted (header "Filter" or the toolbar selector). */
+  readonly filterColumnId: string | undefined
+  /** Whether the toolbar's filter selector is open. */
+  readonly filterOpen: boolean
+  /** Header "Filter" → point the toolbar filter at a column and open it. */
+  readonly openColumnFilter: (columnId: string) => void
+  readonly setFilterColumnId: (columnId: string | undefined) => void
+  readonly setFilterOpen: (open: boolean) => void
+  /** Last "AI analyze" request (a nonce so repeat clicks on the same column re-fire). */
+  readonly analyzeRequest: {
+    readonly columnId: string
+    readonly nonce: number
+  } | null
+  /** Header "AI analyze" → bump the analyze request for the chrome/consumer to handle. */
+  readonly requestColumnAnalyze: (columnId: string) => void
 }
 
 const SectionTableContext =
@@ -60,6 +75,25 @@ export function SectionTableProvider({
     setInspectRow(row)
     setInspectOpen(true)
   }, [])
+  // Per-column toolbar-filter target + open state, shared by the header "Filter"
+  // action and the toolbar's own "Add filter" selector (one source of truth).
+  const [filterColumnId, setFilterColumnId] = React.useState<
+    string | undefined
+  >(undefined)
+  const [filterOpen, setFilterOpen] = React.useState(false)
+  const openColumnFilter = React.useCallback((columnId: string) => {
+    setFilterColumnId(columnId)
+    setFilterOpen(true)
+  }, [])
+  // "AI analyze" is a one-shot request; the nonce lets the consumer's effect
+  // re-fire when the same column is asked twice in a row.
+  const [analyzeRequest, setAnalyzeRequest] = React.useState<{
+    columnId: string
+    nonce: number
+  } | null>(null)
+  const requestColumnAnalyze = React.useCallback((columnId: string) => {
+    setAnalyzeRequest((prev) => ({ columnId, nonce: (prev?.nonce ?? 0) + 1 }))
+  }, [])
   const value = React.useMemo<SectionTableContextValue>(
     () => ({
       registration,
@@ -68,8 +102,25 @@ export function SectionTableProvider({
       inspectOpen,
       openInspect,
       setInspectOpen,
+      filterColumnId,
+      filterOpen,
+      openColumnFilter,
+      setFilterColumnId,
+      setFilterOpen,
+      analyzeRequest,
+      requestColumnAnalyze,
     }),
-    [registration, inspectRow, inspectOpen, openInspect],
+    [
+      registration,
+      inspectRow,
+      inspectOpen,
+      openInspect,
+      filterColumnId,
+      filterOpen,
+      openColumnFilter,
+      analyzeRequest,
+      requestColumnAnalyze,
+    ],
   )
   return (
     <SectionTableContext.Provider value={value}>
@@ -129,4 +180,49 @@ export function useSectionInspect(): {
     inspectOpen: ctx?.inspectOpen ?? false,
     setInspectOpen: ctx?.setInspectOpen ?? (() => {}),
   }
+}
+
+/**
+ * The per-column header-menu callbacks for the section renderer to pass to the
+ * grid: `onColumnFilter` opens the toolbar filter for a column, `onColumnAnalyze`
+ * requests an AI analysis. `null` outside a provider, so the renderer drops both
+ * menu items when the Table section is rendered without `ArchetypeTable`.
+ */
+export function useSectionColumnMenu(): {
+  onColumnFilter: (columnId: string) => void
+  onColumnAnalyze: (columnId: string) => void
+} | null {
+  const ctx = React.useContext(SectionTableContext)
+  if (!ctx) return null
+  return {
+    onColumnFilter: ctx.openColumnFilter,
+    onColumnAnalyze: ctx.requestColumnAnalyze,
+  }
+}
+
+/** The shared toolbar-filter target + open state, for the chrome/consumer to
+ *  drive the ContentToolbar `filter` descriptor's `property`/`open`. Inert
+ *  no-ops outside a provider. */
+export function useSectionColumnFilter(): {
+  filterColumnId: string | undefined
+  filterOpen: boolean
+  setFilterColumnId: (columnId: string | undefined) => void
+  setFilterOpen: (open: boolean) => void
+} {
+  const ctx = React.useContext(SectionTableContext)
+  return {
+    filterColumnId: ctx?.filterColumnId,
+    filterOpen: ctx?.filterOpen ?? false,
+    setFilterColumnId: ctx?.setFilterColumnId ?? (() => {}),
+    setFilterOpen: ctx?.setFilterOpen ?? (() => {}),
+  }
+}
+
+/** The last "AI analyze" request (column + nonce), for the consumer to react to
+ *  (e.g. open Sidekick). `null` until requested / outside a provider. */
+export function useSectionColumnAnalyze(): {
+  columnId: string
+  nonce: number
+} | null {
+  return React.useContext(SectionTableContext)?.analyzeRequest ?? null
 }

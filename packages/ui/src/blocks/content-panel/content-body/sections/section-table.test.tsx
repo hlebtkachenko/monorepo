@@ -9,6 +9,7 @@ import {
   type TableColumnSpec,
 } from "./section-table"
 import { SectionTableRenderer } from "./section-table-renderer"
+import { SectionTableProvider } from "./section-table-context"
 import { isSectionDescriptor } from "./section"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
@@ -163,5 +164,42 @@ describe("SectionTableRenderer", () => {
     fireEvent.change(input, { target: { value: "FP-999" } })
     fireEvent.blur(input)
     expect(screen.getByDisplayValue("FP-999")).toBeInTheDocument()
+  })
+
+  it("adds Filter + AI analyze to the header menu inside a provider", async () => {
+    // Inside SectionTableProvider the bridge supplies onColumnFilter/onColumnAnalyze,
+    // so the header dropdown gains the two enrichment items (bug #5). Outside a
+    // provider they are absent (the callbacks are null) — see the next test.
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={payload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    // Radix opens the dropdown on pointerdown (mouse button 0), not click.
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Document" }), {
+      button: 0,
+      ctrlKey: false,
+    })
+    expect(await screen.findByText("Filter")).toBeInTheDocument()
+    expect(screen.getByText("AI analyze")).toBeInTheDocument()
+  })
+
+  it("omits Filter + AI analyze when rendered without a provider", async () => {
+    wrap(
+      <div className="flex h-96 flex-col">
+        <SectionTableRenderer props={payload} />
+      </div>,
+    )
+    // Radix opens the dropdown on pointerdown (mouse button 0), not click.
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Document" }), {
+      button: 0,
+      ctrlKey: false,
+    })
+    // The sort item confirms the menu opened; the enrichment items are absent.
+    expect(await screen.findByText("Sort ascending")).toBeInTheDocument()
+    expect(screen.queryByText("Filter")).not.toBeInTheDocument()
+    expect(screen.queryByText("AI analyze")).not.toBeInTheDocument()
   })
 })

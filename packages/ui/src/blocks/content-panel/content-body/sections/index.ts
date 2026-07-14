@@ -44,6 +44,9 @@ export {
   useSectionTable,
   useSectionInspectOpener,
   useSectionInspect,
+  useSectionColumnMenu,
+  useSectionColumnFilter,
+  useSectionColumnAnalyze,
 } from "./section-table-context"
 export type { SectionTableRegistration } from "./section-table-context"
 export { sectionSpace } from "./section-space"

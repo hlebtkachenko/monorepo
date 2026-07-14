@@ -393,6 +393,22 @@ describe("tag methods — merge, never clobber", () => {
     ).toBe(true)
   })
 
+  it("setDeletedTag is idempotent — never re-stamps an existing deleted-at", async () => {
+    s3Mock.on(GetObjectTaggingCommand).resolves({
+      TagSet: [
+        { Key: "confirmed-at", Value: "2026-01-01T00:00:00.000Z" },
+        { Key: "deleted-at", Value: "2026-02-01T00:00:00.000Z" },
+      ],
+    })
+    s3Mock.on(PutObjectTaggingCommand).resolves({})
+    const store = makeStore()
+
+    await store.setDeletedTag("documents/ws_1/abc.pdf")
+
+    // Already deleted → no write, so the 60-day purge clock never moves forward.
+    expect(putTaggingCalls()).toHaveLength(0)
+  })
+
   it("clearDeletedTag copies the pinned version and removes only deleted-at", async () => {
     s3Mock.on(GetObjectTaggingCommand).resolves({
       VersionId: "source+version/1",

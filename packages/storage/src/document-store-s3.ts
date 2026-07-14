@@ -52,8 +52,15 @@ function configFromEnv(): S3DocumentStoreConfig {
     throw new Error("DOCUMENTS_BUCKET is not set")
   }
   const endpoint = process.env.S3_ENDPOINT
-  const accessKeyId = process.env.AWS_ACCESS_KEY_ID
-  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY
+  // Prefer document-store-scoped credentials so the dev minio keys do NOT
+  // become the process-global AWS_ACCESS_KEY_ID that every other AWS SDK client
+  // (e.g. avatar-storage against the real APP_BUCKET) would then inherit. Fall
+  // back to the standard AWS vars for any environment that still sets them.
+  const accessKeyId =
+    process.env.DOCUMENTS_S3_ACCESS_KEY_ID ?? process.env.AWS_ACCESS_KEY_ID
+  const secretAccessKey =
+    process.env.DOCUMENTS_S3_SECRET_ACCESS_KEY ??
+    process.env.AWS_SECRET_ACCESS_KEY
   return {
     bucket,
     region: process.env.AWS_REGION,
@@ -307,7 +314,29 @@ export class S3DocumentStore implements DocumentStore {
   }
 
   async setDeletedTag(key: string): Promise<void> {
-    await this.mergeTags(key, { "deleted-at": new Date().toISOString() })
+    // Idempotent: if the object is already tagged deleted, keep the original
+    // timestamp. A repeat delete / self-heal must NEVER push the reaper's
+    // 60-day purge clock forward (that would drift it from the immutable DB
+    // deleted_at). Only stamp `deleted-at` when it is absent.
+    const existing = await this.client.send(
+      new GetObjectTaggingCommand({ Bucket: this.bucket, Key: key }),
+    )
+    const alreadyDeleted = (existing.TagSet ?? []).some(
+      (tag) => tag.Key === "deleted-at" && !!tag.Value,
+    )
+    if (alreadyDeleted) return
+    const tags = this.applyTagChanges(existing.TagSet, {
+      "deleted-at": new Date().toISOString(),
+    })
+    await this.client.send(
+      new PutObjectTaggingCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Tagging: {
+          TagSet: Array.from(tags, ([Key, Value]) => ({ Key, Value })),
+        },
+      }),
+    )
   }
 
   async clearDeletedTag(key: string): Promise<void> {

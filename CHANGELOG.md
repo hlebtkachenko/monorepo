@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- S3 document store P1a: KMS-CMK-encrypted DocumentsBucket (Intelligent-Tiering, versioned, SSE-KMS + SSE-C deny policy) + no-delete task-role grants + write-flood alert (SNS-only, no kill-switch)
 - S3 DocumentStore interface + S3/minio implementation (packages/storage)
 - Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
 - Notify signed-in web and admin users when a newer deployment is available, with a user-confirmed reload action that stays dismissed until the next deployment.

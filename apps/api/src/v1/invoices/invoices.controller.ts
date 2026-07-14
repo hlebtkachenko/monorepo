@@ -438,25 +438,30 @@ export class InvoicesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
+    // Split `direction` off ONCE: it derives the invoice `type` and is the only
+    // field that must NOT reach the persisted capture body.
+    const { direction, ...bodyWithoutDirection } =
+      body as unknown as CreateInvoiceRequestDto & {
+        confidence: number
+        rationale: string
+        conversationId?: string
+        signals?: EvidenceEnvelope | null
+        direction: InvoiceDirection
+        templateId?: string | null
+        extractionMethod?: ExtractionMethod | null
+      }
+    const type = typeOf(direction)
+    // Peel the gate envelope off the direction-less body → the domain `fields`
+    // the capture `run` + always-hold screen consume.
     const {
       confidence,
       rationale,
       conversationId,
       signals,
-      direction,
       templateId,
       extractionMethod,
       ...fields
-    } = body as unknown as CreateInvoiceRequestDto & {
-      confidence: number
-      rationale: string
-      conversationId?: string
-      signals?: EvidenceEnvelope | null
-      direction: InvoiceDirection
-      templateId?: string | null
-      extractionMethod?: ExtractionMethod | null
-    }
-    const type = typeOf(direction)
+    } = bodyWithoutDirection
 
     // Mirror the documents endpoint's always-hold screening: convert each
     // partial's transaction-currency amount to accounting currency via its own
@@ -488,24 +493,26 @@ export class InvoicesController {
       ...(fields.roundingAmount != null ? [fields.roundingAmount] : []),
     ]
 
-    // Persist this invoice capture under the SHARED capture `tool_name` with a
-    // NORMALIZED body (drop `direction`, pin `type`), so a held `/v1/invoices`
-    // write is indistinguishable from a `POST /v1/accounting/documents` capture
-    // at EVERY downstream surface — the held-write replay switch, the approvals
-    // view-model, the edit model, and the preview query all already dispatch
-    // "captureAccountingDocument". Minting a novel "createInvoice" tool_name is
-    // exactly what left a held invoice permanently unapprovable (no replay case
-    // knew it); collapsing it here fixes that dead-end at the root, in one place,
-    // instead of adding a parallel `createInvoice` branch to all of them. The
-    // normalized body still validates against `CaptureAccountingDocumentRequestSchema`
-    // (it is that shape minus `direction`), so the replay re-validation passes.
-    const { direction: _omitDirection, ...bodyWithoutDirection } =
-      body as unknown as Record<string, unknown>
+    // The persisted body under the SHARED capture `tool_name`: the whole request
+    // minus `direction`, plus the derived `type` — shape-identical to a
+    // `POST /v1/accounting/documents` capture, so a held `/v1/invoices` write is
+    // indistinguishable at EVERY downstream `tool_name`-keyed surface (the replay
+    // switch, the approvals view-model, the edit model, the preview query) and the
+    // held-write replay re-validates it against `CaptureAccountingDocumentRequestSchema`.
+    // Minting a novel "createInvoice" tool_name is what left a held invoice
+    // permanently unapprovable (no replay case knew it); collapsing it here fixes
+    // that dead-end at the root, in one place. Dropping `direction` is audit-body
+    // hygiene — the non-strict capture schema would strip a stray `direction` on
+    // replay anyway.
     const normalizedBody = { ...bodyWithoutDirection, type }
 
     const result = await runGatedWrite<CapturedDocument>({
       principal,
       idempotencyKey,
+      // `operationId` is persisted VERBATIM as tool_call_log.tool_name and is the
+      // held-write replay-dispatch key — NOT the OpenAPI operationId (which stays
+      // `createInvoice`). Deliberately the shared capture tool_name so a held
+      // invoice replays through the existing captureAccountingDocument case.
       operationId: "captureAccountingDocument",
       body: normalizedBody,
       periodId: fields.periodId,

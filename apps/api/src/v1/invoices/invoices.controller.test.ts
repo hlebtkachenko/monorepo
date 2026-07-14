@@ -326,8 +326,11 @@ vi.mock("../accounting/accounting-writes.gate", () => ({
 const { verifyApiKey } = await import("@workspace/auth/api-key-verifier")
 const accounting = await import("@workspace/accounting")
 const accountingVeto = await import("../accounting/accounting-veto")
-const { ListInvoicesResponseSchema, GetInvoiceResponseSchema } =
-  await import("@workspace/shared/api")
+const {
+  ListInvoicesResponseSchema,
+  GetInvoiceResponseSchema,
+  CaptureAccountingDocumentRequestSchema,
+} = await import("@workspace/shared/api")
 const { InvoicesController } = await import("./invoices.controller")
 const { DomainExceptionFilter } = await import("../domain-exception.filter")
 
@@ -688,6 +691,14 @@ describe("InvoicesController (/v1/invoices)", () => {
     expect(opts.body).toMatchObject({ type: "RECEIVED_INVOICE" })
     expect(opts.body).not.toHaveProperty("direction")
     expect(opts.body).toHaveProperty("confidence")
+    // Drift guard: the entire dead-end fix rests on the persisted invoice body
+    // re-validating against the CAPTURE schema (the held-write replay safeParses
+    // it there). CreateInvoiceRequestSchema and CaptureAccountingDocumentRequestSchema
+    // are hand-authored independently, so this asserts they stay field-compatible —
+    // if a future edit diverges them, a held invoice would silently 422 on approve.
+    expect(
+      CaptureAccountingDocumentRequestSchema.safeParse(opts.body).success,
+    ).toBe(true)
     expect(opts.principal.organizationId).toBe(ORG_A)
     expect(opts.idempotencyKey).toBe("idem-1")
     expect(opts.periodId).toBe(PERIOD_1)

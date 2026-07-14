@@ -1,17 +1,8 @@
 import { captureDocument } from "./capture"
 import { bookDocument } from "./predkontace/book-document"
 import type { RowExecutor } from "./sql"
+import { isInvoiceType } from "./types"
 import type { CapturedDocument, DocumentInput, OrgCtx } from "./types"
-
-/**
- * RECEIVED_INVOICE / ISSUED_INVOICE — the only doklad types that carry a
- * předkontace + a saldokonto obligation. Cash / bank / internal / batch
- * vouchers capture only; they never book through předkontace here.
- */
-const INVOICE_TYPES = new Set<DocumentInput["type"]>([
-  "RECEIVED_INVOICE",
-  "ISSUED_INVOICE",
-])
 
 export interface CaptureAndBookResult {
   doc: CapturedDocument
@@ -41,7 +32,7 @@ export async function captureAndBookIfInvoice(
   responsibleUserId: string,
 ): Promise<CaptureAndBookResult> {
   const doc = await captureDocument(db, ctx, input)
-  if (!INVOICE_TYPES.has(input.type)) return { doc }
+  if (!isInvoiceType(input.type)) return { doc }
   const booked = await bookDocument(db, ctx, {
     summaryRecordId: doc.summaryRecordId,
     responsibleUserId,

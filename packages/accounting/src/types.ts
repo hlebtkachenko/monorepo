@@ -48,6 +48,19 @@ export type VatFilingPeriod = (typeof vatFilingPeriod.enumValues)[number]
 export type PersonType = (typeof personType.enumValues)[number]
 export type PeriodStatus = (typeof periodStatus.enumValues)[number]
 export type SummaryRecordType = (typeof summaryRecordType.enumValues)[number]
+/**
+ * The doklad types that carry a předkontace + a saldokonto obligation — the
+ * booking-eligible invoices. Cash / bank / internal / batch vouchers capture
+ * only, so the single source of truth for "is this bookable as an invoice"
+ * lives here (used by captureDocument's date guards + captureAndBookIfInvoice).
+ */
+const INVOICE_DOCUMENT_TYPES = [
+  "RECEIVED_INVOICE",
+  "ISSUED_INVOICE",
+] as const satisfies readonly SummaryRecordType[]
+export function isInvoiceType(type: SummaryRecordType): boolean {
+  return (INVOICE_DOCUMENT_TYPES as readonly SummaryRecordType[]).includes(type)
+}
 export type VatMode = (typeof vatMode.enumValues)[number]
 export type FxRateKind = (typeof fxRateKind.enumValues)[number]
 export type DebitCredit = (typeof debitCredit.enumValues)[number]

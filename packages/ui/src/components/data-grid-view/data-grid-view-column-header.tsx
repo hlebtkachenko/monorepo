@@ -66,6 +66,20 @@ export function commitCenter<TData>(
   table.setColumnOrder([...left, ...nextCenter, ...right])
 }
 
+/**
+ * Re-emit `columnPinning` with one pinned group reordered. The controlled
+ * pinning in `useDataTable` runs its normalizer on the result (e.g. the Table
+ * section re-anchors `select` first / `actions` last), so a within-group drag
+ * can never dislodge a structural column.
+ */
+export function commitPinnedGroup<TData>(
+  table: Table<TData>,
+  side: "left" | "right",
+  nextGroup: string[],
+): void {
+  table.setColumnPinning((prev) => ({ ...prev, [side]: nextGroup }))
+}
+
 /** Move `columnId` to `toIndex` within the center group (used by the menu). */
 function moveColumn<TData>(
   table: Table<TData>,

@@ -42,6 +42,36 @@ export interface TableColumnSpec {
 /** A cell value — plain, serializable. */
 export type TableCellValue = string | number | null
 
+/** A pinned-columns layout — the left/right frozen groups, by column id. */
+export interface PinnedColumns {
+  readonly left?: readonly string[]
+  readonly right?: readonly string[]
+}
+
+/**
+ * Keep the Table section's structural columns anchored on every pinning write:
+ * `select` first in the left group, `actions` last in the right group. So a user
+ * pinning a data column via the header menu — TanStack appends it to the END of
+ * the group — slots it BETWEEN the checkbox and the action column, never
+ * outside. Fed to the controlled `columnPinning` in `useDataTable`, so it also
+ * repairs a within-group drag that would otherwise dislodge an anchor.
+ */
+export function anchorStructuralPins(
+  pinning: PinnedColumns,
+  opts: { hasSelect: boolean; hasActions: boolean },
+): { left: string[]; right: string[] } {
+  const left = [...(pinning.left ?? [])]
+  const right = [...(pinning.right ?? [])]
+  return {
+    left: opts.hasSelect
+      ? ["select", ...left.filter((id) => id !== "select")]
+      : left,
+    right: opts.hasActions
+      ? [...right.filter((id) => id !== "actions"), "actions"]
+      : right,
+  }
+}
+
 /** One row: plain data keyed by column id (plus the id column named by `rowIdKey`). */
 export type TableSectionRow = Readonly<Record<string, TableCellValue>>
 

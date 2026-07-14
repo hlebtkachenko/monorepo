@@ -3,7 +3,11 @@ import { describe, it, expect } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
-import { sectionTable, type TableColumnSpec } from "./section-table"
+import {
+  anchorStructuralPins,
+  sectionTable,
+  type TableColumnSpec,
+} from "./section-table"
 import { SectionTableRenderer } from "./section-table-renderer"
 import { isSectionDescriptor } from "./section"
 
@@ -70,6 +74,53 @@ describe("sectionTable (factory)", () => {
         rows: [],
       }),
     ).toThrow(/duplicate column id/)
+  })
+})
+
+describe("anchorStructuralPins (pin invariant)", () => {
+  const anchors = { hasSelect: true, hasActions: true }
+
+  it("keeps a newly pinned-right column BEFORE actions (bug #1)", () => {
+    // TanStack appends a header-menu pin to the end of the group.
+    const next = anchorStructuralPins(
+      { left: ["select"], right: ["actions", "partner"] },
+      anchors,
+    )
+    expect(next.right).toEqual(["partner", "actions"])
+  })
+
+  it("keeps select first-left after a pin lands ahead of it", () => {
+    const next = anchorStructuralPins(
+      { left: ["doc", "select"], right: ["actions"] },
+      anchors,
+    )
+    expect(next.left).toEqual(["select", "doc"])
+  })
+
+  it("repairs a within-group drag that dislodges actions", () => {
+    // A drag reorders columnPinning.right to put a data column last.
+    const dragged = anchorStructuralPins(
+      { left: ["select"], right: ["amount", "actions", "vat"] },
+      anchors,
+    )
+    expect(dragged.right).toEqual(["amount", "vat", "actions"])
+  })
+
+  it("leaves ordering of non-structural pins otherwise intact", () => {
+    const next = anchorStructuralPins(
+      { left: ["select", "a", "b"], right: ["x", "y", "actions"] },
+      anchors,
+    )
+    expect(next.left).toEqual(["select", "a", "b"])
+    expect(next.right).toEqual(["x", "y", "actions"])
+  })
+
+  it("no-ops the anchors that a table does not have", () => {
+    const next = anchorStructuralPins(
+      { left: ["a"], right: ["x"] },
+      { hasSelect: false, hasActions: false },
+    )
+    expect(next).toEqual({ left: ["a"], right: ["x"] })
   })
 })
 

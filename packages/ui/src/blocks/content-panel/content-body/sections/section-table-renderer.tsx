@@ -27,6 +27,7 @@ import {
   useRegisterSectionTable,
   useSectionInspectOpener,
 } from "./section-table-context"
+import { anchorStructuralPins } from "./section-table"
 import type {
   SectionTablePayload,
   TableCellValue,
@@ -365,25 +366,15 @@ export function SectionTableRenderer({
     return { left, right }
   }, [specs, features.selection, features.rowActions])
 
-  // Keep the structural columns anchored on every pinning write: `select`
-  // stays first in the left group, `actions` stays last in the right group.
-  // So a user pinning a data column via the header menu (TanStack appends it to
-  // the end of the group) can never land it outside the checkbox or the action
-  // column — it slots between them. Fed to the controlled pinning in useDataTable.
+  // Keep the structural columns anchored on every pinning write (see
+  // `anchorStructuralPins`): `select` first-left, `actions` last-right — so a
+  // header-menu pin or a within-group drag can never dislodge them.
   const normalizeColumnPinning = React.useCallback(
-    (pinning: ColumnPinningState): ColumnPinningState => {
-      const left = pinning.left ?? []
-      const right = pinning.right ?? []
-      return {
-        left:
-          features.selection === "multi"
-            ? ["select", ...left.filter((id) => id !== "select")]
-            : left,
-        right: features.rowActions
-          ? [...right.filter((id) => id !== "actions"), "actions"]
-          : right,
-      }
-    },
+    (pinning: ColumnPinningState): ColumnPinningState =>
+      anchorStructuralPins(pinning, {
+        hasSelect: features.selection === "multi",
+        hasActions: features.rowActions,
+      }),
     [features.selection, features.rowActions],
   )
 

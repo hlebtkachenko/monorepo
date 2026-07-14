@@ -4,7 +4,6 @@ import * as React from "react"
 import {
   flexRender,
   type Cell,
-  type Column,
   type Header,
   type Table,
 } from "@tanstack/react-table"
@@ -32,71 +31,16 @@ import { cn } from "@workspace/ui/lib/utils"
 import {
   DataGridViewColumnHeader,
   commitCenter,
+  commitPinnedGroup,
   getCenterIds,
 } from "./data-grid-view-column-header"
 import { SortableHeaderCell } from "./data-grid-view-sortable-header"
-
-/** Sticky positioning for a pinned column (the edge shadow is a separate span). */
-function pinStyle<TData>(column: Column<TData>): React.CSSProperties {
-  const pinned = column.getIsPinned()
-  if (!pinned) return {}
-  return {
-    position: "sticky",
-    left: pinned === "left" ? `${column.getStart("left")}px` : undefined,
-    right: pinned === "right" ? `${column.getAfter("right")}px` : undefined,
-    zIndex: 2,
-  }
-}
-
-/** Vertical separator for a cell — same hairline as the row borders. */
-function borderClass<TData>(column: Column<TData>): string {
-  return column.getIsPinned() === "right"
-    ? "border-s border-border-subtle/60"
-    : "border-e border-border-subtle/60"
-}
-
-/** Whether the grid is scrolled away from each horizontal edge. */
-interface ScrollEdges {
-  left: boolean
-  right: boolean
-}
-
-/**
- * The continuous edge shadow for a pinned column. Rendered as one `inset-y-0`
- * gradient span per cell — because the span has sharp top/bottom edges (no
- * blur), the per-cell spans stack into a single smooth strip down the whole
- * column, instead of a scalloped per-row box-shadow.
- *
- * Only shown when there is actually scrolled-under content on that side — a
- * pinned column sitting over empty space (a narrow table, e.g. with the
- * assistant open) draws no phantom shadow.
- */
-function PinShadow<TData>({
-  column,
-  edges,
-}: {
-  column: Column<TData>
-  edges: ScrollEdges
-}) {
-  const pinned = column.getIsPinned()
-  if (pinned === "left" && column.getIsLastColumn("left") && edges.left) {
-    return (
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 -right-2.5 z-10 w-2.5 bg-gradient-to-r from-black/10 to-transparent dark:from-black/25"
-      />
-    )
-  }
-  if (pinned === "right" && column.getIsFirstColumn("right") && edges.right) {
-    return (
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 -left-2.5 z-10 w-2.5 bg-gradient-to-l from-black/10 to-transparent dark:from-black/25"
-      />
-    )
-  }
-  return null
-}
+import {
+  PinShadow,
+  borderClass,
+  pinStyle,
+  type ScrollEdges,
+} from "./data-grid-view-pin"
 
 interface DataGridViewProps<TData> extends Omit<
   React.ComponentProps<"div">,
@@ -173,11 +117,25 @@ export function DataGridView<TData>({
       setActiveColumnId(null)
       const { active, over } = event
       if (!over || active.id === over.id) return
-      // Reorder WITHIN the non-pinned centre group only — reads and writes the
-      // shared `columnOrder`, the same state the Columns manager writes.
+      const activeId = String(active.id)
+      const overId = String(over.id)
+      // Reorder WITHIN a group only — each group is its own SortableContext, so
+      // `over` is always a sibling of `active`. Centre writes `columnOrder`
+      // (shared with the Columns manager); a pinned column writes its
+      // `columnPinning` slice (left/right), which the section's pin invariant
+      // then re-anchors (select first, actions last).
+      const pinned = table.getColumn(activeId)?.getIsPinned()
+      if (pinned === "left" || pinned === "right") {
+        const group = (table.getState().columnPinning[pinned] ?? []).slice()
+        const from = group.indexOf(activeId)
+        const to = group.indexOf(overId)
+        if (from < 0 || to < 0) return
+        commitPinnedGroup(table, pinned, arrayMove(group, from, to))
+        return
+      }
       const center = getCenterIds(table)
-      const from = center.indexOf(String(active.id))
-      const to = center.indexOf(String(over.id))
+      const from = center.indexOf(activeId)
+      const to = center.indexOf(overId)
       if (from < 0 || to < 0) return
       commitCenter(table, arrayMove(center, from, to))
     },
@@ -326,44 +284,26 @@ export function DataGridView<TData>({
     return () => observer.disconnect()
   }, [updateEdges])
 
-  const renderHeaderCell = (header: Header<TData, unknown>) => {
-    const interactive = header.column.getCanSort() || header.column.getCanHide()
-    const align = header.column.columnDef.meta?.align
-    return (
-      <div
-        key={header.id}
-        role="columnheader"
-        data-slot="grid-header-cell"
-        className={cn(
-          "relative flex h-9 shrink-0 items-center bg-muted text-muted-foreground",
-          borderClass(header.column),
-        )}
-        style={{
-          ...pinStyle(header.column),
-          width: `calc(var(--header-${header.id}-size) * 1px)`,
-        }}
-      >
-        {header.isPlaceholder ? null : interactive ? (
-          <DataGridViewColumnHeader
-            header={header}
-            table={table}
-            onColumnFilter={onColumnFilter}
-            onColumnAnalyze={onColumnAnalyze}
-          />
-        ) : (
-          <div
-            className={cn(
-              "flex size-full items-center",
-              align === "center" ? "justify-center px-0" : "px-3",
-            )}
-          >
-            {flexRender(header.column.columnDef.header, header.getContext())}
-          </div>
-        )}
-        <PinShadow column={header.column} edges={edges} />
-      </div>
-    )
-  }
+  // One group (left-pinned / centre / right-pinned) as its own SortableContext,
+  // so a header only reorders among its siblings — a pinned column drags within
+  // the pinned area, a centre column within the centre, never across.
+  const renderHeaderGroup = (headers: Header<TData, unknown>[]) => (
+    <SortableContext
+      items={headers.map((h) => h.column.id)}
+      strategy={horizontalListSortingStrategy}
+    >
+      {headers.map((header) => (
+        <SortableHeaderCell
+          key={header.id}
+          header={header}
+          table={table}
+          edges={edges}
+          onColumnFilter={onColumnFilter}
+          onColumnAnalyze={onColumnAnalyze}
+        />
+      ))}
+    </SortableContext>
+  )
 
   return (
     <div
@@ -408,7 +348,6 @@ export function DataGridView<TData>({
               const right = headerGroup.headers.filter(
                 (h) => h.column.getIsPinned() === "right",
               )
-              const centerIds = center.map((h) => h.column.id)
               return (
                 <div
                   key={headerGroup.id}
@@ -416,28 +355,15 @@ export function DataGridView<TData>({
                   data-slot="grid-header-row"
                   className="flex w-full"
                 >
-                  {left.map(renderHeaderCell)}
-                  <SortableContext
-                    items={centerIds}
-                    strategy={horizontalListSortingStrategy}
-                  >
-                    {center.map((header) => (
-                      <SortableHeaderCell
-                        key={header.id}
-                        header={header}
-                        table={table}
-                        onColumnFilter={onColumnFilter}
-                        onColumnAnalyze={onColumnAnalyze}
-                      />
-                    ))}
-                  </SortableContext>
+                  {renderHeaderGroup(left)}
+                  {renderHeaderGroup(center)}
                   <div
                     data-slot="grid-header-spacer"
                     className="flex flex-1 items-center bg-muted"
                   >
                     {headerTrailing}
                   </div>
-                  {right.map(renderHeaderCell)}
+                  {renderHeaderGroup(right)}
                 </div>
               )
             })}

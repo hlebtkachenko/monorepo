@@ -9,30 +9,50 @@ import { GripVertical } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { DataGridViewColumnHeader } from "./data-grid-view-column-header"
+import {
+  PinShadow,
+  borderClass,
+  pinStyle,
+  type ScrollEdges,
+} from "./data-grid-view-pin"
 
 /**
- * One CENTER (non-pinned) header cell made drag-sortable via dnd-kit. The drag
- * `listeners` live on a small grip button (revealed on hover / focus) so drag
- * never collides with the header's dropdown trigger or the trailing resize
- * handle, and so the KeyboardSensor works (Tab to the grip, Space to lift,
- * arrows to move). Pinned-left/right header cells never use this — they stay
- * plain. Reorder writes the shared `columnOrder` (see the DndContext onDragEnd).
+ * One drag-sortable header cell, used for ALL three groups (left-pinned,
+ * centre, right-pinned) — each group is its own `SortableContext`, so a column
+ * only ever reorders WITHIN its group, never out of it. The drag `listeners`
+ * live on a small grip button (revealed on hover / focus) so drag never
+ * collides with the header's dropdown trigger or the trailing resize handle,
+ * and so the KeyboardSensor works (Tab to the grip, Space to lift, arrows to
+ * move).
+ *
+ * Pinned cells keep their `position: sticky` freeze: the dnd-kit
+ * `CSS.Translate` transform is applied ONLY to centre cells — a transform on a
+ * sticky element creates a new containing block and breaks the freeze, so for
+ * pinned cells the drag is shown by the shared `DragOverlay` (the source cell
+ * just dims) rather than by moving the sticky cell itself. Reorder writes the
+ * matching state slice (centre → `columnOrder`, pinned → `columnPinning`) in the
+ * DndContext `onDragEnd`.
  */
 export function SortableHeaderCell<TData>({
   header,
   table,
+  edges,
   onColumnFilter,
   onColumnAnalyze,
 }: {
   header: Header<TData, unknown>
   table: Table<TData>
+  edges: ScrollEdges
   onColumnFilter?: (columnId: string) => void
   onColumnAnalyze?: (columnId: string) => void
 }) {
   const { column } = header
   const interactive = column.getCanSort() || column.getCanHide()
+  // Structural columns (select / actions) set canSort + canHide false, so they
+  // stay non-draggable anchors; every data column — pinned or not — can drag.
   const canReorder = interactive
   const align = column.columnDef.meta?.align
+  const pinned = column.getIsPinned()
 
   const {
     attributes,
@@ -51,14 +71,20 @@ export function SortableHeaderCell<TData>({
       ref={setNodeRef}
       role="columnheader"
       data-slot="grid-header-cell"
-      className="group/col relative flex h-9 shrink-0 items-center border-e border-border-subtle/60 bg-muted text-muted-foreground"
+      className={cn(
+        "group/col relative flex h-9 shrink-0 items-center bg-muted text-muted-foreground",
+        borderClass(column),
+      )}
       style={{
+        ...pinStyle(column),
         // Axis is clamped to X by the DndContext's restrictToHorizontalAxis
-        // modifier, so the translate is effectively translateX.
-        transform: CSS.Translate.toString(transform),
-        transition,
+        // modifier. Pinned cells stay sticky (no transform) — the DragOverlay
+        // carries the visual; only centre cells translate with the pointer.
+        ...(pinned
+          ? {}
+          : { transform: CSS.Translate.toString(transform), transition }),
         width: `calc(var(--header-${header.id}-size) * 1px)`,
-        zIndex: isDragging ? 3 : undefined,
+        zIndex: isDragging ? 3 : pinned ? 2 : undefined,
         opacity: isDragging ? 0.5 : 1,
       }}
     >
@@ -91,6 +117,7 @@ export function SortableHeaderCell<TData>({
           {flexRender(column.columnDef.header, header.getContext())}
         </div>
       )}
+      <PinShadow column={column} edges={edges} />
     </div>
   )
 }

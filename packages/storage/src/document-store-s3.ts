@@ -111,8 +111,14 @@ function contentDisposition(
   filename?: string,
 ): string {
   if (disposition !== "attachment" || !filename) return disposition
-  const safe = filename.replace(/[^\w.\- ]+/g, "_").slice(0, 200)
-  return `attachment; filename="${safe}"`
+  const trimmed = filename.slice(0, 200)
+  // ASCII `filename=` fallback for legacy clients + RFC 5987 `filename*=` so
+  // UTF-8 names keep their diacritics (Czech invoices: `faktura_č.pdf`). The
+  // ASCII form flattens non-word bytes to `_`; the value is signed into the
+  // presigned URL, so neither can break the header or the signature.
+  const ascii = trimmed.replace(/[^\w.\- ]+/g, "_")
+  const utf8 = encodeURIComponent(trimmed)
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`
 }
 
 function isNotFoundError(error: unknown): boolean {

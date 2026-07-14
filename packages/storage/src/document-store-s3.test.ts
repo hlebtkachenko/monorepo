@@ -301,7 +301,7 @@ describe("presignGet()", () => {
 
     const params = new URL(url).searchParams
     expect(params.get("response-content-disposition")).toBe(
-      'attachment; filename="faktura _2025_.pdf"',
+      "attachment; filename=\"faktura _2025_.pdf\"; filename*=UTF-8''faktura%20%222025%22.pdf",
     )
     expect(params.has("response-content-type")).toBe(false)
   })

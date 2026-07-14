@@ -303,6 +303,24 @@ describe("remove (soft-delete) — DB first, then S3 tag", () => {
     expect((await h.remove("att-1")).status).toBe(404)
     expect(d.store.setDeletedTag).not.toHaveBeenCalled()
   })
+
+  it("self-heals: re-attempts setDeletedTag on an already soft-deleted row without re-marking", async () => {
+    const d = makeDeps()
+    d.repo.getById.mockResolvedValueOnce({
+      id: "att-1",
+      storageKey: KEY,
+      sha256: SHA,
+      contentType: "application/pdf",
+      size: 1000,
+      filename: "a.pdf",
+      deletedAt: new Date(),
+    })
+    const h = createDocumentHandlers(d.deps)
+    const res = await h.remove("att-1")
+    expect(res.status).toBe(200)
+    expect(d.repo.markDeleted).not.toHaveBeenCalled()
+    expect(d.store.setDeletedTag).toHaveBeenCalledWith(KEY)
+  })
 })
 
 describe("restore (undo) — S3 tag first, then DB", () => {

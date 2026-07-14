@@ -278,13 +278,21 @@ export function createDocumentHandlers(
         return jsonError("storage unavailable", 502)
       }
 
-      const { id } = await repo.upsertConfirmed(ws.workspaceId, ws.userId, {
-        storageKey: objectKey,
-        sha256: parsedKey.sha256,
-        contentType: head.contentType,
-        size: head.size,
-        filename,
-      })
+      let id: string
+      try {
+        ;({ id } = await repo.upsertConfirmed(ws.workspaceId, ws.userId, {
+          storageKey: objectKey,
+          sha256: parsedKey.sha256,
+          contentType: head.contentType,
+          size: head.size,
+          filename,
+        }))
+      } catch {
+        // The blob is already confirmed-tagged (the reaper keeps it — safe);
+        // surface a retryable error so the client can retry the idempotent
+        // confirm rather than losing the reference.
+        return jsonError("storage unavailable", 502)
+      }
       return Response.json({ id, key: objectKey })
     },
 
@@ -319,13 +327,23 @@ export function createDocumentHandlers(
       if (ws instanceof Response) return ws
 
       const row = await repo.getById(ws.workspaceId, ws.userId, id)
-      if (!row || row.deletedAt) return jsonError("document not found", 404)
+      if (!row) return jsonError("document not found", 404)
 
-      // Asymmetric ordering: DB deleted_at FIRST, then the S3 tag. A tag-write
-      // failure then leaves the doc alive + undoable (a recoverable leak) — the
-      // safe direction.
-      const changed = await repo.markDeleted(ws.workspaceId, ws.userId, id)
-      if (!changed) return jsonError("document not found", 404)
+      // Asymmetric ordering: DB deleted_at FIRST, then the S3 tag — a tag-write
+      // failure leaves the doc alive + undoable (a recoverable leak), the safe
+      // direction. IDEMPOTENT + SELF-HEALING: if the row is ALREADY deleted (a
+      // prior request set deleted_at but its setDeletedTag failed), skip the DB
+      // step and just re-attempt the idempotent tag, so a retried DELETE heals
+      // the blob instead of 404-ing and stranding it un-reapable forever.
+      if (!row.deletedAt) {
+        let changed: boolean
+        try {
+          changed = await repo.markDeleted(ws.workspaceId, ws.userId, id)
+        } catch {
+          return jsonError("storage unavailable", 502)
+        }
+        if (!changed) return jsonError("document not found", 404)
+      }
       try {
         await dependencies.getStore().setDeletedTag(row.storageKey)
       } catch {
@@ -350,7 +368,11 @@ export function createDocumentHandlers(
       } catch {
         return jsonError("storage unavailable", 502)
       }
-      await repo.clearDeleted(ws.workspaceId, ws.userId, id)
+      try {
+        await repo.clearDeleted(ws.workspaceId, ws.userId, id)
+      } catch {
+        return jsonError("storage unavailable", 502)
+      }
       return Response.json({ ok: true })
     },
   }

@@ -37,15 +37,15 @@ export function SortableHeaderCell<TData>({
   header,
   table,
   edges,
-  upper = false,
+  groupEdge = false,
   onColumnFilter,
   onColumnAnalyze,
 }: {
   header: Header<TData, unknown>
   table: Table<TData>
   edges: ScrollEdges
-  /** This cell sits in an upper (grouping) header tier — tint it accordingly. */
-  upper?: boolean
+  /** This cell sits on a high-level pivot group's right edge → full divider. */
+  groupEdge?: boolean
   onColumnFilter?: (columnId: string) => void
   onColumnAnalyze?: (columnId: string) => void
 }) {
@@ -78,18 +78,16 @@ export function SortableHeaderCell<TData>({
       data-slot="grid-header-cell"
       className={cn(
         "group/col relative flex h-9 shrink-0 items-center text-muted-foreground",
-        // The top-left CORNER cells (upper-tier placeholders above the pinned
-        // select + row-label columns) are a clean WHITE block with NO divider
-        // between them. Group-tier cells get the band tint PLUS the normal header
-        // hover; leaf header cells keep the normal header surface + hover. Every
-        // real header cell shares the SAME font/colour/hover/active states (the
-        // active/open state lives on the DataGridViewColumnHeader trigger).
-        header.isPlaceholder && pinned
+        // EVERY header cell — corner placeholders (upper-tier cells above the
+        // pinned select + row-label), group-tier cells, and leaf cells — shares
+        // the SAME neutral header surface (no blue group tint) and the SAME
+        // divider (`borderClass`), so the group tier reads as an ordinary header
+        // row that merely spans its children. Placeholders are inert (no hover);
+        // real header cells get the normal header hover.
+        header.isPlaceholder
           ? "bg-grid-header"
-          : upper
-            ? "bg-grid-header-group hover:bg-grid-header-hover"
-            : "bg-grid-header hover:bg-grid-header-hover",
-        header.isPlaceholder && pinned ? undefined : borderClass(column),
+          : "bg-grid-header hover:bg-grid-header-hover",
+        borderClass(column, groupEdge),
       )}
       style={{
         ...pinStyle(column),

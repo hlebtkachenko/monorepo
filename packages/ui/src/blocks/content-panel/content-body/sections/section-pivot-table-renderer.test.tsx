@@ -93,13 +93,20 @@ describe("SectionPivotTableRenderer", () => {
     expect(
       container.querySelectorAll('[data-slot="grid-header-row"]'),
     ).toHaveLength(2)
-    // The column-dimension values head the upper (grouping) tier, tinted with
-    // the group-layer token.
+    // The column-dimension values head the upper (grouping) tier as ordinary
+    // header cells on the neutral header surface (no separate blue group tint —
+    // the tier is distinguished by its span + the group-edge divider, not colour).
     const online = screen.getByText("Online")
     expect(screen.getByText("Retail")).toBeInTheDocument()
-    expect(
-      online.closest('[data-slot="grid-header-cell"]')?.className,
-    ).toContain("bg-grid-header-group")
+    const onlineCell = online.closest(
+      '[data-slot="grid-header-cell"]',
+    )?.className
+    expect(onlineCell).toContain("bg-grid-header")
+    expect(onlineCell).not.toContain("bg-grid-header-group")
+    // Online is a NON-last group → its right edge is the full-strength group
+    // divider (`border-border-subtle`, not the faint `/60` inner hairline).
+    expect(onlineCell).toContain("border-e border-border-subtle")
+    expect(onlineCell).not.toContain("border-border-subtle/60")
   })
 
   it("puts the grand total in a footer rowgroup, outside the body rows", () => {

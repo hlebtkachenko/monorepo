@@ -51,7 +51,6 @@
      column's checkbox border, deliberately distinct from the shadcn palette. */
   --color-grid-header: var(--grid-header);
   --color-grid-header-hover: var(--grid-header-hover);
-  --color-grid-header-group: var(--grid-header-group);
   --color-grid-row: var(--grid-row);
   --color-grid-row-hover: var(--grid-row-hover);
   --color-grid-row-selected: var(--grid-row-selected);
@@ -124,9 +123,6 @@
   --grid-action-icon: #646464;
   --grid-action-hover: #e5e5e5;
   --grid-header-hover: #f0f0f0;
-  /* Upper (grouping) header layer in a hierarchical pivot — a hair greyer than
-     the leaf header row so the group band reads as a distinct tier. */
-  --grid-header-group: #f5f7f9;
   --grid-row: #ffffff;
   --grid-row-hover: #f3f3f3;
   --grid-row-selected: #f0f0f0;
@@ -241,7 +237,6 @@
   --grid-action-icon: #9a9a9a;
   --grid-action-hover: #26292b;
   --grid-header-hover: #26292b;
-  --grid-header-group: #24272a;
   --grid-row: #161819;
   --grid-row-hover: #1e2022;
   --grid-row-selected: #26292b;

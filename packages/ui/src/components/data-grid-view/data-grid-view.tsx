@@ -69,6 +69,7 @@ import { SortableHeaderCell } from "./data-grid-view-sortable-header"
 import {
   PinShadow,
   borderClass,
+  groupEdgeIds,
   pinStyle,
   type ScrollEdges,
 } from "./data-grid-view-pin"
@@ -152,6 +153,10 @@ export function DataGridView<TData>({
   const leafColumns = table.getVisibleLeafColumns()
   const rowCount = rows.length
   const colCount = leafColumns.length
+  // Leaf + group-header ids sitting on a high-level pivot group's right edge, so
+  // that boundary draws a full-strength divider cascading down the body. Empty
+  // for a flat table (no column groups); a cheap pass over the visible leaves.
+  const groupEdges = groupEdgeIds(table)
   // The first column keyboard cell-focus may land on — skips columns that opt
   // out via `meta.focusable: false` (the select column). Those are edge
   // structural columns, so a lower-bound clamp is enough to skip them.
@@ -401,10 +406,7 @@ export function DataGridView<TData>({
   // One group (left-pinned / centre / right-pinned) as its own SortableContext,
   // so a header only reorders among its siblings — a pinned column drags within
   // the pinned area, a centre column within the centre, never across.
-  const renderHeaderGroup = (
-    headers: Header<TData, unknown>[],
-    upper = false,
-  ) => {
+  const renderHeaderGroup = (headers: Header<TData, unknown>[]) => {
     // Scope each SortableContext to ONE parent group, so a drag reorders only
     // among siblings WITHIN that group — a pivot value column can't be dragged
     // out of its high-level header. A flat table's columns all share the root
@@ -430,7 +432,7 @@ export function DataGridView<TData>({
             header={header}
             table={table}
             edges={edges}
-            upper={upper}
+            groupEdge={groupEdges.has(header.column.id)}
             onColumnFilter={onColumnFilter}
             onColumnAnalyze={onColumnAnalyze}
           />
@@ -464,6 +466,7 @@ export function DataGridView<TData>({
         colIndex={cells.indexOf(cell)}
         selected={selected}
         edges={edges}
+        groupEdge={groupEdges.has(cell.column.id)}
         isFocused={
           hasFocus && focusRow === rowIndex && focusCol === cells.indexOf(cell)
         }
@@ -569,10 +572,9 @@ export function DataGridView<TData>({
               (h) => h.column.getIsPinned() === "right",
             )
             // With hierarchical (grouped) columns, `getHeaderGroups()` yields one
-            // row per header tier; every tier ABOVE the last (leaf) row is a
-            // grouping band, tinted with the group layer token. A flat table has
-            // a single row, so this is always the leaf row (no tint).
-            const upper = rowIndex < groups.length - 1
+            // row per header tier; every tier renders on the SAME neutral header
+            // surface (a group tier is an ordinary header row that merely spans
+            // its children — no separate tint).
             return (
               <div
                 key={headerGroup.id}
@@ -580,18 +582,15 @@ export function DataGridView<TData>({
                 data-slot="grid-header-row"
                 className="flex w-full"
               >
-                {renderHeaderGroup(left, upper)}
-                {renderHeaderGroup(center, upper)}
+                {renderHeaderGroup(left)}
+                {renderHeaderGroup(center)}
                 <div
                   data-slot="grid-header-spacer"
-                  className={cn(
-                    "flex flex-1 items-center",
-                    upper ? "bg-grid-header-group" : "bg-grid-header",
-                  )}
+                  className="flex flex-1 items-center bg-grid-header"
                 >
                   {rowIndex === groups.length - 1 ? headerTrailing : null}
                 </div>
-                {renderHeaderGroup(right, upper)}
+                {renderHeaderGroup(right)}
               </div>
             )
           })}
@@ -687,6 +686,7 @@ export function DataGridView<TData>({
                   column={column}
                   content={summaryRow.cells[column.id]}
                   edges={edges}
+                  groupEdge={groupEdges.has(column.id)}
                 />
               ))}
             {leafColumns
@@ -697,6 +697,7 @@ export function DataGridView<TData>({
                   column={column}
                   content={summaryRow.cells[column.id]}
                   edges={edges}
+                  groupEdge={groupEdges.has(column.id)}
                 />
               ))}
             <div
@@ -711,6 +712,7 @@ export function DataGridView<TData>({
                   column={column}
                   content={summaryRow.cells[column.id]}
                   edges={edges}
+                  groupEdge={groupEdges.has(column.id)}
                 />
               ))}
           </div>
@@ -726,6 +728,8 @@ interface DataGridViewCellProps<TData> {
   colIndex: number
   selected: boolean
   edges: ScrollEdges
+  /** This cell sits on a high-level pivot group's right edge → full divider. */
+  groupEdge: boolean
   isFocused: boolean
   onFocusCell: () => void
 }
@@ -736,6 +740,7 @@ function DataGridViewCell<TData>({
   colIndex,
   selected,
   edges,
+  groupEdge,
   isFocused,
   onFocusCell,
 }: DataGridViewCellProps<TData>) {
@@ -759,7 +764,7 @@ function DataGridViewCell<TData>({
       className={cn(
         "flex h-8 shrink-0 items-center text-sm outline-none",
         centered ? "justify-center px-0" : "px-3",
-        borderClass(cell.column),
+        borderClass(cell.column, groupEdge),
         // Pinned cells need an opaque background so scrolled content can't show
         // through; match the row's surface (idle/hover/selected) so selection +
         // hover still read on the frozen columns.
@@ -802,10 +807,13 @@ function DataGridViewSummaryCell<TData>({
   column,
   content,
   edges,
+  groupEdge,
 }: {
   column: Column<TData, unknown>
   content: React.ReactNode
   edges: ScrollEdges
+  /** This cell sits on a high-level pivot group's right edge → full divider. */
+  groupEdge: boolean
 }) {
   const pinned = column.getIsPinned()
   const centered = column.columnDef.meta?.align === "center"
@@ -818,7 +826,7 @@ function DataGridViewSummaryCell<TData>({
         // content through it (same reason the header/pinned body cells are opaque).
         "flex h-8 shrink-0 items-center bg-grid-header text-sm",
         centered ? "justify-center px-0" : "px-3",
-        borderClass(column),
+        borderClass(column, groupEdge),
       )}
       style={{
         ...pinStyle(column),

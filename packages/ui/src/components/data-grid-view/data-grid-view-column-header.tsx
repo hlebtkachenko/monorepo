@@ -185,9 +185,15 @@ export function DataGridViewColumnHeader<TData, TValue>({
   const canResize = column.getCanResize()
   const isResizing =
     table.getState().columnSizingInfo.isResizingColumn !== false
-  // `disableReorder` (pivot columns) drops the Move items too, not just the drag.
+  // `disableReorder` (group/label columns) drops the Move items too, not just
+  // the drag. A column nested under a GROUP (a pivot value column) also drops the
+  // menu Move — it reorders by DRAG within its group only (the grid scopes that);
+  // a free menu Move could push it out of its group's contiguous span.
   const canReorder =
-    (canSort || canHide) && !pinned && !column.columnDef.meta?.disableReorder
+    (canSort || canHide) &&
+    !pinned &&
+    !column.columnDef.meta?.disableReorder &&
+    !column.parent
 
   const center = getCenterIds(table)
   const pos = center.indexOf(column.id)

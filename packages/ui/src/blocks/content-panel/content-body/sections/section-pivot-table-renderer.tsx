@@ -301,10 +301,12 @@ export function SectionPivotTableRenderer({
         // numeric min/max control in its header dropdown, keyed by its own id.
         enableColumnFilter: true,
         filterFn: numberRangeFilter,
+        // Value columns ARE drag-reorderable, but only WITHIN their group (the
+        // grid scopes each group's SortableContext) — so `disableReorder` is off
+        // here; the header-menu Move is off for grouped columns (see the header).
         meta: {
           label: leaf.label,
           align: "end",
-          disableReorder: true,
           inlineNumberFilter: true,
         },
         cell: ({ row }) => {

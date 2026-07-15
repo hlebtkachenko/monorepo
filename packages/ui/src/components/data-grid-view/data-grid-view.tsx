@@ -404,24 +404,40 @@ export function DataGridView<TData>({
   const renderHeaderGroup = (
     headers: Header<TData, unknown>[],
     upper = false,
-  ) => (
-    <SortableContext
-      items={headers.map((h) => h.column.id)}
-      strategy={horizontalListSortingStrategy}
-    >
-      {headers.map((header) => (
-        <SortableHeaderCell
-          key={header.id}
-          header={header}
-          table={table}
-          edges={edges}
-          upper={upper}
-          onColumnFilter={onColumnFilter}
-          onColumnAnalyze={onColumnAnalyze}
-        />
-      ))}
-    </SortableContext>
-  )
+  ) => {
+    // Scope each SortableContext to ONE parent group, so a drag reorders only
+    // among siblings WITHIN that group — a pivot value column can't be dragged
+    // out of its high-level header. A flat table's columns all share the root
+    // parent → a single context (unchanged). Runs of same-parent headers are
+    // already contiguous (visual order), so a linear pass groups them.
+    const runs: { headers: Header<TData, unknown>[] }[] = []
+    for (const header of headers) {
+      const key = header.column.parent?.id ?? "__root"
+      const last = runs[runs.length - 1]
+      if (last && (last.headers[0]?.column.parent?.id ?? "__root") === key)
+        last.headers.push(header)
+      else runs.push({ headers: [header] })
+    }
+    return runs.map((run) => (
+      <SortableContext
+        key={run.headers[0]!.id}
+        items={run.headers.map((h) => h.column.id)}
+        strategy={horizontalListSortingStrategy}
+      >
+        {run.headers.map((header) => (
+          <SortableHeaderCell
+            key={header.id}
+            header={header}
+            table={table}
+            edges={edges}
+            upper={upper}
+            onColumnFilter={onColumnFilter}
+            onColumnAnalyze={onColumnAnalyze}
+          />
+        ))}
+      </SortableContext>
+    ))
+  }
 
   // One body row — shared by the normal and virtualized branches. `extra` carries
   // the absolute-position style + `measureElement` ref + `data-index` the

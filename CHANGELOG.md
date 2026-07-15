@@ -17,6 +17,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Provision the S3 documents bucket (#722 working store) in production on the v0.22.6 deploy — first creation on prod; the CDK replace-guard override is audited as a brand-new empty bucket with no destructive replace of any existing resource
 - Internal (thermo review): decomposed the 844-line DataGridView — the cell-focus grid + scroll-edge subsystems now live in data-grid-view-hooks (useCellFocusGrid / useScrollEdges); the left/centre/right pin split is one partitionByPin helper (was hand-rolled in the header, every body row, and the summary row); the column-manager's two reorder rows share one renderReorderRow.
 - Pivot value/group column filtering moved fully into the toolbar: the inline per-column min/max filter in the header dropdown is removed; a column's Filter now opens ONE toolbar filter keyed by its measure field (or group dimension), so e.g. one "Amount" filter applies across every group.
 - Pivot high-level (group) headers render on the neutral header surface (no blue tint), with corner cells matching and a full-strength single divider between groups cascading down the body (no double line).

@@ -39,6 +39,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Internal (thermo review): decomposed the 844-line DataGridView — the cell-focus grid + scroll-edge subsystems now live in data-grid-view-hooks (useCellFocusGrid / useScrollEdges); the left/centre/right pin split is one partitionByPin helper (was hand-rolled in the header, every body row, and the summary row); the column-manager's two reorder rows share one renderReorderRow.
 - Pivot value/group column filtering moved fully into the toolbar: the inline per-column min/max filter in the header dropdown is removed; a column's Filter now opens ONE toolbar filter keyed by its measure field (or group dimension), so e.g. one "Amount" filter applies across every group.
 - Pivot high-level (group) headers render on the neutral header surface (no blue tint), with corner cells matching and a full-strength single divider between groups cascading down the body (no double line).
 - Pivot-aware columns manager: grouped tables show a 'High-level columns' section (the group headers) plus a 'Low-level columns' section that dedups each reused measure into ONE switch (an 'Orders' toggle hides Orders under every group).

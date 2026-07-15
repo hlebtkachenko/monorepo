@@ -266,71 +266,89 @@ export function ColumnManagerMenuContent<TData>({
     for (const [label, cols] of byLabel) measureEntries.push({ label, cols })
   }
 
-  /** A deduped low-level (measure) row: one switch that toggles that measure's
-   *  column under every group at once, and a grip that DRAGS the measure to a new
-   *  position across EVERY group (`reorderMeasures`). Keyed by the measure label. */
-  const renderMeasureRow = ({
+  // ONE reorderable manager row — the whole thing (measure / group / column /
+  // pinned) is a single toggle target with a grip drag-handle and top/bottom drop
+  // indicators. The row div owns toggle semantics (role=button + aria-pressed +
+  // keyboard); the trailing checkbox is an aria-hidden decorative indicator so
+  // nothing interactive nests inside it. Callers vary only in: the drag id, the
+  // toggle action, the reorder call, and whether it drags at all.
+  const renderReorderRow = ({
+    id,
     label,
-    cols,
+    visible,
+    draggable,
+    kind,
+    onToggle,
+    onReorder,
   }: {
+    id: string
     label: string
-    cols: Column<TData>[]
+    visible: boolean
+    draggable: boolean
+    kind?: DragKind
+    onToggle: () => void
+    onReorder: (sourceId: string, edge: "top" | "bottom") => void
   }) => {
-    const visible = cols.some((c) => c.getIsVisible())
-    const toggle = () => cols.forEach((c) => c.toggleVisibility(!visible))
-    const over = dropTarget?.id === label
+    const over = dropTarget?.id === id
     return (
-      <div key={`measure:${label}`} className="relative">
+      <div key={kind === "measure" ? `measure:${id}` : id} className="relative">
         {over && dropTarget.edge === "top" ? (
           <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
         ) : null}
         <div
           onDragOver={(event) => {
-            if (!drag || drag.kind !== "measure" || drag.id === label) return
+            if (!drag || drag.kind !== kind || drag.id === id) return
             event.preventDefault()
             event.stopPropagation()
             event.dataTransfer.dropEffect = "move"
             const rect = event.currentTarget.getBoundingClientRect()
             const edge =
               event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
-            setDropTarget({ id: label, edge })
+            setDropTarget({ id, edge })
           }}
           onDrop={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            if (drag && drag.kind === "measure")
-              reorderMeasures(table, drag.id, label, dropTarget?.edge ?? "top")
+            if (drag && drag.kind === kind)
+              onReorder(drag.id, dropTarget?.edge ?? "top")
             setDrag(null)
             setDropTarget(null)
           }}
           className={cn(
             "group/col flex items-center rounded-sm hover:bg-accent",
-            drag?.kind === "measure" && drag.id === label && "opacity-40",
+            drag?.id === id && drag.kind === kind && "opacity-40",
           )}
         >
           <span
-            draggable
-            onDragStart={(event) => {
-              event.dataTransfer.effectAllowed = "move"
-              event.dataTransfer.setData("text/plain", label)
-              setDrag({ id: label, kind: "measure" })
-            }}
+            draggable={draggable}
+            onDragStart={
+              draggable && kind !== undefined
+                ? (event) => {
+                    event.dataTransfer.effectAllowed = "move"
+                    event.dataTransfer.setData("text/plain", id)
+                    setDrag({ id, kind })
+                  }
+                : undefined
+            }
             onDragEnd={() => {
               setDrag(null)
               setDropTarget(null)
             }}
-            className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+            className={cn(
+              "flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground",
+              draggable ? "cursor-grab active:cursor-grabbing" : "opacity-40",
+            )}
           >
             <GripVertical className="size-4" />
           </span>
           <div
             role="button"
             tabIndex={0}
-            onClick={toggle}
+            onClick={onToggle}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                toggle()
+                onToggle()
               }
             }}
             aria-label={visible ? `Hide ${label}` : `Show ${label}`}
@@ -358,111 +376,42 @@ export function ColumnManagerMenuContent<TData>({
     )
   }
 
+  /** A deduped low-level (measure) row: one switch toggling that measure under
+   *  every group + a grip that drags it across ALL groups (`reorderMeasures`). */
+  const renderMeasureRow = ({
+    label,
+    cols,
+  }: {
+    label: string
+    cols: Column<TData>[]
+  }) => {
+    const visible = cols.some((c) => c.getIsVisible())
+    return renderReorderRow({
+      id: label,
+      label,
+      visible,
+      draggable: true,
+      kind: "measure",
+      onToggle: () => cols.forEach((c) => c.toggleVisibility(!visible)),
+      onReorder: (sourceId, edge) =>
+        reorderMeasures(table, sourceId, label, edge),
+    })
+  }
+
   const renderRow = (column: (typeof columns)[number], kind?: DragKind) => {
-    const draggable = kind !== undefined
     const visible = column.getIsVisible()
-    const label = getColumnLabel(column)
-    const over = dropTarget?.id === column.id
-    return (
-      <div key={column.id} className="relative">
-        {over && dropTarget.edge === "top" ? (
-          <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
-        ) : null}
-        {/* The whole row is one toggle target (like a menu checkbox item); the
-            grip is the only drag handle so a click anywhere else flips
-            visibility. Checkbox is a trailing state indicator, not its own hit
-            target. */}
-        <div
-          onDragOver={(event) => {
-            if (!drag || drag.kind !== kind || drag.id === column.id) return
-            event.preventDefault()
-            event.stopPropagation()
-            event.dataTransfer.dropEffect = "move"
-            const rect = event.currentTarget.getBoundingClientRect()
-            const edge =
-              event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
-            setDropTarget({ id: column.id, edge })
-          }}
-          onDrop={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            if (drag && drag.kind === kind) {
-              const edge = dropTarget?.edge ?? "top"
-              if (kind === "group")
-                reorderGroups(table, drag.id, column.id, edge)
-              else reorderColumn(table, drag.id, column.id, edge)
-            }
-            setDrag(null)
-            setDropTarget(null)
-          }}
-          className={cn(
-            "group/col flex items-center rounded-sm hover:bg-accent",
-            drag?.id === column.id && "opacity-40",
-          )}
-        >
-          <span
-            draggable={draggable}
-            onDragStart={
-              kind !== undefined
-                ? (event) => {
-                    event.dataTransfer.effectAllowed = "move"
-                    event.dataTransfer.setData("text/plain", column.id)
-                    setDrag({ id: column.id, kind })
-                  }
-                : undefined
-            }
-            onDragEnd={() => {
-              setDrag(null)
-              setDropTarget(null)
-            }}
-            className={cn(
-              "flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground",
-              draggable ? "cursor-grab active:cursor-grabbing" : "opacity-40",
-            )}
-          >
-            <GripVertical className="size-4" />
-          </span>
-          {/* role="button" on a div, NOT a real <button>: the trailing Checkbox
-              is a Radix <button role="checkbox"> and a button can't nest a
-              button (invalid HTML + hydration error). The checkbox is a
-              decorative, aria-hidden state indicator; the row div owns the
-              toggle semantics (aria-pressed) + keyboard. */}
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => setColumnVisibility(column, !visible)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault()
-                setColumnVisibility(column, !visible)
-              }
-            }}
-            aria-label={visible ? `Hide ${label}` : `Show ${label}`}
-            aria-pressed={visible}
-            className="flex h-8 flex-1 cursor-pointer items-center gap-2 rounded-sm pr-2.5 text-left text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <span className="flex-1 truncate text-foreground">{label}</span>
-            {/* Non-interactive state indicator mirroring the Checkbox look — a
-                real <Checkbox> is a <button role="checkbox">, which axe flags as
-                nested-interactive inside the row's role="button". */}
-            <span
-              aria-hidden
-              className={cn(
-                "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
-                visible
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-input",
-              )}
-            >
-              {visible ? <CheckIcon className="size-3.5" /> : null}
-            </span>
-          </div>
-        </div>
-        {over && dropTarget.edge === "bottom" ? (
-          <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />
-        ) : null}
-      </div>
-    )
+    return renderReorderRow({
+      id: column.id,
+      label: getColumnLabel(column),
+      visible,
+      draggable: kind !== undefined,
+      kind,
+      onToggle: () => setColumnVisibility(column, !visible),
+      onReorder: (sourceId, edge) =>
+        kind === "group"
+          ? reorderGroups(table, sourceId, column.id, edge)
+          : reorderColumn(table, sourceId, column.id, edge),
+    })
   }
 
   const sectionLabel = (text: string) => (

@@ -85,7 +85,7 @@ export interface HeldWritePostingLineRow {
 }
 
 /** The `openObligation` directive on a held `createAccountingPosting`, shaped for the review. */
-export interface HeldWriteObligation {
+interface HeldWriteObligation {
   saldoAccountNumber: string
   direction: "RECEIVABLE" | "PAYABLE"
   dueDate: string | null

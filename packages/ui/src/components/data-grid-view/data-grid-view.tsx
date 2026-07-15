@@ -401,7 +401,10 @@ export function DataGridView<TData>({
   // One group (left-pinned / centre / right-pinned) as its own SortableContext,
   // so a header only reorders among its siblings — a pinned column drags within
   // the pinned area, a centre column within the centre, never across.
-  const renderHeaderGroup = (headers: Header<TData, unknown>[]) => (
+  const renderHeaderGroup = (
+    headers: Header<TData, unknown>[],
+    upper = false,
+  ) => (
     <SortableContext
       items={headers.map((h) => h.column.id)}
       strategy={horizontalListSortingStrategy}
@@ -412,6 +415,7 @@ export function DataGridView<TData>({
           header={header}
           table={table}
           edges={edges}
+          upper={upper}
           onColumnFilter={onColumnFilter}
           onColumnAnalyze={onColumnAnalyze}
         />
@@ -538,7 +542,7 @@ export function DataGridView<TData>({
           className="sticky top-0 z-30 border-b border-border-subtle bg-grid-header"
           style={{ width: totalWidth, minWidth: "100%" }}
         >
-          {table.getHeaderGroups().map((headerGroup) => {
+          {table.getHeaderGroups().map((headerGroup, rowIndex, groups) => {
             const left = headerGroup.headers.filter(
               (h) => h.column.getIsPinned() === "left",
             )
@@ -548,6 +552,11 @@ export function DataGridView<TData>({
             const right = headerGroup.headers.filter(
               (h) => h.column.getIsPinned() === "right",
             )
+            // With hierarchical (grouped) columns, `getHeaderGroups()` yields one
+            // row per header tier; every tier ABOVE the last (leaf) row is a
+            // grouping band, tinted with the group layer token. A flat table has
+            // a single row, so this is always the leaf row (no tint).
+            const upper = rowIndex < groups.length - 1
             return (
               <div
                 key={headerGroup.id}
@@ -555,15 +564,18 @@ export function DataGridView<TData>({
                 data-slot="grid-header-row"
                 className="flex w-full"
               >
-                {renderHeaderGroup(left)}
-                {renderHeaderGroup(center)}
+                {renderHeaderGroup(left, upper)}
+                {renderHeaderGroup(center, upper)}
                 <div
                   data-slot="grid-header-spacer"
-                  className="flex flex-1 items-center bg-grid-header"
+                  className={cn(
+                    "flex flex-1 items-center",
+                    upper ? "bg-grid-header-group" : "bg-grid-header",
+                  )}
                 >
-                  {headerTrailing}
+                  {rowIndex === groups.length - 1 ? headerTrailing : null}
                 </div>
-                {renderHeaderGroup(right)}
+                {renderHeaderGroup(right, upper)}
               </div>
             )
           })}

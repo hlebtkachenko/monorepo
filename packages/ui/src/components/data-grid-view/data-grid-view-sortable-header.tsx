@@ -37,12 +37,15 @@ export function SortableHeaderCell<TData>({
   header,
   table,
   edges,
+  upper = false,
   onColumnFilter,
   onColumnAnalyze,
 }: {
   header: Header<TData, unknown>
   table: Table<TData>
   edges: ScrollEdges
+  /** This cell sits in an upper (grouping) header tier — tint it accordingly. */
+  upper?: boolean
   onColumnFilter?: (columnId: string) => void
   onColumnAnalyze?: (columnId: string) => void
 }) {
@@ -50,7 +53,9 @@ export function SortableHeaderCell<TData>({
   const interactive = column.getCanSort() || column.getCanHide()
   // Structural columns (select / actions) set canSort + canHide false, so they
   // stay non-draggable anchors; every data column — pinned or not — can drag.
-  const canReorder = interactive
+  // A column may still opt OUT of reordering while keeping sort (pivot columns:
+  // sortable by value, but structurally fixed in their header hierarchy).
+  const canReorder = interactive && !column.columnDef.meta?.disableReorder
   const align = column.columnDef.meta?.align
   const pinned = column.getIsPinned()
 
@@ -72,7 +77,12 @@ export function SortableHeaderCell<TData>({
       role="columnheader"
       data-slot="grid-header-cell"
       className={cn(
-        "group/col relative flex h-9 shrink-0 items-center bg-grid-header text-muted-foreground hover:bg-grid-header-hover",
+        "group/col relative flex h-9 shrink-0 items-center text-muted-foreground",
+        // Upper (grouping) tier cells get the group band tint and no hover; leaf
+        // header cells keep the normal header surface + hover.
+        upper
+          ? "bg-grid-header-group"
+          : "bg-grid-header hover:bg-grid-header-hover",
         borderClass(column),
       )}
       style={{

@@ -37,6 +37,13 @@ export interface DataTableColumnMeta {
    * text PLUS the button without overlap.
    */
   trailingWidth?: number
+  /**
+   * Suppress drag-to-reorder for this header even though it is otherwise
+   * interactive (sortable/hideable). Set on pivot columns: the derived
+   * group/measure columns keep sorting but must not be dragged out of their
+   * hierarchy (the header layers are structural, not user-reorderable).
+   */
+  disableReorder?: boolean
 }
 
 declare module "@tanstack/react-table" {

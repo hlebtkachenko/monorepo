@@ -14,7 +14,13 @@ import {
 import { ChevronRight } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { buildPivot, type PivotCell, type PivotRow } from "./pivot-transform"
+import {
+  buildPivot,
+  type PivotCell,
+  type PivotColumnNode,
+  type PivotLeafColumn,
+  type PivotRow,
+} from "./pivot-transform"
 import { GridNumberCell } from "./section-grid-cells"
 import { buildSelectColumn, type RowOrder } from "./section-grid-select"
 import {
@@ -163,9 +169,50 @@ export function SectionPivotTableRenderer({
   })
 
   const columns = React.useMemo<ColumnDef<PivotRow>[]>(() => {
-    // The ALWAYS-present leading select column (shared with the flat Table), then
-    // the pinned row-label (hierarchy) column.
-    const cols: ColumnDef<PivotRow>[] = [
+    const leafById = new Map(pivot.leafColumns.map((l) => [l.id, l]))
+
+    // One leaf value column (measure-per-column-path). Sortable by value (empties
+    // last), never reorderable (its place in the header hierarchy is structural).
+    const buildValueColumn = (leaf: PivotLeafColumn): ColumnDef<PivotRow> => {
+      const format = formatByMeasure.get(leaf.measureId) ?? String
+      return {
+        id: leaf.id,
+        header: leaf.label,
+        accessorFn: (row) => {
+          const cell = row.values[leaf.id]
+          return cell?.kind === "value" ? cell.value : undefined
+        },
+        sortUndefined: "last",
+        size: valueWidth,
+        enableGlobalFilter: false,
+        meta: { label: leaf.label, align: "end", disableReorder: true },
+        cell: ({ row }) =>
+          renderPivotCell(row.original.values[leaf.id], format),
+      }
+    }
+
+    // Walk the column tree → TanStack column defs. A leaf node becomes a value
+    // column; a group node becomes a header-group column spanning its children —
+    // so `columnDimensions` render as hierarchical (banded) header tiers. With no
+    // column dimensions the tree is a flat list of measure leaves (one header row).
+    const buildColumnDef = (node: PivotColumnNode): ColumnDef<PivotRow> => {
+      if (node.leafId) {
+        const leaf = leafById.get(node.leafId)
+        if (leaf) return buildValueColumn(leaf)
+      }
+      return {
+        id: node.id,
+        header: node.label,
+        enableSorting: false,
+        enableHiding: false,
+        meta: { label: node.label, align: "center", disableReorder: true },
+        columns: (node.children ?? []).map(buildColumnDef),
+      }
+    }
+
+    return [
+      // The ALWAYS-present leading select column (shared with the flat Table),
+      // then the pinned row-label (hierarchy) column, then the value columns.
       buildSelectColumn<PivotRow>({ anchorRef: selectionAnchor, rowOrderRef }),
       {
         id: PIVOT_ROW_LABEL_ID,
@@ -174,38 +221,13 @@ export function SectionPivotTableRenderer({
         size: labelWidth,
         minSize: 160,
         enableHiding: false,
+        meta: { disableReorder: true },
         cell: ({ row }) => <PivotLabelCell row={row} />,
       },
+      ...pivot.columnTree.map(buildColumnDef),
     ]
-    // Flat value columns (one per leaf). Hierarchical column-group headers are a
-    // later phase; here each leaf header carries its column path + measure label
-    // so multi-column-dim pivots are still unambiguous.
-    for (const leaf of pivot.leafColumns) {
-      const format = formatByMeasure.get(leaf.measureId) ?? String
-      const header =
-        leaf.columnPath.length > 0
-          ? `${leaf.columnPath.join(" · ")} · ${leaf.label}`
-          : leaf.label
-      cols.push({
-        id: leaf.id,
-        header,
-        // Numeric-or-undefined accessor drives sort; non-value cells sort last
-        // in both directions via `sortUndefined`. The cell reads the full
-        // `PivotCell` off the row so it can show the mixed/empty state.
-        accessorFn: (row) => {
-          const cell = row.values[leaf.id]
-          return cell?.kind === "value" ? cell.value : undefined
-        },
-        sortUndefined: "last",
-        size: valueWidth,
-        enableGlobalFilter: false,
-        meta: { label: header, align: "end" },
-        cell: ({ row }) =>
-          renderPivotCell(row.original.values[leaf.id], format),
-      })
-    }
-    return cols
   }, [
+    pivot.columnTree,
     pivot.leafColumns,
     rowLabelHeader,
     labelWidth,

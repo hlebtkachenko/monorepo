@@ -131,7 +131,9 @@ export function DataGridViewColumnHeader<TData, TValue>({
   const canResize = column.getCanResize()
   const isResizing =
     table.getState().columnSizingInfo.isResizingColumn !== false
-  const canReorder = (canSort || canHide) && !pinned
+  // `disableReorder` (pivot columns) drops the Move items too, not just the drag.
+  const canReorder =
+    (canSort || canHide) && !pinned && !column.columnDef.meta?.disableReorder
 
   const center = getCenterIds(table)
   const pos = center.indexOf(column.id)

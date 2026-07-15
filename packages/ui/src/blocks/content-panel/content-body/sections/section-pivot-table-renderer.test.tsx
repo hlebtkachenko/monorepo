@@ -28,6 +28,17 @@ const nested: SectionPivotTablePayload = {
   measures: [{ id: "amt", label: "Amount", agg: "sum", field: "amount" }],
 }
 
+const columnar: SectionPivotTablePayload = {
+  rows: [
+    { region: "EU", channel: "Online", amount: 10 },
+    { region: "EU", channel: "Retail", amount: 5 },
+    { region: "US", channel: "Online", amount: 7 },
+  ],
+  rowDimensions: [{ field: "region" }],
+  columnDimensions: [{ field: "channel", label: "Channel" }],
+  measures: [{ id: "amt", label: "Amount", agg: "sum", field: "amount" }],
+}
+
 function renderPivot(p: SectionPivotTablePayload) {
   return render(
     <div className="flex h-96 flex-col">
@@ -43,6 +54,21 @@ describe("SectionPivotTableRenderer", () => {
     expect(screen.getByText("US")).toBeInTheDocument()
     // No column dims → the measure label is the only value header.
     expect(screen.getByRole("button", { name: /Amount/ })).toBeInTheDocument()
+  })
+
+  it("renders hierarchical column headers (a grouping tier per column dimension)", () => {
+    const { container } = renderPivot(columnar)
+    // Two header tiers: the channel grouping band above the measure leaf row.
+    expect(
+      container.querySelectorAll('[data-slot="grid-header-row"]'),
+    ).toHaveLength(2)
+    // The column-dimension values head the upper (grouping) tier, tinted with
+    // the group-layer token.
+    const online = screen.getByText("Online")
+    expect(screen.getByText("Retail")).toBeInTheDocument()
+    expect(
+      online.closest('[data-slot="grid-header-cell"]')?.className,
+    ).toContain("bg-grid-header-group")
   })
 
   it("puts the grand total in a footer rowgroup, outside the body rows", () => {

@@ -21,16 +21,16 @@ Czech accounting software.
 
 ## Tier roadmap
 
-- **Tier 1 — ISDOC 6.0.1** — done, this package today (`generateIsdoc`,
-  `readIsdoc`, `validateFiling`).
-- **Tier 2 — Přiznání k DPH (DPHDP3) + Kontrolní hlášení (DPHKH1)** — not
-  started. These are submitted to the Finanční úřad through the EPO
-  (Elektronické podání pro finanční správu) `<Pisemnost>` envelope format.
+- **Tier 1 — ISDOC 6.0.1** — done (`generateIsdoc`, `readIsdoc`,
+  `validateFiling`).
+- **Tier 2 — Přiznání k DPH (DPHDP3) + Kontrolní hlášení (DPHKH1)** — done.
+  Submitted to the Finanční úřad through the EPO (Elektronické podání pro
+  finanční správu) `<Pisemnost>` envelope. `generateDphdp3` / `readDphdp3`,
+  `generateDphkh1` / `readDphkh1`, `validateFiling(xml, "dphdp3"|"dphkh1", …)`,
+  plus `buildDphdp3FromAccounting` / `buildDphkh1FromAccounting` adapters.
 - **Tier 3 — DPPO** (corporate income tax return) — not started.
 - Later, out of scope for now: ČSSZ (social security) and health-insurance
   filings.
-
-Only ISDOC exists today. Nothing in this README describes Tier 2/3 as built.
 
 ## Package layout
 
@@ -38,11 +38,50 @@ Only ISDOC exists today. Nothing in this README describes Tier 2/3 as built.
 src/xml/          generic XML core: ordered-tree build (build.ts) + parse (parse.ts)
 src/validate/      XSD validation (validate.ts) + schema registry (registry.ts)
                    + schemas.generated.ts (inlined XSD text, see "Extending" below)
-src/model/         Zod invoice models (isdoc.ts) — the seam a UI binds to
+src/model/         Zod models (isdoc.ts, dphdp3.ts, dphkh1.ts) — the UI seam
 src/cz/isdoc/      ISDOC 6.0.1 writer (write.ts) + reader (read.ts)
+src/cz/fu/         FÚ EPO: envelope.ts (Pisemnost + attribute-centric věty) +
+                   dphdp3/ + dphkh1/ writers/readers + adapter.ts (accounting→filing)
 schemas/           vendored official XSDs, version-pinned, never fetched at runtime
 fixtures/isdoc/    10 reference invoices used as test fixtures
 ```
+
+## Tier 2 — FÚ EPO (DPHDP3 + DPHKH1)
+
+Unlike ISDOC (element-centric), the EPO daňový-portál forms are **attribute-
+centric**: values live in XML attributes on self-closing věty, wrapped in a
+namespace-less `<Pisemnost>` → `<DPHDP3>`/`<DPHKH1>` envelope. Grounded entirely
+from the vendored official XSDs (`schemas/fu/`), not from prose.
+
+- **Decimals**: DPHDP3 amounts are whole koruna (`xs:decimal` fractionDigits=0,
+  e.g. `obrat23="1000"`); DPHKH1 row amounts are haléře (`fractionDigits=2`,
+  e.g. `zakl_dane1="1000.00"`). The writers/adapters format accordingly.
+- **DIČ** is emitted digits-only (attr pattern `[0-9]{1,10}`) — the "CZ" prefix
+  is stripped. **Dates** are normalised to `D.M.YYYY`.
+- **Models** (`Dphdp3` / `Dphkh1`) type the hlavička (VetaD) + poplatník (VetaP);
+  DPHDP3 value věty (Veta1..6) are per-attribute string records so ANY attribute
+  round-trips, and DPHKH1 row věty (A.1/A.2/A.4/A.5/B.1/B.2/B.3) are typed rows.
+- **Adapters** map the platform's computed VAT figures (`@workspace/accounting`
+  `Dph.rows` / `KontrolniHlaseni`) into the models via filing-local input
+  interfaces — `@workspace/filing` stays a pure serialize package with no
+  accounting/db dependency.
+
+```ts
+import {
+  generateDphdp3, readDphdp3,
+  generateDphkh1, readDphkh1,
+  buildDphdp3FromAccounting, buildDphkh1FromAccounting,
+  validateFiling,
+} from "@workspace/filing"
+
+const xml = generateDphdp3(buildDphdp3FromAccounting(dph.rows, meta))
+const { valid, errors } = await validateFiling(xml, "dphdp3", "03.01.03")
+```
+
+The full attribute dictionary + řádek→attribute map lives in
+`.context/xml-filing-tier2-grounding.md`. The Veta4 (odpočet) column roles and
+the header code values (`dapdph_forma`, `typ_ds`, …) are flagged there for the
+Advisor gate to confirm against the official "Pokyny k vyplnění".
 
 ## API
 

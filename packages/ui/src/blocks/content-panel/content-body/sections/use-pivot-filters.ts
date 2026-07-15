@@ -4,16 +4,17 @@ import * as React from "react"
 
 import {
   createColumnConfigHelper,
+  numberFilterFn,
   optionFilterFn,
   useFilterBar,
   type ColumnConfig,
   type FilterModel,
   type FiltersState,
 } from "@workspace/ui/components/filter-bar"
-import { CircleDot } from "@workspace/ui/lib/icons"
+import { CircleDot, SquareSigma } from "@workspace/ui/lib/icons"
 
 import type { TableSectionRow } from "./section-table"
-import type { PivotDimension } from "./section-pivot-table"
+import type { PivotDimension, PivotMeasure } from "./section-pivot-table"
 
 export interface UsePivotFiltersOptions {
   /** The long-format source rows the pivot folds (BEFORE this filter pass). */
@@ -25,6 +26,14 @@ export interface UsePivotFiltersOptions {
    * column), so the user narrows each grouping level independently.
    */
   readonly dimensions: readonly PivotDimension[]
+  /**
+   * The pivot's measures. Each measure with a source `field` (sum/avg/min/max —
+   * not count) becomes ONE numeric toolbar filter on that field, deduped by field
+   * (Amount + Avg over the same `amount` field share one filter). Filtering it
+   * narrows the SOURCE rows, so the whole pivot re-folds — one "Amount" filter
+   * applies across every group. A value column header's Filter opens it.
+   */
+  readonly measures?: readonly PivotMeasure[]
   /** Controlled active filters + setter (own it in the page for the toolbar). */
   readonly filters: FiltersState
   readonly onFiltersChange: React.Dispatch<React.SetStateAction<FiltersState>>
@@ -63,6 +72,7 @@ function distinctValues(
 export function usePivotFilters({
   rows,
   dimensions,
+  measures,
   filters,
   onFiltersChange,
 }: UsePivotFiltersOptions) {
@@ -85,8 +95,28 @@ export function usePivotFilters({
           .build() as ColumnConfig<TableSectionRow>,
       )
     }
+    // One numeric filter per DISTINCT measure field (Amount + Avg share `amount`
+    // → one filter). Count measures (no field) get none.
+    const seenFields = new Set<string>()
+    for (const measure of measures ?? []) {
+      const field = measure.field
+      if (!field || seenFields.has(field)) continue
+      seenFields.add(field)
+      configs.push(
+        helper
+          .number()
+          .id(field)
+          .accessor((row) => {
+            const raw = row[field]
+            return raw == null || raw === "" ? Number.NaN : Number(raw)
+          })
+          .displayName(measure.label)
+          .icon(SquareSigma)
+          .build() as ColumnConfig<TableSectionRow>,
+      )
+    }
     return configs
-  }, [rows, dimensions])
+  }, [rows, dimensions, measures])
 
   const data = React.useMemo(() => [...rows], [rows])
 
@@ -105,21 +135,35 @@ export function usePivotFilters({
   const fieldById = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const dim of dimensions) map.set(dim.field, dim.field)
+    for (const measure of measures ?? [])
+      if (measure.field) map.set(measure.field, measure.field)
     return map
-  }, [dimensions])
+  }, [dimensions, measures])
 
   const filteredRows = React.useMemo(() => {
     if (filters.length === 0) return [...rows]
     return rows.filter((row) =>
       filters.every((filter) => {
-        // A stale filter whose dimension is gone, or one that isn't an option
-        // model, does not narrow (matches the flat table's defensive apply-pass).
+        // A stale filter whose dimension/measure is gone does not narrow (matches
+        // the flat table's defensive apply-pass).
         const field = fieldById.get(filter.columnId)
-        if (field === undefined || filter.type !== "option") return true
-        return optionFilterFn(
-          String(row[field] ?? ""),
-          filter as FilterModel<"option">,
-        )
+        if (field === undefined) return true
+        if (filter.type === "option")
+          return optionFilterFn(
+            String(row[field] ?? ""),
+            filter as FilterModel<"option">,
+          )
+        if (filter.type === "number") {
+          // A source row with no numeric value can't be in range → excluded by an
+          // active measure filter.
+          const raw = row[field]
+          if (raw == null || raw === "") return false
+          const n = Number(raw)
+          return Number.isFinite(n)
+            ? numberFilterFn(n, filter as FilterModel<"number">)
+            : false
+        }
+        return true
       }),
     )
   }, [rows, filters, fieldById])

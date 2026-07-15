@@ -45,19 +45,13 @@ export interface DataTableColumnMeta {
    */
   disableReorder?: boolean
   /**
-   * Render a self-contained numeric min/max filter INSIDE this column's header
-   * dropdown, wired to TanStack's own `columnFilters` (via `setFilterValue`).
-   * Used by pivot value columns: their derived ids (`val…`) can't route to the
-   * bazza toolbar, so filtering lives on the column itself. Requires the column
-   * to `enableColumnFilter` + the table to have `getFilteredRowModel`.
-   */
-  inlineNumberFilter?: boolean
-  /**
    * The id the header's "Filter" action should route to instead of the column's
-   * own id — used by pivot GROUP headers (a `grp…` column standing in for a
-   * column-dimension VALUE): the dropdown Filter opens the toolbar filter for the
-   * underlying DIMENSION FIELD (e.g. "channel"), which `resolveHeaderFilterTarget`
-   * can match against the toolbar's filter columns.
+   * own id. Used by pivot columns so same-meaning columns across groups open ONE
+   * toolbar filter: a GROUP header (a `grp…` column) passes its column-dimension
+   * FIELD (e.g. "channel"); a VALUE column passes its measure FIELD (e.g.
+   * "amount"), so every Amount column across every group routes to the same
+   * Amount toolbar filter. `resolveHeaderFilterTarget` matches it to a toolbar
+   * filter column.
    */
   filterColumnId?: string
 }

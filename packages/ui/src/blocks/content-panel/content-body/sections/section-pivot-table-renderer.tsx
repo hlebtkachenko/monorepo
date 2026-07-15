@@ -3,7 +3,6 @@
 import * as React from "react"
 import {
   type ColumnDef,
-  type FilterFn,
   type Row,
   getExpandedRowModel,
 } from "@tanstack/react-table"
@@ -14,21 +13,6 @@ import {
 } from "@workspace/ui/components/data-grid-view"
 import { ChevronRight } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
-
-/**
- * A numeric min/max filter for a pivot value column — the shape the header's
- * inline `NumberFilterFields` writes (`[min, max]`, each a number or ""). A row
- * with no aggregate value is excluded from an active filter.
- */
-const numberRangeFilter: FilterFn<PivotRow> = (row, columnId, value) => {
-  if (!Array.isArray(value)) return true
-  const [min, max] = value as [number | "", number | ""]
-  const v = row.getValue(columnId) as number | undefined
-  if (v == null) return false
-  if (min !== "" && v < min) return false
-  if (max !== "" && v > max) return false
-  return true
-}
 
 import {
   buildPivot,
@@ -280,6 +264,15 @@ export function SectionPivotTableRenderer({
     indexById: new Map(),
   })
 
+  // measureId → its source field (if any), so a value column routes its "Filter"
+  // to the toolbar filter for that measure field — the SAME filter for that
+  // measure across every group.
+  const fieldByMeasure = React.useMemo(() => {
+    const map = new Map<string, string | undefined>()
+    for (const measure of measures) map.set(measure.id, measure.field)
+    return map
+  }, [measures])
+
   const columns = React.useMemo<ColumnDef<PivotRow>[]>(() => {
     const leafById = new Map(pivot.leafColumns.map((l) => [l.id, l]))
 
@@ -287,6 +280,7 @@ export function SectionPivotTableRenderer({
     // last), never reorderable (its place in the header hierarchy is structural).
     const buildValueColumn = (leaf: PivotLeafColumn): ColumnDef<PivotRow> => {
       const format = formatByMeasure.get(leaf.measureId) ?? String
+      const field = fieldByMeasure.get(leaf.measureId)
       return {
         id: leaf.id,
         header: leaf.label,
@@ -297,17 +291,15 @@ export function SectionPivotTableRenderer({
         sortUndefined: "last",
         size: valueWidth,
         enableGlobalFilter: false,
-        // Every value column is filterable (the general Table rule) via an inline
-        // numeric min/max control in its header dropdown, keyed by its own id.
-        enableColumnFilter: true,
-        filterFn: numberRangeFilter,
         // Value columns ARE drag-reorderable, but only WITHIN their group (the
         // grid scopes each group's SortableContext) — so `disableReorder` is off
         // here; the header-menu Move is off for grouped columns (see the header).
+        // Their "Filter" routes to the toolbar filter for the measure's FIELD, so
+        // every same-measure column across groups opens ONE filter (never inline).
         meta: {
           label: leaf.label,
           align: "end",
-          inlineNumberFilter: true,
+          ...(field ? { filterColumnId: field } : {}),
         },
         cell: ({ row }) => {
           // With subtotal rows on, an EXPANDED group's own value cells are blank
@@ -385,6 +377,7 @@ export function SectionPivotTableRenderer({
     labelWidth,
     valueWidth,
     formatByMeasure,
+    fieldByMeasure,
     drill,
     buildDrillTarget,
     subtotalRows,
@@ -431,6 +424,10 @@ export function SectionPivotTableRenderer({
     getRowId: (row) => row.id,
     getSubRows: (row) => row.subRows as PivotRow[] | undefined,
     getExpandedRowModel: getExpandedRowModel(),
+    // A synthetic per-group subtotal ("Total …") row is NOT selectable: selecting
+    // a group must not also select its calculated total, else a sum over the
+    // selection double-counts (the leaf rows AND their total).
+    enableRowSelection: (row) => !row.original.isTotal,
     autoResetExpanded: false,
     filterFromLeafRows: true,
     enableGlobalFilter: search,

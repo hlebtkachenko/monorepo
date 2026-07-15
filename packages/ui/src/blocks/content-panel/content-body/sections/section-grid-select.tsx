@@ -3,6 +3,8 @@
 import * as React from "react"
 import type { ColumnDef, Row, Table } from "@tanstack/react-table"
 
+import { cn } from "@workspace/ui/lib/utils"
+
 import { GridCheckbox } from "./section-grid-cells"
 
 /**
@@ -40,6 +42,9 @@ function SelectCell<T>({
   rowOrderRef: React.MutableRefObject<RowOrder<T>>
 }) {
   const checked = row.getIsSelected()
+  // A non-selectable row (e.g. a pivot subtotal) shows ONLY its line number — no
+  // checkbox — so it can never be swept into a group/select-all selection.
+  const canSelect = row.getCanSelect()
   // Display index from the id-keyed map (robust when sorting swaps row
   // instances, which breaks `rows.indexOf(row)` → -1 → line number 0).
   const { rows, indexById } = rowOrderRef.current
@@ -50,35 +55,44 @@ function SelectCell<T>({
   const rangeHandled = React.useRef(false)
   return (
     <div className="relative flex size-full items-center justify-center">
-      <span className="text-xs text-muted-foreground tabular-nums group-hover/row:opacity-0 group-data-[state=selected]/row:opacity-0">
+      <span
+        className={cn(
+          "text-xs text-muted-foreground tabular-nums",
+          // Only swap the number out for the checkbox when the row can select.
+          canSelect &&
+            "group-hover/row:opacity-0 group-data-[state=selected]/row:opacity-0",
+        )}
+      >
         {lineNumber}
       </span>
-      <GridCheckbox
-        aria-label={`Select row ${lineNumber}`}
-        checked={checked}
-        onClick={(event) => {
-          const doRange = event.shiftKey && anchorRef.current !== null
-          rangeHandled.current = doRange
-          if (!doRange) return
-          const from = Math.min(anchorRef.current as number, index)
-          const to = Math.max(anchorRef.current as number, index)
-          const next = { ...table.getState().rowSelection }
-          for (let i = from; i <= to; i++) {
-            const r = rows[i]
-            if (r) next[r.id] = true
-          }
-          table.setRowSelection(next)
-        }}
-        onCheckedChange={(value) => {
-          if (rangeHandled.current) {
-            rangeHandled.current = false
-            return
-          }
-          row.toggleSelected(!!value)
-          anchorRef.current = index
-        }}
-        className="absolute opacity-0 group-hover/row:opacity-100 group-data-[state=selected]/row:opacity-100"
-      />
+      {canSelect ? (
+        <GridCheckbox
+          aria-label={`Select row ${lineNumber}`}
+          checked={checked}
+          onClick={(event) => {
+            const doRange = event.shiftKey && anchorRef.current !== null
+            rangeHandled.current = doRange
+            if (!doRange) return
+            const from = Math.min(anchorRef.current as number, index)
+            const to = Math.max(anchorRef.current as number, index)
+            const next = { ...table.getState().rowSelection }
+            for (let i = from; i <= to; i++) {
+              const r = rows[i]
+              if (r) next[r.id] = true
+            }
+            table.setRowSelection(next)
+          }}
+          onCheckedChange={(value) => {
+            if (rangeHandled.current) {
+              rangeHandled.current = false
+              return
+            }
+            row.toggleSelected(!!value)
+            anchorRef.current = index
+          }}
+          className="absolute opacity-0 group-hover/row:opacity-100 group-data-[state=selected]/row:opacity-100"
+        />
+      ) : null}
     </div>
   )
 }

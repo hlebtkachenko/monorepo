@@ -39,6 +39,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Pivot value/group column filtering moved fully into the toolbar: the inline per-column min/max filter in the header dropdown is removed; a column's Filter now opens ONE toolbar filter keyed by its measure field (or group dimension), so e.g. one "Amount" filter applies across every group.
 - Pivot high-level (group) headers render on the neutral header surface (no blue tint), with corner cells matching and a full-strength single divider between groups cascading down the body (no double line).
 - Pivot-aware columns manager: grouped tables show a 'High-level columns' section (the group headers) plus a 'Low-level columns' section that dedups each reused measure into ONE switch (an 'Orders' toggle hides Orders under every group).
 - Pivot value columns are drag-reorderable again, but constrained WITHIN their group: each group's header gets its own dnd SortableContext so a value column can't be dragged into another group; the header-menu Move is dropped for grouped columns (drag only).
@@ -82,6 +83,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Pivot: selecting a row-group checkbox no longer also selects that group's calculated subtotal ("Total …") row, which would double-count a sum over the selection; subtotal rows are now non-selectable (no checkbox, keep their line number).
 - Pivot table now scrolls horizontally INSIDE its own grid (pinned + mandatory columns stay frozen) instead of scrolling the whole Content Body — the section wrapper was missing `min-w-0`, so any wide grid pushed the body sideways.
 - Table archetype: dark-mode lighter box behind inline-editable cell text (the shadcn Input's `dark:bg-input/30` outranked the cell's `bg-transparent` — the inline editors now force `dark:bg-transparent` and inherit the row surface), grid keyboard-nav hijacking inline-editor caret keys, unsafe optimistic-write rollback on out-of-order commits, invalid/NaN numeric commits, Columns-manager order not following pinned groups, filter coercion (missing-vs-zero, invalid dates, untrimmed tags, stale filter models), and descriptor/pin validation gaps
 - Table archetype: a column's `kind` now canonically drives its toolbar filter via one global `filterVariantForKind` map (`filter: true` derives everything from the kind — a `select`/`badge` column becomes a dropdown/option filter with its own options, never a text search); the row Inspector's Open button moved into a required right-aligned `role: "id"` identity column (hover-revealed, sized a step above the checkbox), replacing the generic actions-column placement

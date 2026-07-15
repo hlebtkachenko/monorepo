@@ -372,7 +372,6 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       columnPinning,
       columnOrder,
     },
-    enableRowSelection: true,
     ...(paginated ? { onPaginationChange } : {}),
     onSortingChange,
     onColumnFiltersChange: setColumnFilters,
@@ -380,6 +379,10 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     onRowSelectionChange: setRowSelection,
     onColumnPinningChange,
     onColumnOrderChange,
+    // `enableRowSelection` may be a predicate — a pivot passes one that excludes
+    // synthetic subtotal (`isTotal`) rows so selecting a group never also selects
+    // its calculated total (which would double-count on sum). Default: all rows.
+    enableRowSelection: props.enableRowSelection ?? true,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     // Single-page: no pagination row model — `getRowModel()` returns the full

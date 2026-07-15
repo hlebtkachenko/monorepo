@@ -167,14 +167,14 @@ describe("SectionPivotTableRenderer", () => {
     expect(bodyRowLabels()).toEqual(["US", "EU"]) // 7 before 15
   })
 
-  it("filters pivot rows by a value column's numeric min/max filter", () => {
+  it("routes a value column's Filter to the toolbar filter for its measure field", () => {
     const ref: { current: Table<unknown> | null } = { current: null }
     function Capture() {
       const reg = useSectionTable()
       if (reg?.table) ref.current = reg.table
       return null
     }
-    const { container } = render(
+    render(
       <SectionTableProvider>
         <div className="flex h-96 flex-col">
           <SectionPivotTableRenderer props={payload} />
@@ -182,20 +182,12 @@ describe("SectionPivotTableRenderer", () => {
         <Capture />
       </SectionTableProvider>,
     )
-    const bodyRowLabels = () =>
-      Array.from(
-        container.querySelectorAll('[data-slot="grid-row"] [data-col="1"]'),
-      ).map((c) => c.textContent)
-    expect(bodyRowLabels()).toEqual(["EU", "US"]) // Amount 15 / 7
-    // The value column "val0" is filterable via TanStack columnFilters; keep only
-    // rows whose Amount aggregate is ≥ 10 → EU (15) stays, US (7) drops.
-    act(() => ref.current!.getColumn("val0")!.setFilterValue([10, ""]))
-    expect(bodyRowLabels()).toEqual(["EU"])
-    // Column opts into filtering with the inline-number-filter meta flag.
-    expect(ref.current!.getColumn("val0")!.getCanFilter()).toBe(true)
-    expect(
-      ref.current!.getColumn("val0")!.columnDef.meta?.inlineNumberFilter,
-    ).toBe(true)
+    // No inline filter on the value column: its "Filter" routes to the TOOLBAR,
+    // keyed by the measure's FIELD ("amount"), so every Amount column across every
+    // group opens the SAME one filter.
+    expect(ref.current!.getColumn("val0")!.columnDef.meta?.filterColumnId).toBe(
+      "amount",
+    )
   })
 
   it("renders the empty state and no total for an empty pivot", () => {

@@ -29,7 +29,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
-import { Input } from "@workspace/ui/components/input"
 import { cn } from "@workspace/ui/lib/utils"
 
 /** The visible name of a column — `meta.label`, a string header, or the id. */
@@ -96,58 +95,6 @@ function moveColumn<TData>(
   if (moved == null) return
   next.splice(toIndex, 0, moved)
   commitCenter(table, next)
-}
-
-/**
- * A self-contained numeric min/max filter rendered INSIDE a column's header
- * dropdown, wired to TanStack `columnFilters` (`getFilterValue`/`setFilterValue`).
- * Used by pivot value columns whose derived ids can't route to the toolbar. Empty
- * on both ends clears the filter. `onKeyDown` is stopped so typing edits the
- * inputs instead of navigating the menu.
- */
-function NumberFilterFields<TData, TValue>({
-  column,
-  label,
-}: {
-  column: Column<TData, TValue>
-  label: string
-}) {
-  const current = column.getFilterValue() as
-    [number | "", number | ""] | undefined
-  const min = current?.[0] ?? ""
-  const max = current?.[1] ?? ""
-  const parse = (raw: string): number | "" => (raw === "" ? "" : Number(raw))
-  const commit = (lo: number | "", hi: number | "") =>
-    column.setFilterValue(lo === "" && hi === "" ? undefined : [lo, hi])
-  return (
-    <div className="px-2 py-1.5" onKeyDown={(event) => event.stopPropagation()}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-        <FilterIcon className="size-3.5" />
-        Filter
-      </div>
-      <div className="flex items-center gap-1.5">
-        <Input
-          type="number"
-          inputMode="decimal"
-          placeholder="Min"
-          aria-label={`Filter ${label} minimum`}
-          value={min}
-          onChange={(event) => commit(parse(event.target.value), max)}
-          className="h-7 w-20"
-        />
-        <span className="text-muted-foreground">–</span>
-        <Input
-          type="number"
-          inputMode="decimal"
-          placeholder="Max"
-          aria-label={`Filter ${label} maximum`}
-          value={max}
-          onChange={(event) => commit(min, parse(event.target.value))}
-          className="h-7 w-20"
-        />
-      </div>
-    </div>
-  )
 }
 
 interface DataGridViewColumnHeaderProps<TData, TValue> {
@@ -283,15 +230,11 @@ export function DataGridViewColumnHeader<TData, TValue>({
                 ) : null}
               </>
             ) : null}
-            {/* A value column with an inline numeric filter always renders it
-                inline (its derived id can't route to the toolbar). Any OTHER
-                column routes "Filter" to the toolbar via `onColumnFilter` — a
-                group header passes its `filterColumnId` (the dimension field) so
-                the toolbar opens that dimension's filter. */}
-            {column.getCanFilter() &&
-            column.columnDef.meta?.inlineNumberFilter ? (
-              <NumberFilterFields column={column} label={label} />
-            ) : onColumnFilter ? (
+            {/* "Filter" always routes to the TOOLBAR filter (never an inline
+                editor): a group header / value column passes its `filterColumnId`
+                (the dimension field / measure field) so same-measure columns
+                across every group open the SAME one toolbar filter. */}
+            {onColumnFilter ? (
               <DropdownMenuItem
                 onSelect={() =>
                   onColumnFilter(

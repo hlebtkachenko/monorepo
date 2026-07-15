@@ -85,6 +85,12 @@ export function DataGridView<TData>({
   ...props
 }: DataGridViewProps<TData>) {
   const gridRef = React.useRef<HTMLDivElement>(null)
+  // dnd-kit derives its accessibility ids (aria-describedby "DndDescribedBy-N")
+  // from a MODULE-LEVEL counter when no id is given — that counter differs
+  // between the SSR render and the client hydration, so the grip buttons
+  // mismatch and React logs a hydration error. A React SSR-stable useId as the
+  // DndContext id makes those ids deterministic.
+  const dndContextId = React.useId()
   const rows = table.getRowModel().rows
   const leafColumns = table.getVisibleLeafColumns()
   const rowCount = rows.length
@@ -331,6 +337,7 @@ export function DataGridView<TData>({
           instructions) are portaled to <body> instead of rendering inline as
           disallowed grid children. */}
       <DndContext
+        id={dndContextId}
         sensors={sensors}
         collisionDetection={closestCenter}
         modifiers={[restrictToHorizontalAxis]}

@@ -67,6 +67,23 @@ describe("DataGridView", () => {
     expect(screen.getByText("Grace")).toBeInTheDocument()
   })
 
+  it("gives dnd-kit a stable id so the grips don't mismatch on hydration", () => {
+    // dnd-kit's default aria-describedby is a MODULE-COUNTER id
+    // ("DndDescribedBy-0") that differs between the SSR render and the client
+    // hydration → a hydration mismatch. The DndContext must get a React
+    // SSR-stable useId instead, so the id is never the counter form.
+    render(<Harness />)
+    const grips = screen.getAllByRole("button", {
+      name: "Drag to reorder column",
+    })
+    expect(grips.length).toBeGreaterThan(0)
+    for (const grip of grips) {
+      const describedBy = grip.getAttribute("aria-describedby")
+      expect(describedBy).toBeTruthy()
+      expect(describedBy).not.toMatch(/^DndDescribedBy-\d+$/)
+    }
+  })
+
   it("moves cell focus with the arrow keys", async () => {
     const user = userEvent.setup()
     render(<Harness />)

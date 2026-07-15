@@ -28,7 +28,7 @@ function allStatements(policies: Record<string, unknown>): Statement[] {
   return out
 }
 
-describe("DocumentsBucket — DataStack shape (S3 document store P1a)", () => {
+describe("DocumentsBucket — DataStack shape (ADR-0031)", () => {
   const { data } = buildTestApp()
   const template = Template.fromStack(data)
 
@@ -79,7 +79,7 @@ describe("DocumentsBucket — DataStack shape (S3 document store P1a)", () => {
     })
   })
 
-  it("has NO Object Lock (design A — working store, not statutory archive)", () => {
+  it("has NO Object Lock (working store, not statutory archive)", () => {
     const buckets = template.findResources("AWS::S3::Bucket")
     const doc = Object.values(buckets).find(
       (b) =>
@@ -98,7 +98,7 @@ describe("DocumentsBucket — DataStack shape (S3 document store P1a)", () => {
         Rules: Match.arrayWith([
           Match.objectLike({
             Id: "IntelligentTiering",
-            // S2: only the ≥128KiB tail transitions. Sub-128KiB objects never
+            // Only the ≥128KiB tail transitions. Sub-128KiB objects never
             // auto-tier, so transitioning them is pure lifecycle-request cost.
             // `128*1024 - 1` (strict >) so an exactly-128KiB object is included.
             ObjectSizeGreaterThan: 128 * 1024 - 1,

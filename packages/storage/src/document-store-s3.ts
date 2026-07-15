@@ -156,11 +156,10 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 /**
- * S3-backed `DocumentStore`. Credentials resolve via the default AWS
- * provider chain (ECS task role in AWS, `~/.aws` locally) — never
- * hardcoded. Set `endpoint` (via `S3_ENDPOINT`) to point at minio for local
- * dev; `forcePathStyle` is forced on whenever an endpoint is set since minio
- * does not support virtual-hosted-style addressing.
+ * S3-backed `DocumentStore`. Production credentials resolve through the
+ * default AWS provider chain (ECS task role). A custom endpoint such as MinIO
+ * can pin document-scoped static credentials without affecting other AWS SDK
+ * clients. `forcePathStyle` is enabled whenever an endpoint is set.
  */
 export class S3DocumentStore implements DocumentStore {
   private readonly client: S3Client

@@ -75,7 +75,7 @@ function ago(ms: number): string {
   return new Date(NOW - ms).toISOString()
 }
 
-describe("document reaper — decideReap (delete/undo tag-state model, PLAN §3)", () => {
+describe("document reaper — decideReap (delete/undo tag-state model, ADR-0031)", () => {
   it("orphan-at 2h old → PURGE (rejected upload, gone fast)", () => {
     const d = decide({ "orphan-at": ago(2 * HOUR) })
     expect(d.purge).toBe(true)

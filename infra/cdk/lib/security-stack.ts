@@ -32,8 +32,8 @@ export interface SecurityStackProps extends StackProps {
   readonly dataStack: DataStack
   /**
    * The documents working-store bucket (from DataStack). SecurityStack owns
-   * the document reaper — the SOLE holder of s3:DeleteObject /
-   * s3:DeleteObjectVersion on this bucket (design A, PLAN §3). Passed
+   * the document reaper — the SOLE runtime holder of s3:DeleteObject /
+   * s3:DeleteObjectVersion on this bucket (ADR-0031). Passed
    * explicitly (mirroring how AppStack receives `documentsBucket`) so the
    * reaper's delete grant is scoped to exactly this bucket.
    */
@@ -514,10 +514,10 @@ export class SecurityStack extends Stack {
       targets: [new LambdaTarget(rdsRestartWatcherFn)],
     })
 
-    // ----- Documents reaper (S3 document store, P1b) -----
+    // ----- Documents reaper -----
     //
-    // The SOLE S3-delete principal for the documents bucket. Design A (PLAN
-    // §1, §3): the bucket is a WORKING store, not the statutory archive, so
+    // The SOLE runtime S3-delete principal for the documents bucket. Per
+    // ADR-0031, the bucket is a WORKING store, not the statutory archive, so
     // there is NO Object Lock — tamper/wipe protection is IAM (the shared
     // app/api/admin + Brain task role holds Get + Put + tag but NEVER Delete,
     // proved by tests/documents-store.test.ts) + versioning + this ONE
@@ -532,14 +532,14 @@ export class SecurityStack extends Stack {
     // evaluated version plus older history, preserving concurrent re-uploads.
     // Runs in every env (the bucket exists in all).
     //
-    // CROSS-TRACK INVARIANT (contract the P3 confirm endpoint MUST honor; NOT
+    // CROSS-TRACK INVARIANT (contract the confirm endpoint MUST honor; NOT
     // enforced here): the "untagged > 24h → purge" branch is safe ONLY if
     // confirm tags `confirmed-at` on EVERY kept object at/with the DB write, so
     // a live document is never left untagged and reaped as "abandoned".
     //
-    // FOLLOW-UP (not in P1b): CloudTrail write-data-events on this bucket for
+    // FOLLOW-UP: CloudTrail write-data-events on this bucket for
     // tamper-evidence (PUT / tagging / DELETE) — deferred to the account-global
-    // AuditStack (cross-stack); see PLAN §6.
+    // AuditStack (cross-stack); see ADR-0031.
     const documentReaperLogGroup = new LogGroup(this, "DocumentReaperLogs", {
       logGroupName: `/aws/lambda/monorepo-${props.envName}-document-reaper`,
       retention: RetentionDays.ONE_MONTH,
@@ -557,7 +557,7 @@ export class SecurityStack extends Stack {
         DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
       },
       description:
-        "Sole S3-delete principal for the documents bucket. Hourly, version-pinned cleanup for orphan-at>1h, untagged>24h, and deleted-at>60d (PLAN §3).",
+        "Sole runtime S3-delete principal for the documents bucket. Hourly, version-pinned cleanup for orphan-at>1h, untagged>24h, and deleted-at>60d (ADR-0031).",
     })
 
     // Enumerate keys + versions on the BUCKET arn.
@@ -588,13 +588,13 @@ export class SecurityStack extends Stack {
     new Rule(this, "DocumentReaperSchedule", {
       ruleName: `monorepo-${props.envName}-document-reaper`,
       description:
-        "Hourly: purge orphaned / abandoned / soft-deleted documents past their tag-age window (PLAN §3).",
+        "Hourly: purge orphaned / abandoned / soft-deleted documents past their tag-age window (ADR-0031).",
       // Minute 0 of every hour → cron(0 * * * ? *).
       schedule: Schedule.cron({ minute: "0" }),
       targets: [new LambdaTarget(documentReaperFn)],
     })
 
-    // The reaper is the SOLE delete principal — it must not fail silently. A
+    // The reaper is the SOLE runtime delete principal — it must not fail silently. A
     // crash or timeout (a Lambda timeout is recorded as an Error) means
     // orphaned/abandoned/soft-deleted documents stop being purged. Page the
     // ops topic (same email subscriber as the kill-switch).
@@ -618,16 +618,16 @@ export class SecurityStack extends Stack {
 
     // Duration creeping toward the 60s timeout = the sequential
     // List+GetObjectTagging sweep is outgrowing the object count and will soon
-    // fail to cover the whole keyspace (PLAN §6 flags the S3-Inventory rewrite
-    // as the scale fix). Warn well before it starts timing out and dropping the
-    // tail of the keyspace.
+    // fail to cover the whole keyspace (ADR-0031 requires an event-driven
+    // candidate index before 50,000 current objects, with S3 Inventory as a
+    // reconciliation backstop). Warn before it starts dropping the tail.
     const documentReaperDuration = new Alarm(
       this,
       "DocumentReaperDurationAlarm",
       {
         alarmName: `monorepo-${props.envName}-document-reaper-duration-high`,
         alarmDescription:
-          "Document reaper approaching its 60s timeout — migrate the sweep to S3 Inventory (PLAN §6) before it stops covering the full keyspace.",
+          "Document reaper approaching its 60s timeout — migrate to an event-driven candidate index (ADR-0031) before the full scan stops covering the keyspace.",
         metric: new Metric({
           namespace: "AWS/Lambda",
           metricName: "Duration",
@@ -653,7 +653,7 @@ export class SecurityStack extends Stack {
     // Invocations and fires when they stay below 1 across a multi-hour window;
     // treatMissingData BREACHING means "no data == not running == alarm",
     // exactly the absence-of-runs case the Errors alarm structurally cannot
-    // catch (S4). A healthy hourly run publishes Invocations=1 (not < 1 = OK).
+    // catch. A healthy hourly run publishes Invocations=1 (not < 1 = OK).
     const documentReaperNotRunning = new Alarm(
       this,
       "DocumentReaperNotRunningAlarm",

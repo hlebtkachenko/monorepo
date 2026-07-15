@@ -45,19 +45,27 @@ Audit trail of changes: git history of this file.
 
 ## 3. Data stores
 
-| Asset ID           | Name                                        | Type                                             | Owner | Criticality | Data class           | DR tier | Vendor                                  | Status  |
-| ------------------ | ------------------------------------------- | ------------------------------------------------ | ----- | ----------- | -------------------- | ------- | --------------------------------------- | ------- |
-| RDS-PRD-OLTP       | primary OLTP                                | RDS Postgres single-AZ                           | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS                                     | Active  |
-| RDS-STG-OLTP       | staging OLTP                                | RDS Postgres single-AZ                           | Hleb  | Medium      | Internal             | Tier 3  | AWS                                     | Active  |
-| S3-AUDIT           | audit log archive                           | S3 (Object Lock planned, not yet enabled)        | Hleb  | Critical    | Audit                | Tier 1  | AWS                                     | Planned |
-| S3-CT-AUDIT        | CloudTrail management-events archive        | S3                                               | Hleb  | High        | Audit                | Tier 2  | AWS                                     | Active  |
-| S3-ASSETS-PRD      | static assets (production)                  | S3                                               | Hleb  | High        | None                 | Tier 2  | AWS                                     | Active  |
-| SECRETS-PRD        | runtime secrets                             | Vault (self-hosted VPS) → AWS SSM SecureString   | Hleb  | Critical    | Customer + Financial | Tier 1  | Hostinger (Vault SoT) + AWS (SSM cache) | Active  |
-| CT-MGMT            | CloudTrail management-events trail          | CloudTrail                                       | Hleb  | High        | Audit                | Tier 2  | AWS                                     | Active  |
-| BUDGETS-COST       | 5 AWS Budgets (cost-runaway protection)     | AWS Budgets                                      | Hleb  | High        | Internal             | Tier 2  | AWS                                     | Active  |
-| SSM-OPENFGA-IDS    | OpenFGA store-id + model-id (L2 authz)      | SSM Parameter Store                              | Hleb  | High        | Internal             | Tier 1  | AWS                                     | Active  |
-| S3-BACKUPS         | encrypted nightly backups (BackupStack)     | S3 (versioned, IA/Glacier/DeepArchive lifecycle) | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS                                     | Active  |
-| RDS-OPENFGA-SCHEMA | openfga schema in primary RDS (ReBAC graph) | RDS Postgres schema                              | Hleb  | High        | Customer             | Tier 1  | AWS                                     | Active  |
+| Asset ID           | Name                                           | Type                                                                      | Owner | Criticality | Data class           | DR tier | Vendor                                  | Status  |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------------------------------- | ----- | ----------- | -------------------- | ------- | --------------------------------------- | ------- |
+| RDS-PRD-OLTP       | primary OLTP                                   | RDS Postgres single-AZ                                                    | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS                                     | Active  |
+| RDS-STG-OLTP       | staging OLTP                                   | RDS Postgres single-AZ                                                    | Hleb  | Medium      | Internal             | Tier 3  | AWS                                     | Active  |
+| S3-AUDIT           | audit log archive                              | S3 (Object Lock planned, not yet enabled)                                 | Hleb  | Critical    | Audit                | Tier 1  | AWS                                     | Planned |
+| S3-CT-AUDIT        | CloudTrail management-events archive           | S3                                                                        | Hleb  | High        | Audit                | Tier 2  | AWS                                     | Active  |
+| S3-ASSETS-PRD      | static assets (production)                     | S3                                                                        | Hleb  | High        | None                 | Tier 2  | AWS                                     | Active  |
+| S3-DOCUMENTS       | per-environment source-document working stores | S3 (versioned, SSE-KMS, Intelligent-Tiering for objects at least 128 KiB) | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS                                     | Planned |
+| SECRETS-PRD        | runtime secrets                                | Vault (self-hosted VPS) → AWS SSM SecureString                            | Hleb  | Critical    | Customer + Financial | Tier 1  | Hostinger (Vault SoT) + AWS (SSM cache) | Active  |
+| CT-MGMT            | CloudTrail management-events trail             | CloudTrail                                                                | Hleb  | High        | Audit                | Tier 2  | AWS                                     | Active  |
+| BUDGETS-COST       | 5 AWS Budgets (cost-runaway protection)        | AWS Budgets                                                               | Hleb  | High        | Internal             | Tier 2  | AWS                                     | Active  |
+| SSM-OPENFGA-IDS    | OpenFGA store-id + model-id (L2 authz)         | SSM Parameter Store                                                       | Hleb  | High        | Internal             | Tier 1  | AWS                                     | Active  |
+| S3-BACKUPS         | encrypted nightly backups (BackupStack)        | S3 (versioned, IA/Glacier/DeepArchive lifecycle)                          | Hleb  | Critical    | Customer + Financial | Tier 1  | AWS                                     | Active  |
+| RDS-OPENFGA-SCHEMA | openfga schema in primary RDS (ReBAC graph)    | RDS Postgres schema                                                       | Hleb  | High        | Customer             | Tier 1  | AWS                                     | Active  |
+
+`S3-DOCUMENTS` was implemented and merged in
+[#722](https://github.com/hlebtkachenko/monorepo/pull/722) but remains `Planned`
+until deployment is verified in an environment. Object-level
+CloudTrail mutation events remain tracked by
+[#733](https://github.com/hlebtkachenko/monorepo/issues/733); the current
+account trail records management events only.
 
 ## 4. Networking
 

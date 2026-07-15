@@ -46,6 +46,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Document S3 bucket responsibilities, implemented upload/read/delete flows, limits, local MinIO operation, alarms, troubleshooting, follow-up ownership, Frankfurt pricing, and scale guardrails in ADR-0031 and the document-store runbook.
 - Conductor dev setup: bring up the dev-compose minio + seed the documents-dev bucket, and add the S3 document store env (DOCUMENTS_BUCKET / S3_ENDPOINT / minio creds) to the generated apps/web/.env.local, so the /workspace/debug-documents harness works locally out of the box.
 - Table archetype hardening: controlled column pinning + order in useDataTable (pinned columns drag-reorder within their group; a header-menu pin lands before the action column, never outside it); row actions trimmed to one primary action + overflow; the columns dropdown rows became clean whole-row toggles; and the per-column header menu gained Filter (opens the shared toolbar filter at that column) + AI-analyze items.
 - ContentToolbar/filter polish: option-filter count badges pinned to the right edge, Reset chip restyle (no icon/shadow), date filter as a range picker with a preset sidebar + dropdown month/year caption, 5px inter-line gap; Columns manager reordered by live columnOrder with pinned-left/right + unpinned sections and checkboxes; removed the Inspector panel/dialog mode toggle from the toolbar

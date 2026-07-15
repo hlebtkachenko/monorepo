@@ -76,9 +76,9 @@ export interface AppStackProps extends StackProps {
   readonly appUserSecret: Secret
   readonly appBucket: Bucket
   /**
-   * Source-document working store (S3 document store, P1a). CMK-encrypted,
+   * Source-document working store (ADR-0031). CMK-encrypted,
    * private. The shared task role gets Get + Put + tag on it, NEVER Delete —
-   * the reaper Lambda (P1b) is the sole Delete principal.
+   * the reaper Lambda is the sole Delete principal.
    */
   readonly documentsBucket: Bucket
   /** Dedicated default-encryption CMK for `documentsBucket`. */
@@ -271,9 +271,9 @@ export class AppStack extends Stack {
       description: "Runtime IAM role shared by web + api containers",
     })
     props.appBucket.grantReadWrite(taskRole)
-    // Documents store (S3 document store, P1a). SAFETY INVARIANT: the shared
+    // Documents store (ADR-0031). SAFETY INVARIANT: the shared
     // app/Brain task role may Get + Put + tag documents, but NEVER Delete —
-    // the reaper Lambda (P1b) is the sole holder of s3:DeleteObject /
+    // the reaper Lambda is the sole holder of s3:DeleteObject /
     // s3:DeleteObjectVersion. grantRead (s3:GetObject*/GetBucket*/List*) and
     // grantPut (s3:PutObject*/Abort*) are BOTH Delete-free; we deliberately do
     // NOT call grantReadWrite / grantWrite / grantDelete (those add
@@ -599,7 +599,7 @@ export class AppStack extends Stack {
         // /api/upload/avatar route and presignAvatarRead() call returned 500
         // without it. Task role already has grantReadWrite on the bucket.
         APP_BUCKET: props.appBucket.bucketName,
-        // Documents store (S3 document store, P1a). DOCUMENTS_KMS_KEY_ID is
+        // Documents store (ADR-0031). DOCUMENTS_KMS_KEY_ID is
         // the CMK ARN — S3's SSEKMSKeyId accepts a key id or ARN, and the ARN
         // is unambiguous. Wired on the same containers as APP_BUCKET.
         DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
@@ -722,7 +722,7 @@ export class AppStack extends Stack {
         DB_DIRECT_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
-        // Documents store (S3 document store, P1a) — CMK ARN in KEY_ID.
+        // Documents store (ADR-0031) — CMK ARN in KEY_ID.
         DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
         DOCUMENTS_KMS_KEY_ID: props.documentsKey.keyArn,
         APP_DOMAIN: props.domain,
@@ -896,7 +896,7 @@ export class AppStack extends Stack {
         // call presignAvatarRead() to render user profile photos. Wire it now
         // so the next admin feature doesn't trip the same 500 the web app hit.
         APP_BUCKET: props.appBucket.bucketName,
-        // Documents store (S3 document store, P1a) — CMK ARN in KEY_ID.
+        // Documents store (ADR-0031) — CMK ARN in KEY_ID.
         DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
         DOCUMENTS_KMS_KEY_ID: props.documentsKey.keyArn,
         AWS_REGION: this.region,

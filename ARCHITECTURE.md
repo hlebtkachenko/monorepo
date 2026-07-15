@@ -193,11 +193,39 @@ Redaction baseline: auth tokens, Czech PII (DIC, rodne cislo, IBAN), session IDs
 
 ## Storage
 
-Single bucket with per-org prefixes. Tenant isolation enforced three times: (a) `OrganizationScopedStorage` injects org prefix server-side, (b) IAM condition on prefix, (c) dispatch under `withOrganization` so audit is RLS-bound.
+S3 uses purpose-specific private buckets, not one bucket with one lifecycle:
 
-Sensitive document classes get client-side age encryption layer on top of SSE-KMS.
+| Data                       | Storage and lifecycle                                                                                                                                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Application assets         | Per-environment, versioned S3 Standard bucket. Noncurrent versions expire after 30 days.                                                                                                                                                |
+| Source documents           | Dedicated per-environment, workspace-scoped working store. Objects under 128 KiB stay in S3 Standard; larger objects use the automatic, instant-access S3 Intelligent-Tiering tiers. Dedicated SSE-KMS key, versioning, no Object Lock. |
+| PostgreSQL backups         | Standard -> Standard-IA at 30 days -> Glacier Flexible at 90 days -> Deep Archive at 365 days. Current backups do not auto-expire.                                                                                                      |
+| CloudTrail management logs | Account-global S3 Standard bucket with 90-day expiry.                                                                                                                                                                                   |
 
-Lifecycle: S3 Standard (0d) -> Standard-IA (30d) -> Glacier Flexible (90d) -> Deep Archive (365d) -> manual purge (3650d).
+Document keys are `documents/{workspaceId}/{sha256}.{ext}`. Application roles
+cannot delete them. The hourly document reaper is the sole runtime delete principal:
+rejected uploads expire after 1 hour, abandoned unconfirmed uploads after 24
+hours, and user soft-deletes after 60 days. Confirmed live documents have no
+age-based expiry. The bucket is a working store, not the statutory archive of
+record; future WORM retention requires a separate decision.
+
+Browser uploads and reads are direct S3 transfers through short-lived presigned
+URLs. Afframe computes the browser-side SHA-256, validates S3-authoritative
+metadata and a bounded 4 KiB header, and persists only confirmed metadata in
+the workspace-scoped `inbox_attachment` table under FORCE RLS. Confirmation is
+S3-first then DB; delete is DB-first then S3; restore is S3-first then DB. These
+orders prevent the reaper from deleting a document represented as live.
+
+The web session surface supports upload, confirm, preview/download, soft delete,
+and restore. The public API, generated SDK, and MCP expose read-only document
+list and download-URL operations through user-bound API keys. The real Inbox,
+OCR/extraction, batch review, and Brain re-extraction integration remain tracked
+by [#518](https://github.com/hlebtkachenko/monorepo/issues/518).
+
+Full bucket mapping, storage-class comparison, Frankfurt pricing snapshot, and
+cost guardrails: [ADR-0031](docs/adr/0031-s3-storage-and-document-working-store.md).
+Implemented flow, limits, local MinIO, alarms, troubleshooting, and follow-up
+ownership: [document-store runbook](docs/runbooks/DOCUMENT-STORE.md).
 
 ## Deployment Targets
 
@@ -212,13 +240,13 @@ Full public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](docs/DOMAINS-A
 
 Three-layer defense against cost-runaway attacks (see [ADR 0016](docs/adr/0016-cost-runaway-protection.md)):
 
-1. **CloudWatch alarms** at 70% warning + 95% critical + 6 attack-vector signals (egress, S3 PUT rate, bucket size, log ingest, ECR pulls). All publish to a regional SNS topic with email subscription.
-2. **Lambda kill-switch** in `SecurityStack`. SNS-triggered, sets ECS `desiredCount=0` idempotently. Narrowly scoped IAM (single service ARN). No IAM-deny on user.
-3. **5 AWS Budgets** ($40 total + $10 data transfer + $5 S3 + $20 RDS + $25 ECS). 80% notification email; 100% notification publishes to the kill-switch SNS topic.
+1. **CloudWatch alarms** cover resource pressure and attack vectors including S3 write rate, bucket size, and log ingestion. They publish to regional SNS topics; only an explicit alarm-name allowlist can trigger the kill-switch.
+2. **Lambda kill-switch** in `SecurityStack`. SNS-triggered and idempotent, it stops the environment's ECS service and RDS instance. No IAM-deny is applied to the operator.
+3. **AWS Budgets.** Each environment has a $55 total budget wired to the kill-switch and a $10 data-transfer alert budget. Production also has a $55 account-wide total budget wired to the kill-switch. Total-budget 100% notifications publish to the kill-switch SNS topic.
 
 Container hardening: `capDrop ALL` on all 3 containers, `readonlyRootFilesystem` on api + cloudflared, shared ephemeral `/tmp` mount.
 
-CloudTrail single-region management-events trail (free tier) for forensics. RDS auto-restart watcher Lambda re-stops the DB after AWS's 7-day forced restart when tagged `cost-stop-requested=true`.
+CloudTrail multi-region management-events trail (free first management trail) for forensics. RDS auto-restart watcher Lambda re-stops the DB after AWS's 7-day forced restart when tagged `cost-stop-requested=true`.
 
 Incident response: [docs/runbooks/COST-INCIDENT.md](docs/runbooks/COST-INCIDENT.md).
 

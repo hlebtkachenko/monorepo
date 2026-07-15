@@ -261,21 +261,21 @@ export class DataStack extends Stack {
     // are free, then $1 per million.
     this.appBucket.addMetric({ id: "EntireBucket" })
 
-    // ---- Documents store (S3 document store, P1a) ----------------------
+    // ---- Documents store -----------------------------------------------
     //
     // A dedicated, CMK-encrypted, private WORKING store for uploaded source
     // documents (invoices, receipts, ISDOC/Pohoda XML). Separate blast
     // radius from `appBucket` (avatars + app assets). Design A — NO Object
     // Lock: this is a working store, not the statutory archive of record,
     // so tamper/wipe protection comes from IAM (the app/Brain task role holds
-    // no Delete) + versioning + a single dedicated reaper principal, never
-    // from WORM locking. The reaper Lambda + its EventBridge schedule land in
-    // P1b; P1a stands up the bucket, CMK, grants, env, and alarms only.
-    // See `.context/s3-document-store/PLAN.md` §1, §2.
+    // no Delete) + versioning + a single dedicated runtime reaper principal,
+    // never from WORM locking. Non-production CDK teardown is the exception.
+    // The reaper Lambda + its EventBridge schedule live in
+    // SecurityStack. See ADR-0031.
 
     // Dedicated CMK. Rotation ON — transparent to S3, which retains the
     // encrypting key-version per object and auto-selects it on decrypt, so
-    // rotation is safe for long-lived objects (PLAN §4). RETAIN in prod: the
+    // rotation is safe for long-lived objects (ADR-0031). RETAIN in prod: the
     // objects are undecryptable without this key, so a stray `cdk destroy`
     // must never schedule it for deletion.
     this.documentsKey = new Key(this, "DocumentsKey", {
@@ -295,7 +295,7 @@ export class DataStack extends Stack {
       // a browser presigned POST upload carries NO x-amz-server-side-
       // encryption* headers, so the object MUST still land encrypted via the
       // bucket default. bucketKeyEnabled collapses per-object KMS calls to a
-      // per-bucket data key (load-bearing for cost at scale — PLAN §5).
+      // per-bucket data key (load-bearing for cost at scale; ADR-0031).
       encryption: BucketEncryption.KMS,
       encryptionKey: this.documentsKey,
       bucketKeyEnabled: true,
@@ -309,13 +309,13 @@ export class DataStack extends Stack {
           // Exact deployed web origin only (prod app.afframe.com / staging
           // app-staging.afframe.com). Dev uses minio, NOT this bucket, so no
           // localhost entry. CORS is not a security boundary — bucket policy
-          // + BlockPublicAccess still govern (PLAN §4).
+          // + BlockPublicAccess still govern (ADR-0031).
           allowedOrigins: [`https://${props.domain}`],
           // Range: pdf.js issues lazy Range GETs while the user scrolls — a
           // Range request header makes the GET non-simple, so the browser
           // preflights OPTIONS and AllowedHeaders MUST cover `Range` or the
           // preflight 403s. Content-Type + x-amz-* (incl.
-          // x-amz-checksum-sha256): presigned-POST upload preflight (PLAN §4).
+          // x-amz-checksum-sha256): presigned-POST upload preflight (ADR-0031).
           allowedHeaders: ["Range", "Content-Type", "x-amz-*"],
           // Response headers the viewer JS reads off the Range response.
           exposedHeaders: [
@@ -338,15 +338,15 @@ export class DataStack extends Stack {
           // NOT opt into the async Archive / Deep Archive tiers (retrieval
           // latency): that would require an `intelligentTieringConfigurations`
           // entry with archiveAccessTierTime / deepArchiveAccessTierTime set,
-          // which we omit entirely — so no async tier is ever enabled. PLAN §4.
+          // which we omit entirely, so no async tier is ever enabled. ADR-0031.
           //
-          // Size filter (S2): only objects ≥ 128 KiB transition — S3's IT
+          // Size filter: only objects ≥ 128 KiB transition, matching S3's IT
           // auto-tiering eligibility floor. S3 never auto-tiers a sub-128 KiB
           // object, so transitioning one is pure cost — a day-0 lifecycle
           // transition request (~$0.01/1k) for zero tiering benefit. A receipt
           // / ISDOC-XML store is mostly sub-128 KiB; the filter keeps that bulk
           // in Standard (same storage price) and lets IT work only on the large
-          // PDF tail where it pays off. PLAN §5.
+          // PDF tail where it pays off. See ADR-0031's cost basis.
           //
           // `objectSizeGreaterThan` is STRICT `>`, so use `128*1024 - 1` to
           // include an exactly-128 KiB object (which IS IT-eligible) rather
@@ -364,8 +364,9 @@ export class DataStack extends Stack {
           // Native lifecycle — creation-date-measurable ONLY. S3 lifecycle
           // measures `Days` from object creation, NOT from tag-set time, so
           // the tag-age delete window (orphan 1h / untagged 24h / deleted 60d)
-          // CANNOT be expressed here — it is driven by the reaper principal in
-          // P1b. This rule keeps only what lifecycle can measure. PLAN §3.
+          // CANNOT be expressed here; it is driven by the reaper principal in
+          // SecurityStack. This rule keeps only what lifecycle can measure.
+          // See ADR-0031.
           id: "NativeCleanup",
           abortIncompleteMultipartUploadAfter: Duration.days(7),
           noncurrentVersionExpiration: Duration.days(30),
@@ -381,7 +382,7 @@ export class DataStack extends Stack {
 
     // Bucket-policy hardening (in addition to enforceSSL's non-TLS deny).
     //
-    // FOOTGUN (PLAN §4): a browser presigned POST omits the SSE headers and
+    // FOOTGUN (ADR-0031): a browser presigned POST omits the SSE headers and
     // must still succeed via the bucket DEFAULT encryption above. So the deny
     // must reject ONLY puts that EXPLICITLY set a wrong key/algorithm, never
     // header-omitted puts. The `Null: "false"` guard means "this condition

@@ -100,7 +100,9 @@ Current groups include:
   held writes, and held-write resolution.
 - Accounting reads and outputs: journal, ledger, open items, saldokonto, VAT,
   income-tax, EC Sales List, control-statement, and financial-statement outputs.
-- Resource APIs: accounts and invoices.
+- Resource APIs: accounts, invoices, and read-only workspace documents
+  (`GET /v1/documents`, `GET /v1/documents/{id}/download-url`). Document bytes
+  are fetched from short-lived S3 URLs, not proxied through the API.
 - Learned state: OCR templates and booking templates.
 
 Read [`apps/api/openapi/v1.json`](../../apps/api/openapi/v1.json) or Scalar at

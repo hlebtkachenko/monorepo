@@ -67,7 +67,7 @@ export interface PresignGetInput {
  * content-addressed and workspace-scoped. Confirmation and undo promote an
  * exact source version into a new current same-key version so reaper races
  * cannot erase an acknowledged transition. See
- * `.context/s3-document-store/PLAN.md` §3, §7 for the full design.
+ * `docs/adr/0031-s3-storage-and-document-working-store.md` for the full design.
  *
  * Ownership boundary: storage owns the bucket + this interface + all S3
  * tags. Callers (e.g. Inbox) own their own DB rows and call the tag methods
@@ -86,14 +86,15 @@ export interface DocumentStore {
    * Mints a short-lived GET URL. `disposition` controls inline preview vs.
    * attachment download.
    *
-   * NOT an authorization boundary. This signs ANY key handed to it — the
-   * storage seam has no DB and cannot check tenant membership. The caller
-   * (retrieval route) MUST load the owning row, reject a soft-deleted row, and
-   * reassert the caller's tenant membership BEFORE calling this. Never sign a
-   * raw client-supplied key. See PLAN §7 (M2).
+   * NOT an authorization boundary. The workspace segment check is only a
+   * fail-closed backstop; the storage seam has no DB and cannot check tenant
+   * membership or soft-delete state. The caller MUST load the owning row,
+   * reject a soft-deleted row, and reassert membership BEFORE calling this.
+   * Never sign a raw client-supplied key. See ADR-0031 and the document-store
+   * runbook.
    */
   presignGet(key: string, input: PresignGetInput): Promise<string>
-  /** Dedup check: does an object already exist at this content-addressed key? */
+  /** Low-level existence probe. A live DB row, not S3 existence, is the dedup authority. */
   headExists(key: string): Promise<boolean>
   /** Soft-delete: tags `deleted-at=<ISO now>`. Reaper purges 60d later unless undone. */
   setDeletedTag(key: string): Promise<void>

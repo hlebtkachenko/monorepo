@@ -19,7 +19,7 @@ import type { InboxAttachmentRepo } from "../../../_lib/inbox-attachment-repo"
 import { checkDocumentRateLimit } from "./document-rate-limit"
 
 /**
- * Authenticated document routes (S3 document store, Stage 3). Handlers take an
+ * Authenticated document routes for the S3 working store. Handlers take an
  * injected dependency bag so they are unit-testable without Next internals or
  * live AWS. Every path derives the workspace SERVER-SIDE from the session — the
  * client never supplies a workspace id.

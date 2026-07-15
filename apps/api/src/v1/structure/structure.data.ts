@@ -173,7 +173,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Trial balance",
           "route": "accounting/trial-balance",
           "icon": "BarChart3",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []
@@ -389,14 +389,14 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Payable",
               "route": "documents/obligation-vouchers/payable",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             },
             {
               "label": "Receivable",
               "route": "documents/obligation-vouchers/receivable",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             }
@@ -417,17 +417,10 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Internal documents",
           "route": "documents/internal-documents",
           "icon": "FileCogIcon",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": [
-            {
-              "label": "Internal",
-              "route": "documents/internal-documents/internal",
-              "tba": true,
-              "archetype": null,
-              "purpose": null
-            },
             {
               "label": "Customs declaration",
               "route": "documents/internal-documents/customs",
@@ -2169,6 +2162,13 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Archetype Details",
               "route": "settings/debug/archetype-details",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table",
+              "route": "settings/debug/archetype-table",
               "tba": false,
               "archetype": null,
               "purpose": null

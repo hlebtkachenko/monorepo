@@ -166,7 +166,7 @@ Subpages → tabs _inside_ a page). No Reminders / Insight / Footer yet.
   - **Obligation documents** — non-invoice payable/receivable vouchers (ostatní závazky/pohledávky); the _paper_ — balances live in Finance — subpages: Payable · Receivable
 - **Other documents**
   - **Loan documents** — úvěrové doklady (the paperwork; loan money movements → Finance) _[mock — no model entity yet]_
-  - **Internal documents** — interní doklady (accruals · depreciation · self-assessment · corrections) — subpages: Internal · **Customs declaration** (jednotný správní doklad / SAD — drives the import-VAT line; import VAT levied by customs at entry, Act 235/2004)
+  - **Internal documents** — interní doklady (accruals · depreciation · self-assessment · corrections); the page itself is the internal-documents list — subpage: **Customs declaration** (jednotný správní doklad / SAD — drives the import-VAT line; import VAT levied by customs at entry, Act 235/2004)
 - **Recurring templates** — periodická fakturace + recurring/periodic document templates (agent issues on schedule; human reviews the batch) _[mock — no model entity yet]_ _(document-issuance schedules; org-general scheduled jobs → Settings › System › Recurring tasks)_
 - _Bank/cash documents → Finance. Tax-application (uplatnění daně) → Closing/DPH. Single detail = standard: header/lines + lineage rail + action set._
 

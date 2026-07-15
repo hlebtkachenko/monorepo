@@ -68,12 +68,10 @@ export function documentsNav(base: string): SidebarNavEntry[] {
             {
               label: "Payable",
               href: `${base}/obligation-vouchers/payable`,
-              tba: true,
             },
             {
               label: "Receivable",
               href: `${base}/obligation-vouchers/receivable`,
-              tba: true,
             },
           ],
         },
@@ -92,13 +90,7 @@ export function documentsNav(base: string): SidebarNavEntry[] {
           label: "Internal documents",
           href: `${base}/internal-documents`,
           icon: "FileCogIcon",
-          tba: true,
           subpages: [
-            {
-              label: "Internal",
-              href: `${base}/internal-documents/internal`,
-              tba: true,
-            },
             {
               label: "Customs declaration",
               href: `${base}/internal-documents/customs`,

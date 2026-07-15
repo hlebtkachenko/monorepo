@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Trim redundant Records internal-documents/internal subpage and clear stale TBA flags on shipped accounting/records pages; remove orphaned archetype-table DB/Pivot debug nav leaves
+
 ## [v0.23.0] — 2026-07-16
 
 ### Added

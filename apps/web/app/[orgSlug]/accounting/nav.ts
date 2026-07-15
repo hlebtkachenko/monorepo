@@ -63,7 +63,6 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Trial balance",
           href: `${base}/trial-balance`,
           icon: "BarChart3",
-          tba: true,
         },
       ],
     },

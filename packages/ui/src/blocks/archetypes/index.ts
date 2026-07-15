@@ -6,5 +6,4 @@ export { ArchetypeTable } from "./archetype-table"
 export type {
   ArchetypeTableProps,
   ArchetypeTableViews,
-  InspectorSheetRender,
 } from "./archetype-table"

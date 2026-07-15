@@ -277,6 +277,10 @@ export function settingsNav(base: string): SidebarNavEntry[] {
               href: `${base}/debug/archetype-details`,
             },
             {
+              label: "Archetype Table",
+              href: `${base}/debug/archetype-table`,
+            },
+            {
               label: "Archetype Table (DB)",
               href: `${base}/debug/archetype-table-db`,
             },

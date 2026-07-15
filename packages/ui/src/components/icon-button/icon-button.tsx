@@ -36,6 +36,8 @@ export interface IconButtonProps extends Omit<
   labelPosition?: "beside" | "below"
   /** Selected/active state — paints the active tokens. */
   active?: boolean
+  /** Button box size. `default` = 32px with a 20px glyph; `sm` = 28px with a 16px glyph. */
+  size?: "default" | "sm"
   /**
    * Color treatment. `"default"` → idle transparent, hover/selected add a
    * box (`--icon-*`). `"sidekick"` → inverted: idle shows a box
@@ -43,7 +45,7 @@ export interface IconButtonProps extends Omit<
    * `--sidekick-active-bg`. Only affects the horizontal/icon-only form.
    */
   tone?: "default" | "sidekick"
-  /** Glyph size in px. Default: `--icon-size` (20). */
+  /** Glyph size in px. Defaults to 20, or 16 when `size="sm"`. */
   iconSize?: number
   /** Glyph stroke width (lucide). Omit to follow the global
    *  `--icon-stroke-width` token (1.5 idle / 1.75 active); set to force an
@@ -78,7 +80,7 @@ export interface IconButtonProps extends Omit<
 /**
  * Standardized clickable icon tile — the single source for the icon-box
  * look across the app (rail, header, …). Forms:
- *   - icon-only          → a `size-8` square (optionally with a tooltip)
+ *   - icon-only          → a 32px or 28px square (optionally with a tooltip)
  *   - icon+label "beside" → a rectangle: glyph + `--icon-label-gap` + label
  *   - icon+label "below"  → stacked: the icon square + a small label under it
  *
@@ -93,6 +95,7 @@ export function IconButton({
   label,
   labelPosition = "beside",
   active,
+  size = "default",
   tone = "default",
   iconSize,
   iconStrokeWidth,
@@ -140,13 +143,19 @@ export function IconButton({
     rootClasses = cn(
       "group flex flex-col items-center gap-[var(--rail-icon-label-gap)] transition-transform outline-none active:translate-y-px",
       "disabled:pointer-events-none disabled:opacity-50",
+      size === "sm" && "[--icon-size:1rem]",
       className,
     )
     inner = (
       <>
         {/* Keyboard focus ring lives on the icon square — the same
             surface that paints hover/active. */}
-        <span className="flex size-8 items-center justify-center rounded-sm text-icon group-hover:bg-icon-hover-bg group-focus-visible:ring-2 group-focus-visible:ring-ring/50 group-data-[active]:bg-icon-active-bg group-data-[active]:text-icon-active">
+        <span
+          className={cn(
+            "flex items-center justify-center rounded-sm text-icon group-hover:bg-icon-hover-bg group-focus-visible:ring-2 group-focus-visible:ring-ring/50 group-data-[active]:bg-icon-active-bg group-data-[active]:text-icon-active",
+            size === "sm" ? "size-7" : "size-8",
+          )}
+        >
           {glyph}
         </span>
         <span className="w-full truncate text-center text-[length:var(--rail-label-size)] leading-tight font-[number:var(--rail-label-weight)] tracking-[var(--rail-label-tracking)] text-rail-label group-hover:text-rail-label-active group-data-[active]:text-rail-label-active">
@@ -168,9 +177,14 @@ export function IconButton({
           "bg-sidekick-idle-bg text-sidekick-icon hover:bg-transparent aria-expanded:bg-sidekick-active-bg data-[active]:bg-sidekick-active-bg"
         : "hover:bg-icon-hover-bg aria-expanded:bg-icon-active-bg aria-expanded:text-icon-active data-[active]:bg-icon-active-bg data-[active]:text-icon-active",
       "disabled:pointer-events-none disabled:opacity-50",
+      size === "sm" && "[--icon-size:1rem]",
       labeled
-        ? "h-8 gap-[var(--icon-label-gap)] pr-2.5 pl-1.5"
-        : "size-8 justify-center",
+        ? size === "sm"
+          ? "h-7 gap-[var(--icon-label-gap)] pr-2 pl-1"
+          : "h-8 gap-[var(--icon-label-gap)] pr-2.5 pl-1.5"
+        : size === "sm"
+          ? "size-7 justify-center"
+          : "size-8 justify-center",
       className,
     )
     inner = (
@@ -196,6 +210,7 @@ export function IconButton({
   const elementProps: Record<string, unknown> = {
     "data-slot": "icon-button",
     "data-active": active || undefined,
+    "data-size": size,
     className: rootClasses,
     // Icon-only needs an accessible name; fall back to a string tooltip.
     "aria-label": !labeled && typeof tooltip === "string" ? tooltip : undefined,

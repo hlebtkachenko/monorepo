@@ -34,6 +34,34 @@ Element.prototype.releasePointerCapture = () => {}
 // in jsdom where the method is not implemented.
 document.elementFromPoint = () => null
 
+// jsdom does not reliably provide Web Storage across vitest pools (Node 24's
+// experimental localStorage is gated behind --localstorage-file), so components
+// that read it on mount (e.g. the icon-pack provider) throw. Provide a simple
+// in-memory stub for both storages.
+function createStorageStub(): Storage {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    clear: () => store.clear(),
+    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => void store.delete(key),
+    setItem: (key: string, value: string) => void store.set(key, String(value)),
+  } as Storage
+}
+
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  if (!window[name]) {
+    Object.defineProperty(window, name, {
+      configurable: true,
+      writable: true,
+      value: createStorageStub(),
+    })
+  }
+}
+
 Object.defineProperty(window, "matchMedia", {
   writable: true,
   value: (query: string) => ({

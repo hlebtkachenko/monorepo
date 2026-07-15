@@ -25,6 +25,16 @@ export const SECTION_KINDS = [
   "pivot-table",
   "space",
   "details-group",
+  // Inspector body sections — the same Section system, `inspector-*` prefixed,
+  // each backed by a `blocks/inspector-sheet` component (see `section-inspector`).
+  "inspector-key-details",
+  "inspector-money-totals",
+  "inspector-table",
+  "inspector-paragraph",
+  "inspector-linked-records",
+  "inspector-activity-log",
+  "inspector-attachments",
+  "inspector-export",
 ] as const
 export type SectionKind = (typeof SECTION_KINDS)[number]
 

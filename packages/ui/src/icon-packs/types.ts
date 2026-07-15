@@ -187,6 +187,13 @@ export const ICON_NAMES = [
   "Shapes",
   "Command",
   "StickyNotePlus",
+  "Flag",
+  "SquarePen",
+  "Paperclip",
+  "TableProperties",
+  "FileDown",
+  "ArrowLeftRight",
+  "Printer",
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

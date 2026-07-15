@@ -1,5 +1,6 @@
 import { fireEvent, render as rtlRender, screen } from "@testing-library/react"
-import { afterEach, describe, it, expect } from "vitest"
+import userEvent from "@testing-library/user-event"
+import { afterEach, describe, it, expect, vi } from "vitest"
 
 import { NextIntlClientProvider } from "@workspace/i18n/client"
 import messages from "@workspace/i18n/messages/en.json"
@@ -7,6 +8,7 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { AppShell } from "./app-shell"
 import { AppShellBottomNav } from "./app-shell-bottom-nav"
+import { AppInspectorRail } from "./app-inspector-rail"
 import { ShellSkeleton } from "./skeletons/shell-skeleton"
 import { ErrorShell } from "./skeletons/error-shell"
 
@@ -101,6 +103,362 @@ describe("AppShell", () => {
     expect(
       screen.getByRole("button", { name: /collapse sidebar/i }),
     ).toBeInTheDocument()
+  })
+
+  it("renders the empty Inspector rail and closes by button or Escape", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Invoices", "Issued"]}
+          recordKey="fp-2026-0001"
+          name="#FP-2026-0001"
+        />
+      </AppShell>,
+    )
+
+    expect(await screen.findByText("#FP-2026-0001")).toBeInTheDocument()
+
+    const close = screen.getByRole("button", { name: "Close inspector" })
+    expect(close).toHaveAttribute("data-size", "sm")
+    fireEvent.click(close)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+
+    onOpenChange.mockClear()
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("closes the Inspector rail on Escape detected via code fallback (no key field)", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    fireEvent.keyDown(window, { code: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("collapses the Inspector rail on a genuine handle click (no movement)", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    const handle = screen.getByRole("separator")
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100 })
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 100 })
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("resizes the Inspector width when dragged, does not collapse on a returning drag, and ignores non-primary pointers", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    const aside = (await screen.findByText("Invoice")).closest(
+      '[data-slot="app-shell-inspector"]',
+    ) as HTMLElement
+    const handle = screen.getByRole("separator")
+    const widthOf = () => Number.parseFloat(aside.style.width)
+    const initialWidth = widthOf()
+
+    // A drag past the threshold resizes (handle is on the left edge, so
+    // dragging left grows the rail) and must not collapse it.
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(handle, { clientX: 60, clientY: 100 })
+    expect(widthOf()).toBeGreaterThan(initialWidth)
+    fireEvent.pointerUp(handle, { clientX: 60, clientY: 100 })
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    onOpenChange.mockClear()
+
+    // A drag that crosses the threshold and then returns near its origin is
+    // still a drag, not a click — must not collapse.
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100 })
+    fireEvent.pointerMove(handle, { clientX: 60, clientY: 100 })
+    fireEvent.pointerMove(handle, { clientX: 99, clientY: 100 })
+    fireEvent.pointerUp(handle, { clientX: 99, clientY: 100 })
+    expect(onOpenChange).not.toHaveBeenCalled()
+
+    onOpenChange.mockClear()
+
+    // A right-click on the handle must never collapse the rail.
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100, button: 2 })
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 100, button: 2 })
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it("shows a two-line drag/collapse tooltip on hover, anchored at pointer entry", async () => {
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={vi.fn()}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    const handle = screen.getByRole("separator")
+    fireEvent.pointerEnter(handle, { clientY: 40 })
+
+    await screen.findAllByText("Drag to resize")
+    expect(screen.getAllByText("Drag to resize").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Click to collapse").length).toBeGreaterThan(0)
+
+    fireEvent.pointerLeave(handle)
+    expect(screen.queryByText("Drag to resize")).not.toBeInTheDocument()
+  })
+
+  it("hides the tooltip while actively dragging the handle", async () => {
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={vi.fn()}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    const handle = screen.getByRole("separator")
+    fireEvent.pointerEnter(handle, { clientY: 40 })
+    await screen.findAllByText("Drag to resize")
+
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100 })
+    expect(screen.queryByText("Drag to resize")).not.toBeInTheDocument()
+
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 100 })
+  })
+
+  it("does not resurrect the tooltip on reopen after a hover-then-collapse-click, since no pointerleave fires when the handle unmounts", async () => {
+    const onOpenChange = vi.fn()
+    const { rerender } = render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+
+    const handle = screen.getByRole("separator")
+    fireEvent.pointerEnter(handle, { clientY: 40 })
+    await screen.findAllByText("Drag to resize")
+
+    // A genuine click (no movement) collapses without an intervening
+    // pointerleave — the handle unmounts mid-hover.
+    fireEvent.pointerDown(handle, { clientX: 100, clientY: 100 })
+    fireEvent.pointerUp(handle, { clientX: 100, clientY: 100 })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AppShell>
+          <AppInspectorRail
+            open={false}
+            onOpenChange={onOpenChange}
+            breadcrumb={["Records", "Details"]}
+            recordKey="inv-1"
+            name="Invoice"
+          />
+        </AppShell>
+      </NextIntlClientProvider>,
+    )
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AppShell>
+          <AppInspectorRail
+            open
+            onOpenChange={onOpenChange}
+            breadcrumb={["Records", "Details"]}
+            recordKey="inv-1"
+            name="Invoice"
+          />
+        </AppShell>
+      </NextIntlClientProvider>,
+    )
+    await screen.findByText("Invoice")
+
+    expect(screen.queryByText("Drag to resize")).not.toBeInTheDocument()
+  })
+
+  it("lets an open dropdown consume Escape before the Inspector rail", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <button
+          type="button"
+          data-state="open"
+          aria-expanded="true"
+          aria-haspopup="menu"
+        >
+          Kind
+        </button>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" })
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it("closes the Inspector rail on Escape when an unrelated persistent disclosure (e.g. sidebar Collapsible) is open", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <button type="button" data-state="open" aria-expanded="true">
+          Section
+        </button>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it("does not consume or prevent-default the Escape event when closing the Inspector rail", async () => {
+    const onOpenChange = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={onOpenChange}
+          breadcrumb={["Records", "Details"]}
+          recordKey="inv-1"
+          name="Invoice"
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice")
+    const windowListener = vi.fn()
+    window.addEventListener("keydown", windowListener)
+    const event = new KeyboardEvent("keydown", {
+      key: "Escape",
+      code: "Escape",
+      bubbles: true,
+      cancelable: true,
+    })
+    window.dispatchEvent(event)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(event.defaultPrevented).toBe(false)
+    expect(windowListener).toHaveBeenCalledTimes(1)
+    window.removeEventListener("keydown", windowListener)
+  })
+
+  it("renders the full InspectorSheet (breadcrumb, name, actions, tab rail) and fires its callbacks", async () => {
+    const onPrevious = vi.fn()
+    const onNext = vi.fn()
+    const onCopy = vi.fn()
+    const onSwitchLayout = vi.fn()
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={vi.fn()}
+          breadcrumb={["Invoices", "Issued"]}
+          recordKey="inv-1"
+          name="Invoice #1"
+          onPrevious={onPrevious}
+          onNext={onNext}
+          onCopy={onCopy}
+          onSwitchLayout={onSwitchLayout}
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice #1")
+    expect(screen.getByText("Invoices")).toBeInTheDocument()
+    expect(screen.getByText("Issued")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Previous item" }))
+    expect(onPrevious).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole("button", { name: "Next item" }))
+    expect(onNext).toHaveBeenCalledTimes(1)
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Copy" }))
+    await user.click(await screen.findByRole("menuitem", { name: "Copy link" }))
+    expect(onCopy).toHaveBeenCalledWith("link")
+    fireEvent.click(screen.getByRole("button", { name: "Switch layout" }))
+    expect(onSwitchLayout).toHaveBeenCalledTimes(1)
+
+    // The 48px tab rail switches the active tab (no content wired here, but
+    // the tab button itself becomes the active one).
+    const activityTab = screen.getByRole("button", { name: "Activity" })
+    fireEvent.click(activityTab)
+    expect(activityTab).toHaveAttribute("data-active", "true")
+  })
+
+  it("disables previous/next when omitted (first/last item)", async () => {
+    render(
+      <AppShell>
+        <AppInspectorRail
+          open
+          onOpenChange={vi.fn()}
+          breadcrumb={["Invoices", "Issued"]}
+          recordKey="inv-1"
+          name="Invoice #1"
+          onNext={vi.fn()}
+        />
+      </AppShell>,
+    )
+    await screen.findByText("Invoice #1")
+    expect(screen.getByRole("button", { name: "Previous item" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Next item" })).not.toBeDisabled()
   })
 })
 

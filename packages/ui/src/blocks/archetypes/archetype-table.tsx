@@ -3,17 +3,17 @@
 import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
-import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
+import { AppInspectorRail, AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   ContentFooter,
   ContentHeader,
   ContentPanel,
   ContentToolbar,
-  InspectorSheet,
   SectionTableProvider,
   useSectionColumnAnalyze,
   useSectionColumnFilter,
   useSectionInspect,
+  useSectionInspectOpener,
   useSectionTable,
 } from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
@@ -22,7 +22,6 @@ import type {
   ContentHeaderBackLinkData,
   ContentHeaderBreadcrumbItem,
   ContentToolbarProps,
-  InspectorMetaItem,
   InspectorMode,
   SectionCellCommit,
   SectionCreateOption,
@@ -30,6 +29,12 @@ import type {
   SectionPivotDrill,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
+import type {
+  InspectorBadge,
+  InspectorCopyTarget,
+  InspectorFooterProps,
+  InspectorTab,
+} from "@workspace/ui/blocks/inspector-sheet"
 import type { IconName } from "@workspace/ui/icon-packs"
 
 /**
@@ -42,27 +47,6 @@ export interface ArchetypeTableViews {
   readonly onValueChange: (value: string) => void
   /** Adds the trailing "+ Add view" button (its dropdown is wired later). */
   readonly onAddView?: () => void
-}
-
-/**
- * The composed content of the row-inspector Sheet, returned by `renderInspector`.
- * The archetype supplies the Sheet shell (pinned header + scroll + sticky footer);
- * this fills the header identity, the meta grid, the scrollable `body`, and the
- * footer actions from the clicked row's domain data.
- */
-export interface InspectorSheetRender {
-  /** Bold identifier line (e.g. `#FP-2026-0001`). */
-  title: React.ReactNode
-  /** Copy handler for the identifier. */
-  onCopyTitle?: () => void
-  /** Muted line under the title. */
-  subtitle?: React.ReactNode
-  /** Header meta grid (Issued / Payment / Status). */
-  meta?: readonly InspectorMetaItem[]
-  /** Sticky footer actions. */
-  footer?: React.ReactNode
-  /** The scrollable detail sections (composed from the `Inspector*` parts). */
-  body: React.ReactNode
 }
 
 /**
@@ -154,13 +138,40 @@ export interface ArchetypeTableProps<TData> {
   inspectorTitle?: React.ReactNode
   inspectorFooter?: React.ReactNode
   /**
-   * Row-inspector Sheet content builder. When set, the Table section's per-row
-   * maximize affordance opens a right-docked `InspectorSheet`; this maps the
-   * clicked row (pure data) to the Sheet's header/meta/body/footer. `close`
-   * dismisses the Sheet (e.g. from a footer action). Domain-specific, so it lives
-   * in the app layer — the archetype owns only the Sheet shell + open state.
+   * Row-inspector rail: when `inspectorRowTitle` is set, the Table section's
+   * per-row maximize affordance opens the right-docked `AppInspectorRail`
+   * (`InspectorSheet` from `blocks/inspector-sheet`). These map the clicked row
+   * (pure data) to the sheet's identity/badge/tab content/footer. Domain-specific,
+   * so they live in the app layer — the archetype owns only the rail shell +
+   * open state + adjacent-row navigation.
    */
-  renderInspector?: (row: TData, close: () => void) => InspectorSheetRender
+  /** Maps the inspected row to the breadcrumb's trailing crumb + fallback name. */
+  inspectorRowTitle?: (row: TData) => string
+  /** Maps the inspected row to the editable name shown in the sheet body.
+   *  Falls back to `inspectorRowTitle`'s result when omitted. */
+  inspectorRowName?: (row: TData) => string
+  /** Maps the inspected row to an optional posting-status badge next to the name. */
+  inspectorRowBadge?: (row: TData) => InspectorBadge | undefined
+  /** Maps the inspected row to per-tab Inspector body content (details/activity/…). */
+  inspectorRowContent?: (
+    row: TData,
+  ) => Partial<Record<InspectorTab, React.ReactNode>>
+  /** Copy dropdown in the inspector sheet header (link / number / id). */
+  onInspectorCopy?: (row: TData, what: InspectorCopyTarget) => void
+  /** Switch-layout affordance in the inspector sheet header. */
+  onInspectorSwitchLayout?: (row: TData) => void
+  /**
+   * Deep-link: open the Inspector for the row whose `rowIdKey` value equals this,
+   * once, when the grid first has that row. Drives the "Copy link" affordance —
+   * `…?inspect=<id>` re-opens the same record. Cleared internally after it fires.
+   */
+  openRowId?: string
+  /** Decline action in the sticky inspector footer (label + handler). */
+  inspectorDeclineLabel?: string
+  onInspectorDecline?: (row: TData) => void
+  /** Approve (primary) action in the sticky inspector footer (label + handler). */
+  inspectorApproveLabel?: string
+  onInspectorApprove?: (row: TData) => void
   /** Extra classes for the scrolling body region. */
   bodyClassName?: string
 }
@@ -207,7 +218,17 @@ function ArchetypeTableChrome<TData>({
   onInspectorOpenChange,
   inspectorTitle,
   inspectorFooter,
-  renderInspector,
+  inspectorRowTitle,
+  inspectorRowName,
+  inspectorRowBadge,
+  inspectorRowContent,
+  onInspectorCopy,
+  onInspectorSwitchLayout,
+  openRowId,
+  inspectorDeclineLabel,
+  onInspectorDecline,
+  inspectorApproveLabel,
+  onInspectorApprove,
   bodyClassName,
 }: ArchetypeTableProps<TData>) {
   const registration = useSectionTable()
@@ -215,18 +236,67 @@ function ArchetypeTableChrome<TData>({
     ? (registration.table as unknown as Table<TData>)
     : null
 
-  // Row-inspector Sheet: the section renderer's maximize affordance publishes the
-  // clicked row through the bridge; build its content here from the app-supplied
-  // `renderInspector`. The row stays set through the close animation.
+  // Row Inspector: the section renderer's maximize affordance publishes the
+  // clicked row through the bridge; the row stays set through the close
+  // animation. Adjacent-row navigation walks the table's CURRENT (sorted/
+  // filtered/visible) row order, so previous/next always matches what the grid
+  // shows — not the raw input rows.
   const { inspectRow, inspectOpen, setInspectOpen } = useSectionInspect()
-  const closeInspect = React.useCallback(
-    () => setInspectOpen(false),
-    [setInspectOpen],
+  const openInspect = useSectionInspectOpener()
+  const visibleRows = table?.getRowModel().rows ?? []
+  const inspectIndex = visibleRows.findIndex(
+    (row) => row.original === inspectRow,
   )
-  const inspectContent =
-    renderInspector && inspectRow != null
-      ? renderInspector(inspectRow as TData, closeInspect)
+  const currentRow = inspectIndex >= 0 ? visibleRows[inspectIndex] : undefined
+  const previousRow =
+    inspectIndex > 0 ? visibleRows[inspectIndex - 1] : undefined
+  const nextRow =
+    inspectIndex >= 0 && inspectIndex < visibleRows.length - 1
+      ? visibleRows[inspectIndex + 1]
+      : undefined
+
+  // Deep-link: open the Inspector once for `openRowId` as soon as the grid holds
+  // that row. Ref-guarded so it fires a single time per id (a subsequent user
+  // close/navigate is never re-overridden).
+  const openedDeepLinkRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (!openRowId || !openInspect) return
+    if (openedDeepLinkRef.current === openRowId) return
+    const match = visibleRows.find((row) => row.id === openRowId)
+    if (!match) return
+    openedDeepLinkRef.current = openRowId
+    openInspect(match.original)
+  }, [openRowId, visibleRows, openInspect])
+
+  const inspectTitle =
+    inspectorRowTitle && inspectRow != null
+      ? inspectorRowTitle(inspectRow as TData)
       : null
+  const inspectName =
+    inspectRow != null
+      ? (inspectorRowName ?? inspectorRowTitle)?.(inspectRow as TData)
+      : undefined
+  const inspectBadge =
+    inspectorRowBadge && inspectRow != null
+      ? inspectorRowBadge(inspectRow as TData)
+      : undefined
+  const inspectContent =
+    inspectorRowContent && inspectRow != null
+      ? inspectorRowContent(inspectRow as TData)
+      : undefined
+  const inspectFooter: InspectorFooterProps | undefined =
+    (onInspectorDecline || onInspectorApprove) && inspectRow != null
+      ? {
+          declineLabel: inspectorDeclineLabel ?? "Decline",
+          approveLabel: inspectorApproveLabel ?? "Approve",
+          onDecline: onInspectorDecline
+            ? () => onInspectorDecline(inspectRow as TData)
+            : undefined,
+          onApprove: onInspectorApprove
+            ? () => onInspectorApprove(inspectRow as TData)
+            : undefined,
+        }
+      : undefined
 
   // Per-column header "Filter" opens the ONE toolbar filter at that column: the
   // chrome injects the bridge's shared open-state into the consumer-supplied
@@ -318,18 +388,37 @@ function ArchetypeTableChrome<TData>({
         inspectorFooter={inspectorFooter}
         bodyClassName={bodyClassName}
       />
-      {renderInspector ? (
-        <InspectorSheet
+      {inspectorRowTitle ? (
+        <AppInspectorRail
           open={inspectOpen}
           onOpenChange={setInspectOpen}
-          title={inspectContent?.title ?? ""}
-          onCopyTitle={inspectContent?.onCopyTitle}
-          subtitle={inspectContent?.subtitle}
-          meta={inspectContent?.meta}
-          footer={inspectContent?.footer}
-        >
-          {inspectContent?.body}
-        </InspectorSheet>
+          breadcrumb={[title, inspectTitle ?? ""]}
+          recordKey={currentRow?.id ?? inspectTitle ?? ""}
+          name={inspectName ?? inspectTitle ?? ""}
+          badge={inspectBadge}
+          footer={inspectFooter}
+          content={inspectContent}
+          onPrevious={
+            previousRow && openInspect
+              ? () => openInspect(previousRow.original)
+              : undefined
+          }
+          onNext={
+            nextRow && openInspect
+              ? () => openInspect(nextRow.original)
+              : undefined
+          }
+          onCopy={
+            onInspectorCopy && inspectRow != null
+              ? (what) => onInspectorCopy(inspectRow as TData, what)
+              : undefined
+          }
+          onSwitchLayout={
+            onInspectorSwitchLayout && inspectRow != null
+              ? () => onInspectorSwitchLayout(inspectRow as TData)
+              : undefined
+          }
+        />
       ) : null}
     </>
   )

@@ -15,6 +15,10 @@ export type {
   DetailsFormTab,
 } from "./section-details-tabs"
 export { sectionDetailsTable } from "./section-details-table"
+export {
+  DetailsTableGrid,
+  type DetailsTableGridProps,
+} from "./section-details-table-renderer"
 export type {
   SectionDetailsTableProps,
   DetailsTableColumn,
@@ -108,3 +112,20 @@ export type {
 } from "./section"
 export type { SectionAction } from "./section-action-context"
 export { SECTION_KINDS } from "./section"
+// The list renderer that walks branded descriptors through `SECTION_REGISTRY`.
+// Exposed so an Inspector tab composes its body the same descriptor-driven way a
+// Content archetype composes its body — no hand-placed section JSX.
+export { SectionList } from "./section-list"
+
+// Inspector body sections — the same Section system, `inspector-*` prefixed.
+export {
+  sectionInspectorKeyDetails,
+  sectionInspectorMoneyTotals,
+  sectionInspectorTable,
+  sectionInspectorParagraph,
+  sectionInspectorLinkedRecords,
+  sectionInspectorActivityLog,
+  sectionInspectorAttachments,
+  sectionInspectorExport,
+  type InspectorTableSectionProps,
+} from "./section-inspector"

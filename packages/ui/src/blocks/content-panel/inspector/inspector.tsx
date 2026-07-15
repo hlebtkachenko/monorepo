@@ -107,6 +107,7 @@ export function Inspector({
               (no handler) shows no dead "Close" button. */}
           {onOpenChange ? (
             <IconButton
+              size="sm"
               icon="X"
               aria-label="Close inspector"
               tooltip="Close"

@@ -178,6 +178,13 @@ import {
   Workflow,
   HatGlasses,
   CreditCard,
+  Flag,
+  SquarePen,
+  Paperclip,
+  TableProperties,
+  FileDown,
+  ArrowLeftRight,
+  Printer,
 } from "lucide-react"
 
 import type { IconMap } from "../types"
@@ -351,4 +358,11 @@ export const lucideIcons = {
   Workflow,
   HatGlasses,
   CreditCard,
+  Flag,
+  SquarePen,
+  Paperclip,
+  TableProperties,
+  FileDown,
+  ArrowLeftRight,
+  Printer,
 } satisfies IconMap

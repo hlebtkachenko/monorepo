@@ -32,16 +32,6 @@ export { ContentPanel } from "./content-panel"
 export type { ContentPanelProps } from "./content-panel"
 export { Inspector } from "./inspector"
 export type { InspectorProps, InspectorMode } from "./inspector"
-export {
-  InspectorSheet,
-  InspectorSection,
-  InspectorDetailList,
-  InspectorDetail,
-  InspectorLineItem,
-  InspectorEvidenceItem,
-  InspectorDropzone,
-} from "./inspector"
-export type { InspectorSheetProps, InspectorMetaItem } from "./inspector"
 export * from "./content-body"
 export { ContentFooter } from "./content-footer"
 export type {

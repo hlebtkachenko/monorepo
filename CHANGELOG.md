@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Inspector Sheet: right-docked row inspector rail on the Table archetype (7-tab rail, section-registry-driven tabs, deep-link `?inspect=<id>`, adjacent-row navigation) + Inspector Attachments wired to the S3 document store
 - Pivot Columns manager drag: dragging a low-level measure reorders it across EVERY high-level group at once, and dragging a high-level group reorders the whole group; pivot group headers gain a Filter action routed to their column-dimension's toolbar filter.
 - Pivot per-group subtotal rows (opt-in `subtotalRows`): a bold "Total …" row closes each group with the group's aggregate; the group's own value cells are blanked while expanded so the subtotal isn't shown twice.
 - Pivot value columns are now filterable (the general all-columns-filterable rule): each measure column carries an inline numeric min/max filter in its header dropdown wired to TanStack columnFilters; all pivot headers get the AI-analyze item via the section bridge.

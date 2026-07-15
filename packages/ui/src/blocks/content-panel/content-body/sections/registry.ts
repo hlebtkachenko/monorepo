@@ -6,6 +6,16 @@ import { SectionTableRenderer } from "./section-table-renderer"
 import { SectionPivotTableRenderer } from "./section-pivot-table-renderer"
 import { SectionSpaceRenderer } from "./section-space"
 import { SectionDetailsTabsRenderer } from "./section-details-tabs-renderer"
+import {
+  SectionInspectorActivityLogRenderer,
+  SectionInspectorAttachmentsRenderer,
+  SectionInspectorExportRenderer,
+  SectionInspectorKeyDetailsRenderer,
+  SectionInspectorLinkedRecordsRenderer,
+  SectionInspectorMoneyTotalsRenderer,
+  SectionInspectorParagraphRenderer,
+  SectionInspectorTableRenderer,
+} from "./section-inspector"
 
 /**
  * The closed section registry — LEAF kinds only (a `details-group` is a
@@ -24,4 +34,12 @@ export const SECTION_REGISTRY = {
   table: SectionTableRenderer,
   "pivot-table": SectionPivotTableRenderer,
   space: SectionSpaceRenderer,
+  "inspector-key-details": SectionInspectorKeyDetailsRenderer,
+  "inspector-money-totals": SectionInspectorMoneyTotalsRenderer,
+  "inspector-table": SectionInspectorTableRenderer,
+  "inspector-paragraph": SectionInspectorParagraphRenderer,
+  "inspector-linked-records": SectionInspectorLinkedRecordsRenderer,
+  "inspector-activity-log": SectionInspectorActivityLogRenderer,
+  "inspector-attachments": SectionInspectorAttachmentsRenderer,
+  "inspector-export": SectionInspectorExportRenderer,
 } satisfies Record<LeafSectionKind, SectionRenderer<never>>

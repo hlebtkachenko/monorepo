@@ -41,10 +41,15 @@ import { cn } from "@workspace/ui/lib/utils"
 import { SectionTwoCol } from "./section-details-parts"
 import { useSectionAction } from "./section-action-context"
 import type {
+  DetailsTableAction,
   DetailsTableColumn,
   DetailsTableColumnSpan,
   DetailsTableControl,
   DetailsTableCellValue,
+  DetailsTableEditHint,
+  DetailsTableMode,
+  DetailsTableRow,
+  DetailsTableRowAction,
   SectionDetailsTablePayload,
 } from "./section-details-table"
 
@@ -253,37 +258,50 @@ type DraftRow = {
 }
 
 /**
- * SectionDetailsTable — the Details Form section with its right column swapped
- * for a grid-based table that aligns to the same fixed 6-track grid as the form
- * fields (item 2). Two modes:
+ * The Details Table minus the archetype's two-column frame — just the grid, its
+ * Add/edit-hint footer, and the delete/row-action dialogs. Two modes:
  *   - `editable`: rows read-only until their Edit icon flips that row to inputs
  *     (a new row starts editable); Add appends, Delete confirms.
  *   - `readonly`: display-only cells, optionally with a configured row command.
  * All edit state (which rows are editing, appended rows, deleted rows, working
  * values) lives in this closed renderer — no callback crosses the descriptor.
  * Edits persist across re-render until reload (item 6); wiring real Save/Discard
- * (harvest + reset) is the footer's job and is not connected yet.
+ * (harvest + reset) is the footer's job and is not connected yet. Reusable in
+ * any container (e.g. the Inspector rail) where the `SectionTwoCol`
+ * heading/left-column layout is wrong.
  */
-export function SectionDetailsTableRenderer({
-  props,
-}: {
-  props: SectionDetailsTablePayload
-}) {
-  const {
-    title,
-    description,
-    mode,
-    columns,
-    rows,
-    rowAction,
-    addLabel,
-    actions,
-    actionsHeader,
-    editHint,
-    emptyText,
-    name,
-  } = props
+export interface DetailsTableGridProps {
+  readonly mode?: DetailsTableMode
+  readonly columns: readonly DetailsTableColumn[]
+  readonly rows: readonly DetailsTableRow[]
+  readonly rowAction?: DetailsTableRowAction
+  readonly addLabel?: string
+  readonly actions?: readonly DetailsTableAction[]
+  readonly actionsHeader?: string
+  readonly editHint?: DetailsTableEditHint
+  readonly emptyText?: string
+  readonly name?: string
+  /**
+   * Min-width of the scrolling grid. Defaults to `"min-w-[34rem]"` (the content
+   * panel's comfortable floor); pass a narrower class (e.g. `"min-w-0"`) to let
+   * the table compress into a tight container like the Inspector rail.
+   */
+  readonly minWidthClassName?: string
+}
 
+export function DetailsTableGrid({
+  mode = "editable",
+  columns,
+  rows,
+  rowAction,
+  addLabel,
+  actions = [],
+  actionsHeader = "Actions",
+  editHint,
+  emptyText,
+  name,
+  minWidthClassName = "min-w-[34rem]",
+}: DetailsTableGridProps) {
   const editable = mode === "editable"
   const dispatch = useSectionAction()
 
@@ -410,11 +428,11 @@ export function SectionDetailsTableRenderer({
     col.align === "end" ? "justify-self-end text-right" : undefined
 
   return (
-    <SectionTwoCol title={title} description={description}>
+    <>
       <div className="min-w-0">
         <div className="overflow-hidden rounded-md border border-border-subtle">
           <div className="overflow-x-auto">
-            <div role="table" className="min-w-[34rem]">
+            <div role="table" className={minWidthClassName}>
               <div
                 role="row"
                 className={cn(ROW_GRID, "border-b border-border-subtle")}
@@ -639,6 +657,34 @@ export function SectionDetailsTableRenderer({
           </AlertDialogContent>
         </AlertDialog>
       ) : null}
+    </>
+  )
+}
+
+/**
+ * SectionDetailsTable — the Details Table content section: the shared
+ * `DetailsTableGrid` dropped into the archetype's two-column frame (title +
+ * description in the left column). All interactivity lives in `DetailsTableGrid`.
+ */
+export function SectionDetailsTableRenderer({
+  props,
+}: {
+  props: SectionDetailsTablePayload
+}) {
+  return (
+    <SectionTwoCol title={props.title} description={props.description}>
+      <DetailsTableGrid
+        mode={props.mode}
+        columns={props.columns}
+        rows={props.rows}
+        rowAction={props.rowAction}
+        addLabel={props.addLabel}
+        actions={props.actions}
+        actionsHeader={props.actionsHeader}
+        editHint={props.editHint}
+        emptyText={props.emptyText}
+        name={props.name}
+      />
     </SectionTwoCol>
   )
 }

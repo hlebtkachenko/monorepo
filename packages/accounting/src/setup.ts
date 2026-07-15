@@ -349,22 +349,25 @@ export async function createCategory(
   return r.id
 }
 
+/** Input to {@link createAsset} — a fixed-asset register card (karta majetku). */
+export interface AssetInput {
+  seriesId: string
+  name: string
+  category: AssetCategory
+  accountNumber: string
+  commissioningDate: string
+  acquisitionCost: Decimal
+  directiveCode?: string | null
+  acquisitionDate?: string | null
+  location?: string | null
+  responsibleUserId?: string | null
+}
+
 /** Create a fixed-asset register card. Allocates a gapless inventární číslo (Označení). */
 export async function createAsset(
   db: RowExecutor,
   ctx: OrgCtx,
-  input: {
-    seriesId: string
-    name: string
-    category: AssetCategory
-    accountNumber: string
-    commissioningDate: string
-    acquisitionCost: Decimal
-    directiveCode?: string | null
-    acquisitionDate?: string | null
-    location?: string | null
-    responsibleUserId?: string | null
-  },
+  input: AssetInput,
 ): Promise<{ id: string; designation: string; sequenceNumber: number }> {
   const allocated = await allocateNumber(
     db,
@@ -391,21 +394,24 @@ export async function createAsset(
   }
 }
 
+/** Input to {@link createDepreciationPlan} — an účetní odpisový plán. */
+export interface DepreciationPlanInput {
+  assetId: string
+  method: DepreciationMethod
+  startDate: string
+  monthlyAmount: Decimal
+  expenseAccountNumber: string
+  accumulatedAccountNumber: string
+  usefulLifeMonths?: number | null
+  residualValue?: Decimal
+  supersedesPlanId?: string | null
+}
+
 /** Create an účetní odpisový plán (drives MD 551 / D 08x monthly). Accounts BY NUMBER (D8). */
 export async function createDepreciationPlan(
   db: RowExecutor,
   ctx: OrgCtx,
-  input: {
-    assetId: string
-    method: DepreciationMethod
-    startDate: string
-    monthlyAmount: Decimal
-    expenseAccountNumber: string
-    accumulatedAccountNumber: string
-    usefulLifeMonths?: number | null
-    residualValue?: Decimal
-    supersedesPlanId?: string | null
-  },
+  input: DepreciationPlanInput,
 ): Promise<string> {
   const r = await one<{ id: string }>(
     db,
@@ -421,11 +427,18 @@ export async function createDepreciationPlan(
   return r.id
 }
 
+/** Input to {@link createInventoryCount} — an inventurní soupis (§29-30). */
+export interface InventoryCountInput {
+  seriesId: string
+  countDate: string
+  description?: string | null
+}
+
 /** Create an inventurní soupis (§29-30). Allocates a gapless soupis č. (Označení). */
 export async function createInventoryCount(
   db: RowExecutor,
   ctx: OrgCtx,
-  input: { seriesId: string; countDate: string; description?: string | null },
+  input: InventoryCountInput,
 ): Promise<{ id: string; designation: string; sequenceNumber: number }> {
   const allocated = await allocateNumber(
     db,

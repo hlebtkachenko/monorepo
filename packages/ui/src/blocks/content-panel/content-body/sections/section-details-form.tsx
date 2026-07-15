@@ -22,7 +22,19 @@ export type DetailsFormFieldControl =
       readonly placeholder?: string
       readonly value?: string
       readonly inputMode?: "text" | "numeric"
+      readonly type?: "text" | "email"
+      readonly autoComplete?: string
+      readonly maxLength?: number
+      readonly required?: boolean
       readonly disabled?: boolean
+      /** Optional action emitted with the next string value. */
+      readonly changeActionId?: string
+    }
+  | {
+      /** Read-only status value with a semantic leading icon. */
+      readonly kind: "status"
+      readonly value: string
+      readonly tone: "success" | "destructive"
     }
   | {
       readonly kind: "select"
@@ -30,6 +42,68 @@ export type DetailsFormFieldControl =
       readonly value?: string
       readonly options?: readonly DetailsFormSelectOption[]
       readonly disabled?: boolean
+    }
+  | {
+      /** Searchable single-select that can create a new string option. */
+      readonly kind: "creatable-combobox"
+      readonly placeholder?: string
+      readonly value?: string
+      readonly options: readonly DetailsFormSelectOption[]
+      readonly disabled?: boolean
+      readonly changeActionId: string
+    }
+  | {
+      /** A navigation action belonging to this field. */
+      readonly kind: "action"
+      readonly label: string
+      readonly href: string
+      readonly variant?: "default" | "outline"
+    }
+  | {
+      /** International phone input with country selection and formatting. */
+      readonly kind: "phone"
+      readonly value?: string
+      readonly defaultCountry?: string
+      readonly disabled?: boolean
+      /** Optional action emitted with the normalized E.164 value. */
+      readonly changeActionId?: string
+    }
+  | {
+      /** Read-only account avatar preview. */
+      readonly kind: "avatar"
+      readonly src?: string
+      readonly alt: string
+      readonly fallback: string
+    }
+  | {
+      /** A normal-sized command button dispatched by action id. */
+      readonly kind: "button"
+      readonly label: string
+      readonly actionId: string
+      readonly variant?: "default" | "outline" | "destructive"
+      readonly disabled?: boolean
+      readonly busy?: boolean
+      readonly busyLabel?: string
+    }
+  | {
+      /** Drawn signature paths managed by the archetype through an action id. */
+      readonly kind: "signature"
+      readonly paths: readonly string[]
+      readonly changeActionId: string
+      readonly disabled?: boolean
+    }
+  | {
+      /** Croppable image picker with plain-data configuration. */
+      readonly kind: "image-upload"
+      readonly src?: string
+      readonly alt: string
+      readonly fallback: string
+      readonly changeActionId: string
+      readonly removeActionId: string
+      readonly resetKey?: number
+      readonly maxSourceBytes?: number
+      readonly chooseLabel?: string
+      readonly removeLabel?: string
     }
 
 /**
@@ -48,6 +122,8 @@ export interface DetailsFormField {
   /** Grid columns this field occupies (1–6). Defaults to a full row (6). */
   readonly span?: DetailsFormFieldSpan
   readonly control: DetailsFormFieldControl
+  /** Start this field on a new grid row at the multi-column breakpoint. */
+  readonly startNewRow?: boolean
   /** Optional stable id — becomes the control's `id`/`name`. */
   readonly name?: string
   /** Optional rich hover explanation shown over the control (HoverCard). */

@@ -181,6 +181,34 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.postingKind).toBeNull()
   })
 
+  it("surfaces the extracted counterparty IČO/DIČ on a createAccountingEvent header (the field the server dedups on)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingEvent",
+        counterparty_name: "Dodavatel s.r.o.",
+        input_json: {
+          counterparty: {
+            name: "Dodavatel s.r.o.",
+            ico: "10000001",
+            dic: "CZ10000001",
+          },
+          description: "FP-2025-0042 — Dodavatel s.r.o.",
+          occurredAt: "2026-06-01",
+        },
+      }),
+    )
+    expect(vm.header.counterpartyName).toBe("Dodavatel s.r.o.")
+    // The IČO/DIČ (dedup keys) are visible so a reviewer can verify the field that BINDS the partner.
+    expect(vm.header.counterpartyIco).toBe("10000001")
+    expect(vm.header.counterpartyDic).toBe("CZ10000001")
+  })
+
+  it("leaves counterparty IČO/DIČ null on a capture header (the identity lives on the event, not the capture)", () => {
+    const vm = buildHeldWriteViewModel(captureFixture())
+    expect(vm.header.counterpartyIco).toBeNull()
+    expect(vm.header.counterpartyDic).toBeNull()
+  })
+
   it("shapes a createAccountingPosting header from the debit side of a double entry", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({
@@ -699,6 +727,79 @@ describe("holdReasonsFrom", () => {
   it("returns an empty list when there is no serverGate (defensive)", () => {
     expect(holdReasonsFrom(null)).toEqual([])
     expect(holdReasonsFrom({})).toEqual([])
+  })
+
+  it("surfaces the openObligation directive on a held createAccountingPosting so the reviewer sees it", () => {
+    const vm = buildHeldWriteViewModel({
+      id: "p1",
+      tool_name: "createAccountingPosting",
+      conversation_id: null,
+      rationale: null,
+      counterparty_name: "ACME s.r.o.",
+      input_json: {
+        kind: "double",
+        entry: {
+          periodId: "00000000-0000-4000-8000-000000000001",
+          summaryRecordId: "00000000-0000-4000-8000-000000000002",
+          accountingEventId: "00000000-0000-4000-8000-000000000003",
+          postingDate: "2026-03-14",
+          lines: [
+            { accountId: "a", side: "DEBIT", amount: "1000.00" },
+            { accountId: "b", side: "CREDIT", amount: "1000.00" },
+          ],
+        },
+        openObligation: {
+          saldoAccountNumber: "321",
+          direction: "PAYABLE",
+          issueDate: "2026-03-14",
+          dueDate: "2026-04-14",
+          variableSymbol: "12345",
+        },
+      },
+      output_json: null,
+    })
+    expect(vm.header.obligation).toEqual({
+      saldoAccountNumber: "321",
+      direction: "PAYABLE",
+      issueDate: "2026-03-14",
+      dueDate: "2026-04-14",
+      variableSymbol: "12345",
+    })
+  })
+
+  it("leaves obligation null for a posting with no openObligation directive", () => {
+    const vm = buildHeldWriteViewModel({
+      id: "p2",
+      tool_name: "createAccountingPosting",
+      conversation_id: null,
+      rationale: null,
+      counterparty_name: null,
+      input_json: {
+        kind: "double",
+        entry: {
+          periodId: "00000000-0000-4000-8000-000000000001",
+          summaryRecordId: "00000000-0000-4000-8000-000000000002",
+          accountingEventId: "00000000-0000-4000-8000-000000000003",
+          postingDate: "2026-03-14",
+          lines: [],
+        },
+      },
+      output_json: null,
+    })
+    expect(vm.header.obligation).toBeNull()
+  })
+
+  it("labels the Tier-1.5 counterparty_register_mismatch cap in Czech, not the raw token", () => {
+    const reasons = holdReasonsFrom({
+      serverGate: {
+        veto: { held: false, signals: [] },
+        score: { reasons: ["capped by counterparty_register_mismatch at 0.7"] },
+      },
+    })
+    expect(reasons).toEqual([
+      "Omezeno signálem „název protistrany neodpovídá rejstříku ARES (ověřte IČO)“ na jistotu 0.7",
+    ])
+    expect(reasons[0]).not.toContain("counterparty_register_mismatch")
   })
 
   it("labels every Tier-1/Tier-3 block signal kind in Czech, not the raw token", () => {

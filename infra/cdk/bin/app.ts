@@ -13,8 +13,7 @@ const app = new App()
 
 const env = (app.node.tryGetContext("env") as string | undefined) ?? "staging"
 const validEnvironments = (app.node.tryGetContext("validEnvironments") as
-  | string[]
-  | undefined) ?? ["staging", "production"]
+  string[] | undefined) ?? ["staging", "production"]
 
 if (!validEnvironments.includes(env)) {
   throw new Error(
@@ -94,6 +93,8 @@ const data = new DataStack(app, `Data-${env}`, {
   vpc: network.vpc,
   dataSubnets: network.dataSubnets,
   appSecurityGroupId: network.appSecurityGroup.securityGroupId,
+  // Web app origin — scopes the documents bucket CORS AllowedOrigins.
+  domain,
 })
 
 const appStack = new AppStack(app, `App-${env}`, {
@@ -106,6 +107,8 @@ const appStack = new AppStack(app, `App-${env}`, {
   databaseSecret: data.databaseSecret,
   appUserSecret: data.appUserSecret,
   appBucket: data.appBucket,
+  documentsBucket: data.documentsBucket,
+  documentsKey: data.documentsKey,
   webRepository: data.webRepository,
   apiRepository: data.apiRepository,
   adminRepository: data.adminRepository,
@@ -119,6 +122,8 @@ const security = new SecurityStack(app, `Security-${env}`, {
   envName: env,
   appStack,
   dataStack: data,
+  // The document reaper (SOLE S3-delete principal) lives in SecurityStack.
+  documentsBucket: data.documentsBucket,
 })
 
 new ObservabilityStack(app, `Observability-${env}`, {

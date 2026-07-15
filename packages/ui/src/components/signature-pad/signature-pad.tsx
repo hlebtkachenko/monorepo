@@ -14,8 +14,11 @@ const useSignaturePad = useSignaturePadContext
 
 function SignaturePad({
   className,
+  onClear,
   ...props
-}: React.ComponentProps<typeof ArkSignaturePad.Root>) {
+}: React.ComponentProps<typeof ArkSignaturePad.Root> & {
+  onClear?: () => void
+}) {
   return (
     <ArkSignaturePad.Root
       data-slot="signature-pad"
@@ -27,7 +30,7 @@ function SignaturePad({
     >
       <SignaturePadControl>
         <SignaturePadSegment />
-        <SignaturePadClear />
+        <SignaturePadClear onClear={onClear} />
         <SignaturePadGuide />
       </SignaturePadControl>
     </ArkSignaturePad.Root>
@@ -65,8 +68,11 @@ function SignaturePadSegment({
 
 function SignaturePadClear({
   className,
+  onClear,
   ...props
-}: React.ComponentProps<typeof ArkSignaturePad.ClearTrigger>) {
+}: React.ComponentProps<typeof ArkSignaturePad.ClearTrigger> & {
+  onClear?: () => void
+}) {
   return (
     <ArkSignaturePad.ClearTrigger
       asChild
@@ -75,10 +81,11 @@ function SignaturePadClear({
       {...props}
     >
       <Button
-        size="icon-sm"
+        size="icon"
         variant="ghost"
         type="button"
         aria-label="Clear signature"
+        onClick={onClear}
       >
         <RotateCcwIcon />
       </Button>

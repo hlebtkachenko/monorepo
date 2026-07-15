@@ -36,11 +36,11 @@ export async function insertPostingHeader(
     sql`INSERT INTO posting
           (organization_id, period_id, regime_code, summary_record_id, accounting_event_id,
            depreciation_plan_id, inventory_count_id, posting_date, posting_kind,
-           responsible_user_id, posted_at, corrects_posting_id, correction_type, is_opening)
+           responsible_user_id, posted_at, corrects_posting_id, correction_type, is_opening, inbox_id)
         VALUES
           (${ctx.organizationId}::uuid, ${h.periodId}::uuid, ${h.regimeCode}, ${h.summaryRecordId}::uuid, ${h.accountingEventId}::uuid,
            ${h.depreciationPlanId ?? null}, ${h.inventoryCountId ?? null}, ${h.postingDate}::date, ${h.postingKind},
-           ${h.responsibleUserId}::uuid, now(), ${h.correctsPostingId ?? null}, ${h.correctionType ?? null}, ${h.isOpening ?? false})
+           ${h.responsibleUserId}::uuid, now(), ${h.correctsPostingId ?? null}, ${h.correctionType ?? null}, ${h.isOpening ?? false}, ${ctx.inboxId ?? null})
         RETURNING id`,
   )
   return r.id

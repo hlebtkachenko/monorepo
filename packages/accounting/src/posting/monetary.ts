@@ -50,10 +50,10 @@ export async function postMonetary(
       db,
       sql`INSERT INTO posting_monetary_line
             (organization_id, posting_id, regime_code, partial_record_id, category_id,
-             location, direction, is_tax_relevant, is_clearing, tax_base, amount)
+             location, direction, is_tax_relevant, is_clearing, tax_base, amount, inbox_id)
           VALUES
             (${ctx.organizationId}::uuid, ${postingId}::uuid, ${input.regime}, ${line.partialRecordId ?? null}, ${line.categoryId ?? null},
-             ${line.location}, ${line.direction}, ${line.isTaxRelevant}, ${isClearing}, ${taxBase}, ${line.amount})
+             ${line.location}, ${line.direction}, ${line.isTaxRelevant}, ${isClearing}, ${taxBase}, ${line.amount}, ${ctx.inboxId ?? null})
           RETURNING id`,
     )
     lineIds.push(row.id)

@@ -98,3 +98,7 @@ export * from "./brain_confident_wrong"
 
 // Brain booking-template library — workspace-scoped learned state (0054, M2.1 / §I9)
 export * from "./booking_template"
+
+// S3 document store — durable identity of a confirmed upload, workspace-scoped (0057, #518)
+export * from "./inbox_attachment"
+export * from "./inbox_item"

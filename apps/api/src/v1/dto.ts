@@ -9,6 +9,12 @@ import {
   CreateAccountingEventResponseSchema,
   CreateAccountingPostingRequestSchema,
   CreateAccountingPostingResponseSchema,
+  CreateAssetRequestSchema,
+  CreateAssetResponseSchema,
+  CreateDepreciationPlanRequestSchema,
+  CreateDepreciationPlanResponseSchema,
+  CreateInventoryCountRequestSchema,
+  CreateInventoryCountResponseSchema,
   DphResponseSchema,
   DppoResponseSchema,
   EcSalesListResponseSchema,
@@ -39,6 +45,9 @@ import {
   OcrTemplateResponseSchema,
   CreateOcrTemplateRequestSchema,
   UpdateOcrTemplateRequestSchema,
+  ListDocumentsQuerySchema,
+  ListDocumentsResponseSchema,
+  DocumentDownloadUrlResponseSchema,
   ListBookingTemplatesQuerySchema,
   ListBookingTemplatesResponseSchema,
   BookingTemplateResponseSchema,
@@ -109,6 +118,24 @@ export class CreateAccountingPostingRequestDto extends createZodDto(
 export class CreateAccountingPostingResponseDto extends createZodDto(
   CreateAccountingPostingResponseSchema,
 ) {}
+export class CreateAssetRequestDto extends createZodDto(
+  CreateAssetRequestSchema,
+) {}
+export class CreateAssetResponseDto extends createZodDto(
+  CreateAssetResponseSchema,
+) {}
+export class CreateDepreciationPlanRequestDto extends createZodDto(
+  CreateDepreciationPlanRequestSchema,
+) {}
+export class CreateDepreciationPlanResponseDto extends createZodDto(
+  CreateDepreciationPlanResponseSchema,
+) {}
+export class CreateInventoryCountRequestDto extends createZodDto(
+  CreateInventoryCountRequestSchema,
+) {}
+export class CreateInventoryCountResponseDto extends createZodDto(
+  CreateInventoryCountResponseSchema,
+) {}
 export class ListHeldWritesResponseDto extends createZodDto(
   ListHeldWritesResponseSchema,
 ) {}
@@ -147,6 +174,15 @@ export class GetAccountResponseDto extends createZodDto(
 ) {}
 export class UpdateAccountRequestDto extends createZodDto(
   UpdateAccountRequestSchema,
+) {}
+export class ListDocumentsQueryDto extends createZodDto(
+  ListDocumentsQuerySchema,
+) {}
+export class ListDocumentsResponseDto extends createZodDto(
+  ListDocumentsResponseSchema,
+) {}
+export class DocumentDownloadUrlResponseDto extends createZodDto(
+  DocumentDownloadUrlResponseSchema,
 ) {}
 export class ListOcrTemplatesQueryDto extends createZodDto(
   ListOcrTemplatesQuerySchema,

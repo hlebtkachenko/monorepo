@@ -56,6 +56,9 @@ export const posting = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: approved gated write this posting landed from (NULL = human).
+    // BARE uuid, NO FK — org-only table; FK to workspace inbox_item bypasses RLS.
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
     unique("posting_id_org_unique").on(t.id, t.organization_id),

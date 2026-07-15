@@ -90,6 +90,15 @@ export type Decimal = string
 export interface OrgCtx {
   organizationId: string
   workspaceId: string
+  /**
+   * Provenance stamp threaded onto every row this operation INSERTs (the
+   * `inbox_id` column). Set only on the approve replay of a gated write, from the
+   * `inbox_item` minted for that landed proposal — so any agent-originated row is
+   * filterable ("Created by Agent") via `inbox_id IS NOT NULL`. Absent (undefined)
+   * for a human-driven write ⇒ every insert stamps NULL. Append-only tables ⇒
+   * stamped at INSERT, never backfilled.
+   */
+  inboxId?: string | null
 }
 
 /** A statutory calendar month or quarter, inclusive at both ends. */

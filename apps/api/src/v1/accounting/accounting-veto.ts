@@ -39,6 +39,25 @@ export interface VetoResult {
 
 const NO_VETO: VetoResult = { held: false, signals: [] }
 
+/**
+ * Tier-3 register-card veto — an UNCONDITIONAL hold for the master-data creators
+ * (`createAsset` / `createDepreciationPlan` / `createInventoryCount`). These write
+ * org-level master data (an asset card / odpisový plán / inventurní soupis) that
+ * SEEDS every future depreciation or inventory posting for years, yet carries no
+ * VAT/posting arithmetic the payload vetoes can screen and no amount large enough
+ * to reliably trip the always-hold ceiling (an inventory count has no amount at
+ * all). Resting their always-hold posture on the cold-start score floor alone
+ * would make them silently auto-applyable the moment the calibration map is
+ * fitted post-launch. This veto makes the "a human always reviews agent-authored
+ * master data" decision EXPLICIT and durable: it only fires when the write would
+ * otherwise auto-apply (the gate computes the veto for auto-apply candidates
+ * only), so it costs nothing pre-launch and closes the post-launch auto-apply
+ * path deliberately rather than by accident.
+ */
+export function deriveRegisterCardVeto(): VetoResult {
+  return { held: true, signals: ["master_data_always_review"] }
+}
+
 /** Absolute value of a bigint (a storno/negative amount still counts toward the DHM threshold). */
 const abs = (v: bigint): bigint => (v < 0n ? -v : v)
 

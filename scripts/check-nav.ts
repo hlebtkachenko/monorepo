@@ -122,8 +122,9 @@ const tiers: Tier[] = [
     // demo-inbox: saved dev-only demo (pre-stub Inbox mock UI), kept for
     // reference. organizations/new: the "add organization" create wizard —
     // reached from a button (companies view), an action route with no
-    // sidebar-nav slot.
-    hidden: new Set(["demo-inbox", "organizations/new"]),
+    // sidebar-nav slot. debug-documents: dev-only S3 document store harness,
+    // no nav slot (reached by URL).
+    hidden: new Set(["demo-inbox", "organizations/new", "debug-documents"]),
   },
 ]
 

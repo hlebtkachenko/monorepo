@@ -84,14 +84,39 @@ export interface HeldWritePostingLineRow {
   amount: string
 }
 
+/** The `openObligation` directive on a held `createAccountingPosting`, shaped for the review. */
+interface HeldWriteObligation {
+  saldoAccountNumber: string
+  direction: "RECEIVABLE" | "PAYABLE"
+  issueDate: string | null
+  dueDate: string | null
+  variableSymbol: string | null
+}
+
 export interface HeldWriteHeader {
   counterpartyName: string | null
+  /**
+   * The EXTRACTED counterparty IČO / DIČ carried on a held `createAccountingEvent` payload
+   * (`input_json.counterparty.{ico,dic}`). The server find-or-creates the counterparty by IČO → DIČ →
+   * name PRECEDENCE, so the IČO is the field that BINDS the partner — it must be visible to the reviewer,
+   * not just the name (a mis-OCR'd-but-valid IČO with a right-looking name would otherwise bind the wrong
+   * real partner undetectably). Null for capture/posting writes (their identity lives on the event).
+   */
+  counterpartyIco: string | null
+  counterpartyDic: string | null
   /** Označení of the účetní případ this write books (`UC2025…`) — null when no event resolves. */
   caseDesignation: string | null
   /** účetní případ description — the supplier/context text, shown when no counterparty row is linked. */
   caseDescription: string | null
   /** Designation (Označení) of the doklad — a posting's linked `sr.designation` (`FP2025…`); null pre-allocation for tools that mint it only on apply. */
   documentNumber: string | null
+  /**
+   * The saldokonto obligation a `createAccountingPosting` will ALSO open (the `openObligation` directive),
+   * or null. Surfaced so the reviewer sees that approving this posting opens a tracked pohledávka/závazek —
+   * against which účet, in which direction, with what splatnost/VS — not just the MD/D lines (two postings
+   * with identical lines, one that merely posts and one that also opens an obligation, must NOT look alike).
+   */
+  obligation: HeldWriteObligation | null
   /** ISO date/datetime as carried by the payload (occurredAt / issuedAt / postingDate). */
   date: string | null
   /** Decimal-string total (base + VAT, or the double-entry debit total); null when the tool has no derivable amount. */
@@ -261,6 +286,8 @@ const SIGNAL_LABELS: Record<string, string> = {
   reserve_or_impairment: "rezerva nebo opravná položka vyžaduje posouzení",
   dph_tax_point_timing: "nejistota v okamžiku vzniku daňové povinnosti (DUZP)",
   prior_without_source: "dřívější zápis bez podkladového dokladu",
+  counterparty_register_mismatch:
+    "název protistrany neodpovídá rejstříku ARES (ověřte IČO)",
 }
 
 function signalLabel(signal: string): string {
@@ -664,14 +691,43 @@ function headerFromEvent(
   input: Record<string, unknown>,
   counterpartyName: string | null,
 ): HeldWriteHeader {
+  // The extracted identity the server will find-or-create the counterparty from. Surface the IČO/DIČ (the
+  // dedup keys) so a reviewer verifies the field that BINDS the partner, not just the name.
+  const cp = isRecord(input["counterparty"]) ? input["counterparty"] : {}
   return {
     counterpartyName,
+    counterpartyIco: asString(cp["ico"]),
+    counterpartyDic: asString(cp["dic"]),
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: null,
     date: asString(input["occurredAt"]),
     totalAmount: null,
     currency: null,
+  }
+}
+
+/** Read the `openObligation` directive off a held `createAccountingPosting` payload, or null. */
+function obligationFromPosting(
+  input: Record<string, unknown>,
+): HeldWriteObligation | null {
+  const o = input["openObligation"]
+  if (!isRecord(o)) return null
+  const saldoAccountNumber = asString(o["saldoAccountNumber"])
+  const direction = o["direction"]
+  if (
+    !saldoAccountNumber ||
+    (direction !== "RECEIVABLE" && direction !== "PAYABLE")
+  ) {
+    return null
+  }
+  return {
+    saldoAccountNumber,
+    direction,
+    issueDate: asString(o["issueDate"]),
+    dueDate: asString(o["dueDate"]),
+    variableSymbol: asString(o["variableSymbol"]),
   }
 }
 
@@ -687,9 +743,12 @@ function headerFromCapture(
     .find((c): c is string => c !== null)
   return {
     counterpartyName,
+    counterpartyIco: null,
+    counterpartyDic: null,
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: null,
     date: asString(input["issuedAt"]),
     totalAmount: partials.length > 0 ? toDecimal(totalBase + totalVat) : null,
     currency: currency ?? "CZK",
@@ -712,9 +771,12 @@ function headerFromPosting(
   )
   return {
     counterpartyName,
+    counterpartyIco: null,
+    counterpartyDic: null,
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: obligationFromPosting(input),
     date: asString(entry["postingDate"]),
     totalAmount: lines.length > 0 ? toDecimal(total) : null,
     // Postings settle in the accounting currency (CZK) — no currencyCode on the payload.

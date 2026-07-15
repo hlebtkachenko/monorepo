@@ -88,6 +88,17 @@ describe("evaluateEvidence — cap signals honored fail-safe [G2-Opus]", () => {
     const inputs = buildScoreInputs({ capSignals: ["not_a_real_signal"] })
     expect(inputs.firedSignals).not.toContain("not_a_real_signal")
   })
+
+  it("recognizes the Tier-1.5 counterparty_register_mismatch cap (the CLI's ARES cross-check)", () => {
+    const inputs = buildScoreInputs({
+      capSignals: ["counterparty_register_mismatch"],
+    })
+    expect(inputs.firedSignals).toContain("counterparty_register_mismatch")
+    expect(
+      evaluateEvidence({ capSignals: ["counterparty_register_mismatch"] })
+        .isGreen,
+    ).toBe(false)
+  })
 })
 
 describe("evaluateEvidence — post-fit guard [WP-A-gate]", () => {

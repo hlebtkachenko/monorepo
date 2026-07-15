@@ -1358,6 +1358,7 @@ CREATE FUNCTION public.app_tool_call_log_limited_update() RETURNS trigger
     AS $$
 BEGIN
   IF (OLD.organization_id    <> NEW.organization_id
+      OR OLD.period_id       IS DISTINCT FROM NEW.period_id
       OR OLD.tool_name       <> NEW.tool_name
       OR OLD.idempotency_key <> NEW.idempotency_key
       OR OLD.actor_kind      <> NEW.actor_kind
@@ -1550,7 +1551,8 @@ CREATE TABLE public.accounting_event (
     responsible_user_id uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    occurred_on date NOT NULL
+    occurred_on date NOT NULL,
+    inbox_id uuid
 );
 
 ALTER TABLE ONLY public.accounting_event FORCE ROW LEVEL SECURITY;
@@ -1665,8 +1667,25 @@ CREATE TABLE public.app_user (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     experience public.app_user_experience,
+    title_prefix text,
+    given_name text,
+    family_name text,
+    title_suffix text,
+    department text,
+    theme character varying(10) DEFAULT 'system'::character varying NOT NULL,
+    icon_style character varying(20) DEFAULT 'lucide'::character varying NOT NULL,
+    date_format character varying(20) DEFAULT 'DD/MM/YYYY'::character varying NOT NULL,
+    time_format character varying(10) DEFAULT '24-hour'::character varying NOT NULL,
+    marketing_consent boolean DEFAULT false NOT NULL,
+    product_updates_consent boolean DEFAULT false NOT NULL,
+    signature_data text,
+    deleted_at timestamp with time zone,
+    CONSTRAINT app_user_date_format_valid CHECK (((date_format)::text = ANY ((ARRAY['DD/MM/YYYY'::character varying, 'MM/DD/YYYY'::character varying, 'YYYY-MM-DD'::character varying])::text[]))),
+    CONSTRAINT app_user_icon_style_valid CHECK (((icon_style)::text = ANY ((ARRAY['lucide'::character varying, 'phosphor'::character varying, 'fontawesome'::character varying])::text[]))),
     CONSTRAINT app_user_phone_format CHECK (((phone IS NULL) OR (phone ~ '^\+[1-9][0-9]{7,14}$'::text))),
-    CONSTRAINT app_user_system_role_valid CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
+    CONSTRAINT app_user_system_role_valid CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text]))),
+    CONSTRAINT app_user_theme_valid CHECK (((theme)::text = ANY ((ARRAY['system'::character varying, 'light'::character varying, 'dark'::character varying])::text[]))),
+    CONSTRAINT app_user_time_format_valid CHECK (((time_format)::text = ANY ((ARRAY['24-hour'::character varying, '12-hour'::character varying])::text[])))
 );
 
 --
@@ -2047,6 +2066,49 @@ CREATE TABLE public.impersonation (
 ALTER TABLE ONLY public.impersonation FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: inbox_attachment; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inbox_attachment (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    storage_key text NOT NULL,
+    sha256 text NOT NULL,
+    content_type text NOT NULL,
+    size bigint NOT NULL,
+    filename text NOT NULL,
+    confirmed_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT inbox_attachment_sha256_hex CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text)),
+    CONSTRAINT inbox_attachment_size_positive CHECK ((size > 0))
+);
+
+ALTER TABLE ONLY public.inbox_attachment FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: inbox_item; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.inbox_item (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    tool_call_log_id uuid NOT NULL,
+    inbox_attachment_id uuid,
+    kind text NOT NULL,
+    source text,
+    counterparty_name text,
+    reasoning text,
+    created_by text NOT NULL,
+    status text DEFAULT 'APPLIED'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT inbox_item_status_valid CHECK ((status = ANY (ARRAY['APPLIED'::text, 'SUPERSEDED'::text, 'REVERSED'::text, 'CORRECTED'::text])))
+);
+
+ALTER TABLE ONLY public.inbox_item FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: individual_record; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2057,7 +2119,8 @@ CREATE TABLE public.individual_record (
     accounting_event_id uuid NOT NULL,
     description text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    inbox_id uuid
 );
 
 ALTER TABLE ONLY public.individual_record FORCE ROW LEVEL SECURITY;
@@ -2202,6 +2265,7 @@ CREATE TABLE public.open_item (
     is_settled boolean GENERATED ALWAYS AS ((settled_amount >= original_amount)) STORED,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    inbox_id uuid,
     CONSTRAINT open_item_account_shape_chk CHECK ((account_number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$'::text)),
     CONSTRAINT open_item_amount_chk CHECK (((original_amount > (0)::numeric) AND (settled_amount >= (0)::numeric)))
 );
@@ -2444,6 +2508,7 @@ CREATE TABLE public.partial_record (
     vat_jurisdiction text,
     supply_kind text,
     commodity_code text,
+    inbox_id uuid,
     CONSTRAINT partial_record_commodity_code_chk CHECK (((commodity_code IS NULL) OR (commodity_code = ANY (ARRAY['1'::text, '3'::text, '4'::text, '5'::text])))),
     CONSTRAINT partial_record_commodity_code_rc_chk CHECK (((commodity_code IS NULL) OR ((vat_mode = 'REVERSE_CHARGE'::public.vat_mode) AND (vat_jurisdiction IS DISTINCT FROM 'EU'::text) AND (vat_jurisdiction IS DISTINCT FROM 'SECTION_108'::text)))),
     CONSTRAINT partial_record_fx_pair_chk CHECK (((fx_rate IS NULL) = (fx_rate_kind IS NULL))),
@@ -2548,6 +2613,7 @@ CREATE TABLE public.posting (
     correction_type public.correction_type,
     is_opening boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    inbox_id uuid,
     CONSTRAINT posting_correction_pair_chk CHECK (((corrects_posting_id IS NULL) = (correction_type IS NULL)))
 );
 
@@ -2568,6 +2634,7 @@ CREATE TABLE public.posting_double_entry_line (
     side public.debit_credit NOT NULL,
     amount numeric(19,4) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    inbox_id uuid,
     CONSTRAINT posting_de_line_regime_chk CHECK ((regime_code = 'DOUBLE_ENTRY'::text))
 );
 
@@ -2591,6 +2658,7 @@ CREATE TABLE public.posting_monetary_line (
     tax_base numeric(19,4),
     amount numeric(19,4) NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    inbox_id uuid,
     CONSTRAINT posting_monetary_line_clearing_chk CHECK (((is_clearing = false) OR (COALESCE(tax_base, (0)::numeric) = (0)::numeric))),
     CONSTRAINT posting_monetary_line_regime_chk CHECK ((regime_code = ANY (ARRAY['SINGLE_ENTRY'::text, 'TAX_RECORDS'::text])))
 );
@@ -2663,7 +2731,8 @@ CREATE TABLE public.summary_record (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     tax_point_date date,
-    received_date date
+    received_date date,
+    inbox_id uuid
 );
 
 ALTER TABLE ONLY public.summary_record FORCE ROW LEVEL SECURITY;
@@ -2707,7 +2776,8 @@ CREATE TABLE public.tool_call_log (
     rationale text,
     auto_applied boolean DEFAULT false NOT NULL,
     approved_by_user_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    period_id uuid
 );
 
 ALTER TABLE ONLY public.tool_call_log FORCE ROW LEVEL SECURITY;
@@ -3210,6 +3280,48 @@ ALTER TABLE ONLY public.feature_flag
 
 ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_pkey PRIMARY KEY (id);
+
+--
+-- Name: inbox_attachment inbox_attachment_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: inbox_attachment inbox_attachment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_pkey PRIMARY KEY (id);
+
+--
+-- Name: inbox_attachment inbox_attachment_workspace_sha256_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_workspace_sha256_unique UNIQUE (workspace_id, sha256);
+
+--
+-- Name: inbox_item inbox_item_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_item
+    ADD CONSTRAINT inbox_item_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: inbox_item inbox_item_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_item
+    ADD CONSTRAINT inbox_item_pkey PRIMARY KEY (id);
+
+--
+-- Name: inbox_item inbox_item_workspace_tool_call_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_item
+    ADD CONSTRAINT inbox_item_workspace_tool_call_unique UNIQUE (workspace_id, tool_call_log_id);
 
 --
 -- Name: individual_record individual_record_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -3922,6 +4034,12 @@ CREATE INDEX impersonation_target_started_idx ON public.impersonation USING btre
 CREATE INDEX impersonation_workspace_started_idx ON public.impersonation USING btree (workspace_id, started_at DESC);
 
 --
+-- Name: inbox_item_workspace_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX inbox_item_workspace_created_idx ON public.inbox_item USING btree (workspace_id, created_at DESC);
+
+--
 -- Name: individual_record_doc_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -4226,6 +4344,12 @@ CREATE INDEX tool_call_log_organization_actor_idx ON public.tool_call_log USING 
 --
 
 CREATE INDEX tool_call_log_organization_created_idx ON public.tool_call_log USING btree (organization_id, created_at);
+
+--
+-- Name: tool_call_log_organization_period_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tool_call_log_organization_period_pending_idx ON public.tool_call_log USING btree (organization_id, period_id, created_at) WHERE ((auto_applied = false) AND (approved_by_user_id IS NULL));
 
 --
 -- Name: tool_call_log_tool_name_trgm_idx; Type: INDEX; Schema: public; Owner: -
@@ -4675,6 +4799,13 @@ ALTER TABLE ONLY public.accounting_event
     ADD CONSTRAINT accounting_event_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
 
 --
+-- Name: accounting_event accounting_event_inbox_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_event
+    ADD CONSTRAINT accounting_event_inbox_fk FOREIGN KEY (inbox_id, workspace_id) REFERENCES public.inbox_item(id, workspace_id);
+
+--
 -- Name: accounting_event accounting_event_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5011,6 +5142,27 @@ ALTER TABLE ONLY public.impersonation
     ADD CONSTRAINT impersonation_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
+-- Name: inbox_attachment inbox_attachment_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_attachment
+    ADD CONSTRAINT inbox_attachment_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: inbox_item inbox_item_attachment_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_item
+    ADD CONSTRAINT inbox_item_attachment_fk FOREIGN KEY (inbox_attachment_id, workspace_id) REFERENCES public.inbox_attachment(id, workspace_id);
+
+--
+-- Name: inbox_item inbox_item_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.inbox_item
+    ADD CONSTRAINT inbox_item_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
 -- Name: individual_record individual_record_doc_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5121,6 +5273,13 @@ ALTER TABLE ONLY public.open_item
 
 ALTER TABLE ONLY public.open_item
     ADD CONSTRAINT open_item_currency_code_fkey FOREIGN KEY (currency_code) REFERENCES public.currency(code);
+
+--
+-- Name: open_item open_item_inbox_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.open_item
+    ADD CONSTRAINT open_item_inbox_fk FOREIGN KEY (inbox_id, workspace_id) REFERENCES public.inbox_item(id, workspace_id);
 
 --
 -- Name: open_item open_item_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -5452,6 +5611,13 @@ ALTER TABLE ONLY public.signature
     ADD CONSTRAINT signature_signer_id_fkey FOREIGN KEY (signer_id) REFERENCES public.app_user(id);
 
 --
+-- Name: summary_record summary_record_inbox_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.summary_record
+    ADD CONSTRAINT summary_record_inbox_fk FOREIGN KEY (inbox_id, workspace_id) REFERENCES public.inbox_item(id, workspace_id);
+
+--
 -- Name: summary_record summary_record_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5499,6 +5665,13 @@ ALTER TABLE ONLY public.tax_depreciation
 
 ALTER TABLE ONLY public.tool_call_log
     ADD CONSTRAINT tool_call_log_approved_by_user_id_fkey FOREIGN KEY (approved_by_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: tool_call_log tool_call_log_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tool_call_log
+    ADD CONSTRAINT tool_call_log_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
 -- Name: tool_call_log tool_call_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -5803,6 +5976,66 @@ CREATE POLICY impersonation_target_self_read ON public.impersonation FOR SELECT 
 --
 
 CREATE POLICY impersonation_ws_admin_read ON public.impersonation FOR SELECT TO app_user USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND public.app_is_workspace_admin(workspace_id, (NULLIF(current_setting('app.user_id'::text, true), ''::text))::uuid)));
+
+--
+-- Name: inbox_attachment; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.inbox_attachment ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: inbox_attachment inbox_attachment_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_delete ON public.inbox_attachment FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_insert ON public.inbox_attachment FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_select ON public.inbox_attachment FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_attachment inbox_attachment_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_attachment_update ON public.inbox_attachment FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_item; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.inbox_item ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: inbox_item inbox_item_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_item_delete ON public.inbox_item FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_item inbox_item_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_item_insert ON public.inbox_item FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_item inbox_item_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_item_select ON public.inbox_item FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: inbox_item inbox_item_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY inbox_item_update ON public.inbox_item FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record; Type: ROW SECURITY; Schema: public; Owner: -

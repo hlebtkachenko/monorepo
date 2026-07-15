@@ -25,33 +25,29 @@ import { resolveAccountIds } from "./accounts"
 import { captureDocument, createEvent } from "./capture"
 import { createChart, createPeriod } from "./setup"
 import { postDoubleEntry } from "./posting/double-entry"
+import { generateOutput } from "./output/index"
+import {
+  assessPeriodCloseReadinessWithContext,
+  PeriodCloseBlockedError,
+} from "./close-readiness"
 import type { DoubleEntryLineInput, FxRateKind, OrgCtx, Regime } from "./types"
 
-/** Close a period (§17). After this, R12's trigger rejects new postings into it. */
-export async function closePeriod(
+/** Mark a fully checked period closed. The guarded roll-forward is the only caller. */
+async function markPeriodClosed(
   db: RowExecutor,
   periodId: string,
 ): Promise<void> {
-  // Serialize the close against a concurrent post to the SAME (org, period):
-  // take the per-(org, period) advisory lock on this tx BEFORE the close UPDATE,
-  // keyed identically to the write path (`lockPeriodInTx`, ADR-0028), so a
-  // roll-forward close cannot race an in-flight post. The closed-period guard is
-  // a BEFORE-INSERT trigger only — it cannot stop a close racing an already
-  // in-flight post. `db` is the withOrganization-bound tx (RowExecutor), so the
-  // xact-scoped lock holds until commit. Org is derived from the period row
-  // (RLS-scoped: the caller's tx sees only its own org).
-  const owner = await rows<{ organization_id: string }>(
+  const updated = await rows<{ id: string }>(
     db,
-    sql`SELECT organization_id::text AS organization_id
-          FROM accounting_period WHERE id = ${periodId}::uuid`,
+    sql`UPDATE accounting_period
+           SET status = 'CLOSED', updated_at = now()
+         WHERE id = ${periodId}::uuid
+           AND status = 'OPEN'
+        RETURNING id`,
   )
-  const orgId = owner[0]?.organization_id
-  if (orgId) {
-    await lockPeriodInTx(db, orgId, periodId)
+  if (!updated[0]) {
+    throw new Error("accounting: period could not be marked closed")
   }
-  await db.execute(
-    sql`UPDATE accounting_period SET status = 'CLOSED', updated_at = now() WHERE id = ${periodId}::uuid`,
-  )
 }
 
 export interface CloseResultInput {
@@ -71,8 +67,8 @@ export interface CloseResultInput {
  * výnosy) to 710, then transfer 710's net (výsledek hospodaření) to 431. This is
  * the step that makes the rozvaha foot: without it the prior-year result sits on
  * P&L accounts that never carry forward, so the next period's opening balance
- * sheet would be short by exactly the result. Run this BEFORE closePeriod +
- * openNextPeriod, in the (still OPEN) closing period.
+ * sheet would be short by exactly the result. The guarded roll-forward runs this
+ * while the prior period is still OPEN.
  *
  * One compound posting: each revenue → MD account / D 710, each expense → MD 710
  * / D account, then MD 710 / D 431 (profit) or MD 431 / D 710 (loss). Balanced by
@@ -358,15 +354,7 @@ export async function openNextPeriod(
 
 export interface RollForwardInput {
   priorPeriodId: string
-  periodStart: string
-  periodEnd: string
-  /** number_series (EVENT) for the internal closing/opening case. */
-  eventSeriesId: string
-  /** number_series (DOCUMENT) for the internal closing/opening doklad. */
-  documentSeriesId: string
   responsibleUserId: string
-  /** Závěrka date; defaults to the prior period_end. */
-  closingDate?: string
 }
 
 export interface RollForwardResult {
@@ -374,6 +362,21 @@ export interface RollForwardResult {
   newChartId: string | null
   openingPostingId: string | null
   closeResultPostingId: string | null
+  periodOutputId: string
+}
+
+/** Next period starts the day after the prior end and keeps the same fiscal-year cadence. */
+function nextPeriodBounds(priorEnd: string): {
+  periodStart: string
+  periodEnd: string
+} {
+  const startDate = new Date(`${priorEnd}T00:00:00Z`)
+  startDate.setUTCDate(startDate.getUTCDate() + 1)
+  const periodStart = startDate.toISOString().slice(0, 10)
+  const endDate = new Date(startDate)
+  endDate.setUTCFullYear(endDate.getUTCFullYear() + 1)
+  endDate.setUTCDate(endDate.getUTCDate() - 1)
+  return { periodStart, periodEnd: endDate.toISOString().slice(0, 10) }
 }
 
 /**
@@ -390,27 +393,87 @@ export async function rollForwardPeriod(
   ctx: OrgCtx,
   input: RollForwardInput,
 ): Promise<RollForwardResult> {
-  const prior = await rows<{
-    regime_code: Regime
-    accounting_currency: string
-    fx_rate_policy: FxRateKind | null
-    period_end: string
-  }>(
+  const visible = await rows<{ id: string }>(
     db,
-    sql`SELECT regime_code, accounting_currency, fx_rate_policy, period_end::text AS period_end
-          FROM accounting_period WHERE id = ${input.priorPeriodId}::uuid`,
+    sql`SELECT id
+          FROM accounting_period
+         WHERE id = ${input.priorPeriodId}::uuid
+           AND organization_id = ${ctx.organizationId}::uuid`,
   )
-  const p = prior[0]
-  if (!p)
-    throw new Error(`accounting: prior period ${input.priorPeriodId} not found`)
+  if (!visible[0]) {
+    const missing = await assessPeriodCloseReadinessWithContext(
+      db,
+      ctx,
+      input.priorPeriodId,
+    )
+    throw new PeriodCloseBlockedError(missing.readiness)
+  }
 
-  const closingDate = input.closingDate ?? p.period_end
+  await lockPeriodInTx(db, ctx.organizationId, input.priorPeriodId)
+  const assessment = await assessPeriodCloseReadinessWithContext(
+    db,
+    ctx,
+    input.priorPeriodId,
+  )
+  if (!assessment.readiness.ready) {
+    throw new PeriodCloseBlockedError(assessment.readiness)
+  }
+
+  const p = assessment.period
+  const eventSeriesId = assessment.numberSeries.eventSeriesId
+  const documentSeriesId = assessment.numberSeries.documentSeriesId
+  if (!p || !eventSeriesId || !documentSeriesId) {
+    throw new Error("accounting: ready close assessment is missing context")
+  }
+  const bounds = nextPeriodBounds(p.period_end)
+  const closingDate = p.period_end
+
+  let closeResultPostingId: string | null = null
+  if (p.regime_code === "DOUBLE_ENTRY") {
+    // Double-entry year-end result close (§17, ČÚS 002): 5xx/6xx → 710 → 431.
+    const ev = await createEvent(db, ctx, {
+      periodId: input.priorPeriodId,
+      seriesId: eventSeriesId,
+      description: "Uzávěrkové operace",
+      occurredAt: closingDate,
+      responsibleUserId: input.responsibleUserId,
+    })
+    const doc = await captureDocument(db, ctx, {
+      periodId: input.priorPeriodId,
+      seriesId: documentSeriesId,
+      type: "INTERNAL",
+      issuedAt: closingDate,
+      lines: [],
+    })
+    const closed = await closeResult(db, ctx, {
+      periodId: input.priorPeriodId,
+      summaryRecordId: doc.summaryRecordId,
+      accountingEventId: ev.eventId,
+      postingDate: closingDate,
+      responsibleUserId: input.responsibleUserId,
+    })
+    closeResultPostingId = closed.postingId
+
+    const afterPosting = await assessPeriodCloseReadinessWithContext(
+      db,
+      ctx,
+      input.priorPeriodId,
+    )
+    if (!afterPosting.readiness.ready) {
+      throw new PeriodCloseBlockedError(afterPosting.readiness)
+    }
+  }
+
+  const output = await generateOutput(db, ctx, {
+    periodId: input.priorPeriodId,
+    generatedBy: input.responsibleUserId,
+  })
+  await markPeriodClosed(db, input.priorPeriodId)
 
   if (p.regime_code !== "DOUBLE_ENTRY") {
-    await closePeriod(db, input.priorPeriodId)
     const newPeriodId = await createPeriod(db, ctx, {
-      periodStart: input.periodStart,
-      periodEnd: input.periodEnd,
+      periodStart: bounds.periodStart,
+      periodEnd: bounds.periodEnd,
       regimeCode: p.regime_code,
       accountingCurrency: p.accounting_currency,
       fxRatePolicy: p.fx_rate_policy,
@@ -419,41 +482,17 @@ export async function rollForwardPeriod(
       newPeriodId,
       newChartId: null,
       openingPostingId: null,
-      closeResultPostingId: null,
+      closeResultPostingId,
+      periodOutputId: output.periodOutputId,
     }
   }
 
-  // Double-entry year-end result close (§17, ČÚS 002): 5xx/6xx → 710 → 431.
-  const ev = await createEvent(db, ctx, {
-    periodId: input.priorPeriodId,
-    seriesId: input.eventSeriesId,
-    description: "Uzávěrkové operace",
-    occurredAt: closingDate,
-    responsibleUserId: input.responsibleUserId,
-  })
-  const doc = await captureDocument(db, ctx, {
-    periodId: input.priorPeriodId,
-    seriesId: input.documentSeriesId,
-    type: "INTERNAL",
-    issuedAt: closingDate,
-    lines: [],
-  })
-  const closed = await closeResult(db, ctx, {
-    periodId: input.priorPeriodId,
-    summaryRecordId: doc.summaryRecordId,
-    accountingEventId: ev.eventId,
-    postingDate: closingDate,
-    responsibleUserId: input.responsibleUserId,
-  })
-
-  await closePeriod(db, input.priorPeriodId)
-
   const opened = await openNextPeriod(db, ctx, {
     priorPeriodId: input.priorPeriodId,
-    periodStart: input.periodStart,
-    periodEnd: input.periodEnd,
-    eventSeriesId: input.eventSeriesId,
-    documentSeriesId: input.documentSeriesId,
+    periodStart: bounds.periodStart,
+    periodEnd: bounds.periodEnd,
+    eventSeriesId,
+    documentSeriesId,
     responsibleUserId: input.responsibleUserId,
   })
 
@@ -461,6 +500,7 @@ export async function rollForwardPeriod(
     newPeriodId: opened.newPeriodId,
     newChartId: opened.newChartId,
     openingPostingId: opened.openingPostingId,
-    closeResultPostingId: closed.postingId,
+    closeResultPostingId,
+    periodOutputId: output.periodOutputId,
   }
 }

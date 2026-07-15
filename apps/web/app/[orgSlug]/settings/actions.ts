@@ -10,6 +10,7 @@ import {
   changeTaxProfile,
   changeVatStatus,
   closeOssRegistration,
+  loadPeriodCloseReadiness,
   removeAuthorizedPerson,
   rollForwardOrgPeriod,
   saveTaxRepresentative,
@@ -19,12 +20,34 @@ import {
 } from "./_lib/settings-data"
 import { authorizeOrgAdmin } from "../_lib/org-authz"
 import { dataBoxError, type OrgSettingsUpdate } from "./_lib/org-update"
-import type { VatFilingPeriod, VatRegime } from "@workspace/accounting"
+import {
+  PeriodCloseBlockedError,
+  type PeriodCloseReadiness,
+  type VatFilingPeriod,
+  type VatRegime,
+} from "@workspace/accounting"
 
 export interface SettingsResult {
   ok: boolean
   errorKey?: string
 }
+
+export type CloseReadinessResult =
+  | { ok: true; readiness: PeriodCloseReadiness }
+  | { ok: false; errorKey: "forbidden" | "readinessFailed" }
+
+export type RollForwardResult =
+  | { ok: true }
+  | {
+      ok: false
+      errorKey:
+        | "forbidden"
+        | "periodNotFound"
+        | "periodClosed"
+        | "closeBlocked"
+        | "rollForwardFailed"
+      readiness?: PeriodCloseReadiness
+    }
 
 const PayrollProfileSchema = z
   .object({
@@ -102,15 +125,48 @@ export async function removeAuthorizedPersonAction(
   return { ok: true }
 }
 
+export async function loadPeriodCloseReadinessAction(
+  slug: string,
+  periodId: string,
+): Promise<CloseReadinessResult> {
+  const auth = await authorizeOrgAdmin(slug)
+  if (!auth) return { ok: false, errorKey: "forbidden" }
+  try {
+    const readiness = await loadPeriodCloseReadiness(
+      auth.ctx,
+      auth.userId,
+      periodId,
+    )
+    return { ok: true, readiness }
+  } catch {
+    return { ok: false, errorKey: "readinessFailed" }
+  }
+}
+
 export async function rollForwardAction(
   slug: string,
   periodId: string,
-): Promise<SettingsResult> {
+): Promise<RollForwardResult> {
   const auth = await authorizeOrgAdmin(slug)
   if (!auth) return { ok: false, errorKey: "forbidden" }
   try {
     await rollForwardOrgPeriod(auth.ctx, auth.userId, periodId)
-  } catch {
+  } catch (error) {
+    if (error instanceof PeriodCloseBlockedError) {
+      const exists = error.readiness.checks.find(
+        (check) => check.code === "PERIOD_EXISTS",
+      )
+      const open = error.readiness.checks.find(
+        (check) => check.code === "PERIOD_OPEN",
+      )
+      const errorKey =
+        exists?.status !== "PASS"
+          ? "periodNotFound"
+          : open?.status !== "PASS"
+            ? "periodClosed"
+            : "closeBlocked"
+      return { ok: false, errorKey, readiness: error.readiness }
+    }
     return { ok: false, errorKey: "rollForwardFailed" }
   }
   revalidatePath(`/${slug}/settings/periods`)

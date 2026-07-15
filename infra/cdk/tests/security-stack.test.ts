@@ -351,3 +351,150 @@ describe("SecurityStack account-wide guard (production env only)", () => {
     test.resourceCountIs("AWS::Budgets::Budget", 2)
   })
 })
+
+describe("SecurityStack document reaper (ADR-0031)", () => {
+  const { security } = buildTestApp()
+  const template = Template.fromStack(security)
+
+  type Statement = {
+    Effect?: string
+    Action?: string | string[]
+    Resource?: unknown
+  }
+  const actionsOf = (stmt: Statement): string[] => {
+    const a = stmt.Action
+    return Array.isArray(a) ? a : a ? [a] : []
+  }
+
+  // The reaper's execution role gets its own AWS::IAM::Policy whose statements
+  // reference the (cross-stack) documents bucket. Isolate that policy so we can
+  // assert both what it grants AND — critically — what it must NOT.
+  const policies = Object.values(
+    template.findResources("AWS::IAM::Policy"),
+  ) as Array<{
+    Properties?: { PolicyDocument?: { Statement?: Statement[] } }
+  }>
+  const reaperPolicies = policies.filter((p) =>
+    (p.Properties?.PolicyDocument?.Statement ?? []).some((s) =>
+      JSON.stringify(s.Resource ?? "").includes("DocumentsBucket"),
+    ),
+  )
+  const reaperActions = new Set<string>()
+  for (const p of reaperPolicies) {
+    for (const s of p.Properties?.PolicyDocument?.Statement ?? []) {
+      if (s.Effect && s.Effect !== "Allow") continue
+      for (const a of actionsOf(s)) reaperActions.add(a)
+    }
+  }
+
+  it("creates the reaper Lambda (nodejs22.x, index.handler, DOCUMENTS_BUCKET env)", () => {
+    template.hasResourceProperties("AWS::Lambda::Function", {
+      FunctionName: "monorepo-test-document-reaper",
+      Runtime: "nodejs22.x",
+      Handler: "index.handler",
+      Environment: {
+        Variables: Match.objectLike({
+          DOCUMENTS_BUCKET: Match.anyValue(),
+        }),
+      },
+    })
+  })
+
+  it("schedules the reaper HOURLY (cron at minute 0)", () => {
+    template.hasResourceProperties("AWS::Events::Rule", {
+      Name: "monorepo-test-document-reaper",
+      ScheduleExpression: "cron(0 * * * ? *)",
+    })
+  })
+
+  it("alarms when the reaper stops running (Invocations < 1, missing data breaches)", () => {
+    template.hasResourceProperties("AWS::CloudWatch::Alarm", {
+      AlarmName: "monorepo-test-document-reaper-not-running",
+      MetricName: "Invocations",
+      Namespace: "AWS/Lambda",
+      ComparisonOperator: "LessThanThreshold",
+      Threshold: 1,
+      // Missing metrics (a disabled/broken schedule) MUST breach — the Errors
+      // alarm (NOT_BREACHING) cannot catch absence of runs.
+      TreatMissingData: "breaching",
+    })
+  })
+
+  it("reaper role holds s3:DeleteObjectVersion + s3:DeleteObject on the documents bucket", () => {
+    expect(reaperPolicies.length).toBeGreaterThan(0)
+    expect(reaperActions.has("s3:DeleteObjectVersion")).toBe(true)
+    expect(reaperActions.has("s3:DeleteObject")).toBe(true)
+  })
+
+  it("every reaper Delete statement is scoped to the documents bucket, never a wildcard", () => {
+    // Lock the Resource, not just the action set: the reaper is the only
+    // delete principal in the account, so a future widen of a Delete statement
+    // to Resource "*" (all buckets) must fail CI, not pass silently.
+    const deleteStatements: Statement[] = []
+    for (const p of reaperPolicies) {
+      for (const s of p.Properties?.PolicyDocument?.Statement ?? []) {
+        if (s.Effect && s.Effect !== "Allow") continue
+        if (actionsOf(s).some((a) => /^s3:DeleteObject/i.test(a))) {
+          deleteStatements.push(s)
+        }
+      }
+    }
+    expect(deleteStatements.length).toBeGreaterThan(0)
+    for (const s of deleteStatements) {
+      const resource = JSON.stringify(s.Resource ?? "")
+      // Scoped to the documents bucket object ARN (…/*), and NOT a bare
+      // wildcard. The object ARN stringifies as `…"/*"`, which does not
+      // contain the standalone `"*"` token a wildcard Resource would.
+      expect(resource).toContain("DocumentsBucket")
+      expect(s.Resource).not.toBe("*")
+      expect(resource).not.toContain('"*"')
+    }
+  })
+
+  it("reaper role can enumerate + read tags for pinned versions", () => {
+    expect(reaperActions.has("s3:ListBucket")).toBe(true)
+    expect(reaperActions.has("s3:ListBucketVersions")).toBe(true)
+    expect(reaperActions.has("s3:GetObjectTagging")).toBe(true)
+    expect(reaperActions.has("s3:GetObjectVersionTagging")).toBe(true)
+  })
+
+  it("reaper role has NO PutObject / PutObjectTagging (it never writes)", () => {
+    const puts = [...reaperActions].filter((a) => /^s3:Put/i.test(a))
+    expect(
+      puts,
+      `unexpected Put actions on reaper role: ${puts.join(", ")}`,
+    ).toEqual([])
+  })
+
+  it("reaper role has NO kms:* (deleting an SSE-KMS object never decrypts it)", () => {
+    const kms = [...reaperActions].filter((a) => /^kms:/i.test(a))
+    expect(
+      kms,
+      `unexpected kms actions on reaper role: ${kms.join(", ")}`,
+    ).toEqual([])
+  })
+
+  it("the reaper is the delete holder while the shared app task role is NOT (cross-stack invariant)", () => {
+    // Within SecurityStack the reaper holds Delete on the documents bucket.
+    expect(reaperActions.has("s3:DeleteObjectVersion")).toBe(true)
+    // And the App stack's shared task role holds NO Delete on that bucket —
+    // proving the reaper is the SOLE runtime delete principal (ADR-0031).
+    const appTemplate = Template.fromStack(buildTestApp().appStack)
+    const appDocDeletes = new Set<string>()
+    for (const p of Object.values(
+      appTemplate.findResources("AWS::IAM::Policy"),
+    ) as Array<{
+      Properties?: { PolicyDocument?: { Statement?: Statement[] } }
+    }>) {
+      for (const s of p.Properties?.PolicyDocument?.Statement ?? []) {
+        if (s.Effect && s.Effect !== "Allow") continue
+        if (!JSON.stringify(s.Resource ?? "").includes("DocumentsBucket"))
+          continue
+        for (const a of actionsOf(s)) {
+          if (/^s3:DeleteObject/i.test(a)) appDocDeletes.add(a)
+        }
+      }
+    }
+    expect([...appDocDeletes]).toEqual([])
+  })
+})

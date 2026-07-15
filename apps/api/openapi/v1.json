@@ -5853,6 +5853,61 @@
               }
             ]
           },
+          "openObligation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "saldoAccountNumber": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 6,
+                "description": "saldokonto účet BY NUMBER (311/321/…).",
+                "example": "321"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "RECEIVABLE",
+                  "PAYABLE"
+                ],
+                "description": "pohledávka (RECEIVABLE, 311) / závazek (PAYABLE, 321).",
+                "example": "PAYABLE"
+              },
+              "issueDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "Obligation issue date; defaults to the posting date.",
+                "example": "2026-03-14"
+              },
+              "dueDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "Splatnost (due date).",
+                "example": "2026-03-14"
+              },
+              "variableSymbol": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 30,
+                "description": "Variabilní symbol for párování."
+              }
+            },
+            "required": [
+              "saldoAccountNumber",
+              "direction"
+            ],
+            "description": "Open the saldokonto obligation (pohledávka/závazek) this posting's saldo leg represents. Only valid for a double-entry posting."
+          },
           "confidence": {
             "type": "number",
             "minimum": 0,
@@ -5947,7 +6002,7 @@
           "confidence",
           "rationale"
         ],
-        "description": "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting. Tenant + responsible user injected; opening/correction/generated linkage is not client-settable."
+        "description": "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting, optionally opening its saldokonto obligation (openObligation, double-entry only). Tenant + responsible user injected; opening/correction/generated linkage is not client-settable."
       },
       "CreateAccountingPostingResponse": {
         "type": "object",
@@ -5988,6 +6043,599 @@
           "status"
         ],
         "description": "Create-posting result (applied or held)."
+      },
+      "CreateAssetRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking). The asset register card itself is org-scoped, not period-scoped; this only binds the held write to a period."
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ASSET number series (see GET number-series)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Asset name (název majetku).",
+            "example": "Notebook Dell Latitude"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "INTANGIBLE",
+              "TANGIBLE_DEPRECIABLE",
+              "TANGIBLE_NON_DEPRECIABLE"
+            ],
+            "description": "Asset category (kategorie majetku)."
+          },
+          "accountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Rozvahový účet majetku BY NUMBER (022/013/…).",
+            "example": "022"
+          },
+          "commissioningDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum zařazení do užívání — drives the depreciation start.",
+            "example": "2026-03-14"
+          },
+          "acquisitionCost": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Pořizovací cena (input price ex depreciation).",
+            "example": "45000.00"
+          },
+          "directiveCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40,
+            "description": "Odpisová skupina / směrnice code (directive_account.code)."
+          },
+          "acquisitionDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Datum pořízení (defaults to commissioning date if absent).",
+            "example": "2026-03-14"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 400,
+            "description": "Umístění majetku."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "name",
+          "category",
+          "accountNumber",
+          "commissioningDate",
+          "acquisitionCost",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create a fixed-asset register card (karta majetku). Gated (201 applied / 202 held). Tenant + responsible user injected from the principal."
+      },
+      "CreateAssetResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = card created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "assetId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-asset result (applied or held)."
+      },
+      "CreateDepreciationPlanRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking)."
+          },
+          "assetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Asset this odpisový plán depreciates."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "STRAIGHT_LINE",
+              "PERFORMANCE",
+              "DECLINING"
+            ],
+            "description": "Účetní odpisová metoda."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum zahájení odpisování.",
+            "example": "2026-03-14"
+          },
+          "monthlyAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Měsíční účetní odpis (drives MD 551 / D 08x).",
+            "example": "1250.00"
+          },
+          "expenseAccountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Nákladový účet odpisu BY NUMBER (551).",
+            "example": "551"
+          },
+          "accumulatedAccountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Oprávky účet BY NUMBER (082/072/…).",
+            "example": "082"
+          },
+          "usefulLifeMonths": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 1200,
+            "description": "Doba použitelnosti v měsících."
+          },
+          "residualValue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Zbytková hodnota (defaults to 0).",
+            "example": "12100.00"
+          },
+          "supersedesPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Předchozí plán, který tento nahrazuje (revize)."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "assetId",
+          "method",
+          "startDate",
+          "monthlyAmount",
+          "expenseAccountNumber",
+          "accumulatedAccountNumber",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create an účetní odpisový plán. Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time."
+      },
+      "CreateDepreciationPlanResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = plan created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "depreciationPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-depreciation-plan result (applied or held)."
+      },
+      "CreateInventoryCountRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking)."
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "INVENTORY_COUNT number series (see GET number-series)."
+          },
+          "countDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum inventury (§29-30).",
+            "example": "2026-03-14"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "description": "Popis inventurního soupisu."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "countDate",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create an inventurní soupis (§29-30). Gated (201 applied / 202 held). Tenant injected from the principal."
+      },
+      "CreateInventoryCountResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = count created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "inventoryCountId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-inventory-count result (applied or held)."
       },
       "ListHeldWritesResponse": {
         "type": "object",
@@ -7963,6 +8611,172 @@
           }
         },
         "description": "Partial edit of an account. At least one editable field must be provided (the api rejects an empty body with 422)."
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Document (attachment) id.",
+            "example": "0196f1de-0000-7000-8000-0000000000d1"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename supplied at upload.",
+            "example": "faktura-2025-014.pdf"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "S3-authoritative content type recorded at confirm.",
+            "example": "application/pdf"
+          },
+          "size": {
+            "type": "integer",
+            "description": "Size in bytes (S3-authoritative).",
+            "example": 84213
+          },
+          "sha256": {
+            "type": "string",
+            "description": "Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.",
+            "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "deletedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.",
+            "example": null
+          },
+          "confirmedAt": {
+            "type": "string",
+            "description": "When the upload was confirmed (the row exists only after).",
+            "example": "2026-07-14T10:15:00.000Z"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "Row creation timestamp.",
+            "example": "2026-07-14T10:15:00.000Z"
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "Row last-update timestamp.",
+            "example": "2026-07-14T10:15:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "contentType",
+          "size",
+          "sha256",
+          "deletedAt",
+          "confirmedAt",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A confirmed source-document in the workspace's document store (workspace-scoped, FORCE RLS)."
+      },
+      "ListDocumentsResponse": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Document (attachment) id.",
+                  "example": "0196f1de-0000-7000-8000-0000000000d1"
+                },
+                "filename": {
+                  "type": "string",
+                  "description": "Original filename supplied at upload.",
+                  "example": "faktura-2025-014.pdf"
+                },
+                "contentType": {
+                  "type": "string",
+                  "description": "S3-authoritative content type recorded at confirm.",
+                  "example": "application/pdf"
+                },
+                "size": {
+                  "type": "integer",
+                  "description": "Size in bytes (S3-authoritative).",
+                  "example": 84213
+                },
+                "sha256": {
+                  "type": "string",
+                  "description": "Lowercase hex sha256 of the bytes — the content address. Stable per content; usable for client-side dedup.",
+                  "example": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                },
+                "deletedAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "When the document was soft-deleted, or null. A soft-deleted document is still listed but cannot be downloaded; its bytes are purged 60 days after deletion unless restored.",
+                  "example": null
+                },
+                "confirmedAt": {
+                  "type": "string",
+                  "description": "When the upload was confirmed (the row exists only after).",
+                  "example": "2026-07-14T10:15:00.000Z"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "description": "Row creation timestamp.",
+                  "example": "2026-07-14T10:15:00.000Z"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "description": "Row last-update timestamp.",
+                  "example": "2026-07-14T10:15:00.000Z"
+                }
+              },
+              "required": [
+                "id",
+                "filename",
+                "contentType",
+                "size",
+                "sha256",
+                "deletedAt",
+                "confirmedAt",
+                "createdAt",
+                "updatedAt"
+              ],
+              "description": "A confirmed source-document in the workspace's document store (workspace-scoped, FORCE RLS)."
+            },
+            "description": "Documents in the caller's workspace."
+          }
+        },
+        "required": [
+          "documents"
+        ],
+        "description": "The workspace's confirmed documents (workspace-scoped, FORCE RLS)."
+      },
+      "DocumentDownloadUrlResponse": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Short-lived presigned S3 URL (attachment disposition). Fetch the bytes directly; the URL expires.",
+            "example": "https://bucket.s3.eu-central-1.amazonaws.com/documents/ws/doc.pdf?X-Amz-Signature=abc123"
+          },
+          "expiresInSeconds": {
+            "type": "integer",
+            "description": "Seconds until the presigned URL expires.",
+            "example": 900
+          }
+        },
+        "required": [
+          "url",
+          "expiresInSeconds"
+        ],
+        "description": "A short-lived presigned download URL for a document's bytes."
       },
       "OcrTemplate": {
         "type": "object",
@@ -11527,6 +12341,237 @@
         }
       }
     },
+    "/v1/accounting/assets": {
+      "post": {
+        "operationId": "createAsset",
+        "summary": "Create a fixed-asset register card",
+        "description": "Create a karta majetku (pure register insert, no ledger posting). ALWAYS held (202) for human review — agent-authored master data never auto-applies. Tenant + responsible user injected from the principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset card created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssetResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/depreciation-plans": {
+      "post": {
+        "operationId": "createDepreciationPlan",
+        "summary": "Create an účetní odpisový plán",
+        "description": "Create a depreciation plan (pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal; account numbers resolved to the chart at posting time.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDepreciationPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Depreciation plan created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDepreciationPlanResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDepreciationPlanResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/inventory-counts": {
+      "post": {
+        "operationId": "createInventoryCount",
+        "summary": "Create an inventurní soupis",
+        "description": "Create an inventory count (§29-30; pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryCountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inventory count created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInventoryCountResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInventoryCountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
     "/v1/accounting/held-writes": {
       "get": {
         "operationId": "listAccountingHeldWrites",
@@ -12376,6 +13421,127 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetAccountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/documents": {
+      "get": {
+        "operationId": "listDocuments",
+        "summary": "List documents",
+        "description": "Returns the caller's workspace documents (confirmed source-document blobs in the S3 document store). WORKSPACE-scoped (FORCE RLS). By default soft-deleted documents are excluded; pass `includeDeleted=true` to include those still inside the 60-day redemption window. The workspace comes from the API key; no tenant identifiers are accepted.",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "When 'true', include soft-deleted documents (still within the 60-day redemption window). Defaults to excluding them.",
+              "example": "false"
+            },
+            "required": false,
+            "description": "When 'true', include soft-deleted documents (still within the 60-day redemption window). Defaults to excluding them.",
+            "name": "includeDeleted",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListDocumentsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/documents/{id}/download-url": {
+      "get": {
+        "operationId": "getDocumentDownloadUrl",
+        "summary": "Get a document download URL",
+        "description": "Mints a short-lived presigned S3 URL for a document's bytes (attachment disposition). The caller fetches the bytes DIRECT from S3 — they never pass through the API. Returns 404 when the document is not visible to the caller's workspace or has been soft-deleted.",
+        "tags": [
+          "Documents"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Document id, resolved within the API key's workspace.",
+              "example": "0196f1de-0000-7000-8000-0000000000d1"
+            },
+            "required": true,
+            "description": "Document id, resolved within the API key's workspace.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A short-lived presigned download URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentDownloadUrlResponse"
                 }
               }
             }

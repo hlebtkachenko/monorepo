@@ -27,11 +27,11 @@ export async function changeEmailAction(
   }
   try {
     await auth.api.changeEmail({
-      body: { newEmail, callbackURL: "/workspace/profile" },
+      body: { newEmail: newEmail.trim(), callbackURL: "/workspace/profile" },
       headers: h,
     })
     return { ok: true }
-  } catch (err) {
-    return { ok: false, error: (err as Error).message }
+  } catch {
+    return { ok: false, error: "Email change could not be started." }
   }
 }

@@ -17,6 +17,11 @@ export default function DebugLayout({ children }: { children: ReactNode }) {
             label: "Input Fields",
             href: "/platform/debug/input-fields",
           },
+          {
+            value: "xml-filing",
+            label: "XML filing",
+            href: "/platform/debug/xml-filing",
+          },
         ]}
       />
       {children}

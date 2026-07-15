@@ -42,6 +42,12 @@ import {
   CreateAccountingEventResponseSchema,
   CreateAccountingPostingRequestSchema,
   CreateAccountingPostingResponseSchema,
+  CreateAssetRequestSchema,
+  CreateAssetResponseSchema,
+  CreateDepreciationPlanRequestSchema,
+  CreateDepreciationPlanResponseSchema,
+  CreateInventoryCountRequestSchema,
+  CreateInventoryCountResponseSchema,
   HeldWriteIdParamSchema,
   HeldWriteRowSchema,
   ListHeldWritesResponseSchema,
@@ -108,6 +114,13 @@ import {
   OcrTemplateSchema,
   UpdateOcrTemplateRequestSchema,
 } from "./ocr-templates"
+import {
+  DocumentDownloadUrlResponseSchema,
+  DocumentIdParamSchema,
+  DocumentSchema,
+  ListDocumentsQuerySchema,
+  ListDocumentsResponseSchema,
+} from "./documents"
 import {
   BookingTemplateIdParamSchema,
   BookingTemplateResponseSchema,
@@ -271,6 +284,30 @@ const CreateAccountingPostingResponse = registry.register(
   "CreateAccountingPostingResponse",
   CreateAccountingPostingResponseSchema,
 )
+const CreateAssetRequest = registry.register(
+  "CreateAssetRequest",
+  CreateAssetRequestSchema,
+)
+const CreateAssetResponse = registry.register(
+  "CreateAssetResponse",
+  CreateAssetResponseSchema,
+)
+const CreateDepreciationPlanRequest = registry.register(
+  "CreateDepreciationPlanRequest",
+  CreateDepreciationPlanRequestSchema,
+)
+const CreateDepreciationPlanResponse = registry.register(
+  "CreateDepreciationPlanResponse",
+  CreateDepreciationPlanResponseSchema,
+)
+const CreateInventoryCountRequest = registry.register(
+  "CreateInventoryCountRequest",
+  CreateInventoryCountRequestSchema,
+)
+const CreateInventoryCountResponse = registry.register(
+  "CreateInventoryCountResponse",
+  CreateInventoryCountResponseSchema,
+)
 const ListHeldWritesResponse = registry.register(
   "ListHeldWritesResponse",
   ListHeldWritesResponseSchema,
@@ -316,6 +353,15 @@ const GetAccountResponse = registry.register(
 const UpdateAccountRequest = registry.register(
   "UpdateAccountRequest",
   UpdateAccountRequestSchema,
+)
+registry.register("Document", DocumentSchema)
+const ListDocumentsResponse = registry.register(
+  "ListDocumentsResponse",
+  ListDocumentsResponseSchema,
+)
+const DocumentDownloadUrlResponse = registry.register(
+  "DocumentDownloadUrlResponse",
+  DocumentDownloadUrlResponseSchema,
 )
 registry.register("OcrTemplate", OcrTemplateSchema)
 const ListOcrTemplatesResponse = registry.register(
@@ -1023,6 +1069,117 @@ registry.registerPath({
 })
 
 registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/assets",
+  operationId: "createAsset",
+  summary: "Create a fixed-asset register card",
+  description:
+    "Create a karta majetku (pure register insert, no ledger posting). ALWAYS " +
+    "held (202) for human review — agent-authored master data never auto-applies. " +
+    "Tenant + responsible user injected from the principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAssetRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Asset card created.",
+      content: {
+        "application/json": { schema: CreateAssetResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAssetResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/depreciation-plans",
+  operationId: "createDepreciationPlan",
+  summary: "Create an účetní odpisový plán",
+  description:
+    "Create a depreciation plan (pure register insert, no ledger posting). " +
+    "ALWAYS held (202) for human review (never auto-applies). Tenant injected " +
+    "from the principal; account numbers resolved to the chart at posting time.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateDepreciationPlanRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Depreciation plan created.",
+      content: {
+        "application/json": { schema: CreateDepreciationPlanResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateDepreciationPlanResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/inventory-counts",
+  operationId: "createInventoryCount",
+  summary: "Create an inventurní soupis",
+  description:
+    "Create an inventory count (§29-30; pure register insert, no ledger " +
+    "posting). ALWAYS held (202) for human review (never auto-applies). Tenant " +
+    "injected from the principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateInventoryCountRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Inventory count created.",
+      content: {
+        "application/json": { schema: CreateInventoryCountResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateInventoryCountResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
   method: "get",
   path: "/v1/accounting/held-writes",
   operationId: "listAccountingHeldWrites",
@@ -1255,6 +1412,53 @@ registry.registerPath({
     "200": {
       description: "The updated account.",
       content: { "application/json": { schema: GetAccountResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/documents",
+  operationId: "listDocuments",
+  summary: "List documents",
+  description:
+    "Returns the caller's workspace documents (confirmed source-document " +
+    "blobs in the S3 document store). WORKSPACE-scoped (FORCE RLS). By default " +
+    "soft-deleted documents are excluded; pass `includeDeleted=true` to " +
+    "include those still inside the 60-day redemption window. The workspace " +
+    "comes from the API key; no tenant identifiers are accepted.",
+  tags: ["Documents"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListDocumentsQuerySchema },
+  responses: {
+    "200": {
+      description: "The workspace's documents.",
+      content: { "application/json": { schema: ListDocumentsResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/documents/{id}/download-url",
+  operationId: "getDocumentDownloadUrl",
+  summary: "Get a document download URL",
+  description:
+    "Mints a short-lived presigned S3 URL for a document's bytes (attachment " +
+    "disposition). The caller fetches the bytes DIRECT from S3 — they never " +
+    "pass through the API. Returns 404 when the document is not visible to the " +
+    "caller's workspace or has been soft-deleted.",
+  tags: ["Documents"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: DocumentIdParamSchema },
+  responses: {
+    "200": {
+      description: "A short-lived presigned download URL.",
+      content: {
+        "application/json": { schema: DocumentDownloadUrlResponse },
+      },
     },
     ...ERROR_RESPONSE_REFS,
   },

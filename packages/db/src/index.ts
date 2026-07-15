@@ -83,7 +83,18 @@ export type {
 } from "./admission"
 
 // Drizzle helpers for consumers
-export { sql, eq, and, or, inArray, ne, isNull, isNotNull } from "drizzle-orm"
+export {
+  sql,
+  eq,
+  and,
+  or,
+  inArray,
+  ne,
+  isNull,
+  isNotNull,
+  desc,
+  asc,
+} from "drizzle-orm"
 
 // Db type for consumers that need the raw client type
 export type { Db } from "./client"

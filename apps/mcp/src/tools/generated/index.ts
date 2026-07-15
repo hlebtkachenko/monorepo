@@ -23,6 +23,9 @@ import { registerCreateNumberSeries } from "./createNumberSeries"
 import { registerCreateAccountingEvent } from "./createAccountingEvent"
 import { registerCaptureAccountingDocument } from "./captureAccountingDocument"
 import { registerCreateAccountingPosting } from "./createAccountingPosting"
+import { registerCreateAsset } from "./createAsset"
+import { registerCreateDepreciationPlan } from "./createDepreciationPlan"
+import { registerCreateInventoryCount } from "./createInventoryCount"
 import { registerListAccountingHeldWrites } from "./listAccountingHeldWrites"
 import { registerResolveAccountingHeldWrite } from "./resolveAccountingHeldWrite"
 import { registerListInvoices } from "./listInvoices"
@@ -30,6 +33,8 @@ import { registerCreateInvoice } from "./createInvoice"
 import { registerGetInvoice } from "./getInvoice"
 import { registerListAccounts } from "./listAccounts"
 import { registerGetAccount } from "./getAccount"
+import { registerListDocuments } from "./listDocuments"
+import { registerGetDocumentDownloadUrl } from "./getDocumentDownloadUrl"
 import { registerListOcrTemplates } from "./listOcrTemplates"
 import { registerCreateOcrTemplate } from "./createOcrTemplate"
 import { registerConfirmOcrTemplate } from "./confirmOcrTemplate"
@@ -63,6 +68,9 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerCreateAccountingEvent(server, client)
   registerCaptureAccountingDocument(server, client)
   registerCreateAccountingPosting(server, client)
+  registerCreateAsset(server, client)
+  registerCreateDepreciationPlan(server, client)
+  registerCreateInventoryCount(server, client)
   registerListAccountingHeldWrites(server, client)
   registerResolveAccountingHeldWrite(server, client)
   registerListInvoices(server, client)
@@ -70,6 +78,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetInvoice(server, client)
   registerListAccounts(server, client)
   registerGetAccount(server, client)
+  registerListDocuments(server, client)
+  registerGetDocumentDownloadUrl(server, client)
   registerListOcrTemplates(server, client)
   registerCreateOcrTemplate(server, client)
   registerConfirmOcrTemplate(server, client)
@@ -104,6 +114,9 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "createAccountingEvent",
   "captureAccountingDocument",
   "createAccountingPosting",
+  "createAsset",
+  "createDepreciationPlan",
+  "createInventoryCount",
   "listAccountingHeldWrites",
   "resolveAccountingHeldWrite",
   "listInvoices",
@@ -111,6 +124,8 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getInvoice",
   "listAccounts",
   "getAccount",
+  "listDocuments",
+  "getDocumentDownloadUrl",
   "listOcrTemplates",
   "createOcrTemplate",
   "confirmOcrTemplate",

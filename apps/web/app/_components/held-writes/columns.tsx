@@ -475,6 +475,18 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
         label="Protistrana"
         value={header.counterpartyName ?? header.caseDescription ?? "—"}
       />
+      {(header.counterpartyIco || header.counterpartyDic) && (
+        <DetailField
+          label="IČO / DIČ"
+          value={
+            <span className="tabular-nums">
+              {[header.counterpartyIco, header.counterpartyDic]
+                .filter(Boolean)
+                .join(" / ")}
+            </span>
+          }
+        />
+      )}
       <DetailField
         label="Číslo dokladu"
         value={
@@ -511,6 +523,28 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
           </span>
         }
       />
+      {header.obligation && (
+        <DetailField
+          label="Otevírá saldokonto"
+          value={
+            <span className="tabular-nums">
+              {header.obligation.direction === "PAYABLE"
+                ? "závazek"
+                : "pohledávka"}{" "}
+              — účet {header.obligation.saldoAccountNumber}
+              {header.obligation.issueDate
+                ? `, vystaveno ${formatDate(header.obligation.issueDate)}`
+                : ""}
+              {header.obligation.dueDate
+                ? `, splatnost ${formatDate(header.obligation.dueDate)}`
+                : ""}
+              {header.obligation.variableSymbol
+                ? `, VS ${header.obligation.variableSymbol}`
+                : ""}
+            </span>
+          }
+        />
+      )}
     </dl>
   )
 }

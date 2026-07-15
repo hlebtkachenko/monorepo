@@ -51,6 +51,22 @@ export type DetailsTableCellValue = string | readonly string[]
 export interface DetailsTableRow {
   readonly id: string
   readonly cells: Readonly<Record<string, DetailsTableCellValue>>
+  /** Disables the configured row action for this row. */
+  readonly actionDisabled?: boolean
+  /** Shows the row action's busy label and disables it. */
+  readonly actionBusy?: boolean
+}
+
+/** Optional command shown on every row of a read-only table. */
+export interface DetailsTableRowAction {
+  readonly label: string
+  readonly busyLabel?: string
+  readonly actionId: string
+  readonly variant?: "default" | "outline" | "destructive"
+  readonly header?: string
+  readonly confirmTitle?: string
+  readonly confirmDescription?: string
+  readonly confirmLabel?: string
 }
 
 /** Icon name for an extra action button (resolved in the renderer). */
@@ -101,6 +117,8 @@ export interface SectionDetailsTableProps {
   readonly mode?: DetailsTableMode
   readonly columns: readonly DetailsTableColumn[]
   readonly rows: readonly DetailsTableRow[]
+  /** Per-row command for a read-only table, dispatched with `{ rowId }`. */
+  readonly rowAction?: DetailsTableRowAction
   /**
    * Label for the always-first Add button (e.g. "Add account"). Editable mode
    * only; omit to hide the Add button.
@@ -147,6 +165,7 @@ export function sectionDetailsTable({
   mode = "editable",
   columns,
   rows,
+  rowAction,
   addLabel,
   actions = [],
   actionsHeader = "Actions",
@@ -163,7 +182,7 @@ export function sectionDetailsTable({
   // to track 6 — an overflow would silently wrap it to a second row).
   if (process.env.NODE_ENV !== "production") {
     const spanTotal = columns.reduce((sum, col) => sum + (col.span ?? 1), 0)
-    const budget = mode === "editable" ? 5 : 6
+    const budget = mode === "editable" || rowAction != null ? 5 : 6
     if (spanTotal > budget) {
       throw new Error(
         `sectionDetailsTable("${title}"): column spans sum to ${spanTotal}, ` +
@@ -180,6 +199,7 @@ export function sectionDetailsTable({
       mode,
       columns,
       rows,
+      rowAction,
       addLabel,
       actions,
       actionsHeader,

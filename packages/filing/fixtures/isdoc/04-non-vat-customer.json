@@ -1,0 +1,50 @@
+{
+  "invoice_id": "FV-2025-004",
+  "uuid": "44444444-4444-4444-8444-444444444444",
+  "doc_type": "1",
+  "direction": "vydana",
+  "issue_date": "2025-11-20",
+  "tax_point_date": "2025-11-20",
+  "due_date": "2025-12-04",
+  "supplier": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "customer": {
+    "ico": "44556677",
+    "name": "Malý Živnostník",
+    "street": "Dlouhá",
+    "building": "5",
+    "city": "Brno",
+    "zip": "60200",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": false
+  },
+  "lines": [
+    {
+      "description": "Konzultace 11/2025",
+      "qty": "4",
+      "unit": "hod",
+      "unit_price_base": "1500.00",
+      "vat_rate": "21"
+    }
+  ],
+  "payment_method": 42,
+  "bank": {
+    "account": "1111222233",
+    "code": "0100",
+    "name": "Komerční banka",
+    "iban": "CZ6501000000001111222233",
+    "bic": "KOMBCZPP"
+  },
+  "variable_symbol": "2025000004"
+}

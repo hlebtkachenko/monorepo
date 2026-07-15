@@ -8,6 +8,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { formatDecimal, formatDate } from "../_shared/accounting-format"
+import { buildSourceColumn } from "../_shared/source-column"
 import { useDenik } from "./context"
 import type { JournalRow } from "./data"
 
@@ -167,6 +168,9 @@ export const journalColumns: ColumnDef<JournalRow>[] = [
     enableSorting: true,
     sortingFn: (a, b) => Number(a.original.amount) - Number(b.original.amount),
   },
+  buildSourceColumn<JournalRow>((row) =>
+    row.createdByAgent ? "agent" : "human",
+  ),
   {
     id: "inspect",
     size: 44,

@@ -45,7 +45,6 @@
     "apps/web/app/_components/workspace/companies/companies-table.tsx",
     "apps/web/app/_components/workspace/inbox/inbox-view.tsx",
     "apps/web/app/_components/workspace/legislation/legislation-body.tsx",
-    "apps/web/app/_components/workspace/profile/profile-form.tsx",
     "apps/web/app/_components/workspace/settings/settings-form.tsx",
     "apps/web/app/_components/workspace/team/team-view.tsx"
   ]

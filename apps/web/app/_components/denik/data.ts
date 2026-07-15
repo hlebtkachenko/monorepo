@@ -23,6 +23,8 @@ export interface JournalRow {
   amount: string
   eventDescription: string | null
   counterpartyName: string | null
+  /** [Tier 4] true ⇒ the Afframe Brain proposed the posting (a human approved it). */
+  createdByAgent: boolean
 }
 
 /** Views mirror the deník's natural cuts; `kind` filters the body rows.

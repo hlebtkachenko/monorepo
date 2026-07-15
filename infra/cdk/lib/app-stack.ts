@@ -37,6 +37,7 @@ import {
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
 import type { DatabaseInstance } from "aws-cdk-lib/aws-rds"
 import type { Bucket } from "aws-cdk-lib/aws-s3"
+import type { Key } from "aws-cdk-lib/aws-kms"
 import { Secret } from "aws-cdk-lib/aws-secretsmanager"
 import { StringParameter } from "aws-cdk-lib/aws-ssm"
 import type { Repository } from "aws-cdk-lib/aws-ecr"
@@ -74,6 +75,14 @@ export interface AppStackProps extends StackProps {
    */
   readonly appUserSecret: Secret
   readonly appBucket: Bucket
+  /**
+   * Source-document working store (ADR-0031). CMK-encrypted,
+   * private. The shared task role gets Get + Put + tag on it, NEVER Delete —
+   * the reaper Lambda is the sole Delete principal.
+   */
+  readonly documentsBucket: Bucket
+  /** Dedicated default-encryption CMK for `documentsBucket`. */
+  readonly documentsKey: Key
   readonly webRepository: Repository
   readonly apiRepository: Repository
   readonly adminRepository: Repository
@@ -262,6 +271,34 @@ export class AppStack extends Stack {
       description: "Runtime IAM role shared by web + api containers",
     })
     props.appBucket.grantReadWrite(taskRole)
+    // Documents store (ADR-0031). SAFETY INVARIANT: the shared
+    // app/Brain task role may Get + Put + tag documents, but NEVER Delete —
+    // the reaper Lambda is the sole holder of s3:DeleteObject /
+    // s3:DeleteObjectVersion. grantRead (s3:GetObject*/GetBucket*/List*) and
+    // grantPut (s3:PutObject*/Abort*) are BOTH Delete-free; we deliberately do
+    // NOT call grantReadWrite / grantWrite / grantDelete (those add
+    // s3:DeleteObject*). Enforced by the negative-assertion test in
+    // tests/documents-store.test.ts.
+    props.documentsBucket.grantRead(taskRole)
+    props.documentsBucket.grantPut(taskRole)
+    // Object tags are the reaper's lifecycle signal (confirmed-at / orphan-at
+    // / deleted-at). grantRead's s3:GetObject* and grantPut's
+    // s3:PutObjectTagging already cover these via wildcard, but name them
+    // explicitly so the invariant is legible and survives a CDK grant-set
+    // change. Still no Delete.
+    taskRole.addToPrincipalPolicy(
+      new PolicyStatement({
+        sid: "DocumentsObjectTagging",
+        actions: ["s3:PutObjectTagging", "s3:GetObjectTagging"],
+        resources: [props.documentsBucket.arnForObjects("*")],
+      }),
+    )
+    // KMS: PutObject needs Encrypt + GenerateDataKey; a presigned GET decrypt
+    // needs Decrypt (S3 decrypts server-side as the signer's identity — the
+    // browser needs no KMS permission). There is no KMS "delete" equivalent
+    // that could purge objects, so EncryptDecrypt does not widen the wipe
+    // surface.
+    props.documentsKey.grantEncryptDecrypt(taskRole)
     props.databaseSecret.grantRead(taskRole)
     props.appUserSecret.grantRead(taskRole)
     // openfga-bootstrap init container writes the store + model IDs to SSM
@@ -562,6 +599,11 @@ export class AppStack extends Stack {
         // /api/upload/avatar route and presignAvatarRead() call returned 500
         // without it. Task role already has grantReadWrite on the bucket.
         APP_BUCKET: props.appBucket.bucketName,
+        // Documents store (ADR-0031). DOCUMENTS_KMS_KEY_ID is
+        // the CMK ARN — S3's SSEKMSKeyId accepts a key id or ARN, and the ARN
+        // is unambiguous. Wired on the same containers as APP_BUCKET.
+        DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
+        DOCUMENTS_KMS_KEY_ID: props.documentsKey.keyArn,
         // SDK fell back through the credential/region chain on Fargate today,
         // but wiring it explicitly removes that fragility.
         AWS_REGION: this.region,
@@ -680,6 +722,9 @@ export class AppStack extends Stack {
         DB_DIRECT_PORT: props.database.dbInstanceEndpointPort,
         DB_NAME: "monorepo",
         APP_BUCKET: props.appBucket.bucketName,
+        // Documents store (ADR-0031) — CMK ARN in KEY_ID.
+        DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
+        DOCUMENTS_KMS_KEY_ID: props.documentsKey.keyArn,
         APP_DOMAIN: props.domain,
         // Public origin of the API host for this environment. Consumed by
         // `apps/api/src/editor.ts` to redirect `/editor` to the editor
@@ -851,6 +896,9 @@ export class AppStack extends Stack {
         // call presignAvatarRead() to render user profile photos. Wire it now
         // so the next admin feature doesn't trip the same 500 the web app hit.
         APP_BUCKET: props.appBucket.bucketName,
+        // Documents store (ADR-0031) — CMK ARN in KEY_ID.
+        DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
+        DOCUMENTS_KMS_KEY_ID: props.documentsKey.keyArn,
         AWS_REGION: this.region,
         // See the long note in the web container above re. Resend per-domain
         // verification. Admin sends from the same parent address.

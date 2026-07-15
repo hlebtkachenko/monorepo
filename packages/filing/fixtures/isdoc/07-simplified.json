@@ -1,0 +1,35 @@
+{
+  "invoice_id": "FV-2025-007-ZJEDN",
+  "uuid": "77777777-7777-4777-8777-777777777777",
+  "doc_type": "7",
+  "direction": "vydana",
+  "issue_date": "2025-11-27",
+  "tax_point_date": "2025-11-27",
+  "supplier": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "anonymous_customer": {
+    "id": "CZ-ANON-0007",
+    "id_scheme": "INTERNAL"
+  },
+  "lines": [
+    {
+      "description": "Zjednodušený daňový doklad – maloobchodní prodej",
+      "qty": "2",
+      "unit": "ks",
+      "unit_price_base": "495.87",
+      "vat_rate": "21"
+    }
+  ],
+  "payment_method": 10,
+  "cash": { "receipt_id": "PV-2025-007", "paid_date": "2025-11-27" }
+}

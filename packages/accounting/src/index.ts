@@ -35,6 +35,9 @@ export {
   createDepreciationPlan,
   createInventoryCount,
   recordSignature,
+  type AssetInput,
+  type DepreciationPlanInput,
+  type InventoryCountInput,
 } from "./setup"
 export {
   DEFAULT_NUMBER_SERIES,
@@ -49,6 +52,7 @@ export {
 } from "./capture-and-book"
 export { resolveCounterparty } from "./counterparty"
 export type { CounterpartyIdentity } from "./types"
+export { mintInboxItem, type MintInboxItemInput } from "./inbox"
 
 // Posting (UC-1 step 4 — Zaúčtování)
 export {
@@ -58,6 +62,12 @@ export {
   getPeriodRegime,
   type PostInput,
 } from "./posting/index"
+export {
+  postWithObligation,
+  type ObligationDirective,
+  type PostWithObligationInput,
+  type PostWithObligationResult,
+} from "./posting/post-with-obligation"
 
 // Předkontace (account-coding templates → posting expansion)
 export {
@@ -117,7 +127,6 @@ export {
 
 // Period lifecycle (R12)
 export {
-  closePeriod,
   closeResult,
   copyChartForward,
   openNextPeriod,
@@ -128,6 +137,16 @@ export {
   type RollForwardInput,
   type RollForwardResult,
 } from "./period"
+export {
+  assessPeriodCloseReadiness,
+  PeriodCloseBlockedError,
+  type CloseCheckSeverity,
+  type CloseCheckStatus,
+  type PeriodCloseCheck,
+  type PeriodCloseCheckCode,
+  type PeriodCloseReadiness,
+  type PeriodCloseReference,
+} from "./close-readiness"
 
 // Corrections (R8)
 export { reverse, type ReverseInput } from "./corrections"

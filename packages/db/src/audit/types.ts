@@ -6,9 +6,7 @@
  * `input_json` / `output_json` BEFORE persistence. AI-initiated calls carry
  * `actor_kind in ('ai', 'ai_on_behalf')` + `conversation_id`.
  *
- * Fields NOT present (accounting/AI bundle deferred):
- *   - periodId / period_id
- *   - flowRunId / flow_run_id
+ * Field NOT present (accounting/AI bundle deferred): flowRunId / flow_run_id.
  */
 
 export type ActorKind = "human" | "ai" | "ai_on_behalf" | "system"
@@ -28,6 +26,8 @@ export type RedactionRules = readonly RedactionPath[]
 
 export interface WriteLogInput {
   organizationId: string
+  /** Authoritative accounting-period target for period-scoped tool calls. */
+  periodId?: string | null
   toolName: string
   idempotencyKey: string
   actorKind: ActorKind

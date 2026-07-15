@@ -39,6 +39,7 @@ import {
 import { cn } from "@workspace/ui/lib/utils"
 
 import { SectionTwoCol } from "./section-details-parts"
+import { useSectionAction } from "./section-action-context"
 import type {
   DetailsTableColumn,
   DetailsTableColumnSpan,
@@ -246,6 +247,8 @@ type DraftRow = {
   isNew: boolean
   editing: boolean
   deleted: boolean
+  actionDisabled?: boolean
+  actionBusy?: boolean
   cells: Record<string, DetailsTableCellValue>
 }
 
@@ -255,7 +258,7 @@ type DraftRow = {
  * fields (item 2). Two modes:
  *   - `editable`: rows read-only until their Edit icon flips that row to inputs
  *     (a new row starts editable); Add appends, Delete confirms.
- *   - `readonly`: pure display — no Add, no Edit/Delete column.
+ *   - `readonly`: display-only cells, optionally with a configured row command.
  * All edit state (which rows are editing, appended rows, deleted rows, working
  * values) lives in this closed renderer — no callback crosses the descriptor.
  * Edits persist across re-render until reload (item 6); wiring real Save/Discard
@@ -272,6 +275,7 @@ export function SectionDetailsTableRenderer({
     mode,
     columns,
     rows,
+    rowAction,
     addLabel,
     actions,
     actionsHeader,
@@ -281,6 +285,7 @@ export function SectionDetailsTableRenderer({
   } = props
 
   const editable = mode === "editable"
+  const dispatch = useSectionAction()
 
   // The whole editable list as one working snapshot, seeded once from props.rows.
   // Each row owns its working cells plus its edit/new/deleted provenance — the
@@ -294,12 +299,17 @@ export function SectionDetailsTableRenderer({
       isNew: false,
       editing: false,
       deleted: false,
+      actionDisabled: row.actionDisabled,
+      actionBusy: row.actionBusy,
       cells: seedValues(columns, row.cells),
     })),
   )
   // Existing row awaiting delete confirmation — a transient dialog id. A new row
   // drops instantly; an existing row is tombstoned so Save can emit its DELETE.
   const [pendingDelete, setPendingDelete] = React.useState<string | null>(null)
+  const [pendingRowAction, setPendingRowAction] = React.useState<string | null>(
+    null,
+  )
   // Monotonic id source for appended rows — stable + collision-free, no randomness.
   const nextId = React.useRef(0)
 
@@ -364,9 +374,19 @@ export function SectionDetailsTableRenderer({
     setPendingDelete(null)
   }, [pendingDelete, patchRow])
 
-  const visible = draft.filter((row) => !row.deleted)
+  const visible = editable
+    ? draft.filter((row) => !row.deleted)
+    : rows.map((row) => ({
+        id: row.id,
+        isNew: false,
+        editing: false,
+        deleted: false,
+        actionDisabled: row.actionDisabled,
+        actionBusy: row.actionBusy,
+        cells: seedValues(columns, row.cells),
+      }))
   const isEmpty = visible.length === 0
-  const showActionsCol = editable
+  const showActionsCol = editable || rowAction != null
   const inputName = (rowId: string, colId: string) =>
     name != null ? `${name}[${rowId}][${colId}]` : undefined
 
@@ -417,7 +437,7 @@ export function SectionDetailsTableRenderer({
                     role="columnheader"
                     className="col-start-6 text-right text-sm leading-none font-medium text-foreground"
                   >
-                    {actionsHeader}
+                    {rowAction?.header ?? actionsHeader}
                   </div>
                 ) : null}
               </div>
@@ -467,7 +487,7 @@ export function SectionDetailsTableRenderer({
                       </div>
                     )
                   })}
-                  {showActionsCol ? (
+                  {editable ? (
                     <RowActions
                       isEditing={row.editing}
                       isNew={row.isNew}
@@ -478,6 +498,31 @@ export function SectionDetailsTableRenderer({
                         row.isNew ? removeNew(row.id) : setPendingDelete(row.id)
                       }
                     />
+                  ) : rowAction != null ? (
+                    <div
+                      role="cell"
+                      className="col-start-6 flex items-center justify-end"
+                    >
+                      <Button
+                        type="button"
+                        variant={rowAction.variant ?? "outline"}
+                        disabled={row.actionDisabled || row.actionBusy}
+                        onClick={() => {
+                          if (rowAction.confirmTitle != null) {
+                            setPendingRowAction(row.id)
+                          } else {
+                            dispatch({
+                              id: rowAction.actionId,
+                              payload: { rowId: row.id },
+                            })
+                          }
+                        }}
+                      >
+                        {row.actionBusy
+                          ? (rowAction.busyLabel ?? "Working…")
+                          : rowAction.label}
+                      </Button>
+                    </div>
                   ) : null}
                 </div>
               ))}
@@ -558,6 +603,42 @@ export function SectionDetailsTableRenderer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {rowAction != null ? (
+        <AlertDialog
+          open={pendingRowAction != null}
+          onOpenChange={(open) => {
+            if (!open) setPendingRowAction(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{rowAction.confirmTitle}</AlertDialogTitle>
+              {rowAction.confirmDescription != null ? (
+                <AlertDialogDescription>
+                  {rowAction.confirmDescription}
+                </AlertDialogDescription>
+              ) : null}
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant={rowAction.variant ?? "default"}
+                onClick={() => {
+                  if (pendingRowAction != null) {
+                    dispatch({
+                      id: rowAction.actionId,
+                      payload: { rowId: pendingRowAction },
+                    })
+                  }
+                  setPendingRowAction(null)
+                }}
+              >
+                {rowAction.confirmLabel ?? rowAction.label}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
     </SectionTwoCol>
   )
 }

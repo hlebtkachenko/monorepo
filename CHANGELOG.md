@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - Pivot Columns manager drag: dragging a low-level measure reorders it across EVERY high-level group at once, and dragging a high-level group reorders the whole group; pivot group headers gain a Filter action routed to their column-dimension's toolbar filter.
 - Pivot per-group subtotal rows (opt-in `subtotalRows`): a bold "Total …" row closes each group with the group's aggregate; the group's own value cells are blanked while expanded so the subtotal isn't shown twice.
 - Pivot value columns are now filterable (the general all-columns-filterable rule): each measure column carries an inline numeric min/max filter in its header dropdown wired to TanStack columnFilters; all pivot headers get the AI-analyze item via the section bridge.
@@ -59,6 +61,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Internal (thermo review): decomposed the 844-line DataGridView — the cell-focus grid + scroll-edge subsystems now live in data-grid-view-hooks (useCellFocusGrid / useScrollEdges); the left/centre/right pin split is one partitionByPin helper (was hand-rolled in the header, every body row, and the summary row); the column-manager's two reorder rows share one renderReorderRow.
 - Pivot value/group column filtering moved fully into the toolbar: the inline per-column min/max filter in the header dropdown is removed; a column's Filter now opens ONE toolbar filter keyed by its measure field (or group dimension), so e.g. one "Amount" filter applies across every group.
 - Pivot high-level (group) headers render on the neutral header surface (no blue tint), with corner cells matching and a full-strength single divider between groups cascading down the body (no double line).
@@ -137,6 +143,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - Admin Platform Debug page with Input Fields subpage (blocked in production); the shared inputs debug board lives in packages/ui/src/blocks/inputs-debug and is rendered by that page
 - DatePicker component: shadcn calendar-with-presets in a Card, vertical (presets below) and horizontal (presets left) orientations, active-preset highlight, our rounded-lg surface radius
 - **brain**: calibration degenerate-fit guard (#569) — reject zero-variance / single-block / all-same-label fits, fail closed to the cold-start identity model; a degenerate fit can never raise a score
@@ -149,6 +157,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - ColorPicker: trigger height h-8 -> h-9 (matches form-control input height)
 - Toggle: default size now h-9 (matches input field), normalize focus ring to ring-3, drop redundant lg size
 - Combobox now shows a clear (X) on selection by default (ComboboxInput showClear defaults to true), so every combobox gets it; Autocomplete popup uses the ring-1 ring-foreground/10 floating-surface style instead of a hardcoded border
@@ -196,6 +208,8 @@ M2 — "Brain learns + statutory completeness": the booking-template library + m
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - Dependabot auto-merge workflow for safe bump classes (dev-deps patch/minor, pip, Docker digest-only; excludes Actions/prod/majors) via a Dependabot-secret PAT, plus scripts/governance/synthesize-dependency-changelog.mjs for release-cut Dependencies-section synthesis
 - **brain**: booking-template library (M2.1, amends §I9) — workspace-scoped, human-confirmed `booking_template` rows keyed on counterparty/direction/supply-kind/jurisdiction; a match still proposes through the unchanged gated write path (never auto-applies, never skips `runGatedWrite`); model routing picks Haiku for a confirmed match and escalates to the default reasoning model for a novel case; the I9 write-template tripwire gains a narrow, exact-match carve-out for the new `BookingTemplateMatch` routing type.
 - **brain**: the M2.2 librarian distillation engine (`packages/brain/src/librarian/`) — ingest human corrections of held Brain proposals, cluster by counterparty/direction/supply_kind/jurisdiction, distill a majority-vote candidate rule, gate it against the already-locked `booking_rule_pr_gate` threshold (0.90), and emit a `status: "proposed"` reviewable JSON artifact to a caller-supplied directory — never a default path, never an opaque prod row, never a live gate/floor/constitution change. Fixture-tested only (data-gated on M2.3); the real-corrections adapter and the GitHub PR automation ADR-0027 describes are explicit follow-up.
@@ -203,6 +217,10 @@ M2 — "Brain learns + statutory completeness": the booking-template library + m
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **brain**: close #565 evidence-gate floor route-arounds (M2.4) — a declared `extractionMethod` can no longer skip the OCR-template screen, and `POST /v1/invoices` now wires the same screen `POST /v1/accounting/documents` uses (tightening-only)
 - One-shot scheduled deploy workflow: staging then production from latest main at 10:00 Europe/Prague on 2026-07-11
 
@@ -218,6 +236,10 @@ Patch release: dependency maintenance (production + dev + infra image + GitHub A
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Exempt Dependabot PRs from the changelog Unreleased gate (author-gated), harden dependabot.yml (cooldown + labels + PR limit on all ecosystems), and document dependency recording at release-cut (#667)
 - Reduce AWS deployment time by overlapping cold environment warm-up with image builds, bundling migration transport, stabilizing Budget names, and narrowing helper image contexts.
 
@@ -236,6 +258,8 @@ M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the dete
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **brain**: edit-before-approve on the held-write approvals inspector (M1.7, A-Z 2.6) — a reviewer can correct the header date, single-partial VAT amounts, and double-entry posting lines before approving, replaying the edited payload through the same gated resolve path.
 - **brain**: M1.3 MD/D posting preview on the held-write approvals inspector — reuses the existing předkontace expander (classifyEvent + expandScenarioEntries) as a pure, read-only view over a held write's proposed input, no posting, no persisted read.
 
@@ -248,6 +272,10 @@ M1 — "Brain thinks": the reasoning lane (classify_accounting_event) + the dete
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Bump markitdown from 0.1.5 to 0.1.6 (#660)
 - **brain**: complete the M1.2 write-body wiring — the harness now threads the server's `classify_accounting_event` treatment (vatMode/vatJurisdiction/commodityCode) onto the capture write body deterministically at the launcher's canUseTool updatedInput seam. The model never edits the payload; the merge is NARROW-ONLY (only ever moves a line toward held, never widens an adapter-held OUTSIDE_VAT row into STANDARD) and never touches the amounts; confidence stays out of the model's hands; every special-regime write is still HELD by the untouched `deriveCaptureVeto` (`unverified_vat_regime`).
 - **brain**: `brain extract`'s digital-PDF path now runs a best-effort local markitdown text-layer read alongside the vision-OCR pre-pass (M1.5), and every extraction always resolves through a fail-closed `extractionMethod` discriminator (#565) — markitdown, tesseract (deferred), and vision all map to the SAME weakest wire value (`ocr`), by type construction, never a stronger one; the extract→book bridge's existing forced `ocr` stamp is unchanged.
@@ -262,11 +290,17 @@ Patch release: capture and compute the DPPO annual worksheet inputs, converge ev
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **accounting/annual**: capture and persist the provenanced DPPO worksheet inputs (taxpayer category + the six §25/§18a/§19/§34/§35/§38a adjustments) per accounting period via a new `dppo_annual_adjustment` table and an owner/admin edit form on the Corporation tax page, so `buildDppo` computes instead of only reporting NEEDS_INPUT.
 - scripts/bot-dev-vars.sh materializes apps/bot/.dev.vars INGEST_SECRET from Vault/SSM, with docs and rotation path (#398)
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Developer tooling: make the Conductor CodeGraph refresh target the active workspace under Spotlight, preserve exit status, and close its Run shell automatically.
 - Bump OpenFGA image pin to v1.18.1 in the CDK app-stack (#564)
 - Converge OpenFGA bootstrap Dockerfile + local compose pins to v1.18.1 and extend the version-check guard to all three pin files (#533)
@@ -282,6 +316,10 @@ Patch release: statutory-closing correctness remediation (#625). Correct statuto
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **accounting/annual**: resolve DPPO rates from the taxable period and explicit taxpayer category, preserve missing advisor inputs as blocking instead of zero, label DPFO and year-end outputs as incomplete worksheets, and include proven prior-period comparisons when available.
 - **accounting/closing**: resolve VAT and payroll profiles as effective-dated timelines, preserve missing intervals as configuration issues, separate schedule applicability from filing status, and stop labelling past dates as overdue without filing evidence.
 - **workspace/settings**: label the scoped board as periodic obligations, render default number-series descriptions from the canonical catalogue, and enforce responsible-assignee workspace membership in PostgreSQL.
@@ -300,6 +338,8 @@ Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launc
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **brain**: automated code guards + tests for the Brain safety invariants I3 (no tenancy fields in any API request schema + full public-op allowlist), I4 (append-only ledger DELETE rejection), I7 (human-actor-required guard), I9 (no write-templates tripwire, scanning code not comments), and I10 (provenance atomicity).
 - **brain/api**: onboarding tools — `POST /v1/accounting/number-series`, `POST /v1/accounting/periods`, `GET /v1/accounting/periods` (with SDK + MCP tools). `create-period` reuses the coupled scaffold so a period is always minted with its chart of accounts + default number series (fixes #579 under-provisioning) and rejects overlapping periods with a 409 to prevent double-booking on retry.
 - **brain**: the held-write review surface now renders a real reviewable view for each Brain proposal — document header (counterparty, date, total), per-rate VAT summary, human-readable why-held reasons in Czech, and the rationale, grouped by účetní případ — instead of a raw JSON dump.
@@ -310,6 +350,10 @@ Patch release: Afframe Brain M0 — the test-phase enabler set. Raised pre-launc
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ci**: add `brain` to the allowed `pr-title` conventional-commit scopes so Afframe Brain PRs pass `conv-title` with a `feat(brain):`-style scope.
 - **brain/api**: raise pre-launch throughput — admission caps 32/8 → 64/16 wired into the ECS task-def, and the `/v1` throttler is now env-configurable (`V1_THROTTLE_LIMIT` default raised 100 → 300). Throughput only: every write is still HELD (the caps are a pure concurrency limiter, orthogonal to the auto-apply gate). Single-task caps today (#472).
 - **brain**: the Brain CLI now runs with only `BRAIN_API_KEY` set — `BRAIN_MCP_ENDPOINT` defaults to the production API base and the auth mode to `ambient`; the redundant client-side `BRAIN_RUNTIME_ACTIVE`/`BRAIN_LIVE` pre-gate is removed (the server admission lane is the sole authority and every write is still HELD), and a lane-off / rate-limited run prints a clean sentence instead of a raw 429 dump.
@@ -329,6 +373,10 @@ Patch release: CI/CD signal and bot-deploy fixes only. No product or runtime cha
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ci**: reduce workflow drift and noise — sync the shared setup action pins, derive Dockerfile `turbo prune` from the root `turbo` dependency, make mature DB advisory checks fail visibly, trim impossible container-scan path filters, and stop PR workflow completions from spawning skipped `notify-ci` runs.
 
 ### Fixed
@@ -341,6 +389,8 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **workspace**: replace mock operational data on the Companies + Legislation surfaces with real data — a workspace-scoped statutory obligation engine (`computeWorkspaceObligations`) drives each company's next-deadline card field and the Legislation board; VAT regime and onboarding/active/archived status are now derived from `vat_status`/`accounting_period`; a new `organization.responsible_user_id` column + owner/admin-gated assignment action wires a real accountant assignee picker onto the company card and inspector. (#612)
 - **closing**: time-versioned `organization_tax_profile` table (has_employees) wired into the statutory obligation engine so payroll obligations become real, plus a Settings > Tax profile capture page and a real Payroll landing (period-mechanism PR3d). (#609)
 - **closing**: real Closing income-tax pages (DPPO / DPFO, gated on person type + book regime) and year-end financial-statements page, computed from the existing annual output builders over the active accounting period. (#605)
@@ -351,6 +401,10 @@ Minor release: period-mechanism completion (PR1–PR4) — real accounting-perio
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Refresh root maintenance files: set the real Code of Conduct enforcement contact, document the as-built AWS security posture in SECURITY.md, and harden .dockerignore to keep secrets and local tool dirs (.env, keys, .claude/, .codegraph/) out of the Docker build context.
 - Developer tooling: CodeGraph now ships a versioned Claude Code UserPromptSubmit hook (repo-wide per-prompt context injection), exposes the full MCP tool set (explore/node/search/status), tunes parse workers + daemon idle timeout, and makes the Conductor workspace index build best-effort so it never blocks workspace creation.
 - Developer tooling: make CodeGraph repo-local via pnpm, add Conductor workspace setup plus agent startup scripts/runbook, and remove leftover graph-index placeholders.
@@ -387,6 +441,10 @@ Patch release: Afframe Brain documentation + an operator-env fix. Two A-Z docs (
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **cli/docs**: `BRAIN_AGENT_SDK_AUTH` defaults to `ambient` in the operator env template — on the operator's own Mac the nested Claude subprocess authenticates via the machine's Claude Code login (no Anthropic token required); `buildBrainSessionEnv` only force-feeds `ANTHROPIC_API_KEY` for an `sk-`-prefixed value. The M2 bootstrap prompt now reuses an existing filled `mlive.local.sh` instead of demanding credentials. (#582)
 
 ## [v0.16.9] — 2026-07-07
@@ -395,10 +453,16 @@ Patch release: dependency maintenance sweep plus the local stdio MCP bridge that
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **cli**: a local stdio MCP bridge so the live Brain loop can connect (v1) — the `afframe` CLI exposes the Brain MCP surface over a local stdio transport, unblocking the local-Claude-Code write loop against a running server. (#575)
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **deps**: production-dependencies group bump (16 updates: `@sentry/node`+`@sentry/nextjs` 10.60→10.62, `lucide-react`, `resend`, `pdfjs-dist`, `recharts`, `react-resizable-panels`, `motion`, and others — all minor/patch), with the lockfile deduped. (#562)
 - **deps-dev**: dev-dependencies group bump (11 updates: `@types/node` 25→26, `turbo` 2.9→2.10, `prettier` 3.8→3.9, `@playwright/test` 1.60→1.61, `knip`, `shadcn`, `wrangler`, and others), with the lockfile deduped. (#560)
 - **deps**: GitHub Actions group bump (11 updates: `actions/checkout` 6→7, `docker/setup-qemu-action`, `docker/setup-buildx-action`, `docker/login-action`, and others). (#559)
@@ -422,6 +486,8 @@ Patch release: Afframe Brain **M1 operator onramp + write-path instrumentation**
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: server-verifiable `extraction_method` on the capture contract + a server-derived OCR fail-closed leg — an `ocr` capture with no confirmed template basis (templateId absent or unresolvable under RLS) is forced HELD, closing the omitted/foreign-`templateId` novelty bypass (#554). Add-only, agent-key-scoped, merged with the existing novelty veto into one `screenTemplateBasis`. The lying-`structured`-label + unscreened `/v1/invoices` route-arounds are tracked as floor-lift preconditions in #565. (#568)
 - **cli**: `brain book <pdf|image> --extracted <ir.json>` — the extract→book bridge routes an OCR-extracted invoice into a live capture (`extraction_method: "ocr"`, carries the matched `templateId`); the structured folder path now honestly stamps `"structured"`. Deliberately no auto-parse of the untrusted extract free-text into a booking (one-command chain tracked #570). (#571)
 - **api**: shadow-score instrumentation — each agent write persists a `serverGate.shadow` (audit-only, never enforces) for M3 calibration: a server-derivable `serverLane`, a client `claimLane` (diagnostic), and a per-write `claimAudit`. The enforced score + three-way AND are byte-identical; a hardened two-leg AST boundary test forbids any production read of `.shadow` (gate included) or wiring it into `autoApply`. Calibration-safety guards tracked #569. (#572)
@@ -436,6 +502,10 @@ Patch release: wire the dead "Add company" buttons, and add an operator input to
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ci**: `_deploy-aws.yml` gains an optional `brain_runtime_active` input, passed through to CDK as `-c brainRuntimeActive=<value>` (ADR-0028). Empty leaves the fail-closed default (OFF); an explicit `1` enables the `/v1/accounting` write admission lane on the target env. This is the documented, no-code-change way to turn the Brain write lane on per-env (writes still stay HELD at cold start). (#563)
 
 ## [v0.16.6] — 2026-07-06
@@ -452,12 +522,18 @@ Patch release: the Afframe Brain **B1.5** pre-launch readiness bundle — OCR te
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: `/v1/ocr-templates` — the workspace OCR-template library (migration 0047 `ocr_extraction_template`, workspace-scoped FORCE RLS mirroring `counterparty`). `GET` (agent + human read), `POST` propose-unconfirmed, `PUT` refine (resets `human_confirmed_at`, bumps version), and the human-only `POST :id/confirm` (`@RequireHumanActor()` + `accounting:write` — an agent key is denied the trust boundary). A new server-derived **`novel_template` Tier-3 veto**: an agent capture keyed to an _unconfirmed_ template is forced HELD (the signal is injected in-tx server-side, so a client can neither forge nor omit it, and it is add-only in the write gate's three-way AND). `templateId` rides the capture contract as **audit-only** — persisted into the `serverGate` record and stripped before the domain mutation on both the capture and held-write replay paths. ADR-0029 records that Brain learned state is workspace-scoped. (#555, #518)
 - **cli**: `afframe brain extract <path>` — a LOCAL vision-OCR pre-pass that turns a PDF/image into an IR Invoice + field-level provenance + a layout fingerprint, and may propose an _unconfirmed_ template. The file is fed to the model as an image/document **content block** (never via a `Read` tool); `allowedBuiltinTools` is empty and the MCP allowlist is the ocr-template read + propose pair ONLY, so a hostile document cannot steer a filesystem read or a book. `afframe brain book <folder>` walks a folder of structured exports into per-record capture plans for operator inspection before a live run. (#555, #469)
 - **admin**: an "Issue Brain agent key" action that hardcodes `actor_kind='agent'` (closing the self-approval lane — a mis-minted `human` key could otherwise cross-approve its own held writes), gated on the `admin:api_key.create` capability (owner + admin) with a password step-up; the audit log records the key id + name, never the secret. (#555)
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **intake**: a `bankToCapture` adapter books a bank statement line as an OUTSIDE_VAT partial using its already-signed `amount_minor` verbatim (no double-negate, no fabricated VAT); GL entries stay non-bookable (import/reconcile-only). The held-write reject surface now un-confirms the source OCR template on both the web and API resolve paths (shared `unconfirmTemplateOnReject`), and the held-writes review UI surfaces the OCR-template provenance badge. (#555)
 
 ## [v0.16.4] — 2026-07-05
@@ -466,6 +542,8 @@ Patch release: the Czech **Kontrolní hlášení** A.1/B.1 now emits the §92 "k
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **accounting**: §92 kód předmětu plnění on kontrolní hlášení A.1 (dodavatel) / B.1 (odběratel). A new nullable `partial_record.commodity_code` (migration 0046 — codes `1` zlato §92b / `3` nemovitost §92d / `4` stavební-montážní §92e / `5` příloha 5 §92c) is threaded through the capture contract + the `classifyEvent` decision layer and emitted as `KhRow.kod`; a doklad mixing §92 commodities splits into a row per kód. Two DB CHECKs make an invalid state unrepresentable — an out-of-domain code, or a §92 kód on any line that is not a domestic reverse charge (`vat_mode = REVERSE_CHARGE AND vat_jurisdiction IS DISTINCT FROM 'EU'`) — so the emitter needs no read-side masking. Distinct from `supply_kind` (the souhrnné-hlášení kód 0/3). Gated through an adversarial safety review (Fable 5 high + Opus 4.8 xhigh — GO, no confident-wrong path, safety spine untouched) and a thermo-nuclear code-quality review (invalid state made unrepresentable, emitter simplified). (#516, #551)
 
 ## [v0.16.3] — 2026-07-05
@@ -474,10 +552,16 @@ Patch release: internal Brain-launcher tooling + a dead-code sweep. The Brain wr
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **brain**: the SDK-backed `AgentSessionLauncher` lands in `apps/cli` (`private: true`) — the sole `@anthropic-ai/claude-agent-sdk` import in the repo. It wires the deploy-gated live-session seam behind `afframe brain run --inputs <file>` (`--dry-run` inspects the plan with no creds; the live path stays fail-closed on the env + `BRAIN_RUNTIME_ACTIVE=1` kill-switch). Pure config assembly + capture-result parsing live in `session-config.ts` (unit-tested); the `query()` body is the only untested-live surface, marked as such. Gated through two independent adversarial safety reviews (Fable 5 high + Opus 4.8 xhigh) — no confident-wrong path, safety spine byte-unchanged. (#469, #549)
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **chore**: dead-code cleanup pass across the repo, and `knip` flipped from advisory to a **blocking required check** so unused exports/files fail CI going forward. (#548)
 
 ## [v0.16.2] — 2026-07-05
@@ -486,6 +570,10 @@ Patch release: version the agent safety + code-quality gates in the repo (toolin
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **governance**: the Brain safety gate (`.claude/workflows/brain-gate.js` — two independent top-tier reviewers, Fable 5 high + Opus 4.8 xhigh, that adversarially hunt confident-wrong paths + safety-invariant violations, then synthesize a ruling) and the thermo-nuclear code-quality gate (`.claude/workflows/thermo-review.js` + the `.claude/skills/thermo-nuclear-code-quality-review/` methodology) are now tracked in the repo instead of workspace-local + gitignored, so every clone/worktree has them. `.gitignore` surgically un-ignores only those two workflow scripts (everything else under `.claude/workflows/` stays local scratch); `packages/brain/CLAUDE.md` points every Brain agent at the mandatory gate. (#546)
 
 ## [v0.16.1] — 2026-07-05
@@ -502,11 +590,17 @@ Minor release: the Afframe Brain v1 launch **backstops** — the security + corr
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: server-side **agent-key capability** (`api_key.actor_kind`, migration 0045, default `human`). An `agent`-actor API key (an autonomous Brain client) may propose gated writes but is denied the entire held-write review surface — both `GET /v1/accounting/held-writes` and `POST …/held-writes/:id/resolve` — via a class-level `@RequireHumanActor()` guard, so a leaked or second agent key can never list or cross-approve the queue. The audit stamp (`tool_call_log.actor_kind`) derives from the tamper-proof key capability, not the spoofable `conversationId`. (#517)
 - **api**: the auto-apply write gate's injectable admission/scoring seams moved to a TEST-ONLY `runGatedWriteWithSeams`; production `runGatedWrite` takes exactly one argument, so overriding the fail-closed server-score leg of the three-way AND is now a **compile error** (with a TS-AST boundary test as belt-and-braces). (#519)
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **intake**: the live-CC harness (`runLiveBrainSession`) is wired through an injectable `AgentSessionLauncher` seam — fail-closed on env + the `BRAIN_RUNTIME_ACTIVE=1` kill-switch before the launcher is consulted, with zero Agent-SDK dependency in `@workspace/intake`. The SDK-backed launcher + first live run stay deploy-gated (#469, M-live). (#543)
 
 ### Fixed
@@ -519,6 +613,8 @@ Minor release: the first public accounting **API surface** (`/v1/accounts`, `/v1
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: `GET/POST /v1/invoices` — invoice CRUD over the posting model. Captures invoice-typed doklady (received → RECEIVED_INVOICE, issued → ISSUED_INVOICE) with their line/partial money decomposition; organization-scoped (FORCE RLS); runs through the server safety gate (201 apply / 202 hold), tenant + responsible user injected from the API-key principal, never the body. (#534)
 - **api**: `GET /v1/accounts` + admin edit — chart-of-accounts (účtový rozvrh) read, organization-scoped; the chart exists only for DOUBLE_ENTRY periods. (#529)
 - **web**: the app-shell accounting-period switcher wired to real `accounting_period` data — org-scoped read (newest-first, open/closed lock state), selection persisted server-side in the httpOnly `afframe_period` cookie. Replaces the mock. (#528)
@@ -527,6 +623,10 @@ Minor release: the first public accounting **API surface** (`/v1/accounts`, `/v1
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **accounting**: EU services received are split into DPH rows 5/6 (correct kód plnění per the reverse-charge rules) instead of collapsing into one row. (#539)
 
 ### Fixed
@@ -539,6 +639,10 @@ Patch release: dependency + documentation updates.
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **deps**: openfga image pin `v1.17.1` → `v1.18.0` (constant-time preshared-key auth). The MySQL case-sensitivity CVEs + migration-008 lock window and the OIDC-audience enforcement do not apply here — the datastore is Postgres and the sidecar runs no OIDC authn. (#523)
 - **deps**: every workspace `eslint` specifier aligned to the pinned `^9.39.2` override (they advertised `^10.4.1`, which the override already overrode). Zero lockfile change; eslint still resolves to `v9.39.4`. (#521)
 - **docs**: the AI financial-agents plan rewritten from the stale BullMQ substrate to the shipped pg-boss lanes (ADR-0017); no BullMQ mention remains. (#522)
@@ -549,6 +653,10 @@ Patch release: CI + repo-tooling housekeeping.
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ci**: monthly tool-version pin refresh behind upstream drift (pnpm `packageManager`, CI tool binaries). (#526)
 - **ci**: knip config hardened + a dead admin barrel export removed. (#525)
 - **docs**: the `v0.14.0` changelog recorded (committed after the tag). (#538)
@@ -559,6 +667,8 @@ Minor release: **Afframe Brain v1** — the unprivileged Brain client on top of 
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: the **server-side evidence gate** — ends client-scalar-only auto-apply trust. Auto-apply now requires a three-way AND (client confidence ≥ threshold **AND** the independent server veto not held **AND** a server-side evidence score green). The client's self-reported `signals` are never consumed directly: every non-server-verifiable field degrades to its worst value and a structural `extraction_failed` block forces the score sub-green, so green is **unreachable at cold start** regardless of any fitted calibration → all writes HELD. Held-write resolve enforces author ≠ approver. (#520)
 - **brain / intake**: the unprivileged Brain client — a pure IR→capture adapter (rate-less / non-positive / NaN rows → `OUTSIDE_VAT` hold; money via string math, never `BigInt(Number())`), a per-tool MCP sandbox bound to the real accounting tools (DENY `resolve`/`list`-held: self-approval + injection surface), a post-calibration hard-class confidence ceiling (a fitted map cannot lift a capped class above green), isotonic calibration-refit machinery for M3 (≥10-run guard; not wired to the live path), and an honest creds-gated live-CC harness scaffold (never faked). (#520)
 - **accounting / db**: persist `supply_kind` (migration 0043, additive-nullable) so the Souhrnné hlášení emits the correct kód plnění (0 = goods §64, 3 = services §9/1) instead of hardcoding 0. (#520)
@@ -566,6 +676,10 @@ Minor release: **Afframe Brain v1** — the unprivileged Brain client on top of 
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **brain**: the LOCKED `.brain/constitution.md` re-derived to the v1 **server-side HTTP boundary** (Hleb-ratified) — I1 (server-side `withOrganization` from the API-key principal), I4 (rollback unit = `tool_call_log` row + `conversation_id`; no per-row `brain_run_id` column), I5 (17 mutable / 6 append-only tables, three-way AND primary), I6 (held-write queue), I3/I10 + enforcement-map. (#520)
 
 ## [v0.13.0] — 2026-07-04
@@ -574,6 +688,8 @@ Minor release: the Afframe Brain v1 **foundation** — the server-side safety sp
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: server-side confidence veto on the accounting write gate — a client's claimed `confidence` is now necessary but not sufficient. The server derives the dangerous signals from the payload and forces a HOLD regardless of the claim: `asset_vs_expense` at posting (in-tx `accountId`→`account.number` lookup, per-synthetic DHM aggregation over 501/502/503/504/505/511/512/513/518/548), and `unverified_vat_regime` / `vat_amount_missing` / `vat_mismatch` at capture (all non-STANDARD VAT held, STANDARD-missing-`vatAmount` held, `base×rate` mismatch held). Honest limit: a wrong VAT rate with self-consistent arithmetic and sub-40k misclassification stay underivable — human review of held writes is the master gate (full evidence contract tracked in #464). (#479)
 - **api / db / web**: EPIC-R marshrutizátor wired into the write path — a per-(org, period) transaction-scoped advisory lock (`lockPeriodInTx`) serializes concurrent posts across the write gate + both approve-replay lanes, and a fail-closed admission kill-switch (`BRAIN_RUNTIME_ACTIVE`) + concurrency caps front every v1 accounting write (held-write resolve stays exempt so a human can always drain the review queue). (#479)
 - **brain / intake / accounting-kb**: the Brain packages — `@workspace/brain` (calibrated confidence engine, canonical IR + provenance, the server-side gate, agent login-pack + N-1 tool sandbox + prompt-injection defense, cross-source reconcile/dedup), `@workspace/intake` (pure heterogeneous-dump parsers → Brain IR), `@workspace/accounting-kb` (vendored machine-readable KB + CZ-law taxonomy: §34 loss, PDP 343-split, OSVČ/DPFO, zahajovací rozvaha). Plus the BGTG build-ground-truth harness and ADRs 0025-0028. (#479)
@@ -589,6 +705,8 @@ Patch release: organization slug hardening — a single shared reserved-name pol
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **org-provisioning**: a single shared slug + reserved-name policy (`slug.ts`) — `RESERVED_SLUGS` (grouped: routing/framework, product surface, Afframe brand, accounting domain, generic) + `isReservedSlug`, consumed by the create-org scaffolder, the `[orgSlug]` router guard, and onboarding (replacing three hand-mirrored copies). A real `slugify` pipeline: diacritic transliteration (á→a, š→s, ř→r, ú→u…), symbol words (`&`→"a", `+`→"plus"), word runs→`-`, a trailing legal-form cut (s.r.o./a.s./k.s./v.o.s./spol. s r.o./o.p.s./družstvo…), min length 3, max 48. (#475)
 
 ### Fixed
@@ -604,6 +722,8 @@ Patch release: the organization creation-scaffolding protocol — one call mints
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **org-provisioning**: `@workspace/org-provisioning` — `scaffoldOrganization(input)` mints a fully-configured účetní jednotka in one atomic idempotent transaction: identity + owner membership + NACE links + vat_status + first accounting period + full směrná-osnova chart + number series + self-counterparty + peněžní-deník categories + optional signatory / OSS. Platform rows under `withAdminBypass`, accounting master-data via a nested `withOrganization(outerTx)` frame in the same transaction. (#443)
 - **registries**: `@workspace/registries` — ARES v3 REST + CRPDPH SOAP + ČSÚ legal-form lookups supplying prefill suggestions (kraj / finanční úřad / spisová značka / delivery address), zero workspace deps. (#443)
 - **accounting**: additive setup + lifecycle primitives — `createVatStatus` (§6/§6f/§97 ZDPH range), `seedChartFromDirectives` (materialize the směrná osnova via one INSERT…SELECT over `directive_account`), `rollForwardPeriod` (close result → close → open next účetní období). No existing domain function changed. (#443)
@@ -616,6 +736,8 @@ Patch release: the human half of the accounting write gate, API-key write scopes
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: held-writes review surface — `GET /v1/accounting/held-writes` lists the gated writes the confidence gate held for human review; `POST /v1/accounting/held-writes/{id}/resolve` approves (re-validates the stored payload against the original schema and executes it through the same domain path, with the approver as the responsible user) or rejects (audit-only). 404/409/403/422 seams covered; SDK + MCP regenerated (23 tools). The "Ke schválení" page gains Schválit a zaúčtovat / Zamítnout actions with an optional note. (#462)
 - **api**: `accounting:write` API-key scope enforced on the three accounting write mutations via `@RequireScopes` in ApiKeyGuard — 403 names the missing scope; keys with empty scopes pass as legacy full access (warn-logged) until issued keys carry scopes. (#462)
 
@@ -629,6 +751,10 @@ Patch release: Sidekick brand accent recolored to the shared purple token, UI-on
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ui**: the Sidekick brand mark, the `tone="sidekick"` IconButton, the "Ask Sidekick" context-menu item, and the admin command palette's "Ask AI" row now use the shared `--purple` token instead of hardcoded grays. The "Ask Sidekick" menu item's lucide `Sparkles` glyph is replaced with the real brand mark and its `BorderBeam` gradient wrapper is dropped. (#460)
 
 ## [v0.12.0] — 2026-07-03
@@ -637,6 +763,8 @@ Minor release: the v2 Czech accounting system — the double-entry domain, its p
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **db**: v2 accounting ground layer — 16 migrations / 39 tables: law-as-reference directives, time-bound org links (regime, size, legal form, VAT regime), events → documents → postings spine, gapless number series, FORCE-RLS tenant isolation, trigger-maintained turnover read models, saldokonto open items. (#445)
 - **accounting**: `@workspace/accounting` domain engine — classification (predkontace + `decideVat`), capture, double-entry + monetary posting, FX (daily/real/fixed), depreciation, accruals, corrections, and statutory outputs: DPH return, kontrolní hlášení, souhrnné hlášení, DPPO, financial statements (závěrka) with statement layouts. (#445)
 - **api**: 15 `/v1/accounting` endpoints / 21 MCP tools — reads (journal, ledger, open items, saldokonto), 6 statutory outputs, pure `classify`, number-series discovery, and 3 gated write mutations (events, documents, postings) behind a confidence + idempotency gate (`tool_call_log`): low-confidence writes are held for human review, replays are idempotent, tenant identity comes only from the API-key principal. (#445)
@@ -653,6 +781,8 @@ Minor release: the workspace tier — the accountant-office surface for managing
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **web**: full workspace-tier app shell + 8 modules (Companies hub, Analyse, Audit, Inbox, Legislation, Billing, Team, Settings/Profile), built on the org tier's shell/archetype vocabulary. Green office-chrome identity, combined logomark+wordmark rail lockup. Real writes for Settings, Billing entity, and Profile display name; Companies/Team/Billing-overview backed by real data. Inbox and other undelivered surfaces (Audit backend, Legislation, Billing/Invoices) ship as designed mock UI with tracked follow-ups (#452–458), or as a prod TODO stub with the mock preserved dev-only (Inbox). (#444)
 
 ### Fixed
@@ -677,6 +807,8 @@ Patch release: the app-structure discovery surface — the org navigation tree, 
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **api**: read-only app-structure discovery surface for agents — `GET /v1/structure` (the ten rail modules → pages → subpages, each with route, icon, build-status, and layout archetype) and `GET /v1/structure/archetypes` (the five content-panel archetypes). Public (no API key — the IA is tenant-agnostic), auto-shipped as MCP tools (`getStructure`, `listArchetypes`) and CLI commands (`afframe structure`, `afframe archetypes`). Generated from the typed `nav.ts` trees at build time (`scripts/gen-structure.ts` → committed snapshot), drift-locked via a lefthook `structure-drift` hook; the GUI is untouched. Operability (agents acting on pages) is deferred until the accounting domain lands — see [`docs/api/AGENT-STRUCTURE.md`](docs/api/AGENT-STRUCTURE.md) + issue #439. (#438)
 
 ## [v0.10.1] — 2026-07-01
@@ -685,6 +817,8 @@ Patch release: Intrastat placeholder pages on the app skeleton, plus admin secur
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **web**: Intrastat obligation surface on the app skeleton — a **Closing › Obligations › Intrastat** page with **Dispatches** / **Arrivals** subpages (TBA-flagged `ModulePage` placeholders, matching every other closing leaf). Statistical filing to ČSÚ via the Celní správa INTRASTAT-CZ portal (threshold 15M CZK/flow; §58 Act 242/2016 + NV 333/2021). Also documents the VAT-registration turnover watcher (rolling-12mo gauge, §6/§6c ZDPH) on Company › Overview and flags the §89/§90 VAT margin schemes as a V2-deferred scope-out. (#434)
 
 ### Fixed
@@ -697,6 +831,8 @@ Minor release: the org application surface skeleton — the full navigable sideb
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **web**: the full org application nav skeleton — all 10 module sidebars + 101 mock leaf `page.tsx` placeholders, generated from the enriched `docs/specs/SITEMAP.md` (two independent latest-Opus advisor passes + a confirmation pass over the Czech-accounting IA). Regime is a superset for now, marked with `TODO(regime)` swap points. Mock-backed skeleton only — no data wiring yet. (#429)
 - **ui**: four content-panel archetypes so a new org page can be scaffolded by picking one and feeding it data — **Launchpad** (folder/overview card grid), **Dashboard** (KPI tiles + sparklines + chart cards + a metrics matrix on the real Table grid), and **Single** (the ABRA three-panel `RecordWorkspace` via a new additive `formLayout="panels"`), on top of the pre-existing Table gold standard. Adds a shared content-header `⋯` menu and dev-only demo routes (`/demo-table`, `/demo-launchpad`, `/demo-dashboard`, `/demo-single`) that 404 in production. (#432)
 
@@ -714,6 +850,10 @@ Minor release: the cold-pause "app is asleep" edge page, redesigned onto the in-
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **infra**: redesigned the cold-pause "app is asleep" edge page (`infra/cloudflare-sleeping`) onto the in-app auth split-shell — light/dark via `prefers-color-scheme`, adaptive brand logo, a corporate watercolor aside, a header return-link + single "Try again" action, and a contact-support line. Stays self-contained static HTML (zero network deps; watercolor inlined as a base64 webp). (#426)
 
 ## [v0.8.1] — 2026-06-29
@@ -730,6 +870,8 @@ Minor release: the staff admin back-office (`apps/admin`) on the shared AppShell
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **admin**: staff back-office on the AppShell chrome — rail + collapsible sidebar + header, five operator modules (Now, Customers, Ops, Platform, Staff), detail-page header tabs. Capability-gated security spine: `admin_staff_role` (7 roles), `SECTION_ACCESS` map, workspace-allowlist gate, and step-up re-auth whose 2FA requirement is server-derived from the operator's enrollment (not the request). Real-data surfaces for orgs / users / workspaces / staff / audit / impersonation / kill switches / maintenance / critical systems / domains / TLS / email deliverability / command palette. `/invites` is the production account-creation path (signup + invite token minting, capability + step-up gated, `WEB_BASE_URL`-targeted links). Plus a reusable `DataTable`, a live GitHub-Releases changelog, and an operator profile. (#409)
 
 ## [v0.7.0] — 2026-06-29
@@ -738,6 +880,8 @@ Minor release: org/period context switchers wired to real data, public sign-up c
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **web**: org switcher wired to real organization data; the accounting-period switcher now tracks live state. (#406, #408)
 
 ### Fixed
@@ -779,6 +923,8 @@ Minor release: app-shell global header context switchers + the page-adding runbo
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **ui**: `app-header` block — `OrgSwitcher` (current-org identity + dropdown) and an accounting-period switcher for the app-shell global header. Stacked follow-up to the App Shell (#397). (#400)
 
 ### Documentation
@@ -791,11 +937,17 @@ Minor release: the app-shell **Content Panel** + a persistent, structure-driven 
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **ui**: `data-grid-view` — a presentational grid bound to a TanStack table (resize / reorder / pin / sort / hide, keyboard nav, scroll-gated pin shadow); `ContentPanel` Inspector (panel / dialog) + a status-bar clearance contract + a five-variant taxonomy (Table / Launchpad / Dashboard / Single / Blank) with stories; `Separator` `inset` prop; a generic data-table column manager + `DetailField` extracted into `packages/ui`. `data-grid-view` added to the admin showcase; app-sidebar block stories.
 - **web**: the persistent `AppShell` mounted in the org layout; a structure-driven sidebar nav (co-located `<module>/nav.ts` + an `_nav` aggregator, active module via the rail); one Overview page per module; a `nav-drift` guard (`scripts/check-nav.ts`) and a `ui-location` lefthook guard for reusable-UI placement.
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **web**: sidebar reminders + insight are on-call — the sidebar self-hides them until a real source pushes data. The invoices Content Panel demo moved to a dev-only `/<org>/demo` route.
 
 ### Fixed
@@ -822,6 +974,10 @@ Patch release: dependency, CI, accessibility, observability, and docs cleanup ta
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **observability**: deduped the client-error gate into `@workspace/notify` so app + worker error capture share one path. (#368)
 - **web**: code-quality leftovers from the D wave (DEV-78). (#371)
 
@@ -845,6 +1001,8 @@ Minor release: pre-v1 hardening — mobile UI, brand surface, performance, i18n 
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **Pre-v1 hardening (feature wave)** — UI mobile support, brand surface, performance, and i18n. (#361)
 
 ### Fixed
@@ -862,6 +1020,10 @@ Patch release: web layout re-land and supporting docs/UX fixes.
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - **ui**: switch the AppShell content area to flex and drop `react-resizable-panels`; re-land the web layout changes after the unreviewed direct-to-main push was reverted. (#350, #351)
 - **web**: rename the `/personnel` org route to `/hr` and move section titles to design tokens.
 
@@ -875,6 +1037,8 @@ Patch release: web layout re-land and supporting docs/UX fixes.
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - Theme-adaptive `favicon.svg` at the repo root for the Conductor sidebar icon. (#343)
 
 ## [v0.4.0] — 2026-06-07
@@ -883,6 +1047,8 @@ Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram co
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **Agent HITL round-trip** — complete free-text replies, timeout policy, and agent wiring (#337); hybrid asks (options + type-your-own) with crisp agent recipes (#338); answer-as-trigger so the reply WAKES the consumer with no agent polling (#340).
 - **Telegram bot control plane** (PR-2) — continues the dev alert + control hub from v0.3.0. (#332)
 - **Telegram command surface** — command menu + interactive button pickers (#336).
@@ -890,6 +1056,10 @@ Minor release: the agent human-in-the-loop (HITL) round-trip and the Telegram co
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Point the bot `/status` at `api/health` and set `ENVIRONMENT=production`. (#334)
 - **ci**: gate `cdk-synth` + icon-parity heavy work on change-detection. (#335)
 
@@ -903,6 +1073,8 @@ Minor release: the Afframe Telegram dev alert + control hub (epic DEV-48).
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **Telegram dev alert + control hub** (`apps/bot`): a Cloudflare Worker (grammY + Hono) that is the single choke point for developer-facing Telegram I/O. Outbound `POST /ingest`; inbound `/webhook` (secret-token + Telegram user-id allowlist, constant-time auth); `/issue` + `/sns`; a scheduled health scan (cron 06:00/18:00 Prague) with a `/scan` command; and an auto-issue engine (Cloudflare D1 dedup → GitHub issue in **DEV — Incidents** with source/type/risk/area labels). New `@workspace/notify` typed client. AWS CloudWatch alarms fan in via SNS (Billing + KillSwitch topics); an independent GitHub Actions watchdog monitors the bot's `/health`.
 - App-side error capture + business pings wired to the bot: `apps/api` `DomainExceptionFilter` (Sentry + notify), Next.js `global-error`/`error`/`instrumentation-client` + a same-origin client-error route, `packages/workers` `permissions-drain` dead-letter, plus feedback + new-workspace pings.
 
@@ -921,6 +1093,8 @@ Patch release: code-scanning + supply-chain follow-ups to v0.2.4. No app-surface
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - CI workflow to seed the Cloudflare routes token into SSM. (#305)
 
 ## [v0.2.4] — 2026-06-01
@@ -929,6 +1103,8 @@ Largest release since v0.2.0. Introduces the public API v1 surface, the Vault-on
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - **Public API v1** — `/v1` release candidate: Scalar API reference, generated SDK + MCP tool surface + CLI, OpenAPI registry codegen, status + feedback endpoints, topnav/brand polish.
 - **Secrets architecture — Vault → SSM (M1–M10)** — Vault-on-VPS bring-up assets (compose, HCL, env, logrotate); `SecretsBootstrap` CDK stack (KMS auto-unseal + IAM user); Vault AWS IAM auth verifier + operator-admin policy (M3 / M3.5); vault-to-SSM sync (script + systemd + drift CI); M4 CDK flip of 3 workflow secrets to SSM SecureString + `vault-ssm-sync` IAM user; restic backup + DR-drill assets; GitHub OIDC → Vault JWT pilot (M5); `infisical-scan` gate.
 - **AWS cost-runaway protection** — account-wide $55 production cost guard; always-on cost reduction + hardened cost kill-switch.
@@ -938,6 +1114,10 @@ Largest release since v0.2.0. Introduces the public API v1 surface, the Vault-on
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - All Docker base images pinned by digest (Scorecard `PinnedDependencies`). (#300)
 - CI / supply-chain hardening: `timeout-minutes` on required jobs; corrected stale action version comments; `workflow-lint` runs on every PR so required checks always report; secret tooling hardened (gitleaks Vault rule, deploy gate, scoped access, runbooks).
 - Dependency bumps: production (31), dev (37), and GitHub Actions (10) groups; codegraph MCP server wired in.
@@ -965,6 +1145,8 @@ Supply-chain follow-up to v0.2.2. No app surface changes.
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - `_supply-chain.yml` post-upload verification step. Asserts the GitHub Release has `sbom.cdx.json`, `sbom.cdx.json.cosign.bundle`, and `<package>-<version>.cosign.bundle` attached after the release-mode upload, fails the job if any is missing. Silent missing-asset bugs (as on v0.2.2) now fail loud instead of waiting for the next release attempt.
 
 ## [v0.2.2] — 2026-05-21
@@ -977,6 +1159,10 @@ CI + observability follow-ups to v0.2.0. No app surface changes.
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - `_deploy-aws.yml` decouples the image's `BUILD_VERSION` env from `IMAGE_TAG`. The deploy pipeline resolves `BUILD_VERSION` in order: (1) explicit `build_version` input, (2) `git describe --exact-match` to discover a tag at HEAD, (3) fallback `sha-<short-7-char>`. `IMAGE_TAG` stays `sha-<full>` to preserve ECR deterministic pin + rollback semantics + the `image_tag_override` flow. Result: after `git tag v0.2.2` the deploy auto-bakes `BUILD_VERSION=0.2.2` without any extra flag — the runtime footer, `/api/version`, OpenAPI `info.version`, and Sentry `release` tag all read `v0.2.2`. Before this change everything ran on a 40-char full SHA regardless of git tag state. (#241)
 - `docs/conventions/RELEASES.md` rewritten to match actual mechanics: corrected "Tag → deploy order", added per-service-coherence note (`force_rebuild_images=true` to align unchanged services), documented the `build_version` escape hatch. (#241)
 - `docs/runbooks/DEPLOY.md` corrected: `release.yml` does not call `_deploy-aws.yml` — they are independent workflows. (#241)
@@ -1042,6 +1228,10 @@ First tagged release. Establishes the brand surface, release + version conventio
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
 - Auth + onboarding layouts use `<Logo>` (5 sites previously rendered the `WalletMinimal` lucide placeholder).
 - Admin auth metadata uses `getBrandText()` instead of hardcoded "Afframe Admin".
 - API Swagger site title reads brand name from i18n.

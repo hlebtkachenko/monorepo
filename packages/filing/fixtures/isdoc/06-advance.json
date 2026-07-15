@@ -1,0 +1,51 @@
+{
+  "invoice_id": "FV-2025-006-ZALOHA",
+  "uuid": "66666666-6666-4666-8666-666666666666",
+  "doc_type": "5",
+  "direction": "vydana",
+  "issue_date": "2025-11-25",
+  "tax_point_date": "2025-11-25",
+  "due_date": "2025-12-09",
+  "supplier": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "customer": {
+    "ico": "55667788",
+    "dic": "CZ55667788",
+    "name": "Zákazník Gamma a.s.",
+    "street": "Krátká",
+    "building": "7",
+    "city": "Ostrava",
+    "zip": "70200",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "lines": [
+    {
+      "description": "Daňový zálohový list – 50 % z objednávky 2025-100",
+      "qty": "1",
+      "unit": "ks",
+      "unit_price_base": "50000.00",
+      "vat_rate": "21"
+    }
+  ],
+  "payment_method": 42,
+  "bank": {
+    "account": "1111222233",
+    "code": "0100",
+    "name": "Komerční banka",
+    "iban": "CZ6501000000001111222233",
+    "bic": "KOMBCZPP"
+  },
+  "variable_symbol": "2025000006"
+}

@@ -1,0 +1,50 @@
+{
+  "invoice_id": "FP-2025-003-NEPLATCE",
+  "uuid": "33333333-3333-4333-8333-333333333333",
+  "doc_type": "1",
+  "direction": "prijata",
+  "issue_date": "2025-11-17",
+  "tax_point_date": "2025-11-17",
+  "due_date": "2025-12-01",
+  "supplier": {
+    "ico": "33445566",
+    "name": "Dodavatel Neplátce s.r.o.",
+    "street": "Malá",
+    "building": "3",
+    "city": "Plzeň",
+    "zip": "30100",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": false
+  },
+  "customer": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "lines": [
+    {
+      "description": "Poradenské služby (neplátce DPH)",
+      "qty": "1",
+      "unit": "ks",
+      "unit_price_base": "2500.00",
+      "vat_rate": "0"
+    }
+  ],
+  "payment_method": 42,
+  "bank": {
+    "account": "5556667770",
+    "code": "0100",
+    "name": "Komerční banka",
+    "iban": "CZ0501000000005556667770",
+    "bic": "KOMBCZPP"
+  },
+  "variable_symbol": "2025000003"
+}

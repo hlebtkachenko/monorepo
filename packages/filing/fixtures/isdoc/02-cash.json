@@ -1,0 +1,43 @@
+{
+  "invoice_id": "FP-2025-002-CASH",
+  "uuid": "22222222-2222-4222-8222-222222222222",
+  "doc_type": "1",
+  "direction": "prijata",
+  "issue_date": "2025-11-15",
+  "tax_point_date": "2025-11-15",
+  "supplier": {
+    "ico": "12345678",
+    "dic": "CZ12345678",
+    "name": "Dodavatel Alpha s.r.o.",
+    "street": "Vinohradská",
+    "building": "10",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "customer": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "lines": [
+    {
+      "description": "Kancelářské potřeby – hotovostní nákup",
+      "qty": "3",
+      "unit": "ks",
+      "unit_price_base": "250.00",
+      "vat_rate": "21"
+    }
+  ],
+  "payment_method": 10,
+  "cash": { "receipt_id": "PV-2025-042", "paid_date": "2025-11-15" }
+}

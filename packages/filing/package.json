@@ -1,0 +1,32 @@
+{
+  "name": "@workspace/filing",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Afframe filing — generate + validate the official Czech e-filing XML formats (ISDOC, later FÚ EPO, ČSSZ). Pure, bytes-out, no I/O.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./isdoc": "./src/cz/isdoc/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen:schemas": "node scripts/inline-schemas.mjs"
+  },
+  "dependencies": {
+    "decimal.js-light": "^2.5.1",
+    "fast-xml-parser": "^5.9.3",
+    "xmllint-wasm": "^5.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1",
+    "@workspace/eslint-config": "workspace:*",
+    "@workspace/typescript-config": "workspace:*",
+    "eslint": "^9.39.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  }
+}

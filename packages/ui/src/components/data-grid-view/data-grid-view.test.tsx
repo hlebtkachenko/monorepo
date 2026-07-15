@@ -1,6 +1,6 @@
 import { act, render, renderHook, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import type { ColumnDef } from "@tanstack/react-table"
+import { getExpandedRowModel, type ColumnDef } from "@tanstack/react-table"
 import { arrayMove } from "@dnd-kit/sortable"
 import * as React from "react"
 import { describe, expect, it } from "vitest"
@@ -65,6 +65,70 @@ describe("DataGridView", () => {
     expect(screen.getByText("Ada")).toBeInTheDocument()
     expect(screen.getByText("Alan")).toBeInTheDocument()
     expect(screen.getByText("Grace")).toBeInTheDocument()
+  })
+
+  it("right-aligns a SORTABLE column header when meta.align is 'end'", () => {
+    // Sortable/hideable columns render through DataGridViewColumnHeader (a
+    // dropdown trigger), not the non-interactive branch — so its trigger must
+    // also honor meta.align, else numeric headers sit left over right cells.
+    function AlignHarness() {
+      const { table } = useDataTable<Row>({
+        data: seed,
+        columns: [
+          {
+            accessorKey: "name",
+            header: "Name",
+            size: 160,
+            meta: { label: "Name" },
+          },
+          {
+            accessorKey: "age",
+            header: "Age",
+            size: 120,
+            meta: { label: "Age", align: "end" },
+          },
+        ],
+        getRowId: (row) => row.id,
+        columnResizeMode: "onChange",
+      })
+      return <DataGridView table={table} className="h-64" />
+    }
+    render(<AlignHarness />)
+    expect(screen.getByRole("button", { name: /Age/ }).className).toContain(
+      "justify-end",
+    )
+  })
+
+  it("switches to windowed rendering above the row threshold", () => {
+    // Above VIRTUALIZE_THRESHOLD (100) the body becomes a positioned scroll
+    // container. aria-rowcount still reflects EVERY row (not just the window),
+    // so assistive tech knows the true size.
+    const many: Row[] = Array.from({ length: 150 }, (_, i) => ({
+      id: String(i),
+      name: `Name ${i}`,
+      age: i,
+    }))
+    function BigHarness() {
+      const { table } = useDataTable<Row>({
+        data: many,
+        columns,
+        getRowId: (row) => row.id,
+        columnResizeMode: "onChange",
+        // Single page holds all rows (the archetype's "1-pager" model) so the
+        // grid receives every row and virtualizes them.
+        initialState: {
+          columnPinning: { left: ["select"] },
+          pagination: { pageIndex: 0, pageSize: 1000 },
+        },
+      })
+      return <DataGridView table={table} className="h-64" />
+    }
+    const { container } = render(<BigHarness />)
+    expect(
+      container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount"),
+    ).toBe("151")
+    const body = container.querySelector<HTMLElement>('[data-slot="grid-body"]')
+    expect(body?.style.position).toBe("relative")
   })
 
   it("gives dnd-kit a stable id so the grips don't mismatch on hydration", () => {
@@ -149,5 +213,110 @@ describe("column reorder (shared columnOrder helpers)", () => {
     // Centre reordered, pinned `select` still leads the full order.
     expect(getCenterIds(result.current.table)).toEqual(["age", "name"])
     expect(result.current.table.getState().columnOrder[0]).toBe("select")
+  })
+})
+
+describe("header alignment (meta.align)", () => {
+  // Both columns are non-interactive (no sort, no hide) so the header goes
+  // through SortableHeaderCell's plain content div rather than
+  // DataGridViewColumnHeader — the latter doesn't consult `meta.align`.
+  const alignedColumns: ColumnDef<Row>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      size: 160,
+      enableSorting: false,
+      enableHiding: false,
+      meta: { label: "Name" },
+    },
+    {
+      accessorKey: "age",
+      header: "Age",
+      size: 120,
+      enableSorting: false,
+      enableHiding: false,
+      meta: { label: "Age", align: "end" },
+    },
+  ]
+
+  function AlignHarness() {
+    const { table } = useDataTable<Row>({
+      data: seed,
+      columns: alignedColumns,
+      getRowId: (row) => row.id,
+      columnResizeMode: "onChange",
+    })
+    return <DataGridView table={table} className="h-64" />
+  }
+
+  it("right-aligns the header content for an end-aligned column", () => {
+    render(<AlignHarness />)
+    const header = screen.getByText("Age")
+    expect(header.className).toContain("justify-end")
+    expect(header.className).toContain("px-3")
+  })
+
+  it("keeps the default (start) header left-aligned", () => {
+    render(<AlignHarness />)
+    const header = screen.getByText("Name")
+    expect(header.className).not.toContain("justify-end")
+    expect(header.className).not.toContain("justify-center")
+    expect(header.className).toContain("px-3")
+  })
+})
+
+describe("row-level aria-expanded", () => {
+  interface TreeRow {
+    id: string
+    name: string
+    children?: TreeRow[]
+  }
+
+  const treeData: TreeRow[] = [
+    { id: "1", name: "Parent", children: [{ id: "1a", name: "Child" }] },
+    { id: "2", name: "Leaf" },
+  ]
+
+  const treeColumns: ColumnDef<TreeRow>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      size: 200,
+      meta: { label: "Name" },
+      cell: ({ row }) =>
+        row.getCanExpand() ? (
+          <button type="button" onClick={row.getToggleExpandedHandler()}>
+            {row.original.name}
+          </button>
+        ) : (
+          row.original.name
+        ),
+    },
+  ]
+
+  function TreeHarness() {
+    const { table } = useDataTable<TreeRow>({
+      data: treeData,
+      columns: treeColumns,
+      getRowId: (row) => row.id,
+      getSubRows: (row) => row.children,
+      getExpandedRowModel: getExpandedRowModel(),
+      columnResizeMode: "onChange",
+    })
+    return <DataGridView table={table} className="h-64" />
+  }
+
+  it("exposes expand state on rows that can expand, omits it on plain rows", async () => {
+    const user = userEvent.setup()
+    render(<TreeHarness />)
+
+    const parentRow = screen.getByText("Parent").closest('[role="row"]')
+    const leafRow = screen.getByText("Leaf").closest('[role="row"]')
+    expect(parentRow).toHaveAttribute("aria-expanded", "false")
+    expect(leafRow).not.toHaveAttribute("aria-expanded")
+
+    await user.click(screen.getByRole("button", { name: "Parent" }))
+    expect(parentRow).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByText("Child")).toBeInTheDocument()
   })
 })

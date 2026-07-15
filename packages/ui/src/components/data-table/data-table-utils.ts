@@ -1,13 +1,7 @@
 import type { Column, ColumnSort, RowData } from "@tanstack/react-table"
 
 export type DataTableFilterVariant =
-  | "text"
-  | "number"
-  | "range"
-  | "date"
-  | "dateRange"
-  | "select"
-  | "multiSelect"
+  "text" | "number" | "range" | "date" | "dateRange" | "select" | "multiSelect"
 
 export interface DataTableFilterOption {
   label: string
@@ -26,6 +20,17 @@ export interface DataTableColumnMeta {
   icon?: React.FC<React.SVGProps<SVGSVGElement>>
   /** Cell content alignment — `center` squares up icon/checkbox columns. */
   align?: "start" | "center" | "end"
+  /**
+   * Whether the grid's keyboard cell-focus can land on this column. Default
+   * true. The select column sets it false so it is never a focusable/"selected"
+   * cell (no focus ring, arrow-nav skips it).
+   */
+  focusable?: boolean
+  /**
+   * Whether this column's cells are inline-editable — the grid gives a focused
+   * cell here a white surface so it reads as an editable field.
+   */
+  editable?: boolean
 }
 
 declare module "@tanstack/react-table" {

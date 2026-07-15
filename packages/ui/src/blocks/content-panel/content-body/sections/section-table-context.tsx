@@ -3,6 +3,19 @@
 import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
+import type { TableCellValue } from "./section-table"
+
+/** One committed inline-cell edit — the row id, the column, the new value. */
+export interface SectionCellEdit {
+  readonly rowId: string
+  readonly columnId: string
+  readonly value: TableCellValue
+}
+
+/** Persist an inline-cell edit (e.g. a server action). May reject to signal a
+ * failed write, which the renderer reverts optimistically. */
+export type SectionCellCommit = (edit: SectionCellEdit) => void | Promise<void>
+
 /**
  * The load-bearing bridge (Doc `table-stack-research` §3c). A `Table` section's
  * live TanStack instance is minted INSIDE the closed section renderer — it can
@@ -49,6 +62,8 @@ interface SectionTableContextValue {
   } | null
   /** Header "AI analyze" → bump the analyze request for the chrome/consumer to handle. */
   readonly requestColumnAnalyze: (columnId: string) => void
+  /** Page-supplied persistence for an inline-cell edit; null when the page wires none. */
+  readonly cellCommit: SectionCellCommit | null
 }
 
 const SectionTableContext =
@@ -62,8 +77,11 @@ const SectionTableContext =
  */
 export function SectionTableProvider({
   children,
+  onCellCommit,
 }: {
   children: React.ReactNode
+  /** Persist an inline-cell edit; the section renderer calls it (optimistic + revert). */
+  onCellCommit?: SectionCellCommit
 }) {
   const [registration, setRegistration] =
     React.useState<SectionTableRegistration | null>(null)
@@ -109,6 +127,7 @@ export function SectionTableProvider({
       setFilterOpen,
       analyzeRequest,
       requestColumnAnalyze,
+      cellCommit: onCellCommit ?? null,
     }),
     [
       registration,
@@ -120,6 +139,7 @@ export function SectionTableProvider({
       openColumnFilter,
       analyzeRequest,
       requestColumnAnalyze,
+      onCellCommit,
     ],
   )
   return (
@@ -225,4 +245,11 @@ export function useSectionColumnAnalyze(): {
   nonce: number
 } | null {
   return React.useContext(SectionTableContext)?.analyzeRequest ?? null
+}
+
+/** The page-supplied inline-cell persistence, for the section renderer to call on
+ *  a committed edit. `null` outside a provider or when the page wired none — the
+ *  renderer then keeps edits as local draft only. */
+export function useSectionCellCommit(): SectionCellCommit | null {
+  return React.useContext(SectionTableContext)?.cellCommit ?? null
 }

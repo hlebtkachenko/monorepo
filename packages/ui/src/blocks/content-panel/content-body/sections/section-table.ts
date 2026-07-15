@@ -11,10 +11,35 @@ export type TableColumnKind = "text" | "number" | "select" | "badge"
 /** Horizontal alignment of a column's header + cells. Default "start". */
 export type TableColumnAlign = "start" | "end" | "center"
 
+/** How a column's cells can be edited. Default "readonly".
+ * - "inline": editable in the grid cell (click-to-edit)
+ * - "inspector": editable only in the row Inspector (page-driven), read-only in the grid
+ * - "both": inline AND inspector
+ * - "readonly": display only */
+export type TableColumnEditMode = "readonly" | "inline" | "inspector" | "both"
+
 /** One `select` / `badge` option — value stored, label shown. */
 export interface TableColumnOption {
   readonly value: string
   readonly label: string
+}
+
+/**
+ * The shared toolbar-filter PRESETS a column can point at. The column supplies
+ * only its own label (its `header`) + which preset; the toolbar's multi-filter
+ * config + apply logic are DERIVED from these (see `deriveFilterColumns` /
+ * `applyTableFilters`), so two columns of the same kind (e.g. "Due date" and
+ * "Start date") reuse the same date-picker filter with no per-page hardcoding.
+ */
+export type TableColumnFilterVariant =
+  "text" | "number" | "date" | "option" | "multiOption"
+
+/** A column's plug into the toolbar multi-filter — a preset variant + (for the
+ * option variants) the selectable values, which default to the column's own
+ * `options` when omitted. */
+export interface TableColumnFilterPreset {
+  readonly variant: TableColumnFilterVariant
+  readonly options?: readonly TableColumnOption[]
 }
 
 /** One table column, described as pure data — NO cell renderer, NO ColumnDef. */
@@ -24,8 +49,8 @@ export interface TableColumnSpec {
   readonly kind: TableColumnKind
   /** `select` / `badge` options (value ↔ label). */
   readonly options?: readonly TableColumnOption[]
-  /** Cells become inline editors (text `Input` / `Select`). Default false. */
-  readonly editable?: boolean
+  /** How this column's cells can be edited (grid vs Inspector). Default "readonly". */
+  readonly edit?: TableColumnEditMode
   /** Freeze the column at the left or right body edge. */
   readonly pin?: "left" | "right"
   /** Participates in header/toolbar sorting. Default true. */
@@ -34,6 +59,14 @@ export interface TableColumnSpec {
   readonly enableHide?: boolean
   /** Faceted-filter on this column (Status-style multi-select). Default false. */
   readonly enableFilter?: boolean
+  /**
+   * Expose this column in the toolbar's multi-filter via a shared preset. The
+   * toolbar filter config + apply logic are derived from this (see
+   * `deriveFilterColumns` / `applyTableFilters`); `header` supplies the label.
+   * Independent of `enableFilter` (the in-grid faceted filter) — see
+   * `docs/specs/TABLE-FILTERS.md`.
+   */
+  readonly filter?: TableColumnFilterPreset
   readonly align?: TableColumnAlign
   /** Initial column width in px. Default 160. */
   readonly width?: number

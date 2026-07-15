@@ -9,10 +9,9 @@ import type {
 } from "@tanstack/react-table"
 
 import { Badge } from "@workspace/ui/components/badge"
-import { Checkbox } from "@workspace/ui/components/checkbox"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { Input } from "@workspace/ui/components/input"
-import { CircleCheckBig, Ellipsis, Maximize2 } from "@workspace/ui/lib/icons"
+import { CircleCheckBig, Ellipsis } from "@workspace/ui/lib/icons"
 import {
   Select,
   SelectContent,
@@ -25,9 +24,10 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import {
   useRegisterSectionTable,
+  useSectionCellCommit,
   useSectionColumnMenu,
-  useSectionInspectOpener,
 } from "./section-table-context"
+import { GridCheckbox, GridNumberCell } from "./section-grid-cells"
 import { anchorStructuralPins } from "./section-table"
 import type {
   SectionTablePayload,
@@ -118,47 +118,74 @@ function SelectEditCell({
   )
 }
 
-/** Row select checkbox for the leading selection column, plus (when `inspect`)
- * a maximize affordance that opens the row inspector. The maximize icon shows on
- * row hover or when this is the single selected row, and hides while several
- * rows are selected. */
+/**
+ * The leading select-column cell. An idle row shows its 1-based line number
+ * (sequential in the CURRENT view — filters renumber 1..N with no gaps); on row
+ * hover or when the row is selected, the checkbox takes its place (empty on
+ * hover, filled when selected). The number + checkbox are overlaid and swapped
+ * purely by the row's `group`/`data-state` — no per-row hover state. The column
+ * is never a focusable grid cell (`meta.focusable: false`), so clicking a cell
+ * here never gives it the cell focus ring; the checkbox itself still toggles.
+ */
+/** The current display order + an id→index map, kept in a ref so the memoized
+ * select-cell closure always reads the FRESH order (sort/filter change it). */
+type RowOrder = {
+  rows: Row<TableSectionRow>[]
+  indexById: Map<string, number>
+}
+
 function SelectCell({
   row,
   table,
-  inspect,
-  onInspect,
+  anchorRef,
+  rowOrderRef,
 }: {
   row: Row<TableSectionRow>
   table: Table<TableSectionRow>
-  inspect: boolean
-  onInspect?: (row: TableSectionRow) => void
+  /** Shared anchor: the last row index toggled by a plain click, for shift-range. */
+  anchorRef: React.MutableRefObject<number | null>
+  rowOrderRef: React.MutableRefObject<RowOrder>
 }) {
   const checked = row.getIsSelected()
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length
-  const multiSelected = selectedCount > 1
-  const singleSelected = selectedCount === 1 && checked
+  // Display index from the id-keyed map (robust when sorting swaps row
+  // instances, which breaks `rows.indexOf(row)` → -1 → line number 0).
+  const { rows, indexById } = rowOrderRef.current
+  const index = indexById.get(row.id) ?? 0
+  const lineNumber = index + 1
+  // A shift-click is handled as a range in onClick; this flag tells the ensuing
+  // onCheckedChange (which Radix still fires) to skip the single-row toggle.
+  const rangeHandled = React.useRef(false)
   return (
-    <div className="flex items-center gap-1">
-      <Checkbox
-        aria-label="Select row"
+    <div className="relative flex size-full items-center justify-center">
+      <span className="text-xs text-muted-foreground tabular-nums group-hover/row:opacity-0 group-data-[state=selected]/row:opacity-0">
+        {lineNumber}
+      </span>
+      <GridCheckbox
+        aria-label={`Select row ${lineNumber}`}
         checked={checked}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        onClick={(event) => {
+          const doRange = event.shiftKey && anchorRef.current !== null
+          rangeHandled.current = doRange
+          if (!doRange) return
+          const from = Math.min(anchorRef.current as number, index)
+          const to = Math.max(anchorRef.current as number, index)
+          const next = { ...table.getState().rowSelection }
+          for (let i = from; i <= to; i++) {
+            const r = rows[i]
+            if (r) next[r.id] = true
+          }
+          table.setRowSelection(next)
+        }}
+        onCheckedChange={(value) => {
+          if (rangeHandled.current) {
+            rangeHandled.current = false
+            return
+          }
+          row.toggleSelected(!!value)
+          anchorRef.current = index
+        }}
+        className="absolute opacity-0 group-hover/row:opacity-100 group-data-[state=selected]/row:opacity-100"
       />
-      {inspect && !multiSelected ? (
-        <button
-          type="button"
-          aria-label="Open details"
-          onClick={() => onInspect?.(row.original)}
-          className={cn(
-            "flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            singleSelected
-              ? "opacity-100"
-              : "opacity-0 group-hover/row:opacity-100",
-          )}
-        >
-          <Maximize2 className="size-3.5" />
-        </button>
-      ) : null}
     </div>
   )
 }
@@ -202,12 +229,19 @@ export function SectionTableRenderer({
 }) {
   const { columns: specs, rows, rowIdKey, features, emptyText, name } = props
 
-  // Opener published by the archetype's bridge; the maximize affordance calls it
-  // with the clicked row. Null (inert) outside `ArchetypeTable`.
-  const openInspect = useSectionInspectOpener()
   // Header-menu callbacks (Filter → toolbar filter, AI analyze → request) from
   // the bridge; null outside `ArchetypeTable`, so the menu drops both items.
   const columnMenu = useSectionColumnMenu()
+  // Page-supplied persistence for an inline-cell edit; null → edits stay local draft.
+  const commitCell = useSectionCellCommit()
+  // Anchor row index for shift-click range selection (like a normal file list).
+  const selectionAnchor = React.useRef<number | null>(null)
+  // Current display order + id→index map, refreshed after the table is built
+  // below. Declared here so the memoized select-cell closure can capture it.
+  const rowOrderRef = React.useRef<RowOrder>({
+    rows: [],
+    indexById: new Map(),
+  })
 
   // Rows are held as local draft state so inline edits stick; seeded from the
   // descriptor. A new `rows` reference (fresh data) reseeds it — the render-time
@@ -221,55 +255,68 @@ export function SectionTableRenderer({
 
   const updateCell = React.useCallback(
     (rowId: string, columnId: string, value: TableCellValue) => {
+      // Optimistic local update; capture the prior value so a rejected persist
+      // can revert exactly this cell.
+      let prevValue: TableCellValue = null
       setData((prev) =>
-        prev.map((row) =>
-          String(row[rowIdKey]) === rowId ? { ...row, [columnId]: value } : row,
-        ),
+        prev.map((row) => {
+          if (String(row[rowIdKey]) !== rowId) return row
+          prevValue = row[columnId] ?? null
+          return { ...row, [columnId]: value }
+        }),
       )
+      if (!commitCell) return
+      void Promise.resolve(commitCell({ rowId, columnId, value })).catch(() => {
+        setData((prev) =>
+          prev.map((row) =>
+            String(row[rowIdKey]) === rowId
+              ? { ...row, [columnId]: prevValue }
+              : row,
+          ),
+        )
+      })
     },
-    [rowIdKey],
+    [rowIdKey, commitCell],
   )
 
   const columns = React.useMemo<ColumnDef<TableSectionRow>[]>(() => {
     const cols: ColumnDef<TableSectionRow>[] = []
 
-    if (features.selection === "multi") {
-      const selectWidth = features.inspect ? 60 : 32
-      cols.push({
-        id: "select",
-        size: selectWidth,
-        minSize: selectWidth,
-        maxSize: selectWidth,
-        meta: { align: "center" },
-        header: ({ table }) => (
-          <Checkbox
-            aria-label="Select all"
-            className="border-primary"
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() ? "indeterminate" : false)
-            }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
-          />
-        ),
-        cell: ({ row, table }) => (
-          <SelectCell
-            row={row}
-            table={table}
-            inspect={features.inspect}
-            onInspect={openInspect ?? undefined}
-          />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-        enableResizing: false,
-      })
-    }
+    // The select column is ALWAYS present (leftmost, first) — even in a
+    // read-only table (spec §6). Width is 2.5x the 16px checkbox (40px); it is a
+    // non-focusable, non-sortable, non-resizable anchor.
+    const SELECT_WIDTH = 40
+    cols.push({
+      id: "select",
+      size: SELECT_WIDTH,
+      minSize: SELECT_WIDTH,
+      maxSize: SELECT_WIDTH,
+      meta: { align: "center", focusable: false },
+      header: ({ table }) => (
+        <GridCheckbox
+          aria-label="Select all"
+          // Binary only: checked when ALL rows are selected, otherwise empty —
+          // never an indeterminate dash (spec §13).
+          checked={table.getIsAllPageRowsSelected()}
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        />
+      ),
+      cell: ({ row, table }) => (
+        <SelectCell
+          row={row}
+          table={table}
+          anchorRef={selectionAnchor}
+          rowOrderRef={rowOrderRef}
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+      enableResizing: false,
+    })
 
     for (const spec of specs) {
       const align = spec.align ?? (spec.kind === "number" ? "end" : "start")
+      const inline = spec.edit === "inline" || spec.edit === "both"
       cols.push({
         accessorKey: spec.id,
         header: spec.header,
@@ -286,6 +333,7 @@ export function SectionTableRenderer({
         meta: {
           label: spec.header,
           align,
+          editable: inline,
           ...(spec.enableFilter
             ? {
                 variant: "multiSelect" as const,
@@ -299,7 +347,7 @@ export function SectionTableRenderer({
         cell: ({ row, getValue }) => {
           const value = getValue() as TableCellValue
           const rowId = String(row.original[rowIdKey])
-          if (spec.editable && spec.kind === "select") {
+          if (inline && spec.kind === "select") {
             return (
               <SelectEditCell
                 spec={spec}
@@ -309,10 +357,7 @@ export function SectionTableRenderer({
               />
             )
           }
-          if (
-            spec.editable &&
-            (spec.kind === "text" || spec.kind === "number")
-          ) {
+          if (inline && (spec.kind === "text" || spec.kind === "number")) {
             return (
               <TextEditCell
                 value={value}
@@ -330,11 +375,7 @@ export function SectionTableRenderer({
             return <span>{optionLabel(spec, value)}</span>
           }
           if (spec.kind === "number") {
-            return (
-              <div className="w-full text-right tabular-nums">
-                {value == null ? "" : value}
-              </div>
-            )
+            return <GridNumberCell>{value == null ? "" : value}</GridNumberCell>
           }
           return <span>{String(value ?? "")}</span>
         },
@@ -357,24 +398,16 @@ export function SectionTableRenderer({
     }
 
     return cols
-  }, [
-    specs,
-    features.selection,
-    features.inspect,
-    features.rowActions,
-    name,
-    rowIdKey,
-    updateCell,
-    openInspect,
-  ])
+  }, [specs, features.rowActions, name, rowIdKey, updateCell])
 
   const columnPinning = React.useMemo<ColumnPinningState>(() => {
-    const left = features.selection === "multi" ? ["select"] : []
+    // `select` is always present and always first-left.
+    const left = ["select"]
     for (const spec of specs) if (spec.pin === "left") left.push(spec.id)
     const right = specs.filter((s) => s.pin === "right").map((s) => s.id)
     if (features.rowActions) right.push("actions")
     return { left, right }
-  }, [specs, features.selection, features.rowActions])
+  }, [specs, features.rowActions])
 
   // Keep the structural columns anchored on every pinning write (see
   // `anchorStructuralPins`): `select` first-left, `actions` last-right — so a
@@ -382,10 +415,10 @@ export function SectionTableRenderer({
   const normalizeColumnPinning = React.useCallback(
     (pinning: ColumnPinningState): ColumnPinningState =>
       anchorStructuralPins(pinning, {
-        hasSelect: features.selection === "multi",
+        hasSelect: true,
         hasActions: features.rowActions,
       }),
-    [features.selection, features.rowActions],
+    [features.rowActions],
   )
 
   const { table } = useDataTable<TableSectionRow>({
@@ -398,10 +431,24 @@ export function SectionTableRenderer({
     defaultColumn: { minSize: 56, size: 160, maxSize: 640 },
     normalizeColumnPinning,
     initialState: {
-      pagination: { pageIndex: 0, pageSize: 50 },
+      // Single-page model: all rows live on one page and `DataGridView`
+      // virtualizes them (no page-based pagination anywhere). A very large page
+      // size stands in for "unbounded"; the grid windows the DOM so a 1000+ row
+      // table stays smooth.
+      pagination: { pageIndex: 0, pageSize: 100_000 },
       columnPinning,
     },
   })
+
+  // Refresh the display-order map (id → position in the CURRENT sorted/filtered
+  // view) so the select column shows correct line numbers + shift-range even
+  // after a sort. Memoized on the row-model array (stable until the view changes).
+  const orderedRows = table.getRowModel().rows
+  rowOrderRef.current = React.useMemo(() => {
+    const indexById = new Map<string, number>()
+    orderedRows.forEach((r, i) => indexById.set(r.id, i))
+    return { rows: orderedRows, indexById }
+  }, [orderedRows])
 
   // Publish the live instance up so the toolbar (Columns/Sort) + selection footer
   // stay in sync; re-register whenever a tracked slice of grid state changes.

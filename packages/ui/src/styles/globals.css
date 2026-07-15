@@ -46,6 +46,15 @@
   --color-border-subtle: var(--border-subtle);
   --color-shell-surface: var(--shell-surface);
   --color-inspector-surface: var(--inspector-surface);
+  /* Data-grid surface tokens → utilities (bg-grid-header, bg-grid-row, …).
+     The dense table draws its own header/row/selection surfaces + the select
+     column's checkbox border, deliberately distinct from the shadcn palette. */
+  --color-grid-header: var(--grid-header);
+  --color-grid-header-hover: var(--grid-header-hover);
+  --color-grid-row: var(--grid-row);
+  --color-grid-row-hover: var(--grid-row-hover);
+  --color-grid-row-selected: var(--grid-row-selected);
+  --color-grid-checkbox-border: var(--grid-checkbox-border);
   /* Icon-box color tokens → Tailwind utilities (text-icon, bg-icon-hover-bg, …).
      Shared by the rail, the header, and the IconButton primitive. */
   --color-icon: var(--icon);
@@ -106,6 +115,14 @@
   --secondary-foreground: #171717;
   --canvas: #eff0f0;
   --border-subtle: #eaebeb;
+  /* Data-grid surfaces (dense table). Header idle/hover, row idle/hover/selected,
+     and the select-column checkbox border. Checked checkbox uses --brand-primary-*. */
+  --grid-header: #fcfcfc;
+  --grid-header-hover: #f0f0f0;
+  --grid-row: #ffffff;
+  --grid-row-hover: #f3f3f3;
+  --grid-row-selected: #f0f0f0;
+  --grid-checkbox-border: #8d8d8d;
   /* App-shell tokens — change in one place, propagates to AppShell. */
   --shell-surface: #ffffff;
   /* Inspector panel surface — warm off-white in the inline (sidebar) mode;
@@ -210,6 +227,14 @@
   --canvas: #1a1a1a;
   --border-subtle: #3a3d40;
   --shell-surface: #222426;
+  /* Data-grid surfaces — dark equivalents of the light grid tokens (the light
+     spec is #fcfcfc/#f0f0f0/#fff/#f3f3f3/#f0f0f0/#8d8d8d). */
+  --grid-header: #1e2022;
+  --grid-header-hover: #26292b;
+  --grid-row: #161819;
+  --grid-row-hover: #1e2022;
+  --grid-row-selected: #26292b;
+  --grid-checkbox-border: #6b7075;
   /* Inspector surface — dark, faintly warm to mirror the light off-white. */
   --inspector-surface: #26231f;
   /* Rail tokens — dark. Dimension tokens are theme-independent (see :root). */

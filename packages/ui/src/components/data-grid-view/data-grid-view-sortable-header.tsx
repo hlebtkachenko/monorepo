@@ -72,7 +72,7 @@ export function SortableHeaderCell<TData>({
       role="columnheader"
       data-slot="grid-header-cell"
       className={cn(
-        "group/col relative flex h-9 shrink-0 items-center bg-muted text-muted-foreground",
+        "group/col relative flex h-9 shrink-0 items-center bg-grid-header text-muted-foreground hover:bg-grid-header-hover",
         borderClass(column),
       )}
       style={{
@@ -93,7 +93,7 @@ export function SortableHeaderCell<TData>({
           type="button"
           aria-label="Drag to reorder column"
           disabled={isResizing}
-          className="absolute left-0 z-30 flex h-full w-4 cursor-grab touch-none items-center justify-center text-muted-foreground/50 opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+          className="absolute left-0 z-30 flex h-full w-3 cursor-grab touch-none items-center justify-center text-muted-foreground opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
           {...attributes}
           {...listeners}
         >
@@ -110,8 +110,9 @@ export function SortableHeaderCell<TData>({
       ) : (
         <div
           className={cn(
-            "flex size-full items-center",
-            align === "center" ? "justify-center px-0" : "px-3",
+            "flex size-full items-center px-3",
+            align === "center" && "justify-center px-0",
+            align === "end" && "justify-end",
           )}
         >
           {flexRender(column.columnDef.header, header.getContext())}

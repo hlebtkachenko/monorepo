@@ -22,6 +22,7 @@ export const SECTION_KINDS = [
   "details-tabs",
   "details-table",
   "table",
+  "pivot-table",
   "space",
   "details-group",
 ] as const

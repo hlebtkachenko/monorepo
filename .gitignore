@@ -92,3 +92,6 @@ mlive.local.sh
 
 # Playwright CLI skill scratch artifacts (snapshots/screenshots)
 .playwright-cli/
+
+# Local-only DB-backed Table debug page (kept while iterating; not shipped)
+apps/web/app/\[orgSlug\]/settings/debug/archetype-table-db/

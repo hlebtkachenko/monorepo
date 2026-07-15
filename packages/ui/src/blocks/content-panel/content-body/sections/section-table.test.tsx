@@ -15,12 +15,12 @@ import { isSectionDescriptor } from "./section"
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
 const COLUMNS: TableColumnSpec[] = [
-  { id: "doc", header: "Document", kind: "text", editable: true },
+  { id: "doc", header: "Document", kind: "text", edit: "inline" },
   {
     id: "status",
     header: "Status",
     kind: "select",
-    editable: true,
+    edit: "inline",
     options: [
       { value: "new", label: "New" },
       { value: "posted", label: "Posted" },

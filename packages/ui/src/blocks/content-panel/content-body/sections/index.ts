@@ -35,10 +35,34 @@ export type {
   TableColumnAlign,
   TableColumnOption,
   TableColumnSpec,
+  TableColumnEditMode,
+  TableColumnFilterVariant,
+  TableColumnFilterPreset,
   TableCellValue,
   TableSectionRow,
   TableSectionFeatures,
 } from "./section-table"
+export { buildTableSection } from "./build-table-section"
+export type {
+  TableColumnDef,
+  BuildTableSectionOptions,
+  BuiltTableSection,
+} from "./build-table-section"
+export { deriveFilterColumns, applyTableFilters } from "./derive-table-filters"
+export { useTableFilters } from "./use-table-filters"
+export type { UseTableFiltersOptions } from "./use-table-filters"
+export { sectionPivotTable } from "./section-pivot-table"
+export type {
+  SectionPivotTableProps,
+  PivotValueFormat,
+} from "./section-pivot-table"
+export type {
+  PivotConfig,
+  PivotAggregate,
+  PivotColumn,
+  PivotRow,
+  PivotResult,
+} from "./pivot-transform"
 export {
   SectionTableProvider,
   useSectionTable,
@@ -47,8 +71,13 @@ export {
   useSectionColumnMenu,
   useSectionColumnFilter,
   useSectionColumnAnalyze,
+  useSectionCellCommit,
 } from "./section-table-context"
-export type { SectionTableRegistration } from "./section-table-context"
+export type {
+  SectionTableRegistration,
+  SectionCellEdit,
+  SectionCellCommit,
+} from "./section-table-context"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"
 export { sectionDetailsGroup } from "./section-details-group"

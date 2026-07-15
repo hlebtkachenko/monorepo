@@ -24,6 +24,7 @@ import type {
   ContentToolbarProps,
   InspectorMetaItem,
   InspectorMode,
+  SectionCellCommit,
   SectionDescriptor,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
@@ -113,12 +114,22 @@ export interface ArchetypeTableProps<TData> {
    */
   sections: readonly SectionDescriptor[]
   /**
-   * Bulk actions for the selection footer. When present, the archetype renders a
-   * `ContentFooter` auto-wired to the Table section's selection (count + clear
-   * from the live instance); it self-hides when nothing is selected. There is NO
-   * status bar — it is legacy; aggregate/selection info lives in the footer.
+   * Bulk actions for the selection footer, as a FUNCTION of the live table (like
+   * `toolbar`) so each action's `onSelect` can close over the current selection
+   * (`table.getFilteredSelectedRowModel().rows`) to do real work. When it returns
+   * a non-empty array the archetype renders a `ContentFooter` auto-wired to the
+   * Table section's selection (count + clear from the live instance); it
+   * self-hides when nothing is selected. NO status bar (legacy).
    */
-  selectionActions?: ContentFooterAction[]
+  selectionActions?: (table: Table<TData> | null) => ContentFooterAction[]
+  /**
+   * Persist an inline-cell edit. Wired through the `SectionTableProvider` bridge
+   * to the Table section's cell editors (the descriptor stays pure data); the
+   * renderer applies the edit optimistically and reverts if this rejects. Columns
+   * opt in via `edit: "inline" | "both"`; `"inspector"` columns are edited in the
+   * Inspector instead (page-owned).
+   */
+  onCellEdit?: SectionCellCommit
   /** Row-detail Inspector — the detail of the chosen row (panel or dialog). */
   inspector?: React.ReactNode
   inspectorOpen?: boolean
@@ -155,7 +166,7 @@ export interface ArchetypeTableProps<TData> {
  */
 export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
   return (
-    <SectionTableProvider>
+    <SectionTableProvider onCellCommit={props.onCellEdit}>
       <ArchetypeTableChrome {...props} />
     </SectionTableProvider>
   )
@@ -247,13 +258,16 @@ function ArchetypeTableChrome<TData>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyzeNonce])
 
+  // Resolve the selection actions against the live table so each `onSelect` can
+  // read the current selection; self-hides when there are none.
+  const resolvedSelectionActions = selectionActions?.(table) ?? []
   const footer =
-    selectionActions && selectionActions.length > 0 ? (
+    resolvedSelectionActions.length > 0 ? (
       <ContentFooter
         selection={{
           count: registration?.selectionCount ?? 0,
           onClear: () => registration?.table.resetRowSelection(),
-          actions: selectionActions,
+          actions: resolvedSelectionActions,
         }}
       />
     ) : undefined

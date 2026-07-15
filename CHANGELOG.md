@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Table archetype foundation: column-driven toolbar filters (filter presets) + default toolbar builder, DB→spec mapper, inline-cell write-back bridge with optimistic revert, table-aware bulk selection actions, single-page row virtualization, a Pivot table section, grid surface/checkbox design tokens, and shift-click range selection
 - Row Inspector Sheet (`InspectorSheet` + parts) for the Table archetype: a right-docked detail Sheet opened by the per-row maximize affordance, with pinned header/meta grid, Details/Review/Line items/Evidence sections, and a sticky action footer
 - dnd-kit column header drag-reorder in DataGridView (mouse/touch/keyboard) sharing columnOrder with the Columns manager; Table section gains inspect (row maximize affordance) + rowActions (right-pinned action column) feature flags
 - Table section (sectionTable) — a TanStack Table v8 data grid with pure-data column/row descriptors, inline cell editing, row selection, sort/resize/reorder/pin; ArchetypeTable now owns a SectionTable bridge so the toolbar viewTools + selection footer drive the live grid. Demo at Settings → Debug → Archetype Table

@@ -5,6 +5,7 @@ import {
   flexRender,
   type Cell,
   type Header,
+  type Row,
   type Table,
 } from "@tanstack/react-table"
 import {
@@ -25,8 +26,20 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable"
+import { useVirtualizer } from "@tanstack/react-virtual"
 
+import { GripVertical } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
+
+/**
+ * Above this many rows the body switches to windowed (virtualized) rendering so
+ * a 1000+ row table stays smooth. Below it, every row renders in normal flow —
+ * which keeps small tables (and the jsdom tests, where there is no layout for a
+ * virtualizer to measure) on the exact path they had before.
+ */
+const VIRTUALIZE_THRESHOLD = 100
+/** Row pitch estimate (cells are `h-8` = 32px + the 1px bottom hairline). */
+const ESTIMATED_ROW_HEIGHT = 33
 
 import {
   DataGridViewColumnHeader,
@@ -61,6 +74,8 @@ interface DataGridViewProps<TData> extends Omit<
   onColumnAnalyze?: (columnId: string) => void
   /** Trailing affordance in the header row after the last column (e.g. "+ Add column"). */
   headerTrailing?: React.ReactNode
+  /** Double-click a row to activate it (e.g. open the row Inspector). */
+  onRowActivate?: (row: Row<TData>) => void
 }
 
 /**
@@ -81,6 +96,7 @@ export function DataGridView<TData>({
   onColumnFilter,
   onColumnAnalyze,
   headerTrailing,
+  onRowActivate,
   className,
   ...props
 }: DataGridViewProps<TData>) {
@@ -95,6 +111,25 @@ export function DataGridView<TData>({
   const leafColumns = table.getVisibleLeafColumns()
   const rowCount = rows.length
   const colCount = leafColumns.length
+  // The first column keyboard cell-focus may land on — skips columns that opt
+  // out via `meta.focusable: false` (the select column). Those are edge
+  // structural columns, so a lower-bound clamp is enough to skip them.
+  const firstFocusableCol = Math.max(
+    0,
+    leafColumns.findIndex((c) => c.columnDef.meta?.focusable !== false),
+  )
+
+  // Windowed body rendering for large tables (single-page, no pagination). The
+  // grid container itself is the scroll element; rows are fixed-height, measured
+  // on mount so the border hairline is accounted for exactly.
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => gridRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 12,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  })
+  const virtualize = rowCount > VIRTUALIZE_THRESHOLD
 
   const [focused, setFocused] = React.useState<{
     row: number
@@ -159,19 +194,30 @@ export function DataGridView<TData>({
   const focusRow =
     focused && rowCount > 0 ? Math.min(focused.row, rowCount - 1) : null
   const focusCol =
-    focused && colCount > 0 ? Math.min(focused.col, colCount - 1) : null
+    focused && colCount > 0
+      ? Math.max(firstFocusableCol, Math.min(focused.col, colCount - 1))
+      : null
   const hasFocus = focusRow !== null && focusCol !== null
 
   // Move browser focus to the focused cell and reveal it.
   React.useEffect(() => {
     if (focusRow === null || focusCol === null) return
-    const el = gridRef.current?.querySelector<HTMLElement>(
-      `[data-slot="grid-cell"][data-row="${focusRow}"][data-col="${focusCol}"]`,
-    )
-    if (!el) return
-    if (el !== document.activeElement) el.focus()
-    el.scrollIntoView({ block: "nearest", inline: "nearest" })
-  }, [focusRow, focusCol])
+    // When virtualized, the target row may not be mounted — scroll it into the
+    // window first, then focus once it renders (rAF), else focus synchronously.
+    if (virtualize) rowVirtualizer.scrollToIndex(focusRow, { align: "auto" })
+    const focusCell = () => {
+      const el = gridRef.current?.querySelector<HTMLElement>(
+        `[data-slot="grid-cell"][data-row="${focusRow}"][data-col="${focusCol}"]`,
+      )
+      if (!el) return false
+      if (el !== document.activeElement) el.focus()
+      el.scrollIntoView({ block: "nearest", inline: "nearest" })
+      return true
+    }
+    if (focusCell()) return
+    const raf = requestAnimationFrame(() => focusCell())
+    return () => cancelAnimationFrame(raf)
+  }, [focusRow, focusCol, virtualize, rowVirtualizer])
 
   // CSS-var column sizing: live resize updates these vars without re-rendering
   // every cell. Header cells read `--header-<id>-size`; body cells read
@@ -194,10 +240,10 @@ export function DataGridView<TData>({
       if (rowCount === 0 || colCount === 0) return
       setFocused({
         row: Math.max(0, Math.min(row, rowCount - 1)),
-        col: Math.max(0, Math.min(col, colCount - 1)),
+        col: Math.max(firstFocusableCol, Math.min(col, colCount - 1)),
       })
     },
-    [rowCount, colCount],
+    [rowCount, colCount, firstFocusableCol],
   )
 
   const onKeyDown = React.useCallback(
@@ -219,7 +265,7 @@ export function DataGridView<TData>({
           moveFocus(cur.row - 1, cur.col)
           break
         case "Home":
-          moveFocus(mod ? 0 : cur.row, 0)
+          moveFocus(mod ? 0 : cur.row, firstFocusableCol)
           break
         case "End":
           moveFocus(mod ? rowCount - 1 : cur.row, colCount - 1)
@@ -239,26 +285,42 @@ export function DataGridView<TData>({
     [focusRow, focusCol, moveFocus, rowCount, colCount],
   )
 
+  // Auto-selecting cell 0 when the grid receives focus is for KEYBOARD entry
+  // (Tab into the grid) only. A pointer press that lands on empty grid space
+  // also focuses the grid div — without this guard it would wrongly select the
+  // first cell right after a click-away. `onPointerDown` flags the pointer path;
+  // a rAF clears it so a later Tab still auto-selects.
+  const pointerFocusRef = React.useRef(false)
+  const markPointerFocus = React.useCallback(() => {
+    pointerFocusRef.current = true
+    requestAnimationFrame(() => {
+      pointerFocusRef.current = false
+    })
+  }, [])
   const onGridFocus = React.useCallback(
     (event: React.FocusEvent<HTMLDivElement>) => {
+      if (pointerFocusRef.current) return
       if (
         event.target === gridRef.current &&
         !hasFocus &&
         rowCount > 0 &&
         colCount > 0
       ) {
-        setFocused({ row: 0, col: 0 })
+        setFocused({ row: 0, col: firstFocusableCol })
       }
     },
-    [hasFocus, rowCount, colCount],
+    [hasFocus, rowCount, colCount, firstFocusableCol],
   )
 
-  // A cell stays focus-ringed until you move off it; clicking outside the grid
-  // (empty space, a button, another panel) clears that "selected" state.
+  // A cell stays focus-ringed until you click OFF it — anywhere that is not a
+  // grid cell (the header, empty body space, another panel, outside the grid)
+  // clears the selection. Clicking another cell keeps focus because that cell's
+  // own `onMouseDown` re-sets it after this runs.
   React.useEffect(() => {
     if (!hasFocus) return
     const onPointerDown = (event: PointerEvent) => {
-      if (!gridRef.current?.contains(event.target as Node)) setFocused(null)
+      const target = event.target as HTMLElement | null
+      if (!target?.closest('[data-slot="grid-cell"]')) setFocused(null)
     }
     document.addEventListener("pointerdown", onPointerDown, true)
     return () =>
@@ -311,6 +373,71 @@ export function DataGridView<TData>({
     </SortableContext>
   )
 
+  // One body row — shared by the normal and virtualized branches. `extra` carries
+  // the absolute-position style + `measureElement` ref + `data-index` the
+  // virtualizer needs; it is absent (and inert) in the normal path.
+  const renderRow = (
+    row: Row<TData>,
+    rowIndex: number,
+    extra?: {
+      style?: React.CSSProperties
+      ref?: (el: HTMLDivElement | null) => void
+      dataIndex?: number
+    },
+  ) => {
+    const selected = row.getIsSelected()
+    const cells = row.getVisibleCells()
+    const left = cells.filter((c) => c.column.getIsPinned() === "left")
+    const center = cells.filter((c) => !c.column.getIsPinned())
+    const right = cells.filter((c) => c.column.getIsPinned() === "right")
+    const renderCell = (cell: Cell<TData, unknown>) => (
+      <DataGridViewCell
+        key={cell.id}
+        cell={cell}
+        rowIndex={rowIndex}
+        colIndex={cells.indexOf(cell)}
+        selected={selected}
+        edges={edges}
+        isFocused={
+          hasFocus && focusRow === rowIndex && focusCol === cells.indexOf(cell)
+        }
+        onFocusCell={() =>
+          setFocused({ row: rowIndex, col: cells.indexOf(cell) })
+        }
+      />
+    )
+    return (
+      <div
+        key={row.id}
+        ref={extra?.ref}
+        data-index={extra?.dataIndex}
+        role="row"
+        aria-selected={selected}
+        aria-rowindex={rowIndex + 2}
+        aria-expanded={row.getCanExpand() ? row.getIsExpanded() : undefined}
+        data-state={selected ? "selected" : undefined}
+        data-slot="grid-row"
+        onDoubleClick={onRowActivate ? () => onRowActivate(row) : undefined}
+        className={cn(
+          "group/row flex w-full border-b border-border-subtle/60",
+          selected
+            ? "bg-grid-row-selected"
+            : "bg-grid-row hover:bg-grid-row-hover",
+          // Lift the row holding the focused cell above its siblings so the
+          // cell's outset focus ring isn't painted over by the next row (a
+          // per-cell z-index can't escape its own row's stacking context).
+          focusRow === rowIndex && "relative z-20",
+        )}
+        style={extra?.style}
+      >
+        {left.map(renderCell)}
+        {center.map(renderCell)}
+        <div data-slot="grid-row-spacer" className="flex-1" />
+        {right.map(renderCell)}
+      </div>
+    )
+  }
+
   return (
     <div
       ref={gridRef}
@@ -322,9 +449,13 @@ export function DataGridView<TData>({
       tabIndex={0}
       onKeyDown={onKeyDown}
       onFocus={onGridFocus}
+      onPointerDown={markPointerFocus}
       onScroll={updateEdges}
       className={cn(
-        "relative w-full overflow-auto bg-background outline-none",
+        // `antialiased` (grayscale smoothing) — without it, light row text on
+        // the dark row surface picks up a subpixel fringe that reads as an
+        // outline in dark mode.
+        "relative w-full overflow-auto bg-background antialiased outline-none",
         className,
       )}
       style={columnSizeVars}
@@ -352,7 +483,7 @@ export function DataGridView<TData>({
         <div
           role="rowgroup"
           data-slot="grid-header"
-          className="sticky top-0 z-10 border-b border-border-subtle bg-muted"
+          className="sticky top-0 z-10 border-b border-border-subtle bg-grid-header"
           style={{ width: totalWidth, minWidth: "100%" }}
         >
           {table.getHeaderGroups().map((headerGroup) => {
@@ -376,7 +507,7 @@ export function DataGridView<TData>({
                 {renderHeaderGroup(center)}
                 <div
                   data-slot="grid-header-spacer"
-                  className="flex flex-1 items-center bg-muted"
+                  className="flex flex-1 items-center bg-grid-header"
                 >
                   {headerTrailing}
                 </div>
@@ -387,7 +518,8 @@ export function DataGridView<TData>({
         </div>
         <DragOverlay modifiers={[restrictToHorizontalAxis]}>
           {activeColumnId ? (
-            <div className="flex h-9 items-center border bg-muted px-3 text-sm font-medium text-foreground shadow">
+            <div className="flex h-9 cursor-grabbing items-center gap-1 border bg-grid-header-hover pr-3 pl-1 text-sm font-medium text-foreground shadow">
+              <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
               {String(
                 table.getColumn(activeColumnId)?.columnDef.meta?.label ??
                   activeColumnId,
@@ -399,7 +531,19 @@ export function DataGridView<TData>({
       <div
         role="rowgroup"
         data-slot="grid-body"
-        style={{ width: totalWidth, minWidth: "100%" }}
+        style={{
+          width: totalWidth,
+          minWidth: "100%",
+          // Virtualized: the rowgroup owns the full scroll height and its rows
+          // are absolutely positioned into the window. Rows stay DIRECT children
+          // of the rowgroup (no wrapper) so the grid a11y tree is unchanged.
+          ...(virtualize && rowCount > 0
+            ? {
+                height: rowVirtualizer.getTotalSize(),
+                position: "relative" as const,
+              }
+            : {}),
+        }}
       >
         {rowCount === 0 ? (
           <div role="row" className="flex w-full">
@@ -410,52 +554,24 @@ export function DataGridView<TData>({
               {emptyMessage}
             </div>
           </div>
-        ) : (
-          rows.map((row, rowIndex) => {
-            const selected = row.getIsSelected()
-            const cells = row.getVisibleCells()
-            const left = cells.filter((c) => c.column.getIsPinned() === "left")
-            const center = cells.filter((c) => !c.column.getIsPinned())
-            const right = cells.filter(
-              (c) => c.column.getIsPinned() === "right",
-            )
-            const renderCell = (cell: Cell<TData, unknown>) => (
-              <DataGridViewCell
-                key={cell.id}
-                cell={cell}
-                rowIndex={rowIndex}
-                colIndex={cells.indexOf(cell)}
-                selected={selected}
-                edges={edges}
-                isFocused={
-                  hasFocus &&
-                  focusRow === rowIndex &&
-                  focusCol === cells.indexOf(cell)
-                }
-                onFocusCell={() =>
-                  setFocused({ row: rowIndex, col: cells.indexOf(cell) })
-                }
-              />
-            )
-            return (
-              <div
-                key={row.id}
-                role="row"
-                aria-selected={selected}
-                data-state={selected ? "selected" : undefined}
-                data-slot="grid-row"
-                className={cn(
-                  "group/row flex w-full border-b border-border-subtle/60",
-                  selected ? "bg-muted/50" : "hover:bg-muted/30",
-                )}
-              >
-                {left.map(renderCell)}
-                {center.map(renderCell)}
-                <div data-slot="grid-row-spacer" className="flex-1" />
-                {right.map(renderCell)}
-              </div>
-            )
+        ) : virtualize ? (
+          rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index]
+            if (!row) return null
+            return renderRow(row, virtualRow.index, {
+              ref: rowVirtualizer.measureElement,
+              dataIndex: virtualRow.index,
+              style: {
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualRow.start}px)`,
+              },
+            })
           })
+        ) : (
+          rows.map((row, rowIndex) => renderRow(row, rowIndex))
         )}
       </div>
     </div>
@@ -484,6 +600,11 @@ function DataGridViewCell<TData>({
   const pinned = cell.column.getIsPinned()
   const align = cell.column.columnDef.meta?.align
   const centered = align === "center"
+  // The select column opts out of cell focus (spec §9): no tabIndex, no focus
+  // ring, no click-to-focus — arrow-nav skips it too (see firstFocusableCol).
+  const focusable = cell.column.columnDef.meta?.focusable !== false
+  const editable = cell.column.columnDef.meta?.editable === true
+  const active = focusable && isFocused
   return (
     <div
       role="gridcell"
@@ -491,16 +612,25 @@ function DataGridViewCell<TData>({
       data-row={rowIndex}
       data-col={colIndex}
       data-pinned={pinned || undefined}
-      tabIndex={isFocused ? 0 : -1}
-      onMouseDown={onFocusCell}
+      tabIndex={active ? 0 : -1}
+      onMouseDown={focusable ? onFocusCell : undefined}
       className={cn(
         "flex h-8 shrink-0 items-center text-sm outline-none",
         centered ? "justify-center px-0" : "px-3",
         borderClass(cell.column),
         // Pinned cells need an opaque background so scrolled content can't show
-        // through; match the row's tint so selection still reads.
-        pinned ? (selected ? "bg-muted" : "bg-background") : undefined,
-        isFocused && "ring-1 ring-ring ring-inset",
+        // through; match the row's surface (idle/hover/selected) so selection +
+        // hover still read on the frozen columns.
+        pinned
+          ? selected
+            ? "bg-grid-row-selected"
+            : "bg-grid-row group-hover/row:bg-grid-row-hover"
+          : undefined,
+        // Focus ring: an OUTSET ring (not inset) lifted above the neighbours so
+        // it sits ON TOP of the cell dividers rather than inside the cell.
+        active && "relative z-10 ring-2 ring-ring",
+        // A focused editable cell gets a white field surface.
+        active && editable && "bg-background",
       )}
       style={{
         ...pinStyle(cell.column),

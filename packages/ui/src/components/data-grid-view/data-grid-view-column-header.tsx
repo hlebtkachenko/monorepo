@@ -122,6 +122,7 @@ export function DataGridViewColumnHeader<TData, TValue>({
 }: DataGridViewColumnHeaderProps<TData, TValue>) {
   const { column } = header
   const label = getColumnLabel(header)
+  const align = column.columnDef.meta?.align
   const sorted = column.getIsSorted()
   const pinned = column.getIsPinned()
   const canSort = column.getCanSort()
@@ -169,8 +170,21 @@ export function DataGridViewColumnHeader<TData, TValue>({
         )}
       >
         <DropdownMenu modal={false}>
-          <DropdownMenuTrigger className="group/header flex size-full items-center justify-between gap-1 px-3 text-start text-sm font-medium text-foreground outline-none hover:bg-foreground/5 data-[state=open]:bg-foreground/5">
-            <span className="truncate">{label}</span>
+          <DropdownMenuTrigger
+            className={cn(
+              "group/header flex size-full items-center gap-1 px-3 text-sm font-medium text-foreground outline-none data-[state=open]:bg-grid-header-hover",
+              // Honor the column's alignment so a numeric header sits over its
+              // right-aligned cells. `start` keeps the label left with the sort
+              // glyph pushed to the far edge (justify-between); end/center group
+              // the label + glyph together on that side.
+              align === "end"
+                ? "justify-end text-end"
+                : align === "center"
+                  ? "justify-center text-center"
+                  : "justify-between text-start",
+            )}
+          >
+            <span className="min-w-0 truncate">{label}</span>
             {sorted === "asc" ? (
               <ArrowUp className="size-3.5 shrink-0 text-muted-foreground" />
             ) : sorted === "desc" ? (
@@ -272,16 +286,60 @@ export function DataGridViewColumnHeader<TData, TValue>({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      {canResize ? <DataGridViewColumnResizer header={header} /> : null}
+      {canResize ? (
+        <DataGridViewColumnResizer header={header} table={table} />
+      ) : null}
     </>
   )
 }
 
-/** Drag handle on the trailing edge — drag to resize, double-click to reset. */
+/**
+ * Auto-fit a column to the widest of its header label and its cell values —
+ * Excel's double-click-the-divider behaviour. Text is measured off-DOM with a
+ * canvas using the grid's own computed cell font; the result is clamped to the
+ * column's min/max. No-op when there is no 2D canvas (e.g. jsdom).
+ */
+function autoFitColumn<TData, TValue>(
+  header: Header<TData, TValue>,
+  table: Table<TData>,
+): void {
+  const ctx = document.createElement("canvas").getContext("2d")
+  if (!ctx) return
+  const sampleCell = document.querySelector<HTMLElement>(
+    '[data-slot="grid-cell"]',
+  )
+  ctx.font = sampleCell
+    ? getComputedStyle(sampleCell).font
+    : "14px system-ui, sans-serif"
+
+  const columnId = header.column.id
+  // The header line needs room for its label PLUS the sort glyph + gap (~20px);
+  // cell values need only their own text. The column fits the widest of the two.
+  let max = ctx.measureText(getColumnLabel(header)).width + 20
+  for (const row of table.getRowModel().rows) {
+    const value = row.getValue(columnId)
+    const width = ctx.measureText(value == null ? "" : String(value)).width
+    if (width > max) max = width
+  }
+
+  // Add the cell's horizontal padding — px-3 on BOTH sides (24) — so the right
+  // gap matches the left one (edge → text), not an inflated trailing gap.
+  const size = Math.ceil(max) + 24
+  const clamped = Math.min(
+    header.column.columnDef.maxSize ?? Number.MAX_SAFE_INTEGER,
+    Math.max(header.column.columnDef.minSize ?? 0, size),
+  )
+  table.setColumnSizing((prev) => ({ ...prev, [columnId]: clamped }))
+}
+
+/** Drag handle on the trailing edge — drag to resize, double-click to auto-fit
+ *  the (left) column to its widest content. */
 function DataGridViewColumnResizer<TData, TValue>({
   header,
+  table,
 }: {
   header: Header<TData, TValue>
+  table: Table<TData>
 }) {
   const resize = header.getResizeHandler()
   return (
@@ -292,7 +350,7 @@ function DataGridViewColumnResizer<TData, TValue>({
       data-resizing={header.column.getIsResizing() ? "" : undefined}
       onMouseDown={resize}
       onTouchStart={resize}
-      onDoubleClick={() => header.column.resetSize()}
+      onDoubleClick={() => autoFitColumn(header, table)}
       onClick={(event) => event.stopPropagation()}
       className={cn(
         "absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize touch-none bg-transparent transition-colors select-none hover:bg-primary/60",

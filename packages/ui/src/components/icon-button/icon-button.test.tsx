@@ -21,6 +21,18 @@ describe("IconButton", () => {
     expect(screen.getByText("Company")).toBeInTheDocument()
   })
 
+  it("renders the small size as a 28px box", () => {
+    render(<IconButton icon="Inbox" tooltip="Inbox" size="sm" />)
+    expect(screen.getByRole("button", { name: "Inbox" })).toHaveClass("size-7")
+    expect(screen.getByRole("button", { name: "Inbox" })).toHaveClass(
+      "[--icon-size:1rem]",
+    )
+    expect(screen.getByRole("button", { name: "Inbox" })).toHaveAttribute(
+      "data-size",
+      "sm",
+    )
+  })
+
   it("marks the active state via data-active", () => {
     render(<IconButton icon="Goal" label="Company" active />)
     expect(screen.getByRole("button", { name: "Company" })).toHaveAttribute(

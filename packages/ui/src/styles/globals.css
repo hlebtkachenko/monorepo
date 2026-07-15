@@ -46,6 +46,8 @@
   --color-border-subtle: var(--border-subtle);
   --color-shell-surface: var(--shell-surface);
   --color-inspector-surface: var(--inspector-surface);
+  --color-inspector-content: var(--inspector-content);
+  --color-grey-subtle: var(--grey-subtle);
   /* Data-grid surface tokens → utilities (bg-grid-header, bg-grid-row, …).
      The dense table draws its own header/row/selection surfaces + the select
      column's checkbox border, deliberately distinct from the shadcn palette. */
@@ -132,6 +134,10 @@
   /* Inspector panel surface — warm off-white in the inline (sidebar) mode;
      the dialog mode keeps the normal white popover surface. */
   --inspector-surface: #fbf9f7;
+  /* Inspector-sheet body content — a neutral recessed grey below the body header. */
+  --inspector-content: #f9f9f9;
+  /* Subtle neutral grey — flag-box outline + the selected inspector rail tab. */
+  --grey-subtle: #f0f0f0;
   --shell-rail-width: 70px;
   --shell-header-height: 40px;
   --shell-bottom-inset: 8px;
@@ -243,6 +249,10 @@
   --grid-checkbox-border: #6b7075;
   /* Inspector surface — dark, faintly warm to mirror the light off-white. */
   --inspector-surface: #26231f;
+  /* Inspector-sheet body content — dark recess below the body header. */
+  --inspector-content: #1c1e20;
+  /* Subtle neutral grey — flag-box outline + the selected inspector rail tab. */
+  --grey-subtle: #3a3d40;
   /* Rail tokens — dark. Dimension tokens are theme-independent (see :root). */
   --icon: #808689;
   --icon-active: #e8eaeb;

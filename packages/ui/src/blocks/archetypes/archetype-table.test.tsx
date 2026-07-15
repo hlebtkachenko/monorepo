@@ -1,9 +1,19 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
-import { IconProvider } from "@workspace/ui/icon-packs"
+import { AppShell } from "@workspace/ui/blocks/app-shell"
 import { sectionTable } from "@workspace/ui/blocks/content-panel"
-import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
+import type {
+  TableColumnSpec,
+  TableSectionRow,
+} from "@workspace/ui/blocks/content-panel"
+import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { ArchetypeTable } from "./archetype-table"
 import { resolveHeaderFilterTarget } from "./archetype-table"
@@ -57,39 +67,120 @@ describe("ArchetypeTable — row inspector", () => {
 
   function renderArchetype(inspect: boolean) {
     return render(
-      <ArchetypeTable<TableSectionRow>
-        title="Invoices"
-        toolbar={() => ({})}
-        renderInspector={(row) => ({
-          title: `Inspector for ${String(row.document)}`,
-          body: <div>Row detail {String(row.id)}</div>,
-        })}
-        sections={[
-          sectionTable({
-            rowIdKey: "id",
-            columns: [
-              { id: "document", header: "Document", kind: "text", role: "id" },
-            ],
-            rows: ROWS,
-            features: { inspect },
-          }),
-        ]}
-      />,
+      <AppShell>
+        <ArchetypeTable<TableSectionRow>
+          title="Invoices"
+          toolbar={() => ({})}
+          inspectorRowTitle={(row) => `Inspector for ${String(row.document)}`}
+          inspectorRowContent={(row) => ({
+            details: <div>Row detail {String(row.id)}</div>,
+          })}
+          sections={[
+            sectionTable({
+              rowIdKey: "id",
+              columns: [
+                {
+                  id: "document",
+                  header: "Document",
+                  kind: "text",
+                  role: "id",
+                },
+              ],
+              rows: ROWS,
+              features: { inspect },
+            }),
+          ]}
+        />
+      </AppShell>,
       { wrapper: IconProvider },
     )
   }
 
-  it("opens the renderInspector Sheet for the clicked row (end-to-end)", () => {
+  it("opens the inspector rail for the clicked row (end-to-end)", async () => {
     renderArchetype(true)
-    // The Sheet content is not mounted until the per-row opener fires.
+    // The rail content is not mounted until the per-row opener fires.
     expect(screen.queryByText("Inspector for FP-001")).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByLabelText("Open inspector")[0]!)
-    expect(screen.getByText("Inspector for FP-001")).toBeInTheDocument()
+    // The title shows twice (breadcrumb crumb + fallback name) — both are the rail.
+    expect(
+      (await screen.findAllByText("Inspector for FP-001")).length,
+    ).toBeGreaterThan(0)
     expect(screen.getByText(/Row detail 1/)).toBeInTheDocument()
   })
 
   it("has no Open inspector button when inspect is off", () => {
     renderArchetype(false)
     expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
+  })
+})
+
+type Row = TableSectionRow & { document: string; partner: string }
+
+const NAV_COLUMNS: TableColumnSpec[] = [
+  { id: "document", header: "Document", kind: "text", role: "id" },
+  { id: "partner", header: "Partner", kind: "text" },
+]
+
+const NAV_ROWS: Row[] = [
+  { id: "1", document: "FP-001", partner: "Acme" },
+  { id: "2", document: "FP-002", partner: "Beta" },
+  { id: "3", document: "FP-003", partner: "Gamma" },
+]
+
+function NavTestPage() {
+  return (
+    <ArchetypeTable<Row>
+      title="Invoices"
+      toolbar={() => ({})}
+      inspectorRowTitle={(row) => `#${row.document}`}
+      inspectorRowName={(row) => row.partner}
+      sections={[
+        sectionTable({
+          rowIdKey: "id",
+          columns: NAV_COLUMNS,
+          rows: NAV_ROWS,
+          features: { inspect: true },
+        }),
+      ]}
+    />
+  )
+}
+
+/**
+ * Regression coverage for adjacent-item navigation in the inspector rail: it
+ * must walk the table's actual current row order (as rendered), not a
+ * separately-tracked index.
+ */
+describe("ArchetypeTable adjacent navigation", () => {
+  it("Next/Prev walk the real rendered row order", async () => {
+    render(
+      <AppShell>
+        <NavTestPage />
+      </AppShell>,
+      { wrapper: IconProvider },
+    )
+
+    const openButtons = await screen.findAllByLabelText("Open inspector")
+    // Open the first row's inspector.
+    fireEvent.click(openButtons[0]!)
+    const inspector = await waitFor(() => {
+      const el = document.querySelector('[data-slot="app-shell-inspector"]')
+      if (!el) throw new Error("inspector not open")
+      return el as HTMLElement
+    })
+    const scoped = within(inspector)
+    expect(await scoped.findByText("Acme")).toBeInTheDocument()
+    expect(scoped.getByRole("button", { name: "Previous item" })).toBeDisabled()
+
+    fireEvent.click(scoped.getByRole("button", { name: "Next item" }))
+    expect(await scoped.findByText("Beta")).toBeInTheDocument()
+    expect(scoped.queryByText("Acme")).not.toBeInTheDocument()
+
+    fireEvent.click(scoped.getByRole("button", { name: "Next item" }))
+    expect(await scoped.findByText("Gamma")).toBeInTheDocument()
+    expect(scoped.getByRole("button", { name: "Next item" })).toBeDisabled()
+
+    fireEvent.click(scoped.getByRole("button", { name: "Previous item" }))
+    expect(await scoped.findByText("Beta")).toBeInTheDocument()
   })
 })

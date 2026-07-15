@@ -19,9 +19,25 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/app-shell",
     sourceType: "custom",
     description:
-      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, divided by a plain pointer-drag separator) and a separate assistant card, with a real gap. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and a compatibility ErrorShell adapter.",
+      "Block — plane-style app shell (header + left rail + sidebar + body + optional right assistant) used by apps/web/app/[orgSlug], apps/web/app/workspace, and (later) apps/admin. Outer surface uses bg-canvas; a flex layout splits the content into a main card (sidebar + body sharing one rounded SHELL_CARD_CLASS card, plus an optional in-flow row Inspector rail) and a separate assistant card. Below md the rail hides, sidebar/assistant become sheets, and an optional bottomNav bar renders (AppShellBottomNav). Geometry only — slots are provided by the consumer. Also exposes ShellSkeleton (loading.tsx) and a compatibility ErrorShell adapter.",
     categories: ["block", "layout", "app"],
-    dependencies: ["button", "navigation-bottom-mobile", "sheet", "skeleton"],
+    dependencies: [
+      "button",
+      "icon-button",
+      "inspector-sheet",
+      "kbd",
+      "navigation-bottom-mobile",
+      "sheet",
+      "skeleton",
+    ],
+  },
+  "inspector-sheet": {
+    source: "src/blocks/inspector-sheet",
+    sourceType: "custom",
+    description:
+      "Block — the reusable right-docked record detail surface consumed by the AppShell's row-inspector rail: a fixed 40px header (previous/next navigation, a two-item breadcrumb with a ChevronRight separator, then copy/settings/switch-layout/close actions, every one disabled when its handler is omitted), a flexible body (flag/tone picker + editable name, then the active tab's content), and a fixed 48px InspectorRail tab switcher (details/activity/related/attachments). Pure layout + interaction — docking, resize, and Escape-to-close are the consumer's (AppShell's) concern.",
+    categories: ["block", "layout", "app"],
+    dependencies: ["dropdown-menu", "icon-button", "input", "kbd"],
   },
   "utility-page": {
     source: "src/blocks/utility-page",
@@ -68,7 +84,7 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/content-panel",
     sourceType: "custom",
     description:
-      "Block — the Content Panel: the page surface below the shell's 45px panel header. Composed from closed sub-blocks: ContentHeader (title/breadcrumb/view-tabs + a fixed {Favorite, Configure} action cluster; no page injection), ContentToolbar (a closed named-data-slot vocabulary — statusFilter/search/filter/viewTools/actions/add, never ReactNode; the legacy left/right ReactNode toolbar survives as ContentToolbarLegacy for not-yet-migrated pages), ContentBody (the section-blocker — the body holds ONLY branded Section descriptors via a module-private symbol, never bespoke JSX), ContentFooter (the sticky bottom action surface: selection + save modes), the Inspector (right-docked detail, panel/dialog), and the InspectorSheet (a right-docked detail Sheet for the row chosen via the Table section's maximize affordance — pinned header + meta grid, a scroll body composed from InspectorSection/Detail/LineItem/Evidence/Dropzone parts, and a sticky action footer). Also ships the Empty archetype + the Section rulebook (SectionEmpty) and the deferred archetype prototypes (LaunchpadGrid/DashboardGrid/RecordWorkspace). Chrome uses the shell token family; in-flow body uses shadcn tokens.",
+      "Block — the Content Panel: the page surface below the shell's 45px panel header. Composed from closed sub-blocks: ContentHeader (title/breadcrumb/view-tabs + a fixed {Favorite, Configure} action cluster; no page injection), ContentToolbar (a closed named-data-slot vocabulary — statusFilter/search/filter/viewTools/actions/add, never ReactNode; the legacy left/right ReactNode toolbar survives as ContentToolbarLegacy for not-yet-migrated pages), ContentBody (the section-blocker — the body holds ONLY branded Section descriptors via a module-private symbol, never bespoke JSX), ContentFooter (the sticky bottom action surface: selection + save modes), and Inspector (right-docked detail panel/dialog). Also ships the Empty archetype + the Section rulebook (SectionEmpty) and the deferred archetype prototypes (LaunchpadGrid/DashboardGrid/RecordWorkspace). Chrome uses the shell token family; in-flow body uses shadcn tokens.",
     categories: ["block", "layout", "app"],
     dependencies: [
       "action-bar",
@@ -90,7 +106,6 @@ export const registry: Record<string, ComponentMeta> = {
       "input",
       "popover",
       "separator",
-      "sheet",
       "tabs",
       "toggle-group",
       "tooltip",
@@ -125,7 +140,7 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/components/icon-button",
     sourceType: "custom",
     description:
-      "Component — standardized clickable icon tile, the single source for the icon-box look (rail, header, …). Icon-only (size-8 square) or icon+label (rectangle with the glyph↔label gap baked in via --icon-label-gap). Whole element is the click target: <button>, <a> via href, or any element via asChild. State colors from the generic --icon* tokens (idle text-icon, hover bg-icon-hover-bg, active text-icon-active + bg-icon-active-bg). Optional tooltip with side + sideOffset (exact gap / safe-zone). Glyph resolves from the active IconProvider pack.",
+      "Component — standardized clickable icon tile, the single source for the icon-box look (rail, header, …). Default 32px and small 28px sizes; icon-only square or icon+label rectangle with the glyph↔label gap baked in via --icon-label-gap. Whole element is the click target: <button>, <a> via href, or any element via asChild. State colors from the generic --icon* tokens (idle text-icon, hover bg-icon-hover-bg, active text-icon-active + bg-icon-active-bg). Optional tooltip with side + sideOffset (exact gap / safe-zone). Glyph resolves from the active IconProvider pack.",
     categories: ["component", "navigation", "app"],
     dependencies: ["tooltip"],
   },

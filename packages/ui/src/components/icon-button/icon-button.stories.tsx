@@ -25,6 +25,10 @@ export const IconOnly: Story = {
   args: { icon: "Inbox", tooltip: "Inbox" },
 }
 
+export const SizeSm: Story = {
+  args: { icon: "Inbox", tooltip: "Inbox", size: "sm" },
+}
+
 export const Labeled: Story = {
   args: { icon: "Goal", label: "Company" },
 }

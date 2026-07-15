@@ -38,19 +38,19 @@ fire at COMMIT.
 ### Setup (master data)
 
 ```ts
-createPeriod(db, ctx, input)          // účetní období (regime + accounting currency)
-createNumberSeries(db, ctx, input)    // číselná řada (EVENT / DOCUMENT / ASSET / INVENTORY_COUNT)
-createChart(db, ctx, input)           // účtový rozvrh (per period)
-createAccount(db, ctx, input)         // účet (structural levels GENERATED from `number`)
-createCounterparty(db, ctx, input)    // protistrana (workspace-shared)
-createCategory(db, ctx, input)        // peněžní-deník kategorie
+createPeriod(db, ctx, input) // účetní období (regime + accounting currency)
+createNumberSeries(db, ctx, input) // číselná řada (EVENT / DOCUMENT / ASSET / INVENTORY_COUNT)
+createChart(db, ctx, input) // účtový rozvrh (per period)
+createAccount(db, ctx, input) // účet (structural levels GENERATED from `number`)
+createCounterparty(db, ctx, input) // protistrana (workspace-shared)
+createCategory(db, ctx, input) // peněžní-deník kategorie
 createAsset / createDepreciationPlan / createInventoryCount / recordSignature
 ```
 
 ### Capture — UC-1 steps 1-3
 
 ```ts
-createEvent(db, ctx, EventInput)      // účetní případ (§6/1); allocates a gapless Označení
+createEvent(db, ctx, EventInput) // účetní případ (§6/1); allocates a gapless Označení
 captureDocument(db, ctx, DocumentInput) // summary_record + individual_record + partial_record
 ```
 
@@ -60,10 +60,10 @@ foreign: base × fx_rate, VAT base × vat_fx_rate).
 ### Posting — UC-1 step 4
 
 ```ts
-post(db, ctx, PostInput)                    // dispatches by the period's regime
-postDoubleEntry(db, ctx, DoubleEntryInput)  // DOUBLE_ENTRY: posting_double_entry_line rows
-postMonetary(db, ctx, MonetaryInput)        // SINGLE_ENTRY / TAX_RECORDS: posting_monetary_line rows
-postFromPredkontace(db, ctx, input)         // expand a partial_record via a předkontace scenario
+post(db, ctx, PostInput) // dispatches by the period's regime
+postDoubleEntry(db, ctx, DoubleEntryInput) // DOUBLE_ENTRY: posting_double_entry_line rows
+postMonetary(db, ctx, MonetaryInput) // SINGLE_ENTRY / TAX_RECORDS: posting_monetary_line rows
+postFromPredkontace(db, ctx, input) // expand a partial_record via a předkontace scenario
 ```
 
 ### Předkontace (account-coding templates)
@@ -77,24 +77,24 @@ posting (`self_assessed_vat` = base × rate) — the koeficient is injected at p
 ### FX engine
 
 ```ts
-postFxSettlement(db, ctx, input)   // cross-currency settlement → realized 563/663 (ČÚS 006)
-revalueOpenItemFx(db, ctx, input)  // §4/12 balance-sheet-day revaluation → 563/663
-periodFxPolicy(db, periodId)       // the §24 DAILY / FIXED rate policy
+postFxSettlement(db, ctx, input) // cross-currency settlement → realized 563/663 (ČÚS 006)
+revalueOpenItemFx(db, ctx, input) // §4/12 balance-sheet-day revaluation → 563/663
+periodFxPolicy(db, periodId) // the §24 DAILY / FIXED rate policy
 ```
 
 ### Saldokonto
 
 ```ts
-openItem(db, ctx, input)                 // open a pohledávka / závazek
-settleOpenItem(db, ctx, input)           // record a párování (settled_amount is trigger-maintained)
+openItem(db, ctx, input) // open a pohledávka / závazek
+settleOpenItem(db, ctx, input) // record a párování (settled_amount is trigger-maintained)
 openItemsForCounterparty / unsettledOpenItems / saldoPerPartner
 ```
 
 ### Books — UC-2 (read-model consumers)
 
 ```ts
-journal(db, periodId)          // deník (line-scan, incl. 701 opening postings)
-generalLedger(db, periodId)    // hlavní kniha / obratová předvaha (PS | obraty | KS)
+journal(db, periodId) // deník (line-scan, incl. 701 opening postings)
+generalLedger(db, periodId) // hlavní kniha / obratová předvaha (PS | obraty | KS)
 monetaryJournal / monetarySummary
 ```
 
@@ -103,7 +103,7 @@ monetaryJournal / monetarySummary
 ```ts
 assessPeriodCloseReadiness(db, ctx, periodId) // structured blockers + explicit limitations
 rollForwardPeriod(db, ctx, input) // guarded output → close → next period
-openNextPeriod(db, ctx, input)          // low-level new period + chart + 701 opening balances
+openNextPeriod(db, ctx, input) // low-level new period + chart + 701 opening balances
 ```
 
 `rollForwardPeriod` is the public close path. It acquires the period advisory
@@ -113,10 +113,14 @@ output, marks the period closed, and opens the next period atomically.
 ### Corrections / supporting / invariants / output
 
 ```ts
-reverse(db, ctx, input)                       // úplné storno (negated lines; R8)
+reverse(db, ctx, input) // úplné storno (negated lines; R8)
 generateDepreciation / recordInventoryDifference
-unpostedCases / reconcileAnalytics / reconcileReadModel / traceAccount / traceEvent
-generateOutput(db, ctx, input)                // R6-gated; závěrka / přehledy / DPFO
+unpostedCases /
+  reconcileAnalytics /
+  reconcileReadModel /
+  traceAccount /
+  traceEvent
+generateOutput(db, ctx, input) // R6-gated; závěrka / přehledy / DPFO
 ```
 
 ---

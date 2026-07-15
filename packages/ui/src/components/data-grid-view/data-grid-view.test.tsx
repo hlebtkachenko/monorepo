@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-table"
 import { arrayMove } from "@dnd-kit/sortable"
 import * as React from "react"
+import { renderToString } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { Checkbox } from "@workspace/ui/components/checkbox"
@@ -62,6 +63,19 @@ function dataRowNames(container: HTMLElement): string[] {
 }
 
 describe("DataGridView", () => {
+  it("keeps dnd accessibility IDs stable across server renders", () => {
+    const first = renderToString(<Harness />)
+    const second = renderToString(<Harness />)
+    const describedBy = (html: string) =>
+      Array.from(
+        html.matchAll(/aria-describedby="([^"]+)"/g),
+        (match) => match[1],
+      )
+
+    expect(describedBy(first)).not.toHaveLength(0)
+    expect(describedBy(second)).toEqual(describedBy(first))
+  })
+
   it("renders the column headers and a row per item", () => {
     render(<Harness />)
     expect(screen.getByRole("button", { name: /Name/ })).toBeInTheDocument()

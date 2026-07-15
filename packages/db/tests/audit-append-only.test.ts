@@ -21,12 +21,22 @@ import postgres from "postgres"
 let sql: postgres.Sql
 let orgAId: string
 let workspaceId: string
+let periodId: string
 
 beforeAll(async () => {
   sql = adminClient()
   const seed = await seedTwoOrganizations(sql)
   orgAId = seed.orgAId
   workspaceId = seed.workspaceId
+  const [period] = await sql<Array<{ id: string }>>`
+    INSERT INTO accounting_period (
+      organization_id, period_start, period_end, regime_code, accounting_currency
+    )
+    VALUES (${orgAId}::uuid, '2090-01-01', '2090-12-31', 'DOUBLE_ENTRY', 'CZK')
+    RETURNING id
+  `
+  if (!period) throw new Error("Failed to seed accounting period")
+  periodId = period.id
 })
 
 afterAll(async () => {
@@ -73,6 +83,15 @@ describe("tool_call_log append-only", () => {
     await expect(
       sql.unsafe(
         `UPDATE tool_call_log SET tool_name = 'mutated' WHERE id = '${id}'::uuid`,
+      ),
+    ).rejects.toThrow(/check_violation|immutable/i)
+  })
+
+  it("blocks UPDATE of immutable period_id with check_violation", async () => {
+    const id = await seedLog(orgAId)
+    await expect(
+      sql.unsafe(
+        `UPDATE tool_call_log SET period_id = '${periodId}'::uuid WHERE id = '${id}'::uuid`,
       ),
     ).rejects.toThrow(/check_violation|immutable/i)
   })

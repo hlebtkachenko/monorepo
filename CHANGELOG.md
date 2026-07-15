@@ -81,6 +81,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Block accounting period close on unresolved period-scoped HELD Brain proposals, and fail closed on unscoped legacy proposals. (#738)
 - S3 document store debug harness: page body now scrolls (h-full overflow-y-auto) so a tall image/PDF preview is fully visible instead of clipped by the app-shell content slot's by-design overflow-hidden.
 - S3 document store: inline image/PDF preview was blocked in local dev by the site CSP — the minio dev origin (S3_ENDPOINT) is now added to img-src and connect-src when NODE_ENV=development, so presigned-URL previews render (download always worked as a top-level navigation). Production CSP is unchanged (real S3 presigned URLs already matched https://*.amazonaws.com).
 - S3 document store now works against S3-compatible endpoints (minio dev): pin explicit static credentials when a custom S3_ENDPOINT is set (avoids the AWS SDK error when both AWS_PROFILE and AWS_ACCESS_KEY_ID are present), and source the pinned VersionId for version-safe confirm/undo from HeadObject (which every implementation returns) instead of GetObjectTagging (which minio omits). Dev-compose minio bucket now has versioning enabled.

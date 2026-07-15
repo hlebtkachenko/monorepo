@@ -131,6 +131,21 @@ describe("PeriodsView close readiness", () => {
             },
           ],
         },
+        {
+          code: "PENDING_BRAIN_PROPOSALS",
+          severity: "BLOCKER",
+          status: "FAIL",
+          label: "Pending Brain proposals",
+          message: "1 unresolved HELD Brain proposal targets this period.",
+          count: 1,
+          references: [
+            {
+              id: "44444444-4444-4444-8444-444444444444",
+              designation:
+                "createAccountingEvent (44444444-4444-4444-8444-444444444444)",
+            },
+          ],
+        },
         limitation,
       ]),
     })
@@ -142,6 +157,10 @@ describe("PeriodsView close readiness", () => {
 
     expect(await screen.findByText("All cases posted")).toBeInTheDocument()
     expect(screen.getByText("EV20260001")).toBeInTheDocument()
+    expect(screen.getByText("Pending Brain proposals")).toBeInTheDocument()
+    expect(
+      screen.getByText(/createAccountingEvent \(44444444/),
+    ).toBeInTheDocument()
     expect(screen.getByText("Tax and payroll filings")).toBeInTheDocument()
     expect(screen.getByText("Not verified")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Roll forward" })).toBeDisabled()

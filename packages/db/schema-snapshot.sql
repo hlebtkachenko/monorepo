@@ -1358,6 +1358,7 @@ CREATE FUNCTION public.app_tool_call_log_limited_update() RETURNS trigger
     AS $$
 BEGIN
   IF (OLD.organization_id    <> NEW.organization_id
+      OR OLD.period_id       IS DISTINCT FROM NEW.period_id
       OR OLD.tool_name       <> NEW.tool_name
       OR OLD.idempotency_key <> NEW.idempotency_key
       OR OLD.actor_kind      <> NEW.actor_kind
@@ -2729,7 +2730,8 @@ CREATE TABLE public.tool_call_log (
     rationale text,
     auto_applied boolean DEFAULT false NOT NULL,
     approved_by_user_id uuid,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    period_id uuid
 );
 
 ALTER TABLE ONLY public.tool_call_log FORCE ROW LEVEL SECURITY;
@@ -4271,6 +4273,12 @@ CREATE INDEX tool_call_log_organization_actor_idx ON public.tool_call_log USING 
 CREATE INDEX tool_call_log_organization_created_idx ON public.tool_call_log USING btree (organization_id, created_at);
 
 --
+-- Name: tool_call_log_organization_period_pending_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX tool_call_log_organization_period_pending_idx ON public.tool_call_log USING btree (organization_id, period_id, created_at) WHERE ((auto_applied = false) AND (approved_by_user_id IS NULL));
+
+--
 -- Name: tool_call_log_tool_name_trgm_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5549,6 +5557,13 @@ ALTER TABLE ONLY public.tax_depreciation
 
 ALTER TABLE ONLY public.tool_call_log
     ADD CONSTRAINT tool_call_log_approved_by_user_id_fkey FOREIGN KEY (approved_by_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: tool_call_log tool_call_log_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.tool_call_log
+    ADD CONSTRAINT tool_call_log_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
 -- Name: tool_call_log tool_call_log_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

@@ -7,8 +7,10 @@ import {
   type AdmissionController,
   AdmissionRejected,
   type AdmissionSlot,
+  executeRows,
   lockPeriodInTx,
   readConfidentWrongCount,
+  sql,
   updateToolCallLogOutput,
   withOrganization,
   writeToolCallLog,
@@ -17,6 +19,7 @@ import {
   ConflictError,
   ForbiddenError,
   IdempotencyConflictError,
+  NotFoundError,
   RateLimitedError,
   ValidationError,
 } from "@workspace/shared/errors"
@@ -46,6 +49,26 @@ const ALWAYS_HOLD_AMOUNT = Number.isFinite(rawHold) ? rawHold : 100000
 
 /** The organization-bound tx handle `withOrganization` hands its callback. */
 type OrgTx = Parameters<Parameters<typeof withOrganization>[2]>[0]
+
+async function assertOpenPeriod(
+  db: OrgTx,
+  organizationId: string,
+  periodId: string,
+): Promise<void> {
+  const periods = await executeRows<{ status: "OPEN" | "CLOSED" }>(
+    db,
+    sql`SELECT status
+          FROM accounting_period
+         WHERE id = ${periodId}::uuid
+           AND organization_id = ${organizationId}::uuid`,
+  )
+  const period = periods[0]
+  if (!period)
+    throw new NotFoundError("Referenced accounting resource not found")
+  if (period.status !== "OPEN") {
+    throw new ConflictError("The accounting period is closed")
+  }
+}
 
 /** Sorted-key canonical JSON → stable idempotency payload hash. */
 export function canonicalHash(value: unknown): string {
@@ -285,8 +308,15 @@ export async function runGatedWriteWithSeams<T>(
             )
           }
 
+          // HELD proposals are now authoritative close blockers. Serialize the
+          // audit insert with roll-forward using the same (org, period) lock.
+          // Existing idempotent replays stay replayable after close; a new row
+          // verifies OPEN below and rolls back with the transaction if close won.
+          await lockPeriodInTx(db, principal.organizationId, opts.periodId)
+
           const log = await writeToolCallLog(db, {
             organizationId: principal.organizationId,
+            periodId: opts.periodId,
             toolName: operationId,
             idempotencyKey,
             actorKind,
@@ -311,6 +341,11 @@ export async function runGatedWriteWithSeams<T>(
             }
             return { kind: "replay", prior }
           }
+
+          // If close won the lock, reject and roll back the newly inserted audit
+          // row. If this write won, close waits and its locked readiness recheck
+          // sees the committed pending proposal.
+          await assertOpenPeriod(db, principal.organizationId, opts.periodId)
 
           // [WP-D] Live auto-apply requires a THREE-WAY AND, each leg independent:
           //   (1) client confidence >= threshold AND not an amount hold
@@ -402,13 +437,8 @@ export async function runGatedWriteWithSeams<T>(
           }
 
           if (autoApply) {
-            // Serialize concurrent writes to this (org, period) on the SAME
-            // bound tx that holds the RLS GUCs (ADR-0028) — protects the
-            // allocateNumber read-modify-write and orders same-period posts. The
-            // closePeriod takes this SAME lock (packages/accounting period.ts),
-            // so the close-vs-post race is closed on both sides. Held writes take
-            // no lock (they touch only the audit log, not the period).
-            await lockPeriodInTx(db, principal.organizationId, opts.periodId)
+            // The period lock was acquired before the audit insert so both HELD
+            // proposals and applied writes serialize against close.
             const result = await opts.run(db, {
               organizationId: principal.organizationId,
               workspaceId: principal.workspaceId,

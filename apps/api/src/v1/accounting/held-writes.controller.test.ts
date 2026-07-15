@@ -70,6 +70,10 @@ vi.mock("@workspace/accounting", () => ({
   createAsset: vi.fn(),
   createDepreciationPlan: vi.fn(),
   createInventoryCount: vi.fn(),
+  // Tier 4 provenance — minted at approve; returns the inbox_item id.
+  mintInboxItem: vi
+    .fn()
+    .mockResolvedValue("0196f1de-0000-7000-8000-000000000f01"),
 }))
 
 vi.mock("@workspace/db/schema", () => ({
@@ -486,7 +490,11 @@ describe("HeldWritesController", () => {
         { organizationId: string; workspaceId: string },
         Record<string, unknown>,
       ]
-      expect(ctx).toEqual({ organizationId: ORG_A, workspaceId: WORKSPACE })
+      expect(ctx).toEqual({
+        organizationId: ORG_A,
+        workspaceId: WORKSPACE,
+        inboxId: "0196f1de-0000-7000-8000-000000000f01",
+      })
       expect(input).toMatchObject({
         periodId: VALID_EVENT_INPUT.periodId,
         seriesId: VALID_EVENT_INPUT.seriesId,
@@ -541,7 +549,11 @@ describe("HeldWritesController", () => {
         { organizationId: string; workspaceId: string },
         Record<string, unknown>,
       ]
-      expect(ctx).toEqual({ organizationId: ORG_A, workspaceId: WORKSPACE })
+      expect(ctx).toEqual({
+        organizationId: ORG_A,
+        workspaceId: WORKSPACE,
+        inboxId: "0196f1de-0000-7000-8000-000000000f01",
+      })
       expect(input).toMatchObject({
         name: VALID_ASSET_INPUT.name,
         category: VALID_ASSET_INPUT.category,

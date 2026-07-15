@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Brain Tier 4 (provenance): inbox_item table + inbox_id stamped on every agent-landed accounting row (posting, summary/individual/partial record, double-entry + monetary line, accounting_event, open_item), minted at approve from the held write — the spine of the system-wide "Created by Agent" filter. Workspace-scoped with the composite-FK / bare-uuid split that keeps RLS intact.
 - Brain Tier 3: gated register-card creators (createAsset / createDepreciationPlan / createInventoryCount) so the agent can propose asset cards, depreciation plans (odpisy), and inventory counts through the confidence gate (held → human approves).
 - Wire the internal-documents, obligation-vouchers (+ payable/receivable), and trial-balance (obratová předvaha) pages from ModulePage placeholders to real data-backed views, reusing the existing fetchDocuments / saldokonto / general-ledger read models and table components.
 - Brain Tier 2: `createAccountingPosting` gains an optional `openObligation` directive so any double-entry posting (a contract obligation or an internal doklad, not just an invoice) can open its saldokonto pohledávka/závazek. Server-authoritative: counterparty from the posting's event, currency from the period, amount = the exact posted net movement; fail-closed on a null counterparty, opens nothing on net ≤ 0, rejected on a monetary posting.

@@ -35,6 +35,7 @@ import {
   createDepreciationPlan,
   createEvent,
   createInventoryCount,
+  mintInboxItem,
   postWithObligation as postPosting,
   type DocumentInput,
   type EventInput,
@@ -192,6 +193,9 @@ export class HeldWritesController {
               // their OWN held write (author != approver, closes agent
               // self-approval even if a Brain key leaks).
               user_id: tool_call_log.user_id,
+              // [Tier 4] provenance for the inbox_item minted at approve.
+              actor_kind: tool_call_log.actor_kind,
+              rationale: tool_call_log.rationale,
             })
             .from(tool_call_log)
             .where(
@@ -281,11 +285,31 @@ export class HeldWritesController {
             return { id, resolution: "rejected" }
           }
 
+          // [Tier 4] Mint the provenance record for this landed proposal and
+          // thread its id onto the ctx, so every row executeStored INSERTs carries
+          // inbox_id ("Created by Agent"). Same withOrganization tx (sets
+          // app.workspace_id) → the workspace-scoped inbox_item insert resolves;
+          // atomic with the landing; FOR-UPDATE guard above makes it single-mint.
+          const inboxId = await mintInboxItem(
+            db,
+            {
+              organizationId: principal.organizationId,
+              workspaceId: principal.workspaceId,
+            },
+            {
+              toolCallLogId: id,
+              kind: row.tool_name,
+              createdBy: row.actor_kind,
+              source: "agent",
+              reasoning: row.rationale,
+            },
+          )
           const result = await this.executeStored(
             db,
             {
               organizationId: principal.organizationId,
               workspaceId: principal.workspaceId,
+              inboxId,
             },
             row.tool_name,
             row.input_json,
@@ -320,7 +344,11 @@ export class HeldWritesController {
    */
   private async executeStored(
     db: OrganizationBoundDb,
-    ctx: { organizationId: string; workspaceId: string },
+    ctx: {
+      organizationId: string
+      workspaceId: string
+      inboxId?: string | null
+    },
     toolName: string,
     input: unknown,
     approverUserId: string,

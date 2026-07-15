@@ -20,6 +20,7 @@ import {
   createDepreciationPlan,
   createEvent,
   createInventoryCount,
+  mintInboxItem,
   post,
   type DocumentInput,
   type EventInput,
@@ -69,6 +70,10 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /** [Tier 4] Actor that authored the write → inbox_item.created_by provenance. */
+  actor_kind: string
+  /** [Tier 4] The agent's rationale → inbox_item.reasoning. */
+  rationale: string | null
   /**
    * [WS-2] OCR template this write was derived from, read from the gate's audit
    * `output_json.serverGate.templateId` (NULL for structured-export writes).
@@ -148,6 +153,7 @@ export async function resolveHeldWrite(
           // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
+                     actor_kind::text as actor_kind, rationale,
                      (output_json->'serverGate'->>'templateId') as template_id,
                      (output_json->'serverGate') as server_gate
               from tool_call_log
@@ -218,6 +224,19 @@ export async function resolveHeldWrite(
           : rawInput
         const fields = stripGateEnvelope(mergedInput)
 
+        // [Tier 4] Mint the provenance record for this landed proposal and thread
+        // its id onto the ctx, so every row the replay INSERTs carries inbox_id
+        // ("Created by Agent"). Minted inside the FOR-UPDATE-guarded approve tx →
+        // atomic with the landing, one item per approved write (append-only).
+        const inboxId = await mintInboxItem(db, orgCtx, {
+          toolCallLogId: id,
+          kind: row.tool_name,
+          createdBy: row.actor_kind,
+          source: "agent",
+          reasoning: row.rationale,
+        })
+        const writeCtx = { ...orgCtx, inboxId }
+
         let applied: Record<string, unknown>
         switch (row.tool_name) {
           case "createAccountingEvent": {
@@ -226,7 +245,7 @@ export async function resolveHeldWrite(
               orgCtx.organizationId,
               (fields as { periodId: string }).periodId,
             )
-            const ev = await createEvent(db, orgCtx, {
+            const ev = await createEvent(db, writeCtx, {
               ...fields,
               responsibleUserId: ctx.userId,
             } as unknown as EventInput)
@@ -253,7 +272,7 @@ export async function resolveHeldWrite(
             // (throws → the whole approve rolls back, the row stays held).
             const { doc, postingIds } = await captureAndBookIfInvoice(
               db,
-              orgCtx,
+              writeCtx,
               docInput,
               ctx.userId,
             )
@@ -276,7 +295,7 @@ export async function resolveHeldWrite(
               orgCtx.organizationId,
               (entry as { periodId: string }).periodId,
             )
-            const posting = await post(db, orgCtx, {
+            const posting = await post(db, writeCtx, {
               kind,
               entry: {
                 ...(entry as Record<string, unknown>),
@@ -294,7 +313,7 @@ export async function resolveHeldWrite(
               periodId: string
             } & Record<string, unknown>
             await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const asset = await createAsset(db, orgCtx, {
+            const asset = await createAsset(db, writeCtx, {
               ...cardFields,
               responsibleUserId: ctx.userId,
             } as unknown as Parameters<typeof createAsset>[2])
@@ -312,7 +331,7 @@ export async function resolveHeldWrite(
             await lockPeriodInTx(db, orgCtx.organizationId, periodId)
             const planId = await createDepreciationPlan(
               db,
-              orgCtx,
+              writeCtx,
               planFields as unknown as Parameters<
                 typeof createDepreciationPlan
               >[2],
@@ -327,7 +346,7 @@ export async function resolveHeldWrite(
             await lockPeriodInTx(db, orgCtx.organizationId, periodId)
             const count = await createInventoryCount(
               db,
-              orgCtx,
+              writeCtx,
               countFields as unknown as Parameters<
                 typeof createInventoryCount
               >[2],

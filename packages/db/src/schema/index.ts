@@ -101,3 +101,4 @@ export * from "./booking_template"
 
 // S3 document store — durable identity of a confirmed upload, workspace-scoped (0057, #518)
 export * from "./inbox_attachment"
+export * from "./inbox_item"

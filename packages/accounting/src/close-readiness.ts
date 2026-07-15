@@ -77,6 +77,19 @@ interface RequiredCloseNumberSeries {
   documentSeriesId: string | null
 }
 
+interface PendingBrainProposalRow {
+  id: string
+  tool_name: string
+  total_count: number
+  unscoped_count: number
+}
+
+interface PendingBrainProposalSummary {
+  totalCount: number
+  unscopedCount: number
+  references: PeriodCloseReference[]
+}
+
 export interface PeriodCloseAssessmentContext {
   readiness: PeriodCloseReadiness
   period: ClosePeriodRow | null
@@ -84,14 +97,6 @@ export interface PeriodCloseAssessmentContext {
 }
 
 const unavailableChecks: PeriodCloseCheck[] = [
-  {
-    code: "PENDING_BRAIN_PROPOSALS",
-    severity: "WARNING",
-    status: "UNAVAILABLE",
-    label: "Pending Brain proposals",
-    message:
-      "Pending HELD Brain proposals cannot yet be matched reliably to this period.",
-  },
   {
     code: "ASSET_AND_INVENTORY_COMPLETENESS",
     severity: "WARNING",
@@ -127,6 +132,13 @@ const unavailableChecks: PeriodCloseCheck[] = [
 ]
 
 const MAX_EXPOSED_REFERENCES = 3
+
+const LEGACY_PERIOD_SCOPED_BRAIN_TOOLS = [
+  "createAccountingEvent",
+  "captureAccountingDocument",
+  "createAccountingPosting",
+  "createInvoice",
+] as const
 
 function dependentUnavailable(
   code: PeriodCloseCheckCode,
@@ -164,6 +176,82 @@ async function resolveRequiredNumberSeries(
   return {
     eventSeriesId: event[0]?.id ?? null,
     documentSeriesId: document[0]?.id ?? null,
+  }
+}
+
+async function pendingBrainProposals(
+  db: RowExecutor,
+  periodId: string,
+): Promise<PendingBrainProposalSummary> {
+  const proposals = await rows<PendingBrainProposalRow>(
+    db,
+    sql`WITH pending AS (
+          SELECT id, tool_name, period_id, created_at
+            FROM tool_call_log
+           WHERE auto_applied = false
+             AND approved_by_user_id IS NULL
+             AND (
+               period_id = ${periodId}::uuid
+               OR (
+                 period_id IS NULL
+                 AND tool_name IN (${sql.join(
+                   LEGACY_PERIOD_SCOPED_BRAIN_TOOLS.map((tool) => sql`${tool}`),
+                   sql`, `,
+                 )})
+               )
+             )
+        )
+        SELECT id,
+               tool_name,
+               (count(*) OVER ())::int AS total_count,
+               (count(*) FILTER (WHERE period_id IS NULL) OVER ())::int AS unscoped_count
+          FROM pending
+         ORDER BY created_at, id
+         LIMIT ${MAX_EXPOSED_REFERENCES}`,
+  )
+  const first = proposals[0]
+  return {
+    totalCount: first?.total_count ?? 0,
+    unscopedCount: first?.unscoped_count ?? 0,
+    references: proposals.map((proposal) => ({
+      id: proposal.id,
+      designation: `${proposal.tool_name} (${proposal.id})`,
+    })),
+  }
+}
+
+function pendingBrainProposalCheck(
+  proposals: PendingBrainProposalSummary,
+): PeriodCloseCheck {
+  const { totalCount, unscopedCount, references } = proposals
+  const scopedCount = totalCount - unscopedCount
+  const status: CloseCheckStatus =
+    unscopedCount > 0 ? "UNAVAILABLE" : scopedCount > 0 ? "FAIL" : "PASS"
+  const scopedLabel =
+    scopedCount === 1
+      ? "1 unresolved HELD Brain proposal targets"
+      : `${scopedCount} unresolved HELD Brain proposals target`
+  const unscopedLabel =
+    unscopedCount === 1
+      ? "1 unresolved accounting proposal lacks"
+      : `${unscopedCount} unresolved accounting proposals lack`
+  const message =
+    unscopedCount > 0 && scopedCount > 0
+      ? `${scopedLabel} this period; ${unscopedLabel} authoritative period linkage.`
+      : unscopedCount > 0
+        ? `${unscopedLabel} authoritative period linkage.`
+        : scopedCount > 0
+          ? `${scopedLabel} this period.`
+          : "No unresolved HELD Brain proposals target this period."
+
+  return {
+    code: "PENDING_BRAIN_PROPOSALS",
+    severity: "BLOCKER",
+    status,
+    label: "Pending Brain proposals",
+    message,
+    count: totalCount,
+    references,
   }
 }
 
@@ -294,6 +382,10 @@ export async function assessPeriodCloseReadinessWithContext(
         .slice(0, MAX_EXPOSED_REFERENCES)
         .map((item) => ({ id: item.synthetic_code })),
     })
+
+    checks.push(
+      pendingBrainProposalCheck(await pendingBrainProposals(db, periodId)),
+    )
   } else {
     checks.push(
       dependentUnavailable("NO_UNPOSTED_CASES", "All cases posted"),
@@ -306,6 +398,10 @@ export async function assessPeriodCloseReadinessWithContext(
       dependentUnavailable(
         "ANALYTICS_RECONCILED",
         "Analytical accounts reconciled",
+      ),
+      dependentUnavailable(
+        "PENDING_BRAIN_PROPOSALS",
+        "Pending Brain proposals",
       ),
     )
   }

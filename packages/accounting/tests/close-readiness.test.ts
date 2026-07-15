@@ -21,6 +21,8 @@ let admin: ReturnType<typeof adminClient>
 let workspaceId: string
 let organizationId: string
 let userId: string
+let organizationBId: string
+let userBId: string
 
 beforeAll(async () => {
   admin = adminClient()
@@ -28,6 +30,8 @@ beforeAll(async () => {
   workspaceId = seed.workspaceId
   organizationId = seed.orgAId
   userId = seed.userAId
+  organizationBId = seed.orgBId
+  userBId = seed.userBId
 })
 
 afterAll(async () => {
@@ -109,6 +113,134 @@ describe("period close readiness", () => {
         .filter((check) => check.severity === "WARNING")
         .every((check) => check.status === "UNAVAILABLE"),
     ).toBe(true)
+    expect(blocker(readiness, "PENDING_BRAIN_PROPOSALS")).toMatchObject({
+      severity: "BLOCKER",
+      status: "PASS",
+      count: 0,
+    })
+  })
+
+  it("blocks only unresolved HELD proposals for this organization and period", async () => {
+    const target = await seedDoubleEntryOrg(
+      organizationId,
+      workspaceId,
+      userId,
+      {
+        periodStart: "2059-01-01",
+        periodEnd: "2059-12-31",
+      },
+    )
+    const otherPeriod = await seedDoubleEntryOrg(
+      organizationId,
+      workspaceId,
+      userId,
+      {
+        periodStart: "2060-01-01",
+        periodEnd: "2060-12-31",
+      },
+    )
+    const otherOrganization = await seedDoubleEntryOrg(
+      organizationBId,
+      workspaceId,
+      userBId,
+      {
+        periodStart: "2059-01-01",
+        periodEnd: "2059-12-31",
+      },
+    )
+
+    const pending = await admin<Array<{ id: string }>>`
+      INSERT INTO tool_call_log (
+        organization_id, period_id, tool_name, idempotency_key,
+        actor_kind, user_id, input_json, auto_applied, approved_by_user_id
+      )
+      SELECT
+        ${organizationId}::uuid,
+        ${target.periodId}::uuid,
+        'createAccountingEvent',
+        'close-held-' || value,
+        'human',
+        ${userId}::uuid,
+        jsonb_build_object('periodId', ${target.periodId}::text),
+        false,
+        NULL
+      FROM generate_series(1, 4) AS value
+      RETURNING id
+    `
+    await admin`
+      INSERT INTO tool_call_log (
+        organization_id, period_id, tool_name, idempotency_key,
+        actor_kind, user_id, input_json, auto_applied, approved_by_user_id
+      )
+      VALUES
+        (${organizationId}::uuid, ${otherPeriod.periodId}::uuid,
+         'createAccountingEvent', 'close-held-other-period', 'human',
+         ${userId}::uuid, jsonb_build_object('periodId', ${otherPeriod.periodId}::text),
+         false, NULL),
+        (${organizationBId}::uuid, ${otherOrganization.periodId}::uuid,
+         'createAccountingEvent', 'close-held-other-org', 'human',
+         ${userBId}::uuid, jsonb_build_object('periodId', ${otherOrganization.periodId}::text),
+         false, NULL),
+        (${organizationId}::uuid, ${target.periodId}::uuid,
+         'createAccountingEvent', 'close-held-resolved', 'human',
+         ${userId}::uuid, jsonb_build_object('periodId', ${target.periodId}::text),
+         false, ${userId}::uuid),
+        (${organizationId}::uuid, ${target.periodId}::uuid,
+         'createAccountingEvent', 'close-held-auto-applied', 'human',
+         ${userId}::uuid, jsonb_build_object('periodId', ${target.periodId}::text),
+         true, NULL)
+    `
+
+    const readiness = await assess(target)
+    const check = blocker(readiness, "PENDING_BRAIN_PROPOSALS")
+
+    expect(readiness.ready).toBe(false)
+    expect(check?.status).toBe("FAIL")
+    expect(check?.count).toBe(4)
+    expect(check?.references).toHaveLength(3)
+    expect(check?.references?.[0]?.designation).toContain(
+      "createAccountingEvent",
+    )
+
+    await admin`
+      UPDATE tool_call_log
+         SET approved_by_user_id = ${userId}::uuid
+       WHERE id = ANY(${pending.map((row) => row.id)}::uuid[])
+    `
+  })
+
+  it("fails closed when an unresolved accounting proposal lacks period linkage", async () => {
+    const seed = await seedDoubleEntryOrg(organizationId, workspaceId, userId, {
+      periodStart: "2061-01-01",
+      periodEnd: "2061-12-31",
+    })
+    const [proposal] = await admin<Array<{ id: string }>>`
+      INSERT INTO tool_call_log (
+        organization_id, period_id, tool_name, idempotency_key,
+        actor_kind, user_id, input_json
+      )
+      VALUES (
+        ${organizationId}::uuid, NULL, 'createInvoice',
+        'close-held-unscoped', 'human', ${userId}::uuid,
+        jsonb_build_object('legacy', true)
+      )
+      RETURNING id
+    `
+    if (!proposal) throw new Error("unscoped proposal seed failed")
+
+    const readiness = await assess(seed)
+    const check = blocker(readiness, "PENDING_BRAIN_PROPOSALS")
+
+    expect(readiness.ready).toBe(false)
+    expect(check?.status).toBe("UNAVAILABLE")
+    expect(check?.count).toBe(1)
+    expect(check?.message).toContain("authoritative period linkage")
+
+    await admin`
+      UPDATE tool_call_log
+         SET approved_by_user_id = ${userId}::uuid
+       WHERE id = ${proposal.id}::uuid
+    `
   })
 
   it("fails PERIOD_EXISTS safely for an unknown period", async () => {

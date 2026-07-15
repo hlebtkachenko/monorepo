@@ -94,6 +94,7 @@ export async function writeToolCallLog(
     .insert(tool_call_log)
     .values({
       organization_id: input.organizationId,
+      period_id: input.periodId ?? null,
       tool_name: input.toolName,
       idempotency_key: input.idempotencyKey,
       actor_kind: input.actorKind,

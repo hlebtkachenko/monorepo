@@ -36,6 +36,11 @@ vi.mock("@workspace/db", () => {
     writeToolCallLog: vi.fn(),
     updateToolCallLogOutput: vi.fn(),
     lockPeriodInTx: vi.fn(),
+    executeRows: vi.fn(),
+    sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+      strings,
+      values,
+    }),
     // [I8] The confident-wrong circuit-breaker read the gate performs at run
     // entry. Default (0) = breaker closed / clean pass; overridden per-test to
     // exercise the >0 (refuse) and unreadable (refuse) fail-closed legs.
@@ -54,6 +59,7 @@ const updateLog = vi.mocked(db.updateToolCallLogOutput)
 const withOrg = vi.mocked(db.withOrganization)
 const lockPeriod = vi.mocked(db.lockPeriodInTx)
 const readCW = vi.mocked(db.readConfidentWrongCount)
+const executeRows = vi.mocked(db.executeRows)
 
 // A permissive admission for the TEST-ONLY seam form (mirrors the mocked
 // singleton's always-admit behavior). Seam tests call `runGatedWriteWithSeams`
@@ -174,7 +180,9 @@ describe("runGatedWrite", () => {
     withOrg.mockReset()
     lockPeriod.mockReset()
     readCW.mockReset()
+    executeRows.mockReset()
     lockPeriod.mockResolvedValue(undefined)
+    executeRows.mockResolvedValue([{ status: "OPEN" }])
     // Run the callback with a throwaway db handle, one transaction.
     withOrg.mockImplementation((_org, _user, fn) =>
       (fn as (db: unknown) => Promise<unknown>)({}),
@@ -210,6 +218,15 @@ describe("runGatedWrite", () => {
     expect(res.httpStatus).toBe(202)
     expect(readCW).toHaveBeenCalledOnce()
     expect(writeLog).toHaveBeenCalledOnce()
+  })
+
+  it("persists the normalized accounting-period target on the audit row", async () => {
+    await runGatedWrite(build({ confidence: 0.5 }))
+
+    expect(writeLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ periodId: "p-1" }),
+    )
   })
 
   it("REFUSES fail-closed when the confident-wrong count is > 0 (breaker open)", async () => {
@@ -365,9 +382,42 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("does NOT take the period lock for a held write (no period touched)", async () => {
+  it("takes the period lock before persisting a held proposal", async () => {
     await runGatedWrite(build({ confidence: 0.5 }))
-    expect(lockPeriod).not.toHaveBeenCalled()
+    expect(lockPeriod).toHaveBeenCalledWith(expect.anything(), "org-1", "p-1")
+    expect(lockPeriod.mock.invocationCallOrder[0]).toBeLessThan(
+      writeLog.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it("refuses a held proposal when close wins and the period is closed", async () => {
+    executeRows.mockResolvedValue([{ status: "CLOSED" }])
+
+    await expect(
+      runGatedWrite(build({ confidence: 0.5 })),
+    ).rejects.toBeInstanceOf(ConflictError)
+    expect(writeLog).toHaveBeenCalledOnce()
+    expect(updateLog).not.toHaveBeenCalled()
+  })
+
+  it("preserves an idempotent replay after the target period closes", async () => {
+    const body = { periodId: "p-1", note: "same" }
+    executeRows.mockResolvedValue([{ status: "CLOSED" }])
+    writeLog.mockResolvedValue({
+      toolCallLogId: "log-1",
+      replayed: true,
+      existingOutput: {
+        payloadHash: canonicalHash(body),
+        status: "held",
+        reviewId: "log-1",
+      },
+    })
+
+    await expect(runGatedWrite(build({ body }))).resolves.toMatchObject({
+      httpStatus: 202,
+      replayed: true,
+    })
+    expect(executeRows).not.toHaveBeenCalled()
   })
 
   it("[#517] stamps an agent-key write as ai_on_behalf (conversationId present)", async () => {
@@ -443,7 +493,7 @@ describe("runGatedWrite", () => {
     expect(res.httpStatus).toBe(202)
     expect(res.body).toMatchObject({ status: "held" })
     expect(run).not.toHaveBeenCalled()
-    expect(lockPeriod).not.toHaveBeenCalled()
+    expect(lockPeriod).toHaveBeenCalledWith(expect.anything(), "org-1", "p-1")
     // The combined serverGate (independent veto + honest score) is persisted.
     expect(updateLog).toHaveBeenCalledWith(
       expect.anything(),

@@ -101,9 +101,14 @@ monetaryJournal / monetarySummary
 ### Period lifecycle
 
 ```ts
-closePeriod(db, periodId)               // §17; R12 trigger blocks new postings after
-openNextPeriod(db, ctx, input)          // new period + chart copy-forward + 701 opening balances
+assessPeriodCloseReadiness(db, ctx, periodId) // structured blockers + explicit limitations
+rollForwardPeriod(db, ctx, input) // guarded output → close → next period
+openNextPeriod(db, ctx, input)          // low-level new period + chart + 701 opening balances
 ```
+
+`rollForwardPeriod` is the public close path. It acquires the period advisory
+transaction lock, repeats authoritative readiness checks, generates the regime
+output, marks the period closed, and opens the next period atomically.
 
 ### Corrections / supporting / invariants / output
 

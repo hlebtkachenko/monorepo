@@ -117,7 +117,6 @@ export {
 
 // Period lifecycle (R12)
 export {
-  closePeriod,
   closeResult,
   copyChartForward,
   openNextPeriod,
@@ -128,6 +127,16 @@ export {
   type RollForwardInput,
   type RollForwardResult,
 } from "./period"
+export {
+  assessPeriodCloseReadiness,
+  PeriodCloseBlockedError,
+  type CloseCheckSeverity,
+  type CloseCheckStatus,
+  type PeriodCloseCheck,
+  type PeriodCloseCheckCode,
+  type PeriodCloseReadiness,
+  type PeriodCloseReference,
+} from "./close-readiness"
 
 // Corrections (R8)
 export { reverse, type ReverseInput } from "./corrections"

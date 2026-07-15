@@ -8,41 +8,22 @@
 // (202 → reviewId); a human approves it at /approvals (verifying the extracted {name, ico, dic}), then
 // passes the applied eventId to `brain book`. This command emits the identity; the human still reviews it.
 
-import { createHash } from "node:crypto"
-
 import type { AfframeClient } from "@afframe/sdk"
 import { invoiceToEvent, type IrToEventContext } from "@workspace/intake"
 import type { Invoice } from "@workspace/brain"
 import type { CreateAccountingEventRequest } from "@workspace/shared/api"
 
+import { contentHash } from "./idempotency"
 import { indent } from "./render"
 
-/** Recursively key-sorted JSON — a stable serialization so the idempotency key is order-independent. */
-function stableStringify(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value as Record<string, unknown>)
-      .sort()
-      .map(
-        (k) =>
-          `${JSON.stringify(k)}:${stableStringify(
-            (value as Record<string, unknown>)[k],
-          )}`,
-      )
-      .join(",")}}`
-  }
-  return JSON.stringify(value) ?? "null"
-}
-
 /**
- * Deterministic, clock-free idempotency key = sha256 of the canonical event request. Stable across retries
- * and a killed-then-resumed run, so the server dedups a re-POST of the SAME event into a replay — never a
- * duplicate event. (The event request carries no `_minor` bigint fields, so plain serialization is safe.)
+ * Deterministic, clock-free idempotency key for the event write — the shared content hash (sha256 of the
+ * canonical request), so the server dedups a re-POST of the SAME event into a replay, never a duplicate.
  */
 export function eventIdempotencyKey(
   request: CreateAccountingEventRequest,
 ): string {
-  return createHash("sha256").update(stableStringify(request)).digest("hex")
+  return contentHash(request)
 }
 
 /** The assembled event proposal: the request body + whether an identity was extracted (drives the gate). */

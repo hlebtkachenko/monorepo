@@ -510,35 +510,17 @@ export function registerBrainCommand(program: Command): void {
 /**
  * Read + shallow-validate the `brain event` `--context` file at the system boundary: the EVENT write needs
  * `periodId`, `eventSeriesId` (the EVENT number series — NOT the capture's DOCUMENT series), and the gate
- * envelope (`confidence` / `rationale`, plus optional `conversationId` / `signals`). No `_minor` money
- * fields exist on an event context, so no bigint reviver is needed. Fails LOUD on a missing required key.
+ * envelope (`confidence` / `rationale`, plus optional carry-through `conversationId` / `signals`). Delegates
+ * to the shared parametric `readContextFile` (the single reader every operator input uses); its anti-widening
+ * pick keeps a stray key out, and the `_minor` reviver is a harmless no-op on a bigint-free event context.
  */
 function readEventContext(path: string): IrToEventContext {
-  const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
-  const required = ["periodId", "eventSeriesId", "confidence", "rationale"]
-  const missing =
-    typeof parsed !== "object" || parsed === null
-      ? required
-      : required.filter((key) => !(key in parsed))
-  if (missing.length > 0) {
-    throw new Error(
-      `--context file ${path} must be a JSON object with keys: ${required.join(", ")} ` +
-        `(optional: conversationId, signals).`,
-    )
-  }
-  const obj = parsed as Record<string, unknown>
-  return {
-    periodId: obj["periodId"] as string,
-    eventSeriesId: obj["eventSeriesId"] as string,
-    confidence: obj["confidence"] as number,
-    rationale: obj["rationale"] as string,
-    ...(obj["conversationId"] != null
-      ? { conversationId: obj["conversationId"] as string }
-      : {}),
-    ...(obj["signals"] != null
-      ? { signals: obj["signals"] as IrToEventContext["signals"] }
-      : {}),
-  }
+  return readContextFile(
+    path,
+    "--context",
+    ["periodId", "eventSeriesId", "confidence", "rationale"],
+    ["conversationId", "signals"],
+  ) as unknown as IrToEventContext
 }
 
 /**
@@ -547,30 +529,18 @@ function readEventContext(path: string): IrToEventContext {
  * at cold start (not an immediately-applied create). Spells out the case description + the counterparty the
  * server will find-or-create, so the operator confirms the partner before the write is queued.
  */
-async function confirmEventExecute(
+function confirmEventExecute(
   request: CreateAccountingEventRequest,
 ): Promise<boolean> {
-  if (!input.isTTY) {
-    output.write(
-      "brain event: non-interactive and no --yes — refusing to POST without confirmation.\n",
-    )
-    return false
-  }
-  const rl = createInterface({ input, output })
-  const answer = (
-    await rl.question(
-      `This will POST create_accounting_event (a GATED write — HELD for human review at cold start):\n` +
-        `  ${request.description}\n` +
-        `  counterparty: ${
-          request.counterparty ? JSON.stringify(request.counterparty) : "(none)"
-        }\n` +
-        `Proceed? [y/N]: `,
-    )
+  return confirmYesNo(
+    `This will POST create_accounting_event (a GATED write — HELD for human review at cold start):\n` +
+      `  ${request.description}\n` +
+      `  counterparty: ${
+        request.counterparty ? JSON.stringify(request.counterparty) : "(none)"
+      }\n` +
+      `Proceed? [y/N]: `,
+    "brain event: non-interactive and no --yes — refusing to POST without confirmation.\n",
   )
-    .trim()
-    .toLowerCase()
-  rl.close()
-  return answer === "y" || answer === "yes"
 }
 
 /**
@@ -617,6 +587,7 @@ function readContextFile<K extends string>(
   path: string,
   flag: string,
   requiredKeys: readonly K[],
+  optionalKeys: readonly K[] = [],
 ): Record<K, unknown> {
   const parsed: unknown = JSON.parse(
     readFileSync(path, "utf8"),
@@ -635,6 +606,9 @@ function readContextFile<K extends string>(
   const obj = parsed as Record<string, unknown>
   const picked = {} as Record<K, unknown>
   for (const key of requiredKeys) picked[key] = obj[key]
+  // Carry-through optionals: picked ONLY when present, so a widening key is still DROPPED (the
+  // anti-widening guarantee holds) while a genuine optional (conversationId / signals) survives.
+  for (const key of optionalKeys) if (key in obj) picked[key] = obj[key]
   return picked
 }
 
@@ -930,58 +904,48 @@ function readExtractedInvoice(path: string): Invoice {
 }
 
 /**
- * The live-run confirmation gate. It PROMPTS (Accept/decline) on a TTY after the plan is printed; a
- * non-interactive invocation with no `--yes` is treated as DECLINE (fail-safe — never auto-run live without
- * an explicit operator OK). Returns true only on an explicit yes.
+ * TTY-guarded yes/no confirmation gate — the single interactive-confirm helper every write command shares
+ * (book / onboard / event). Prompts on a TTY; a non-interactive invocation (no `--yes`) is a DECLINE
+ * (fail-safe — never auto-run a write without an explicit operator OK), printing `refusalMessage`. Returns
+ * true only on an explicit `y` / `yes`.
  */
-async function confirmLiveRun(count: number): Promise<boolean> {
+async function confirmYesNo(
+  prompt: string,
+  refusalMessage: string,
+): Promise<boolean> {
   if (!input.isTTY) {
-    output.write(
-      "brain book: non-interactive and no --yes — refusing to run live without confirmation.\n",
-    )
+    output.write(refusalMessage)
     return false
   }
   const rl = createInterface({ input, output })
-  const answer = (
-    await rl.question(
-      `Run ${count} live booking session(s) with the plan above? [y/N]: `,
-    )
-  )
-    .trim()
-    .toLowerCase()
+  const answer = (await rl.question(prompt)).trim().toLowerCase()
   rl.close()
   return answer === "y" || answer === "yes"
 }
 
+/** The live-run confirmation gate (after the plan is printed). */
+function confirmLiveRun(count: number): Promise<boolean> {
+  return confirmYesNo(
+    `Run ${count} live booking session(s) with the plan above? [y/N]: `,
+    "brain book: non-interactive and no --yes — refusing to run live without confirmation.\n",
+  )
+}
+
 /**
- * The `brain onboard --execute` confirmation gate — mirrors `confirmLiveRun` above exactly (same TTY check,
- * same fail-closed non-interactive default, same `readline` prompt shape), but names EXACTLY what will be
- * created: these are immediately-applied writes (a 201 on success, not a review-queue HELD), so the prompt
- * spells out each proposed call's tool name before asking. Returns true only on an explicit yes.
+ * The `brain onboard --execute` gate — spells out each proposed call (these are immediately-applied writes,
+ * a 201 on success, NOT a review-queue HELD) before asking.
  */
-export async function confirmOnboardingExecute(
+export function confirmOnboardingExecute(
   plan: OnboardingPlan,
 ): Promise<boolean> {
-  if (!input.isTTY) {
-    output.write(
-      "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
-    )
-    return false
-  }
   const summary = plan.proposedCalls
     .map((call, index) => `  [${index + 1}] ${call.tool} — ${call.purpose}`)
     .join("\n")
-  const rl = createInterface({ input, output })
-  const answer = (
-    await rl.question(
-      `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
-        `Proceed? [y/N]: `,
-    )
+  return confirmYesNo(
+    `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
+      `Proceed? [y/N]: `,
+    "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
   )
-    .trim()
-    .toLowerCase()
-  rl.close()
-  return answer === "y" || answer === "yes"
 }
 
 /**

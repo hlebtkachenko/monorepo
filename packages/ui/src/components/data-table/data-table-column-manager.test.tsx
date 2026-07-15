@@ -373,4 +373,27 @@ describe("ColumnManagerMenuContent", () => {
     fireEvent.drop(rowOf("G2"), { dataTransfer: dataTransfer() })
     expect(order()).toBe("g2m1,g2m2,g1m1,g1m2")
   })
+
+  it("re-inserts a hidden measure INTO its group after a drag (no split header)", () => {
+    // Regression: a drag while a measure is hidden must not scatter that
+    // measure's per-group leaves to the tail, or re-showing it would render the
+    // leaves outside their groups and split the banded header into two cells.
+    render(<ReorderHarness />)
+    const order = () => screen.getByTestId("leaf-order").textContent
+    // Hide measure M2 across both groups.
+    fireEvent.click(screen.getByRole("button", { name: "Hide M2" }))
+    expect(order()).toBe("g1m1,g2m1")
+    // Reorder the groups WHILE M2 is hidden.
+    fireEvent.dragStart(gripOf("G1"), { dataTransfer: dataTransfer() })
+    fireEvent.dragOver(rowOf("G2"), {
+      dataTransfer: dataTransfer(),
+      clientY: 99,
+    })
+    fireEvent.drop(rowOf("G2"), { dataTransfer: dataTransfer() })
+    expect(order()).toBe("g2m1,g1m1")
+    // Re-show M2 → each group's M2 leaf returns RIGHT AFTER its M1 leaf, so both
+    // groups stay contiguous (g2m1,g2m2 | g1m1,g1m2), never scattered to the end.
+    fireEvent.click(screen.getByRole("button", { name: "Show M2" }))
+    expect(order()).toBe("g2m1,g2m2,g1m1,g1m2")
+  })
 })

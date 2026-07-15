@@ -31,15 +31,7 @@ import {
 } from "@workspace/ui/components/dropdown-menu"
 import { cn } from "@workspace/ui/lib/utils"
 
-/** The visible name of a column — `meta.label`, a string header, or the id. */
-function getColumnLabel<TData, TValue>(header: Header<TData, TValue>): string {
-  const { column } = header
-  const meta = column.columnDef.meta
-  if (meta?.label) return meta.label
-  const def = column.columnDef.header
-  if (typeof def === "string") return def
-  return column.id
-}
+import { getColumnLabel } from "../data-table/data-table-utils"
 
 /** The current column order, falling back to the natural leaf order. */
 function getFullOrder<TData>(table: Table<TData>): string[] {
@@ -122,7 +114,7 @@ export function DataGridViewColumnHeader<TData, TValue>({
   onColumnAnalyze,
 }: DataGridViewColumnHeaderProps<TData, TValue>) {
   const { column } = header
-  const label = getColumnLabel(header)
+  const label = getColumnLabel(header.column)
   const align = column.columnDef.meta?.align
   const sorted = column.getIsSorted()
   const pinned = column.getIsPinned()
@@ -318,15 +310,6 @@ export function DataGridViewColumnHeader<TData, TValue>({
   )
 }
 
-/** A column's visible label (`meta.label`, a string header, or the id). */
-function getColumnLabelFromColumn<TData>(column: Column<TData>): string {
-  const meta = column.columnDef.meta
-  if (meta?.label) return meta.label
-  const def = column.columnDef.header
-  if (typeof def === "string") return def
-  return column.id
-}
-
 /** Fit ONE leaf column to the widest of its header label and its cell text. */
 function fitLeafSize<TData>(
   column: Column<TData>,
@@ -335,7 +318,7 @@ function fitLeafSize<TData>(
   scope: ParentNode,
 ): number {
   // The header line needs room for its label PLUS the sort glyph + gap (~20px).
-  let max = ctx.measureText(getColumnLabelFromColumn(column)).width + 20
+  let max = ctx.measureText(getColumnLabel(column)).width + 20
   // Measure the RENDERED (formatted) cell text — what the user actually sees, so
   // a currency/number cell fits its "1 500,00 Kč" display, not the raw accessor
   // value. Cells carry their visible column index in `data-col`.

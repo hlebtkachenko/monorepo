@@ -83,6 +83,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Pivot: shift-range row selection no longer selects a non-selectable subtotal caught in the range (raw setRowSelection bypassed the enableRowSelection predicate, inflating the count/sum); and reordering a group/measure while a measure is hidden no longer scatters that measure's leaves out of their groups, which split the banded header when re-shown.
 - Pivot: selecting a row-group checkbox no longer also selects that group's calculated subtotal ("Total …") row, which would double-count a sum over the selection; subtotal rows are now non-selectable (no checkbox, keep their line number).
 - Pivot table now scrolls horizontally INSIDE its own grid (pinned + mandatory columns stay frozen) instead of scrolling the whole Content Body — the section wrapper was missing `min-w-0`, so any wide grid pushed the body sideways.
 - Table archetype: dark-mode lighter box behind inline-editable cell text (the shadcn Input's `dark:bg-input/30` outranked the cell's `bg-transparent` — the inline editors now force `dark:bg-transparent` and inherit the row surface), grid keyboard-nav hijacking inline-editor caret keys, unsafe optimistic-write rollback on out-of-order commits, invalid/NaN numeric commits, Columns-manager order not following pinned groups, filter coercion (missing-vs-zero, invalid dates, untrimmed tags, stale filter models), and descriptor/pin validation gaps

@@ -73,6 +73,7 @@ import {
   pinStyle,
   type ScrollEdges,
 } from "./data-grid-view-pin"
+import { getColumnLabel } from "../data-table/data-table-utils"
 
 /**
  * A pinned summary (grand-total / footer) row, rendered in its OWN sticky-bottom
@@ -599,10 +600,7 @@ export function DataGridView<TData>({
           {activeColumnId ? (
             <div className="flex h-9 cursor-grabbing items-center gap-1 border bg-grid-header-hover pr-3 pl-1 text-sm font-medium text-foreground shadow">
               <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
-              {String(
-                table.getColumn(activeColumnId)?.columnDef.meta?.label ??
-                  activeColumnId,
-              )}
+              {getColumnLabel(table.getColumn(activeColumnId))}
             </div>
           ) : null}
         </DragOverlay>

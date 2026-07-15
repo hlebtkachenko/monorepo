@@ -16,6 +16,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import {
   buildPivot,
+  fieldStr,
   type PivotCell,
   type PivotColumnNode,
   type PivotLeafColumn,
@@ -103,14 +104,6 @@ function renderPivotCell(
       {format(cell.value)}
     </GridNumberCell>
   )
-}
-
-/** A source-field value as its display string (`""` for null/undefined) — the
- *  same normalization the transform uses, so drill matching lines up with the
- *  buckets `buildPivot` folded. */
-function fieldStr(row: Record<string, unknown>, field: string): string {
-  const v = row[field]
-  return v == null ? "" : String(v)
 }
 
 /**

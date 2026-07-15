@@ -138,8 +138,13 @@ function resolveCell(acc: Acc, measure: PivotMeasure): PivotCell {
     : { kind: "value", value }
 }
 
-/** Field value as a display string (`""` for null/undefined). */
-function fieldStr(row: TableSectionRow, field: string): string {
+/**
+ * A source field's value as its display/bucketing string (`""` for null or
+ * undefined, else `String(value)`). This ONE normalization is the pivot's bucket
+ * key — the fold, the drill-through matcher, and the toolbar filters must all use
+ * it so their predicates agree; hence it is exported, not re-declared per site.
+ */
+export function fieldStr(row: TableSectionRow, field: string): string {
   const v = row[field]
   return v == null ? "" : String(v)
 }

@@ -18,12 +18,17 @@ import {
 } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
+import {
+  commitCenter,
+  getCenterIds,
+} from "../data-grid-view/data-grid-view-column-header"
 import { getColumnLabel } from "./data-table-utils"
 
 /**
  * Move `sourceId` before/after `targetId` within the non-pinned centre group,
- * leaving the left/right pinned groups in place. Operates on the table's
- * `columnOrder` (seeding it from the leaf order when empty).
+ * leaving the left/right pinned groups in place. The centre-extract + pin-edge
+ * reassembly is the SAME invariant the grid's own header drag uses, so it reuses
+ * the exported `getCenterIds` / `commitCenter` rather than a private second copy.
  */
 function reorderColumn<TData>(
   table: Table<TData>,
@@ -32,10 +37,7 @@ function reorderColumn<TData>(
   edge: "top" | "bottom",
 ) {
   if (sourceId === targetId) return
-  const order = table.getState().columnOrder.length
-    ? table.getState().columnOrder
-    : table.getAllLeafColumns().map((c) => c.id)
-  const center = order.filter((id) => !table.getColumn(id)?.getIsPinned())
+  const center = getCenterIds(table)
   const from = center.indexOf(sourceId)
   if (from < 0) return
   const next = [...center]
@@ -44,13 +46,7 @@ function reorderColumn<TData>(
   const to = next.indexOf(targetId)
   if (to < 0) return
   next.splice(edge === "top" ? to : to + 1, 0, moved)
-  const left = order.filter(
-    (id) => table.getColumn(id)?.getIsPinned() === "left",
-  )
-  const right = order.filter(
-    (id) => table.getColumn(id)?.getIsPinned() === "right",
-  )
-  table.setColumnOrder([...left, ...next, ...right])
+  commitCenter(table, next)
 }
 
 /** The top-level (root) ancestor of a column — the pivot high-level group a value
@@ -84,14 +80,17 @@ function groupBlocks<TData>(
 
 /**
  * Re-emit `columnOrder` from reordered value blocks: the non-value leaves
- * (select / row-label) stay leading in their current order, the reordered value
- * leaves follow, and any HIDDEN leaves append so a set-order can never drop them.
- * Group contiguity is preserved (each block's leaves stay together), so the
- * hierarchical header stays intact.
+ * (select / row-label) stay leading in their current order, then each group
+ * block's visible leaves. A HIDDEN value leaf (a hidden measure's per-group leaf)
+ * is re-inserted RIGHT AFTER its own group's block — never dumped in a global
+ * tail — so re-showing it lands it back inside its group and the banded header
+ * can't split into two cells. Leaves of a fully-hidden group (no surviving block)
+ * stay mutually contiguous at the tail (re-showing them can't split a header
+ * either). With nothing hidden this is byte-identical to `[leading, ...blocks]`.
  */
 function commitBlocks<TData>(
   table: Table<TData>,
-  blocks: { leafIds: string[] }[],
+  blocks: { id: string; leafIds: string[] }[],
 ): void {
   const valueOrder = blocks.flatMap((b) => b.leafIds)
   const valueSet = new Set(valueOrder)
@@ -100,11 +99,26 @@ function commitBlocks<TData>(
     .map((l) => l.id)
     .filter((id) => !valueSet.has(id))
   const leadingSet = new Set(leading)
-  const hidden = table
-    .getAllLeafColumns()
-    .map((l) => l.id)
-    .filter((id) => !valueSet.has(id) && !leadingSet.has(id))
-  table.setColumnOrder([...leading, ...valueOrder, ...hidden])
+  const blockIds = new Set(blocks.map((b) => b.id))
+  const hiddenByGroup = new Map<string, string[]>()
+  const orphanHidden: string[] = []
+  for (const leaf of table.getAllLeafColumns()) {
+    if (valueSet.has(leaf.id) || leadingSet.has(leaf.id)) continue
+    const rootId = leaf.parent ? rootColumn(leaf).id : leaf.id
+    if (leaf.parent && blockIds.has(rootId)) {
+      const list = hiddenByGroup.get(rootId)
+      if (list) list.push(leaf.id)
+      else hiddenByGroup.set(rootId, [leaf.id])
+    } else {
+      orphanHidden.push(leaf.id)
+    }
+  }
+  const order = [...leading]
+  for (const block of blocks) {
+    order.push(...block.leafIds, ...(hiddenByGroup.get(block.id) ?? []))
+  }
+  order.push(...orphanHidden)
+  table.setColumnOrder(order)
 }
 
 /** Move high-level group `sourceId` before/after `targetId` among the groups. */

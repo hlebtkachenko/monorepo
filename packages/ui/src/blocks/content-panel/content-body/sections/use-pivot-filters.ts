@@ -13,6 +13,7 @@ import {
 } from "@workspace/ui/components/filter-bar"
 import { CircleDot, SquareSigma } from "@workspace/ui/lib/icons"
 
+import { fieldStr } from "./pivot-transform"
 import type { TableSectionRow } from "./section-table"
 import type { PivotDimension, PivotMeasure } from "./section-pivot-table"
 
@@ -47,7 +48,7 @@ function distinctValues(
   const seen = new Set<string>()
   const out: string[] = []
   for (const row of rows) {
-    const value = String(row[field] ?? "")
+    const value = fieldStr(row, field)
     if (value === "" || seen.has(value)) continue
     seen.add(value)
     out.push(value)
@@ -88,7 +89,7 @@ export function usePivotFilters({
         helper
           .option()
           .id(dim.field)
-          .accessor((row) => String(row[dim.field] ?? ""))
+          .accessor((row) => fieldStr(row, dim.field))
           .displayName(dim.label ?? dim.field)
           .icon(CircleDot)
           .options(options)
@@ -150,7 +151,7 @@ export function usePivotFilters({
         if (field === undefined) return true
         if (filter.type === "option")
           return optionFilterFn(
-            String(row[field] ?? ""),
+            fieldStr(row, field),
             filter as FilterModel<"option">,
           )
         if (filter.type === "number") {

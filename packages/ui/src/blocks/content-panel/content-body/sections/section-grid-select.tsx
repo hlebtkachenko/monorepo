@@ -78,7 +78,11 @@ function SelectCell<T>({
             const next = { ...table.getState().rowSelection }
             for (let i = from; i <= to; i++) {
               const r = rows[i]
-              if (r) next[r.id] = true
+              // Honour getCanSelect() like the single-row + select-all paths: a
+              // raw setRowSelection does NOT gate on the predicate, so a range
+              // spanning a non-selectable pivot subtotal must skip it (else the
+              // subtotal is marked selected and inflates the count / any sum).
+              if (r && r.getCanSelect()) next[r.id] = true
             }
             table.setRowSelection(next)
           }}

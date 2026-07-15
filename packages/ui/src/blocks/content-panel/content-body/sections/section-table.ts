@@ -2,23 +2,34 @@ import { type SectionDescriptor, defineSection } from "./section"
 
 /**
  * A column's cell/editor kind — a CLOSED union. The renderer maps each to OUR
- * shadcn control (display text · number · a Select dropdown · a Badge), and
- * `filterVariantForKind` maps each to its default toolbar filter. A column's
- * KIND canonically determines BOTH its cell control and its filter, from these
- * two global places — never per page. Adding a kind = three global edits:
- * this union + an arm in `filterVariantForKind` + a case in the renderer's cell
- * switch ("interactivity as data").
+ * shadcn control (display text · number · a Select dropdown · a Badge · a
+ * formatted money cell · a formatted date), and `filterVariantForKind` maps
+ * each to its default toolbar filter. A column's KIND canonically determines
+ * BOTH its cell control and its filter, from these two global places — never
+ * per page. Adding a kind = three global edits: this union + an arm in the
+ * exhaustive `KIND_FILTER_VARIANT` + a case in the renderer's cell switch
+ * (`displayCell`) and its sort map (`sortingFnForKind`) — "interactivity as
+ * data".
  *
- * Documented next arms (control, filter): `date` (date picker, `date`) ·
- * `tags` (tag chips, `multiOption`) · `currency` (money cell, `number`).
+ * - `currency`: value carried as a decimal STRING (never a float — money keeps
+ *   full precision). Displays right-aligned + cs-CZ formatted, sorts NUMERICALLY
+ *   (the string is parsed to a number only inside the comparator), filters as a
+ *   number range, and is read-only in the grid (never routed through the
+ *   inline `Number()` editor). See `section-cell-format`.
+ * - `date`: value carried as an ISO date string. Displays cs-CZ short date,
+ *   sorts chronologically, filters with the date picker.
+ *
+ * Documented next arm (control, filter): `tags` (tag chips, `multiOption`).
  */
-export type TableColumnKind = "text" | "number" | "select" | "badge"
+export type TableColumnKind =
+  "text" | "number" | "select" | "badge" | "currency" | "date"
 
 /**
  * The SINGLE global mapping from a column KIND to its default toolbar-filter
- * VARIANT (`text→text`, `number→number`, `select→option`, `badge→option`). A
- * `select` of companies with `filter: true` is therefore an OPTION dropdown,
- * never a text search. Backed by an exhaustive `Record<TableColumnKind, …>`, so
+ * VARIANT (`text→text`, `number→number`, `select→option`, `badge→option`,
+ * `currency→number`, `date→date`). A `select` of companies with `filter: true`
+ * is therefore an OPTION dropdown, never a text search; a `currency` column
+ * gets a NUMBER range. Backed by an exhaustive `Record<TableColumnKind, …>`, so
  * adding a kind to the union is a compile error here until it is mapped —
  * keeping the closed-union extension story honest. Read once through
  * `resolveColumnFilter`, never recomputed per page.
@@ -34,6 +45,8 @@ const KIND_FILTER_VARIANT: Record<TableColumnKind, TableColumnFilterVariant> = {
   number: "number",
   select: "option",
   badge: "option",
+  currency: "number",
+  date: "date",
 }
 
 /** Horizontal alignment of a column's header + cells. Default "start". */

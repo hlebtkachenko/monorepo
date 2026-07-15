@@ -9,6 +9,7 @@ import {
   type TableColumnSpec,
 } from "./section-table"
 import { SectionTableRenderer } from "./section-table-renderer"
+import { formatCurrencyCell } from "./section-cell-format"
 import {
   SectionTableProvider,
   useSectionInspect,
@@ -467,5 +468,70 @@ describe("SectionTableRenderer — creatable select column", () => {
     const editors = screen.getAllByLabelText("Party")
     expect(editors.length).toBeGreaterThan(0)
     expect(editors[0]!.tagName).toBe("INPUT")
+  })
+})
+
+describe("SectionTableRenderer — currency + date kinds", () => {
+  // cs-CZ number grouping uses a NBSP (U+00A0) that Testing Library's default
+  // normalizer preserves, so we locate the leaf cell by a space-agnostic regex
+  // and assert its exact textContent equals the formatter output (proving the
+  // renderer wired the kind to `formatCurrencyCell`, not printed the raw string).
+  const payload = sectionTable({
+    rowIdKey: "id",
+    columns: [
+      { id: "doc", header: "Document", kind: "text", role: "id" },
+      // A decimal STRING amount — must display cs-CZ formatted, not verbatim.
+      { id: "amount", header: "Amount", kind: "currency" },
+      // An ISO date — must display cs-CZ short date, not the raw ISO string.
+      { id: "due", header: "Due", kind: "date" },
+    ],
+    rows: [
+      { id: "1", doc: "FP-001", amount: "1234.5000", due: "2026-06-01" },
+      { id: "2", doc: "FP-002", amount: "90.00", due: "2026-11-02" },
+    ],
+  }).props
+
+  it("formats a decimal-string currency cell (cs-CZ), not the raw '1234.5000'", () => {
+    wrap(
+      <div className="flex h-96 flex-col">
+        <SectionTableRenderer props={payload} />
+      </div>,
+    )
+    const cell = screen.getByText(/1.234,50/)
+    expect(cell.textContent).toBe(formatCurrencyCell("1234.5000"))
+    expect(cell.textContent).not.toBe("1234.5000")
+    expect(screen.queryByText("1234.5000")).not.toBeInTheDocument()
+  })
+
+  it("formats an ISO date cell as a cs-CZ short date, not the raw ISO string", () => {
+    wrap(
+      <div className="flex h-96 flex-col">
+        <SectionTableRenderer props={payload} />
+      </div>,
+    )
+    expect(screen.getByText("1. 6. 2026")).toBeInTheDocument()
+    expect(screen.queryByText("2026-06-01")).not.toBeInTheDocument()
+  })
+
+  it("does NOT render an inline editor for a currency column marked editable", () => {
+    // Precision guard: currency must never route through the number editor's
+    // Number() coercion, so `edit: "inline"` is ignored for it (read-only).
+    const editablePayload = sectionTable({
+      rowIdKey: "id",
+      columns: [
+        { id: "doc", header: "Document", kind: "text", role: "id" },
+        { id: "amount", header: "Amount", kind: "currency", edit: "inline" },
+      ],
+      rows: [{ id: "1", doc: "FP-001", amount: "1234.5000" }],
+    }).props
+    wrap(
+      <div className="flex h-96 flex-col">
+        <SectionTableRenderer props={editablePayload} />
+      </div>,
+    )
+    // No <input> seeded with the raw decimal string — it renders as formatted text.
+    expect(screen.queryByDisplayValue("1234.5000")).not.toBeInTheDocument()
+    const cell = screen.getByText(/1.234,50/)
+    expect(cell.textContent).toBe(formatCurrencyCell("1234.5000"))
   })
 })

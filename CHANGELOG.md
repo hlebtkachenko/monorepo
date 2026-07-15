@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- Table archetype: two new column kinds — `currency` (decimal-string amount, cs-CZ formatted, right-aligned, numeric sort/filter with no float precision loss) and `date` (ISO string, cs-CZ short date, chronological sort); currency stays read-only in the grid so it never routes through the inline Number() editor
+
 ### Changed
 
 - Trim redundant Records internal-documents/internal subpage and clear stale TBA flags on shipped accounting/records pages; remove orphaned archetype-table DB/Pivot debug nav leaves

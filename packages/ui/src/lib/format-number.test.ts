@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  formatDecimal,
   formatMoney,
   formatNumber,
   maskNumberInput,
@@ -99,6 +100,51 @@ describe("formatMoney", () => {
   it("returns empty string for null and undefined", () => {
     expect(formatMoney(null)).toBe("")
     expect(formatMoney(undefined)).toBe("")
+  })
+})
+
+describe("formatDecimal", () => {
+  it("formats a decimal STRING to the cs-CZ money form", () => {
+    expect(formatDecimal("1234.50")).toBe(`1${NBSP}234,50`)
+  })
+
+  it("rounds a 4-decimal DB string to 2 fraction digits for display", () => {
+    expect(formatDecimal("1234.5000")).toBe(`1${NBSP}234,50`)
+  })
+
+  it("groups thousands and keeps the comma decimal", () => {
+    expect(formatDecimal("90071992.55")).toBe(`90${NBSP}071${NBSP}992,55`)
+  })
+
+  it("preserves precision beyond IEEE-754 double (never Number()'d)", () => {
+    // 20 significant digits — a `Number()` round-trip would corrupt the tail.
+    expect(formatDecimal("90071992547409911234.5")).toBe(
+      `90${NBSP}071${NBSP}992${NBSP}547${NBSP}409${NBSP}911${NBSP}234,50`,
+    )
+  })
+
+  it("formats a negative decimal string", () => {
+    expect(formatDecimal("-50.5")).toBe(`-50,50`)
+  })
+
+  it("accepts a plain number for convenience", () => {
+    expect(formatDecimal(1240)).toBe(`1${NBSP}240,00`)
+  })
+
+  it("returns empty for null / undefined / blank", () => {
+    expect(formatDecimal(null)).toBe("")
+    expect(formatDecimal(undefined)).toBe("")
+    expect(formatDecimal("   ")).toBe("")
+  })
+
+  it("passes a non-numeric string through untouched (never 'NaN')", () => {
+    expect(formatDecimal("n/a")).toBe("n/a")
+  })
+
+  it("honors a fraction-digit override", () => {
+    expect(formatDecimal("1234.5678", { maximumFractionDigits: 4 })).toBe(
+      `1${NBSP}234,5678`,
+    )
   })
 })
 

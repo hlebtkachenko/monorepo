@@ -106,8 +106,13 @@ export const Invoices: Story = {
   },
 }
 
-/** Read-only display grid — no inline editors. The leading select column is
- *  always present (selection is mandatory). */
+/**
+ * Read-only display grid — no inline editors. The leading select column is
+ * always present (selection is mandatory). Also exercises the two string-carried
+ * kinds: `currency` (a decimal STRING, right-aligned + cs-CZ formatted, sorted
+ * numerically without precision loss) and `date` (an ISO string, cs-CZ short
+ * date, sorted chronologically).
+ */
 export const ReadOnly: Story = {
   args: {
     props: {
@@ -119,14 +124,19 @@ export const ReadOnly: Story = {
       },
       columns: [
         { id: "registry", header: "Registry", kind: "text", width: 220 },
-        { id: "number", header: "Number", kind: "text", width: 200 },
+        { id: "number", header: "Number", kind: "text", width: 180 },
         {
           id: "status",
           header: "Status",
           kind: "badge",
           options: [{ value: "Active", label: "Active" }],
-          width: 140,
+          width: 120,
         },
+        // Money as a decimal STRING — never a float. Renders "1 234 000,00",
+        // sorts by numeric value (so "90.00" sorts before "1000.00").
+        { id: "fee", header: "Fee (Kč)", kind: "currency", width: 140 },
+        // ISO date string — renders "1. 6. 2026", sorts chronologically.
+        { id: "since", header: "Registered", kind: "date", width: 140 },
       ],
       rows: [
         {
@@ -134,12 +144,16 @@ export const ReadOnly: Story = {
           registry: "Obchodní rejstřík",
           number: "C 12345 / MS Praha",
           status: "Active",
+          fee: "1234000.00",
+          since: "2019-11-04",
         },
         {
           id: "dph",
           registry: "Registr plátců DPH",
           number: "CZ12345678",
           status: "Active",
+          fee: "90.50",
+          since: "2020-01-15",
         },
       ],
     },

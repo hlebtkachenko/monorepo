@@ -42,6 +42,11 @@ import {
 } from "./section-table-context"
 import { useSectionGridTable } from "./section-grid-table"
 import { GridNumberCell } from "./section-grid-cells"
+import {
+  formatCurrencyCell,
+  formatDateCell,
+  sortingFnForKind,
+} from "./section-cell-format"
 import { buildSelectColumn, type RowOrder } from "./section-grid-select"
 import { anchorStructuralPins } from "./section-table"
 import type {
@@ -56,6 +61,36 @@ import type {
 function optionLabel(spec: TableColumnSpec, value: TableCellValue): string {
   const found = spec.options?.find((o) => o.value === String(value ?? ""))
   return found?.label ?? String(value ?? "")
+}
+
+/**
+ * The read-only presentation for a cell, keyed EXHAUSTIVELY on the column kind
+ * (the closed `TableColumnKind` union) — a new kind is a compile error here, so
+ * there is no `default` arm silently swallowing an unmapped kind. Inline editors
+ * (text / number / select) are handled by the caller BEFORE this; `currency`
+ * and `date` are display-only (never inline-editable), so they render here even
+ * when a page marks the column editable.
+ */
+function displayCell(
+  spec: TableColumnSpec,
+  value: TableCellValue,
+): React.ReactNode {
+  switch (spec.kind) {
+    case "badge":
+      return <Badge variant="secondary">{optionLabel(spec, value)}</Badge>
+    case "select":
+      return <span>{optionLabel(spec, value)}</span>
+    case "number":
+      return <GridNumberCell>{value == null ? "" : value}</GridNumberCell>
+    case "currency":
+      // Right-aligned money: the decimal STRING is formatted for display only —
+      // it is never coerced to a float, so precision is preserved.
+      return <GridNumberCell>{formatCurrencyCell(value)}</GridNumberCell>
+    case "date":
+      return <span>{formatDateCell(value)}</span>
+    case "text":
+      return <span>{String(value ?? "")}</span>
+  }
 }
 
 /** An inline text/number editor filling its grid cell (spreadsheet-style). */
@@ -455,13 +490,27 @@ export function SectionTableRenderer({
     )
 
     for (const spec of specs) {
-      const align = spec.align ?? (spec.kind === "number" ? "end" : "start")
-      const inline = spec.edit === "inline" || spec.edit === "both"
+      const align =
+        spec.align ??
+        (spec.kind === "number" || spec.kind === "currency" ? "end" : "start")
+      // Only text / number / select are inline-editable. `currency` is
+      // deliberately excluded — routing a decimal-string amount through the
+      // number editor's `Number()` coercion would lose precision — and so is
+      // `date`; both stay read-only in the grid.
+      const inline =
+        (spec.edit === "inline" || spec.edit === "both") &&
+        (spec.kind === "text" ||
+          spec.kind === "number" ||
+          spec.kind === "select")
       cols.push({
         accessorKey: spec.id,
         header: spec.header,
         size: spec.width ?? 160,
         enableSorting: spec.enableSort ?? true,
+        // `currency` / `date` are carried as strings; give them a comparator
+        // that sorts numerically / chronologically. Other kinds keep TanStack's
+        // inferred `auto` sort (returns undefined).
+        sortingFn: sortingFnForKind(spec.kind),
         enableHiding: spec.enableHide ?? true,
         enableColumnFilter: spec.enableFilter ?? false,
         filterFn: spec.enableFilter
@@ -490,6 +539,9 @@ export function SectionTableRenderer({
         cell: ({ row, getValue }) => {
           const value = getValue() as TableCellValue
           const rowId = String(row.original[rowIdKey])
+          // Inline editors first (text / number / select only); every other
+          // case — including the read-only `currency` / `date` kinds — routes
+          // through the exhaustive `displayCell`.
           const content =
             inline && spec.kind === "select" && spec.creatable ? (
               <CreatableSelectEditCell
@@ -514,14 +566,8 @@ export function SectionTableRenderer({
                 name={name ? `${name}[${rowId}][${spec.id}]` : undefined}
                 onCommit={(v) => updateCell(rowId, spec.id, v)}
               />
-            ) : spec.kind === "badge" ? (
-              <Badge variant="secondary">{optionLabel(spec, value)}</Badge>
-            ) : spec.kind === "select" ? (
-              <span>{optionLabel(spec, value)}</span>
-            ) : spec.kind === "number" ? (
-              <GridNumberCell>{value == null ? "" : value}</GridNumberCell>
             ) : (
-              <span>{String(value ?? "")}</span>
+              displayCell(spec, value)
             )
           // The identity column hosts the right-aligned, hover-revealed
           // Open-inspector button next to its value (spec §3b).

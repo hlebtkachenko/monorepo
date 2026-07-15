@@ -32,6 +32,43 @@ export function formatNumber(
 }
 
 /**
+ * Format a decimal value carried as a STRING (e.g. a `numeric(19,4)` money
+ * amount transported as `"1234.5000"`) to the Czech display form, WITHOUT ever
+ * routing it through a lossy `Number()`. ECMA-402 `Intl.NumberFormat.format`
+ * accepts an exact decimal string numeric literal, so precision beyond
+ * IEEE-754 double is preserved — the whole reason a money cell is a string.
+ *
+ * - A plain `number` is accepted too (stringified first) for convenience.
+ * - `null` / `undefined` / `""` → `""`.
+ * - A value that is not a well-formed decimal literal is returned untouched
+ *   (never coerced to the string `"NaN"`).
+ */
+export function formatDecimal(
+  value: string | number | null | undefined,
+  options: FormatNumberOptions = {},
+): string {
+  if (value === null || value === undefined) return ""
+  const raw =
+    typeof value === "number"
+      ? Number.isFinite(value)
+        ? String(value)
+        : ""
+      : value.trim()
+  if (raw === "") return ""
+  // Only a bare decimal literal is formatted; anything else passes through as
+  // typed so a stray non-numeric cell can never render as "NaN".
+  if (!/^[+-]?\d+(\.\d+)?$/.test(raw)) return raw
+  return new Intl.NumberFormat(options.locale ?? DEFAULT_LOCALE, {
+    minimumFractionDigits:
+      options.minimumFractionDigits ?? DEFAULT_OPTIONS.minimumFractionDigits,
+    maximumFractionDigits:
+      options.maximumFractionDigits ?? DEFAULT_OPTIONS.maximumFractionDigits,
+    // The string literal is passed straight through — the es2022 TS lib only
+    // types `format(number | bigint)`, but the runtime accepts a string.
+  }).format(raw as unknown as number)
+}
+
+/**
  * Structural money shape: bigint minor units + ISO-4217 currency code.
  * Matches both the server-side `@workspace/db` money type and the SDK's
  * `Money<C>` class without importing either (keeps `@workspace/ui`

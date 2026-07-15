@@ -148,8 +148,8 @@ const COLUMNS: TableColumnSpec[] = [
     align: "end",
     width: 130,
   },
-  { id: "vat", header: "VAT", kind: "number", align: "end", width: 110 },
-  { id: "date", header: "Date", kind: "text", width: 140 },
+  { id: "vat", header: "VAT", kind: "currency", align: "end", width: 110 },
+  { id: "date", header: "Date", kind: "date", width: 140 },
   {
     id: "kind",
     header: "Kind",

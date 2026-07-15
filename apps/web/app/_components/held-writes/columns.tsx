@@ -523,6 +523,28 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
           </span>
         }
       />
+      {header.obligation && (
+        <DetailField
+          label="Otevírá saldokonto"
+          value={
+            <span className="tabular-nums">
+              {header.obligation.direction === "PAYABLE"
+                ? "závazek"
+                : "pohledávka"}{" "}
+              — účet {header.obligation.saldoAccountNumber}
+              {header.obligation.issueDate
+                ? `, vystaveno ${formatDate(header.obligation.issueDate)}`
+                : ""}
+              {header.obligation.dueDate
+                ? `, splatnost ${formatDate(header.obligation.dueDate)}`
+                : ""}
+              {header.obligation.variableSymbol
+                ? `, VS ${header.obligation.variableSymbol}`
+                : ""}
+            </span>
+          }
+        />
+      )}
     </dl>
   )
 }

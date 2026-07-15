@@ -5853,6 +5853,61 @@
               }
             ]
           },
+          "openObligation": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "saldoAccountNumber": {
+                "type": "string",
+                "minLength": 3,
+                "maxLength": 6,
+                "description": "saldokonto účet BY NUMBER (311/321/…).",
+                "example": "321"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "RECEIVABLE",
+                  "PAYABLE"
+                ],
+                "description": "pohledávka (RECEIVABLE, 311) / závazek (PAYABLE, 321).",
+                "example": "PAYABLE"
+              },
+              "issueDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "Obligation issue date; defaults to the posting date.",
+                "example": "2026-03-14"
+              },
+              "dueDate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date",
+                "description": "Splatnost (due date).",
+                "example": "2026-03-14"
+              },
+              "variableSymbol": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 30,
+                "description": "Variabilní symbol for párování."
+              }
+            },
+            "required": [
+              "saldoAccountNumber",
+              "direction"
+            ],
+            "description": "Open the saldokonto obligation (pohledávka/závazek) this posting's saldo leg represents. Only valid for a double-entry posting."
+          },
           "confidence": {
             "type": "number",
             "minimum": 0,
@@ -5947,7 +6002,7 @@
           "confidence",
           "rationale"
         ],
-        "description": "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting. Tenant + responsible user injected; opening/correction/generated linkage is not client-settable."
+        "description": "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting, optionally opening its saldokonto obligation (openObligation, double-entry only). Tenant + responsible user injected; opening/correction/generated linkage is not client-settable."
       },
       "CreateAccountingPostingResponse": {
         "type": "object",

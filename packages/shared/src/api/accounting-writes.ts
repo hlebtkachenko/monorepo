@@ -787,15 +787,59 @@ const MonetaryEntrySchema = z.object({
     .max(100),
 })
 
+/**
+ * OPTIONAL "also open the saldokonto obligation this posting's saldo leg represents" directive.
+ * DOMAIN data (it drives a mutation) — NOT part of the gate envelope, so it survives held-write
+ * replay. It carries ONLY what the server cannot derive: the saldo account NUMBER (one of the
+ * posting's own line accounts) and the obligation DIRECTION (pohledávka 311 / závazek 321). The
+ * statutory parts are server-authoritative: the counterparty comes from the posting's event
+ * (never the client), the currency from the period, the account_id from the chart, and the
+ * AMOUNT is the exact signed net movement read off the posted lines — so this can pick WHICH leg
+ * opens, never fabricate the partner or the amount. Valid ONLY for kind=double (a monetary/cash
+ * posting has no double-entry saldo leg). A null counterparty fails closed; a net ≤ 0 (dobropis)
+ * opens nothing.
+ */
+const OpenObligationDirectiveSchema = z
+  .object({
+    saldoAccountNumber: z.string().min(3).max(6).openapi({
+      description: "saldokonto účet BY NUMBER (311/321/…).",
+      example: "321",
+    }),
+    direction: z.enum(["RECEIVABLE", "PAYABLE"]).openapi({
+      description: "pohledávka (RECEIVABLE, 311) / závazek (PAYABLE, 321).",
+      example: "PAYABLE",
+    }),
+    issueDate: LEGAL_DATE.nullish().openapi({
+      description: "Obligation issue date; defaults to the posting date.",
+    }),
+    dueDate: LEGAL_DATE.nullish().openapi({
+      description: "Splatnost (due date).",
+    }),
+    variableSymbol: z.string().max(30).nullish().openapi({
+      description: "Variabilní symbol for párování.",
+    }),
+  })
+  .openapi({
+    description:
+      "Open the saldokonto obligation (pohledávka/závazek) this posting's saldo " +
+      "leg represents. Only valid for a double-entry posting.",
+  })
+export type OpenObligationDirective = z.infer<
+  typeof OpenObligationDirectiveSchema
+>
+
 export const CreateAccountingPostingRequestSchema = z
   .object({
     kind: z.enum(["double", "monetary"]),
     entry: z.union([DoubleEntrySchema, MonetaryEntrySchema]),
+    // Open the saldokonto obligation this posting's saldo leg represents (contracts + internal
+    // doklady, not just invoices). TOP-LEVEL domain data — survives held-write replay.
+    openObligation: OpenObligationDirectiveSchema.nullish(),
     confidence: CONFIDENCE,
     rationale: RATIONALE,
     conversationId: CONVERSATION_ID,
     // TOP-LEVEL only — never inside `entry`. held-writes replay pulls only
-    // {kind, entry} for postings, so a top-level `signals` is safely dropped.
+    // {kind, entry, openObligation} for postings, so a top-level `signals` is safely dropped.
     signals: EVIDENCE_SIGNALS.nullish(),
   })
   // Enforce the kind↔entry correlation a bare union can't: a `double` kind must
@@ -811,11 +855,18 @@ export const CreateAccountingPostingRequestSchema = z
       ).safeParse(data.entry).success,
     { message: "entry shape does not match kind", path: ["entry"] },
   )
+  // A saldokonto obligation is a double-entry concept (openObligation sums the
+  // posting_double_entry_line) — reject the directive on a monetary/cash posting up front.
+  .refine((data) => data.openObligation == null || data.kind === "double", {
+    message: "openObligation is only valid for a double-entry posting",
+    path: ["openObligation"],
+  })
   .openapi({
     description:
       "Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) " +
-      "posting. Tenant + responsible user injected; opening/correction/generated " +
-      "linkage is not client-settable.",
+      "posting, optionally opening its saldokonto obligation (openObligation, " +
+      "double-entry only). Tenant + responsible user injected; opening/correction/" +
+      "generated linkage is not client-settable.",
   })
 export type CreateAccountingPostingRequest = z.infer<
   typeof CreateAccountingPostingRequestSchema

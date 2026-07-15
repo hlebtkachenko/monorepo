@@ -75,6 +75,15 @@ import {
   renderEventProposal,
   renderEventResult,
 } from "./event"
+import {
+  crossCheckCounterparty,
+  renderRegisterVerdict,
+  verdictBlocksExecute,
+  withRegisterCapSignals,
+} from "./register-check"
+
+/** Fail-open ceiling for the ARES cross-check so a black-hole socket can't hang `brain event` (no POST occurs). */
+const ARES_CHECK_TIMEOUT_MS = 5000
 import { classifyExtractionEngine } from "./extraction-engine"
 import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
@@ -454,6 +463,11 @@ export function registerBrainCommand(program: Command): void {
         "then HOLD on a null counterparty when booked).",
     )
     .option(
+      "--allow-register-mismatch",
+      "Proceed with --execute even when the extracted IČO does not match the ARES public register (name " +
+        "mismatch / not in register). The write still HOLDS and the review surfaces the mismatch.",
+    )
+    .option(
       "--yes",
       "Skip the interactive confirmation prompt on --execute (non-interactive operators).",
     )
@@ -463,12 +477,23 @@ export function registerBrainCommand(program: Command): void {
         context: string
         execute?: boolean
         allowMissingCounterparty?: boolean
+        allowRegisterMismatch?: boolean
         yes?: boolean
       }) => {
         const invoice = readExtractedInvoice(opts.extracted)
         const ctx = readEventContext(opts.context)
         const proposal = buildEventProposal(invoice, ctx)
         output.write(renderEventProposal(proposal))
+
+        // [Tier 1.5] Cross-check the extracted counterparty IČO against ARES BEFORE any POST — fail-open
+        // (ARES down ⇒ "unavailable", never blocks), so print-only always shows a verdict and a live run is
+        // never coupled to the register's availability. A real mismatch asserts a cap so the server holds it
+        // and the held-event review shows why.
+        const verdict = await crossCheckCounterparty(
+          proposal.request.counterparty,
+          { signal: AbortSignal.timeout(ARES_CHECK_TIMEOUT_MS) },
+        )
+        output.write(renderRegisterVerdict(verdict))
 
         if (!opts.execute) return
 
@@ -483,13 +508,27 @@ export function registerBrainCommand(program: Command): void {
           return
         }
 
+        // Fail closed on a register mismatch: a mis-OCR'd IČO binds a wrong-but-real partner. Refuse unless
+        // the operator explicitly overrides (having seen the ARES verdict above).
+        if (verdictBlocksExecute(verdict) && !opts.allowRegisterMismatch) {
+          output.write(
+            "brain event: refusing --execute — counterparty does not match the ARES register (see above). " +
+              "Fix the IČO/source, or pass --allow-register-mismatch to propose it anyway (it will still HOLD).\n",
+          )
+          process.exitCode = 1
+          return
+        }
+
+        // Assert the mismatch cap so the server holds the write sub-green and the review shows the reason.
+        const request = withRegisterCapSignals(proposal.request, verdict)
+
         const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
         if (!apiKey) {
           output.write("brain event blocked: missing BRAIN_API_KEY.\n")
           process.exit(1)
         }
 
-        const ok = opts.yes || (await confirmEventExecute(proposal.request))
+        const ok = opts.yes || (await confirmEventExecute(request))
         if (!ok) {
           output.write("brain event: aborted, nothing executed.\n")
           // A non-interactive run with no --yes auto-refused (fail-closed) — signal non-zero so automation
@@ -499,8 +538,8 @@ export function registerBrainCommand(program: Command): void {
         }
 
         const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
-        const key = eventIdempotencyKey(proposal.request)
-        const result = await executeEventCreate(proposal.request, client, key)
+        const key = eventIdempotencyKey(request)
+        const result = await executeEventCreate(request, client, key)
         output.write("\n" + renderEventResult(result))
         if (result.status === "failed") process.exitCode = 1
       },

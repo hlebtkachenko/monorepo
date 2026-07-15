@@ -330,6 +330,9 @@ importers:
       '@workspace/intake':
         specifier: workspace:*
         version: link:../../packages/intake
+      '@workspace/registries':
+        specifier: workspace:*
+        version: link:../../packages/registries
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared

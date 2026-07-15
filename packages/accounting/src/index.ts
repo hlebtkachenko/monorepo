@@ -58,6 +58,12 @@ export {
   getPeriodRegime,
   type PostInput,
 } from "./posting/index"
+export {
+  postWithObligation,
+  type ObligationDirective,
+  type PostWithObligationInput,
+  type PostWithObligationResult,
+} from "./posting/post-with-obligation"
 
 // Předkontace (account-coding templates → posting expansion)
 export {

@@ -729,6 +729,79 @@ describe("holdReasonsFrom", () => {
     expect(holdReasonsFrom({})).toEqual([])
   })
 
+  it("surfaces the openObligation directive on a held createAccountingPosting so the reviewer sees it", () => {
+    const vm = buildHeldWriteViewModel({
+      id: "p1",
+      tool_name: "createAccountingPosting",
+      conversation_id: null,
+      rationale: null,
+      counterparty_name: "ACME s.r.o.",
+      input_json: {
+        kind: "double",
+        entry: {
+          periodId: "00000000-0000-4000-8000-000000000001",
+          summaryRecordId: "00000000-0000-4000-8000-000000000002",
+          accountingEventId: "00000000-0000-4000-8000-000000000003",
+          postingDate: "2026-03-14",
+          lines: [
+            { accountId: "a", side: "DEBIT", amount: "1000.00" },
+            { accountId: "b", side: "CREDIT", amount: "1000.00" },
+          ],
+        },
+        openObligation: {
+          saldoAccountNumber: "321",
+          direction: "PAYABLE",
+          issueDate: "2026-03-14",
+          dueDate: "2026-04-14",
+          variableSymbol: "12345",
+        },
+      },
+      output_json: null,
+    })
+    expect(vm.header.obligation).toEqual({
+      saldoAccountNumber: "321",
+      direction: "PAYABLE",
+      issueDate: "2026-03-14",
+      dueDate: "2026-04-14",
+      variableSymbol: "12345",
+    })
+  })
+
+  it("leaves obligation null for a posting with no openObligation directive", () => {
+    const vm = buildHeldWriteViewModel({
+      id: "p2",
+      tool_name: "createAccountingPosting",
+      conversation_id: null,
+      rationale: null,
+      counterparty_name: null,
+      input_json: {
+        kind: "double",
+        entry: {
+          periodId: "00000000-0000-4000-8000-000000000001",
+          summaryRecordId: "00000000-0000-4000-8000-000000000002",
+          accountingEventId: "00000000-0000-4000-8000-000000000003",
+          postingDate: "2026-03-14",
+          lines: [],
+        },
+      },
+      output_json: null,
+    })
+    expect(vm.header.obligation).toBeNull()
+  })
+
+  it("labels the Tier-1.5 counterparty_register_mismatch cap in Czech, not the raw token", () => {
+    const reasons = holdReasonsFrom({
+      serverGate: {
+        veto: { held: false, signals: [] },
+        score: { reasons: ["capped by counterparty_register_mismatch at 0.7"] },
+      },
+    })
+    expect(reasons).toEqual([
+      "Omezeno signálem „název protistrany neodpovídá rejstříku ARES (ověřte IČO)“ na jistotu 0.7",
+    ])
+    expect(reasons[0]).not.toContain("counterparty_register_mismatch")
+  })
+
   it("labels every Tier-1/Tier-3 block signal kind in Czech, not the raw token", () => {
     // extraction_failed is the dominant pre-launch cold-start hold reason (signals.ts TIER3_DEFER_KINDS)
     // — it MUST render as Czech prose, never as the raw "extraction_failed" jargon.

@@ -32,10 +32,10 @@ import { tool_call_log } from "@workspace/db/schema"
 import {
   captureAndBookIfInvoice,
   createEvent,
-  post as postPosting,
+  postWithObligation as postPosting,
   type DocumentInput,
   type EventInput,
-  type PostInput,
+  type PostWithObligationInput,
 } from "@workspace/accounting"
 import {
   CaptureAccountingDocumentRequestSchema,
@@ -381,7 +381,7 @@ export class HeldWritesController {
       case "createAccountingPosting": {
         const parsed = CreateAccountingPostingRequestSchema.safeParse(input)
         if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        const { kind, entry } = parsed.data
+        const { kind, entry, openObligation } = parsed.data
         await lockPeriodInTx(
           db,
           ctx.organizationId,
@@ -393,7 +393,8 @@ export class HeldWritesController {
             ...(entry as Record<string, unknown>),
             responsibleUserId: approverUserId,
           },
-        } as unknown as PostInput)
+          obligation: openObligation ?? null,
+        } as unknown as PostWithObligationInput)
         return { postingId: posting.postingId, lineIds: posting.lineIds }
       }
       default:

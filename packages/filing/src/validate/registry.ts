@@ -26,13 +26,22 @@ function schema(relPath: string): SchemaFile {
   return { fileName: relPath.split("/").pop() ?? relPath, contents }
 }
 
-export type FilingType = "isdoc"
+export type FilingType = "isdoc" | "dphdp3" | "dphkh1"
 
 const REGISTRY: Record<string, () => SchemaSet> = {
   // isdoc-invoice includes isdoc-core; both preloaded so the relative include resolves.
   "isdoc@6.0.1": () => ({
     main: schema("isdoc/6.0.1/isdoc-invoice-6.0.1.xsd"),
     preload: [schema("isdoc/6.0.1/isdoc-core-6.0.1.xsd")],
+  }),
+  // FÚ EPO — single-file, self-contained schemas (no xs:include/import).
+  "dphdp3@03.01.03": () => ({
+    main: schema("fu/dphdp3/03.01.03/dphdp3_epo2.xsd"),
+    preload: [],
+  }),
+  "dphkh1@03.01.14": () => ({
+    main: schema("fu/dphkh1/03.01.14/dphkh1_epo2.xsd"),
+    preload: [],
   }),
 }
 

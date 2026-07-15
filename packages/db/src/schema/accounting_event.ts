@@ -23,6 +23,7 @@ import { sql } from "drizzle-orm"
 import { accounting_period } from "./accounting_period"
 import { app_user } from "./app_user"
 import { counterparty } from "./counterparty"
+import { inbox_item } from "./inbox_item"
 import { number_series } from "./number_series"
 import { organization } from "./organization"
 
@@ -53,8 +54,16 @@ export const accounting_event = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: the approved gated write this row landed from (NULL = human).
+    // Composite (inbox_id, workspace_id) FK — RLS-safe (both workspace-scoped).
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
+    foreignKey({
+      name: "accounting_event_inbox_fk",
+      columns: [t.inbox_id, t.workspace_id],
+      foreignColumns: [inbox_item.id, inbox_item.workspace_id],
+    }),
     foreignKey({
       name: "accounting_event_org_fk",
       columns: [t.organization_id, t.workspace_id],

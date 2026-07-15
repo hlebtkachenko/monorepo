@@ -26,6 +26,7 @@ import { sql } from "drizzle-orm"
 import { openItemDirection } from "./_enums"
 import { counterparty } from "./counterparty"
 import { currency } from "./currency"
+import { inbox_item } from "./inbox_item"
 import { organization } from "./organization"
 import { posting } from "./posting"
 
@@ -68,9 +69,17 @@ export const open_item = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: the approved gated write this obligation landed from (NULL =
+    // human). Composite (inbox_id, workspace_id) FK — RLS-safe.
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
     unique("open_item_id_org_unique").on(t.id, t.organization_id),
+    foreignKey({
+      name: "open_item_inbox_fk",
+      columns: [t.inbox_id, t.workspace_id],
+      foreignColumns: [inbox_item.id, inbox_item.workspace_id],
+    }),
     // One posting opens at most one obligation (one event = one direction = one
     // saldo account). Belt-and-suspenders against a replayed/duplicate open, which
     // could never be cleaned up (open_item is append-only). Mirrors migration 0057.

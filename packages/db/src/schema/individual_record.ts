@@ -38,6 +38,9 @@ export const individual_record = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: approved gated write this row landed from (NULL = human). BARE
+    // uuid, NO FK — org-only table; a FK to workspace-scoped inbox_item bypasses RLS.
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
     foreignKey({

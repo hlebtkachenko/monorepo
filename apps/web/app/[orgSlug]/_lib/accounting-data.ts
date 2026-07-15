@@ -337,6 +337,8 @@ export interface DocumentListRow {
   is_posted: boolean
   /** A posting id to drill into (one per event; the earliest), or null if unposted. */
   posting_id: string | null
+  /** [Tier 4] The inbox_item this doc landed from — non-null ⇒ "Created by Agent". */
+  inbox_id: string | null
 }
 
 /** Captured documents (summary records) with per-document totals + posting status. */
@@ -358,7 +360,8 @@ export async function fetchDocuments(
                  coalesce(sum(pr.vat_in_accounting_currency), 0)::text as vat_total,
                  max(cp.name) as counterparty_name,
                  (pg.posting_id is not null) as is_posted,
-                 pg.posting_id::text as posting_id
+                 pg.posting_id::text as posting_id,
+                 sr.inbox_id::text as inbox_id
           from summary_record sr
           left join individual_record ir on ir.summary_record_id = sr.id
           left join partial_record pr on pr.individual_record_id = ir.id
@@ -372,7 +375,7 @@ export async function fetchDocuments(
              limit 1
           ) pg on true
           where sr.period_id = ${ctx.periodId}
-          group by sr.id, sr.designation, sr.type, sr.issued_at, pg.posting_id
+          group by sr.id, sr.designation, sr.type, sr.issued_at, pg.posting_id, sr.inbox_id
           order by sr.issued_at desc, sr.designation desc`,
     ),
   )

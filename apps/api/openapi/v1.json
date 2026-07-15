@@ -6044,6 +6044,599 @@
         ],
         "description": "Create-posting result (applied or held)."
       },
+      "CreateAssetRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking). The asset register card itself is org-scoped, not period-scoped; this only binds the held write to a period."
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ASSET number series (see GET number-series)."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 400,
+            "description": "Asset name (název majetku).",
+            "example": "Notebook Dell Latitude"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "INTANGIBLE",
+              "TANGIBLE_DEPRECIABLE",
+              "TANGIBLE_NON_DEPRECIABLE"
+            ],
+            "description": "Asset category (kategorie majetku)."
+          },
+          "accountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Rozvahový účet majetku BY NUMBER (022/013/…).",
+            "example": "022"
+          },
+          "commissioningDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum zařazení do užívání — drives the depreciation start.",
+            "example": "2026-03-14"
+          },
+          "acquisitionCost": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Pořizovací cena (input price ex depreciation).",
+            "example": "45000.00"
+          },
+          "directiveCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 40,
+            "description": "Odpisová skupina / směrnice code (directive_account.code)."
+          },
+          "acquisitionDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Datum pořízení (defaults to commissioning date if absent).",
+            "example": "2026-03-14"
+          },
+          "location": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 400,
+            "description": "Umístění majetku."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "name",
+          "category",
+          "accountNumber",
+          "commissioningDate",
+          "acquisitionCost",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create a fixed-asset register card (karta majetku). Gated (201 applied / 202 held). Tenant + responsible user injected from the principal."
+      },
+      "CreateAssetResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = card created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "assetId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-asset result (applied or held)."
+      },
+      "CreateDepreciationPlanRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking)."
+          },
+          "assetId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Asset this odpisový plán depreciates."
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "STRAIGHT_LINE",
+              "PERFORMANCE",
+              "DECLINING"
+            ],
+            "description": "Účetní odpisová metoda."
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum zahájení odpisování.",
+            "example": "2026-03-14"
+          },
+          "monthlyAmount": {
+            "type": "string",
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Měsíční účetní odpis (drives MD 551 / D 08x).",
+            "example": "1250.00"
+          },
+          "expenseAccountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Nákladový účet odpisu BY NUMBER (551).",
+            "example": "551"
+          },
+          "accumulatedAccountNumber": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20,
+            "description": "Oprávky účet BY NUMBER (082/072/…).",
+            "example": "082"
+          },
+          "usefulLifeMonths": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "exclusiveMinimum": 0,
+            "maximum": 1200,
+            "description": "Doba použitelnosti v měsících."
+          },
+          "residualValue": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\d{1,15}(\\.\\d{1,4})?$",
+            "description": "Zbytková hodnota (defaults to 0).",
+            "example": "12100.00"
+          },
+          "supersedesPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Předchozí plán, který tento nahrazuje (revize)."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "assetId",
+          "method",
+          "startDate",
+          "monthlyAmount",
+          "expenseAccountNumber",
+          "accumulatedAccountNumber",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create an účetní odpisový plán. Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time."
+      },
+      "CreateDepreciationPlanResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = plan created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "depreciationPlanId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-depreciation-plan result (applied or held)."
+      },
+      "CreateInventoryCountRequest": {
+        "type": "object",
+        "properties": {
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Účetní období the proposal is bound to (audit + close-blocking)."
+          },
+          "seriesId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "INVENTORY_COUNT number series (see GET number-series)."
+          },
+          "countDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Datum inventury (§29-30).",
+            "example": "2026-03-14"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 2000,
+            "description": "Popis inventurního soupisu."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.",
+            "example": 0.95
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000,
+            "description": "Why this write — persisted to the audit trail. Required.",
+            "example": "Standard domestic service invoice, VAT 21% deductible."
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Audit-correlation id of the driving agent conversation."
+          },
+          "signals": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "kbRule": {
+                "type": "string",
+                "enum": [
+                  "constitution_safe",
+                  "high_active",
+                  "medium",
+                  "low_mixed",
+                  "none"
+                ],
+                "description": "Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "high_active"
+              },
+              "extractionQuality": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.",
+                "example": 0.85
+              },
+              "reconciliation": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "none"
+                ],
+                "description": "Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.",
+                "example": "full"
+              },
+              "vatBaseMatchesNet": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "rcChecklistPassesOrNA": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "decree500Confirmed": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "periodConsistent": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "bankVsKsSsMatch": {
+                "type": "boolean",
+                "description": "Verify BONUS claim. NOT server-recomputed → no uplift (false)."
+              },
+              "capSignals": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.",
+                "example": [
+                  "novel_ico"
+                ]
+              }
+            },
+            "description": "Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs."
+          }
+        },
+        "required": [
+          "periodId",
+          "seriesId",
+          "countDate",
+          "confidence",
+          "rationale"
+        ],
+        "description": "Create an inventurní soupis (§29-30). Gated (201 applied / 202 held). Tenant injected from the principal."
+      },
+      "CreateInventoryCountResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "held"
+            ],
+            "description": "applied = count created; held = queued for human review."
+          },
+          "reviewId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "tool_call_log id when held."
+          },
+          "inventoryCountId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "designation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequenceNumber": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "description": "Create-inventory-count result (applied or held)."
+      },
       "ListHeldWritesResponse": {
         "type": "object",
         "properties": {
@@ -11723,6 +12316,237 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreateAccountingPostingResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/assets": {
+      "post": {
+        "operationId": "createAsset",
+        "summary": "Create a fixed-asset register card",
+        "description": "Create a karta majetku (pure register insert, no ledger posting). ALWAYS held (202) for human review — agent-authored master data never auto-applies. Tenant + responsible user injected from the principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAssetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Asset card created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssetResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateAssetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/depreciation-plans": {
+      "post": {
+        "operationId": "createDepreciationPlan",
+        "summary": "Create an účetní odpisový plán",
+        "description": "Create a depreciation plan (pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal; account numbers resolved to the chart at posting time.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDepreciationPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Depreciation plan created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDepreciationPlanResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateDepreciationPlanResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounting/inventory-counts": {
+      "post": {
+        "operationId": "createInventoryCount",
+        "summary": "Create an inventurní soupis",
+        "description": "Create an inventory count (§29-30; pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal.",
+        "tags": [
+          "Accounting"
+        ],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "description": "Idempotency key (1–255 chars); reuse on retry."
+            },
+            "required": true,
+            "description": "Idempotency key (1–255 chars); reuse on retry.",
+            "name": "idempotency-key",
+            "in": "header"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInventoryCountRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inventory count created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInventoryCountResponse"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for human review.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInventoryCountResponse"
                 }
               }
             }

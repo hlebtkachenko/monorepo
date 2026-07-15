@@ -37,6 +37,8 @@ export interface JournalRow {
   account_name: string
   side: DebitCredit
   amount: Decimal
+  /** [Tier 4] The inbox_item this posting landed from — non-null ⇒ "Created by Agent". */
+  inbox_id: string | null
 }
 
 /** deník — DOUBLE_ENTRY postings of the period in chronological order (§13). */
@@ -52,7 +54,8 @@ export function journal(
                e.description AS event_description,
                cp.name AS counterparty_name,
                l.id  AS line_id, l.account_id, a.number AS account_number,
-               a.name AS account_name, l.side, l.amount
+               a.name AS account_name, l.side, l.amount,
+               p.inbox_id::text AS inbox_id
           FROM posting_double_entry_line l
           JOIN posting          p ON l.posting_id = p.id
           JOIN summary_record   s ON p.summary_record_id = s.id

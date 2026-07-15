@@ -502,6 +502,46 @@ export function stripGateEnvelope<T extends Record<string, unknown>>(
   return rest as Omit<T, keyof typeof GATE_ENVELOPE>
 }
 
+/**
+ * Every gated accounting write operationId — the ops that run through
+ * `runGatedWrite` and can therefore be HELD for human review. This is the SINGLE
+ * SOURCE OF TRUTH the held-write replay coverage tests assert against: a held row
+ * whose `tool_name` is registered in the live controller + OpenAPI registry but
+ * MISSED in either resolve switch (the web approvals action OR the API held-write
+ * controller) is permanently un-approvable — a stuck safety state, not just a
+ * bug. Adding a new gated op MUST extend this list. The API held-write
+ * controller's replay-coverage test (`held-writes.controller.test.ts`) then
+ * asserts, via this list, that the API switch handles every op or fails; the web
+ * `resolveHeldWrite` switch (`approvals/actions.ts`) MUST be kept in sync by hand
+ * (its `default` returns "Neznámá operace"), and its per-op replay is exercised
+ * end-to-end for a representative op by `gated-creator-approve-e2e.test.ts`.
+ */
+export const GATED_WRITE_OPERATION_IDS = [
+  "createAccountingEvent",
+  "captureAccountingDocument",
+  "createAccountingPosting",
+  "createAsset",
+  "createDepreciationPlan",
+  "createInventoryCount",
+] as const
+export type GatedWriteOperationId = (typeof GATED_WRITE_OPERATION_IDS)[number]
+
+/**
+ * The gated ops whose approved landing writes rows that CARRY an `inbox_id`
+ * column — the ledger-fact ops (event / document / posting → accounting_event,
+ * summary/individual/partial record, posting + lines, open_item). The Tier-3
+ * register-card creators (createAsset / createDepreciationPlan /
+ * createInventoryCount) insert org-level MASTER DATA (asset / depreciation_plan /
+ * inventory_count) that has no `inbox_id` column, so approving one mints NO
+ * inbox_item — there would be no landed row to reference it. The approve path
+ * uses this to decide whether to mint provenance.
+ */
+export const INBOX_STAMPED_OPERATION_IDS = [
+  "createAccountingEvent",
+  "captureAccountingDocument",
+  "createAccountingPosting",
+] as const
+
 // --- POST /v1/accounting/events ---------------------------------------------
 export const CreateAccountingEventRequestSchema = z
   .object({
@@ -1000,4 +1040,209 @@ export const ResolveHeldWriteResponseSchema = z
   .openapi({ description: "Held-write resolution result." })
 export type ResolveHeldWriteResponse = z.infer<
   typeof ResolveHeldWriteResponseSchema
+>
+
+/**
+ * Tier 3 — register-card creators (odpisy + inventory difference reach).
+ *
+ * The `asset`, `depreciation_plan`, and `inventory_count` tables exist but had
+ * only INTERNAL-ONLY creator functions, so the agent could not populate the
+ * register cards its later postings (odpisy MD 551 / D 08x, inventurní rozdíl
+ * manko/přebytek) reference. These three gated ops expose the pure-INSERT
+ * creators (no ledger effect — the postings stay on `createAccountingPosting`),
+ * so the agent can PROPOSE a card / plan / count and a human approves it into
+ * the register. Each mirrors `createAccountingEvent`: inline gate envelope
+ * (confidence/rationale/conversationId/signals — no OCR-template basis, these
+ * are not document captures), tenant + responsible user injected server-side,
+ * NEVER from the body. Account numbers are stored as text and resolved to the
+ * period chart only later at posting time (same deferral as the internal fns).
+ */
+
+// --- POST /v1/accounting/assets ---------------------------------------------
+export const CreateAssetRequestSchema = z
+  .object({
+    periodId: z
+      .string()
+      .uuid()
+      .openapi({
+        description:
+          "Účetní období the proposal is bound to (audit + close-blocking). The " +
+          "asset register card itself is org-scoped, not period-scoped; this only " +
+          "binds the held write to a period.",
+      }),
+    seriesId: z
+      .string()
+      .uuid()
+      .openapi({ description: "ASSET number series (see GET number-series)." }),
+    name: z.string().min(1).max(400).openapi({
+      description: "Asset name (název majetku).",
+      example: "Notebook Dell Latitude",
+    }),
+    category: z
+      .enum(["INTANGIBLE", "TANGIBLE_DEPRECIABLE", "TANGIBLE_NON_DEPRECIABLE"])
+      .openapi({ description: "Asset category (kategorie majetku)." }),
+    accountNumber: z.string().min(1).max(20).openapi({
+      description: "Rozvahový účet majetku BY NUMBER (022/013/…).",
+      example: "022",
+    }),
+    commissioningDate: LEGAL_DATE.openapi({
+      description: "Datum zařazení do užívání — drives the depreciation start.",
+    }),
+    acquisitionCost: Decimal.openapi({
+      description: "Pořizovací cena (input price ex depreciation).",
+      example: "45000.00",
+    }),
+    directiveCode: z.string().max(40).nullish().openapi({
+      description: "Odpisová skupina / směrnice code (directive_account.code).",
+    }),
+    acquisitionDate: LEGAL_DATE.nullish().openapi({
+      description: "Datum pořízení (defaults to commissioning date if absent).",
+    }),
+    location: z.string().max(400).nullish().openapi({
+      description: "Umístění majetku.",
+    }),
+    confidence: CONFIDENCE,
+    rationale: RATIONALE,
+    conversationId: CONVERSATION_ID,
+    signals: EVIDENCE_SIGNALS.nullish(),
+  })
+  .openapi({
+    description:
+      "Create a fixed-asset register card (karta majetku). Gated (201 applied " +
+      "/ 202 held). Tenant + responsible user injected from the principal.",
+  })
+export type CreateAssetRequest = z.infer<typeof CreateAssetRequestSchema>
+
+export const CreateAssetResponseSchema = z
+  .object({
+    status: z.enum(["applied", "held"]).openapi({
+      description: "applied = card created; held = queued for human review.",
+    }),
+    reviewId: z
+      .string()
+      .uuid()
+      .nullish()
+      .openapi({ description: "tool_call_log id when held." }),
+    assetId: z.string().uuid().nullish(),
+    designation: z.string().nullish(),
+    sequenceNumber: z.number().int().nullish(),
+  })
+  .openapi({ description: "Create-asset result (applied or held)." })
+export type CreateAssetResponse = z.infer<typeof CreateAssetResponseSchema>
+
+// --- POST /v1/accounting/depreciation-plans ---------------------------------
+export const CreateDepreciationPlanRequestSchema = z
+  .object({
+    periodId: z.string().uuid().openapi({
+      description:
+        "Účetní období the proposal is bound to (audit + close-blocking).",
+    }),
+    assetId: z
+      .string()
+      .uuid()
+      .openapi({ description: "Asset this odpisový plán depreciates." }),
+    method: z.enum(["STRAIGHT_LINE", "PERFORMANCE", "DECLINING"]).openapi({
+      description: "Účetní odpisová metoda.",
+    }),
+    startDate: LEGAL_DATE.openapi({
+      description: "Datum zahájení odpisování.",
+    }),
+    monthlyAmount: Decimal.openapi({
+      description: "Měsíční účetní odpis (drives MD 551 / D 08x).",
+      example: "1250.00",
+    }),
+    expenseAccountNumber: z.string().min(1).max(20).openapi({
+      description: "Nákladový účet odpisu BY NUMBER (551).",
+      example: "551",
+    }),
+    accumulatedAccountNumber: z.string().min(1).max(20).openapi({
+      description: "Oprávky účet BY NUMBER (082/072/…).",
+      example: "082",
+    }),
+    usefulLifeMonths: z.number().int().positive().max(1200).nullish().openapi({
+      description: "Doba použitelnosti v měsících.",
+    }),
+    residualValue: Decimal.nullish().openapi({
+      description: "Zbytková hodnota (defaults to 0).",
+    }),
+    supersedesPlanId: z.string().uuid().nullish().openapi({
+      description: "Předchozí plán, který tento nahrazuje (revize).",
+    }),
+    confidence: CONFIDENCE,
+    rationale: RATIONALE,
+    conversationId: CONVERSATION_ID,
+    signals: EVIDENCE_SIGNALS.nullish(),
+  })
+  .openapi({
+    description:
+      "Create an účetní odpisový plán. Gated (201 applied / 202 held). Tenant " +
+      "injected from the principal; account numbers resolved to the chart at " +
+      "posting time.",
+  })
+export type CreateDepreciationPlanRequest = z.infer<
+  typeof CreateDepreciationPlanRequestSchema
+>
+
+export const CreateDepreciationPlanResponseSchema = z
+  .object({
+    status: z.enum(["applied", "held"]).openapi({
+      description: "applied = plan created; held = queued for human review.",
+    }),
+    reviewId: z.string().uuid().nullish().openapi({
+      description: "tool_call_log id when held.",
+    }),
+    depreciationPlanId: z.string().uuid().nullish(),
+  })
+  .openapi({
+    description: "Create-depreciation-plan result (applied or held).",
+  })
+export type CreateDepreciationPlanResponse = z.infer<
+  typeof CreateDepreciationPlanResponseSchema
+>
+
+// --- POST /v1/accounting/inventory-counts -----------------------------------
+export const CreateInventoryCountRequestSchema = z
+  .object({
+    periodId: z.string().uuid().openapi({
+      description:
+        "Účetní období the proposal is bound to (audit + close-blocking).",
+    }),
+    seriesId: z.string().uuid().openapi({
+      description: "INVENTORY_COUNT number series (see GET number-series).",
+    }),
+    countDate: LEGAL_DATE.openapi({
+      description: "Datum inventury (§29-30).",
+    }),
+    description: z.string().max(2000).nullish().openapi({
+      description: "Popis inventurního soupisu.",
+    }),
+    confidence: CONFIDENCE,
+    rationale: RATIONALE,
+    conversationId: CONVERSATION_ID,
+    signals: EVIDENCE_SIGNALS.nullish(),
+  })
+  .openapi({
+    description:
+      "Create an inventurní soupis (§29-30). Gated (201 applied / 202 held). " +
+      "Tenant injected from the principal.",
+  })
+export type CreateInventoryCountRequest = z.infer<
+  typeof CreateInventoryCountRequestSchema
+>
+
+export const CreateInventoryCountResponseSchema = z
+  .object({
+    status: z.enum(["applied", "held"]).openapi({
+      description: "applied = count created; held = queued for human review.",
+    }),
+    reviewId: z.string().uuid().nullish().openapi({
+      description: "tool_call_log id when held.",
+    }),
+    inventoryCountId: z.string().uuid().nullish(),
+    designation: z.string().nullish(),
+    sequenceNumber: z.number().int().nullish(),
+  })
+  .openapi({ description: "Create-inventory-count result (applied or held)." })
+export type CreateInventoryCountResponse = z.infer<
+  typeof CreateInventoryCountResponseSchema
 >

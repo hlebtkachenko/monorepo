@@ -41,12 +41,19 @@ export const posting_double_entry_line = pgTable(
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: approved gated write this line landed from (NULL = human).
+    // BARE uuid, NO FK — org-only table; FK to workspace inbox_item bypasses RLS.
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
     foreignKey({
       name: "posting_de_line_posting_fk",
       columns: [t.posting_id, t.organization_id, t.regime_code],
-      foreignColumns: [posting.id, posting.organization_id, posting.regime_code],
+      foreignColumns: [
+        posting.id,
+        posting.organization_id,
+        posting.regime_code,
+      ],
     }),
     foreignKey({
       name: "posting_de_line_posting_period_fk",

@@ -39,10 +39,10 @@ export async function postDoubleEntry(
     const row = await one<{ id: string }>(
       db,
       sql`INSERT INTO posting_double_entry_line
-            (organization_id, posting_id, period_id, regime_code, account_id, partial_record_id, side, amount)
+            (organization_id, posting_id, period_id, regime_code, account_id, partial_record_id, side, amount, inbox_id)
           VALUES
             (${ctx.organizationId}::uuid, ${postingId}::uuid, ${input.periodId}::uuid, 'DOUBLE_ENTRY',
-             ${line.accountId}::uuid, ${line.partialRecordId ?? null}, ${line.side}, ${line.amount})
+             ${line.accountId}::uuid, ${line.partialRecordId ?? null}, ${line.side}, ${line.amount}, ${ctx.inboxId ?? null})
           RETURNING id`,
     )
     lineIds.push(row.id)

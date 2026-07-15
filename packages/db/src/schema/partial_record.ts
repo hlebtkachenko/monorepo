@@ -85,6 +85,9 @@ export const partial_record = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Provenance: approved gated write this partial landed from (NULL = human).
+    // BARE uuid, NO FK — org-only table; FK to workspace inbox_item bypasses RLS.
+    inbox_id: uuid("inbox_id"),
   },
   (t) => [
     foreignKey({

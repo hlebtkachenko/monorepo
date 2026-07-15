@@ -120,6 +120,7 @@ export const WORKSPACE_SCOPED_TABLES = [
   "brain_confident_wrong",
   "booking_template",
   "inbox_attachment",
+  "inbox_item",
 ] as const
 
 export type WorkspaceScopedTable = (typeof WORKSPACE_SCOPED_TABLES)[number]

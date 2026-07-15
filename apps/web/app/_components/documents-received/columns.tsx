@@ -14,6 +14,7 @@ import {
   formatDate,
   formatDecimal,
 } from "../_shared/accounting-format"
+import { buildSourceColumn } from "../_shared/source-column"
 
 /**
  * Captured-document row as served by `fetchDocuments` in
@@ -29,6 +30,17 @@ export interface DocumentRow {
   base_total: string
   vat_total: string
   counterparty_name: string | null
+  /**
+   * [Tier 4] The inbox_item this document landed from. Non-null ⇒ the Afframe
+   * Brain proposed it (a human approved) — drives the "Created by Agent" filter.
+   * Null ⇒ entered by a human.
+   */
+  inbox_id?: string | null
+}
+
+/** Provenance bucket for the "Zdroj" (source) filter. */
+function documentSource(row: DocumentRow): "agent" | "human" {
+  return row.inbox_id ? "agent" : "human"
 }
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
@@ -172,6 +184,7 @@ export function buildDocumentColumns({
       meta: { label: counterpartyHeader },
       enableSorting: true,
     },
+    buildSourceColumn<DocumentRow>(documentSource),
     {
       accessorKey: "base_total",
       header: "Základ",
@@ -250,6 +263,16 @@ export function DocumentDetail({
       <DetailField
         label={counterpartyLabel}
         value={row.counterparty_name ?? "—"}
+      />
+      <DetailField
+        label="Zdroj"
+        value={
+          documentSource(row) === "agent" ? (
+            <Badge variant="secondary">Vytvořeno agentem</Badge>
+          ) : (
+            "Ruční"
+          )
+        }
       />
       <DetailField
         label="Základ"

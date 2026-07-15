@@ -11,6 +11,7 @@ import {
   it,
   vi,
 } from "vitest"
+import { GATED_WRITE_OPERATION_IDS } from "@workspace/shared/api"
 
 /**
  * Contract tests for the held-writes review surface
@@ -62,6 +63,17 @@ vi.mock("@workspace/accounting", () => ({
   // we spy on it directly and let its return shape drive the response.
   captureAndBookIfInvoice: vi.fn(),
   post: vi.fn(),
+  // The API resolve path replays postings via postWithObligation (aliased
+  // postPosting), NOT the bare post — mock the one the controller actually calls.
+  postWithObligation: vi.fn(),
+  // Tier 3 register-card creators (asset / depreciation plan / inventory count).
+  createAsset: vi.fn(),
+  createDepreciationPlan: vi.fn(),
+  createInventoryCount: vi.fn(),
+  // Tier 4 provenance — minted at approve; returns the inbox_item id.
+  mintInboxItem: vi
+    .fn()
+    .mockResolvedValue("0196f1de-0000-7000-8000-000000000f01"),
 }))
 
 vi.mock("@workspace/db/schema", () => ({
@@ -181,6 +193,10 @@ const verifyApiKeyMock = vi.mocked(verifyApiKey)
 const createEventMock = vi.mocked(accounting.createEvent)
 const captureAndBookMock = vi.mocked(accounting.captureAndBookIfInvoice)
 const postMock = vi.mocked(accounting.post)
+const postWithObligationMock = vi.mocked(accounting.postWithObligation)
+const createAssetMock = vi.mocked(accounting.createAsset)
+const createDepreciationPlanMock = vi.mocked(accounting.createDepreciationPlan)
+const createInventoryCountMock = vi.mocked(accounting.createInventoryCount)
 const updateLogMock = vi.mocked(db.updateToolCallLogOutput)
 const unconfirmMock = vi.mocked(db.unconfirmTemplateOnReject)
 
@@ -223,6 +239,76 @@ const VALID_CAPTURE_INPUT = {
   ],
   confidence: 0.6,
   rationale: "Vendor unclear",
+}
+
+/** A stored asset-card payload that still validates against the current schema. */
+const VALID_ASSET_INPUT = {
+  periodId: "0196f1de-0000-7000-8000-000000000101",
+  seriesId: "0196f1de-0000-7000-8000-000000000102",
+  name: "Notebook Dell Latitude",
+  category: "TANGIBLE_DEPRECIABLE",
+  accountNumber: "022",
+  commissioningDate: "2025-03-14",
+  acquisitionCost: "45000.00",
+  confidence: 0.6,
+  rationale: "Nová karta majetku",
+}
+
+/** Stored payloads (one per gated op) that still validate — for the replay-coverage test. */
+const VALID_POSTING_INPUT = {
+  kind: "double",
+  entry: {
+    periodId: "0196f1de-0000-7000-8000-000000000101",
+    summaryRecordId: "0196f1de-0000-7000-8000-000000000701",
+    accountingEventId: "0196f1de-0000-7000-8000-000000000401",
+    postingDate: "2025-03-14",
+    lines: [
+      {
+        accountId: "0196f1de-0000-7000-8000-000000000801",
+        side: "DEBIT",
+        amount: "1000.00",
+      },
+      {
+        accountId: "0196f1de-0000-7000-8000-000000000802",
+        side: "CREDIT",
+        amount: "1000.00",
+      },
+    ],
+  },
+  confidence: 0.6,
+  rationale: "Ruční zaúčtování",
+}
+
+const VALID_DEPRECIATION_PLAN_INPUT = {
+  periodId: "0196f1de-0000-7000-8000-000000000101",
+  assetId: "0196f1de-0000-7000-8000-000000000501",
+  method: "STRAIGHT_LINE",
+  startDate: "2025-03-14",
+  monthlyAmount: "1250.00",
+  expenseAccountNumber: "551",
+  accumulatedAccountNumber: "082",
+  confidence: 0.6,
+  rationale: "Odpisový plán",
+}
+
+const VALID_INVENTORY_COUNT_INPUT = {
+  periodId: "0196f1de-0000-7000-8000-000000000101",
+  seriesId: "0196f1de-0000-7000-8000-000000000102",
+  countDate: "2025-12-31",
+  confidence: 0.6,
+  rationale: "Roční inventura",
+}
+
+/**
+ * The stored payload + domain-mock stub for every gated op — the replay-coverage
+ * test drives each through the resolve switch. Adding a gated op to
+ * GATED_WRITE_OPERATION_IDS without adding a case here fails the exhaustiveness
+ * assertion; a missing replay branch then surfaces as the switch default (a
+ * permanently un-approvable, stuck-held row).
+ */
+type ReplayFixture = {
+  input: Record<string, unknown>
+  stub: () => void
 }
 
 function logRow(over: Partial<LogRow> & { id: string }): LogRow {
@@ -285,6 +371,10 @@ describe("HeldWritesController", () => {
     createEventMock.mockReset()
     captureAndBookMock.mockReset()
     postMock.mockReset()
+    postWithObligationMock.mockReset()
+    createAssetMock.mockReset()
+    createDepreciationPlanMock.mockReset()
+    createInventoryCountMock.mockReset()
     updateLogMock.mockClear()
     unconfirmMock.mockClear()
     state.scopeCalls = []
@@ -400,7 +490,11 @@ describe("HeldWritesController", () => {
         { organizationId: string; workspaceId: string },
         Record<string, unknown>,
       ]
-      expect(ctx).toEqual({ organizationId: ORG_A, workspaceId: WORKSPACE })
+      expect(ctx).toEqual({
+        organizationId: ORG_A,
+        workspaceId: WORKSPACE,
+        inboxId: "0196f1de-0000-7000-8000-000000000f01",
+      })
       expect(input).toMatchObject({
         periodId: VALID_EVENT_INPUT.periodId,
         seriesId: VALID_EVENT_INPUT.seriesId,
@@ -419,6 +513,153 @@ describe("HeldWritesController", () => {
         }),
         approvedByUserId: APPROVER,
       })
+    })
+
+    it("[Tier 3] approve replays a held createAsset — periodId + gate envelope stripped, APPROVER responsible", async () => {
+      verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+      createAssetMock.mockResolvedValue({
+        id: "0196f1de-0000-7000-8000-000000000501",
+        designation: "DM2026001",
+        sequenceNumber: 1,
+      } as never)
+      state.rows.push(
+        logRow({
+          id: "0196f1de-0000-7000-8000-0000000005a1",
+          tool_name: "createAsset",
+          input_json: { ...VALID_ASSET_INPUT },
+        }),
+      )
+
+      const res = await supertest(app.getHttpServer())
+        .post(
+          `/v1/accounting/held-writes/0196f1de-0000-7000-8000-0000000005a1/resolve`,
+        )
+        .set("Authorization", "Bearer affk_live_a")
+        .send({ action: "approve" })
+        .expect(200)
+
+      expect(res.body.result).toEqual({
+        assetId: "0196f1de-0000-7000-8000-000000000501",
+        designation: "DM2026001",
+        sequenceNumber: 1,
+      })
+      expect(createAssetMock).toHaveBeenCalledOnce()
+      const [, ctx, input] = createAssetMock.mock.calls[0] as unknown as [
+        unknown,
+        { organizationId: string; workspaceId: string },
+        Record<string, unknown>,
+      ]
+      // createAsset is a register-card op, NOT in INBOX_STAMPED_OPERATION_IDS —
+      // approving it mints no inbox_item, so the ctx carries inboxId: null.
+      expect(ctx).toEqual({
+        organizationId: ORG_A,
+        workspaceId: WORKSPACE,
+        inboxId: null,
+      })
+      expect(input).toMatchObject({
+        name: VALID_ASSET_INPUT.name,
+        category: VALID_ASSET_INPUT.category,
+        accountNumber: VALID_ASSET_INPUT.accountNumber,
+        acquisitionCost: VALID_ASSET_INPUT.acquisitionCost,
+        responsibleUserId: APPROVER,
+      })
+      // periodId binds the proposal to the period for the lock — it must NOT
+      // reach the org-scoped card insert.
+      expect(input).not.toHaveProperty("periodId")
+      // The gate envelope must NOT leak into the domain input.
+      expect(input).not.toHaveProperty("confidence")
+      expect(input).not.toHaveProperty("rationale")
+    })
+
+    it("[replay-coverage] every gated op resolves through a branch — none hits the unknown-operation default", async () => {
+      const fixtures: Record<string, ReplayFixture> = {
+        createAccountingEvent: {
+          input: VALID_EVENT_INPUT,
+          stub: () =>
+            createEventMock.mockResolvedValue({
+              eventId: "0196f1de-0000-7000-8000-000000000301",
+              designation: "UP2026001",
+              sequenceNumber: 1,
+            } as never),
+        },
+        captureAccountingDocument: {
+          input: VALID_CAPTURE_INPUT,
+          stub: () =>
+            captureAndBookMock.mockResolvedValue({
+              doc: {
+                summaryRecordId: "0196f1de-0000-7000-8000-000000000702",
+                designation: "FP2026001",
+                sequenceNumber: 1,
+                lines: [],
+              },
+              postingIds: [],
+            } as never),
+        },
+        createAccountingPosting: {
+          input: VALID_POSTING_INPUT,
+          stub: () =>
+            postWithObligationMock.mockResolvedValue({
+              postingId: "0196f1de-0000-7000-8000-000000000901",
+              lineIds: [],
+              openItemId: null,
+            } as never),
+        },
+        createAsset: {
+          input: VALID_ASSET_INPUT,
+          stub: () =>
+            createAssetMock.mockResolvedValue({
+              id: "0196f1de-0000-7000-8000-000000000501",
+              designation: "DM2026001",
+              sequenceNumber: 1,
+            } as never),
+        },
+        createDepreciationPlan: {
+          input: VALID_DEPRECIATION_PLAN_INPUT,
+          stub: () =>
+            createDepreciationPlanMock.mockResolvedValue(
+              "0196f1de-0000-7000-8000-000000000601" as never,
+            ),
+        },
+        createInventoryCount: {
+          input: VALID_INVENTORY_COUNT_INPUT,
+          stub: () =>
+            createInventoryCountMock.mockResolvedValue({
+              id: "0196f1de-0000-7000-8000-000000000651",
+              designation: "IS2026001",
+              sequenceNumber: 1,
+            } as never),
+        },
+      }
+
+      // Exhaustiveness: the canonical gated-op list and the fixture map agree, so
+      // a new op can't be added without a replay assertion.
+      expect(Object.keys(fixtures).sort()).toEqual(
+        [...GATED_WRITE_OPERATION_IDS].sort(),
+      )
+
+      for (const [index, toolName] of GATED_WRITE_OPERATION_IDS.entries()) {
+        verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+        fixtures[toolName]!.stub()
+        const rowId = `0196f1de-0000-7000-8000-0000000009${String(index).padStart(2, "0")}`
+        state.rows.push(
+          logRow({
+            id: rowId,
+            tool_name: toolName,
+            input_json: { ...fixtures[toolName]!.input },
+          }),
+        )
+
+        const res = await supertest(app.getHttpServer())
+          .post(`/v1/accounting/held-writes/${rowId}/resolve`)
+          .set("Authorization", "Bearer affk_live_a")
+          .send({ action: "approve" })
+
+        // A missing replay branch throws the switch default → 422; a covered op
+        // returns 200 with a domain result.
+        expect(res.status, `${toolName} must be resolvable`).toBe(200)
+        expect(res.body.resolution).toBe("approved")
+        expect(res.body.result).toBeDefined()
+      }
     })
 
     it("[G2-R1] REJECTS approve when the approver is the author (author != approver)", async () => {

@@ -6,6 +6,12 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Rebuild the workspace Profile as grouped General, Appearance, Security, Privacy, and Permissions pages with contextual dialogs and history, editable identity, avatar, contact, signature, shared company-structure fields, regional and consent settings, session and API-key visibility, permission grants, workspace departure, and OTP-confirmed account deletion.
+
+## [v0.22.5] — 2026-07-15
+
 ### Added
 
 - admin: XML-filing operator debug page (Platform → Debug → XML filing) — import a DPPO/DPHDP3/DPHKH1/ISDOC XML, round-trip it through @workspace/filing, XSD-validate the regenerated output, and run the DPPO kritické kontroly; prod-live (staff-only), not dev-gated
@@ -14,11 +20,45 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Brain Tier 4 (surfacing): "Created by Agent" (Zdroj) filter + column on the Records/documents and Journal (deník) tables, driven by inbox_id — any agent-proposed, human-approved accounting fact is now filterable system-wide.
 - Brain Tier 4 (provenance): inbox_item table + inbox_id stamped on every agent-landed accounting row (posting, summary/individual/partial record, double-entry + monetary line, accounting_event, open_item), minted at approve from the held write — the spine of the system-wide "Created by Agent" filter. Workspace-scoped with the composite-FK / bare-uuid split that keeps RLS intact.
 - Brain Tier 3: gated register-card creators (createAsset / createDepreciationPlan / createInventoryCount) so the agent can propose asset cards, depreciation plans (odpisy), and inventory counts through the confidence gate (held → human approves).
+
+## [v0.22.4] — 2026-07-15
+
+### Added
+
 - Czech e-filing engine Tier 2 (FÚ EPO): @workspace/filing now generates, reads, and XSD-validates the DPHDP3 (Přiznání k DPH, v03.01.03) and DPHKH1 (Kontrolní hlášení, v03.01.14) <Pisemnost> documents against the vendored official schemas — attribute-centric věty, whole-koruna vs haléře decimals, DIČ digit-stripping, D.M.YYYY dates. Public API for a UI to bind buttons to: generateDphdp3/readDphdp3, generateDphkh1/readDphkh1, validateFiling(xml, 'dphdp3'|'dphkh1', version), the typed Zod models (Dphdp3/Dphkh1 — the render seam), buildDphdp3FromAccounting/buildDphkh1FromAccounting adapters from the accounting VAT outputs, and computeDphdp3Totals/applyDphdp3Totals (the derived footer lines ř.46/62/63/64/65, exposed via the @workspace/filing/dphdp3-compute subpath so a client can compute them without bundling the validator). filing stays a pure serialize package (no accounting/db dependency). See packages/filing/README.md.
+
+## [v0.22.3] — 2026-07-15
+
+### Added
+
 - Wire the internal-documents, obligation-vouchers (+ payable/receivable), and trial-balance (obratová předvaha) pages from ModulePage placeholders to real data-backed views, reusing the existing fetchDocuments / saldokonto / general-ledger read models and table components.
 - Brain Tier 2: `createAccountingPosting` gains an optional `openObligation` directive so any double-entry posting (a contract obligation or an internal doklad, not just an invoice) can open its saldokonto pohledávka/závazek. Server-authoritative: counterparty from the posting's event, currency from the period, amount = the exact posted net movement; fail-closed on a null counterparty, opens nothing on net ≤ 0, rejected on a monetary posting.
 - Brain Tier 1.5: `brain event` cross-checks the extracted counterparty IČO against the ARES public register before proposing the event — a name mismatch refuses --execute (override with --allow-register-mismatch), asserts the counterparty_register_mismatch cap so the write holds sub-green, and surfaces the mismatch in the held-event review; fail-open (ARES down never blocks).
+
+### Fixed
+
+- Block accounting period close on unresolved period-scoped HELD Brain proposals, and fail closed on unscoped legacy proposals. (#738)
+
+## [v0.22.2] — 2026-07-15
+
+### Changed
+
+- Document S3 bucket responsibilities, implemented upload/read/delete flows, limits, local MinIO operation, alarms, troubleshooting, follow-up ownership, Frankfurt pricing, and scale guardrails in ADR-0031 and the document-store runbook.
+
+## [v0.22.1] — 2026-07-15
+
+### Added
+
 - New `@workspace/filing` package: Czech e-filing XML engine. Tier 1 = ISDOC 6.0.1 read (`readIsdoc`) + write (`generateIsdoc`) + `xmllint-wasm` XSD validation (`validateFiling`) over a generic XML core, the foundation for the FÚ EPO tax filings (DPH / KH / DPPO) in later tiers
+
+### Fixed
+
+- Made accounting period roll-forward fail closed on authoritative readiness checks, generate the period output atomically before close, and disclose blockers and unsupported statutory checks in Settings. (#724)
+
+## [v0.22.0] — 2026-07-15
+
+### Added
+
 - S3 document store: rate limiting on the cost-bearing document routes (presign-upload / confirm / mint-url) — per-user 90/min, per-workspace 900/hour, per-IP 180/min, returning 429 with Retry-After. Bounds how fast an authed tenant can mint S3 objects/egress URLs (bytes go direct-to-S3, so the risk is the S3 bill, not compute). Absolute per-workspace storage quota tracked as follow-up #729.
 - S3 document store (Stage 4b): public /v1 read/retrieve API twin — GET /v1/documents (list, workspace-scoped, includeDeleted filter) and GET /v1/documents/{id}/download-url (short-lived presigned URL, bytes fetched direct from S3, never proxied). Workspace derived from the API key, no tenant identifiers accepted; internal S3 key never exposed. OpenAPI/SDK/MCP regenerated (2 new MCP tools).
 - S3 document store (Stage 4): reusable UI-agnostic browser client (app/_lib/documents-client.ts — uploadDocument/getDocumentUrl/deleteDocument/restoreDocument, bytes direct to S3, sha256 computed in-browser) + a dev-only /workspace/debug-documents harness exercising upload→confirm→preview(PdfViewer/img)→download→soft-delete→undo end-to-end. Storage stays decoupled from any product surface.
@@ -27,19 +67,108 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - S3 document store P1b: document-reaper Lambda (sole S3-delete principal, hourly EventBridge, tag-age purge of orphaned/abandoned/soft-deleted objects) + errors/duration alarms
 - S3 document store P1a: KMS-CMK-encrypted DocumentsBucket (Intelligent-Tiering, versioned, SSE-KMS + SSE-C deny policy) + no-delete task-role grants + write-flood alert (SNS-only, no kill-switch)
 - S3 DocumentStore interface + S3/minio implementation (packages/storage)
+
+### Changed
+
+- Conductor dev setup: bring up the dev-compose minio + seed the documents-dev bucket, and add the S3 document store env (DOCUMENTS_BUCKET / S3_ENDPOINT / minio creds) to the generated apps/web/.env.local, so the /workspace/debug-documents harness works locally out of the box.
+
+### Fixed
+
+- S3 document store debug harness: page body now scrolls (h-full overflow-y-auto) so a tall image/PDF preview is fully visible instead of clipped by the app-shell content slot's by-design overflow-hidden.
+- S3 document store: inline image/PDF preview was blocked in local dev by the site CSP — the minio dev origin (S3_ENDPOINT) is now added to img-src and connect-src when NODE_ENV=development, so presigned-URL previews render (download always worked as a top-level navigation). Production CSP is unchanged (real S3 presigned URLs already matched https://*.amazonaws.com).
+- S3 document store now works against S3-compatible endpoints (minio dev): pin explicit static credentials when a custom S3_ENDPOINT is set (avoids the AWS SDK error when both AWS_PROFILE and AWS_ACCESS_KEY_ID are present), and source the pinned VersionId for version-safe confirm/undo from HeadObject (which every implementation returns) instead of GetObjectTagging (which minio omits). Dev-compose minio bucket now has versioning enabled.
+- S3 document store hardening (advisor Stage 0): UUID-validate document object keys so presign and confirm agree, size-filter Intelligent-Tiering to the ≥128KiB tail, alarm when the sole-delete reaper stops running, and document that presignGet is not an authorization boundary (the route is)
+- Harden S3 document uploads and cleanup with complete presigned POST fields, authoritative file validation, version-safe confirmation and undo, and race-safe reaper deletes.
+
+## [v0.21.1] — 2026-07-15
+
+### Added
+
 - Brain CLI: new `afframe brain event` command + `invoiceToEvent` adapter — proposes the accounting event (case) for an extracted invoice carrying the supplier/customer identity (name/IČO/DIČ, source-verbatim, malformed fields omitted), so the derived invoice books against the right counterparty instead of holding on a null one. Deterministic operator-key POST /v1/accounting/events (no agent session), gated → HELD for human review; direction picks the party (received→supplier, issued→customer); occurredAt = tax-point/issue date; refuses --execute on a missing counterparty unless --allow-missing-counterparty.
+
+### Fixed
+
+- Brain: approving a captured invoice through the public API (POST /v1/accounting/held-writes/:id/resolve) now books it (posting per event + saldokonto obligation) instead of leaving an orphaned capture — parity with the web approvals path (PR #712/#715). POST /v1/invoices now persists its held write under the shared captureAccountingDocument tool_name (normalized body), so a held invoice is approvable through the existing replay case instead of dead-ending on an unknown 'createInvoice' operation. Both approve surfaces share one captureAndBookIfInvoice unit; the API held-row read takes FOR UPDATE so a concurrent double-approve cannot double-book.
+
+## [v0.21.0] — 2026-07-15
+
+### Added
+
 - Row Inspector Sheet (`InspectorSheet` + parts) for the Table archetype: a right-docked detail Sheet opened by the per-row maximize affordance, with pinned header/meta grid, Details/Review/Line items/Evidence sections, and a sticky action footer
 - dnd-kit column header drag-reorder in DataGridView (mouse/touch/keyboard) sharing columnOrder with the Columns manager; Table section gains inspect (row maximize affordance) + rowActions (right-pinned action column) feature flags
 - Table section (sectionTable) — a TanStack Table v8 data grid with pure-data column/row descriptors, inline cell editing, row selection, sort/resize/reorder/pin; ArchetypeTable now owns a SectionTable bridge so the toolbar viewTools + selection footer drive the live grid. Demo at Settings → Debug → Archetype Table
 - ArchetypeTable whole-panel archetype (ContentHeader with views + fully-wired ContentToolbar + branded body Sections + selection ContentFooter, no legacy status bar) with a Settings → Debug → Archetype Table reference page
+
+### Changed
+
+- Table archetype hardening: controlled column pinning + order in useDataTable (pinned columns drag-reorder within their group; a header-menu pin lands before the action column, never outside it); row actions trimmed to one primary action + overflow; the columns dropdown rows became clean whole-row toggles; and the per-column header menu gained Filter (opens the shared toolbar filter at that column) + AI-analyze items.
+- ContentToolbar/filter polish: option-filter count badges pinned to the right edge, Reset chip restyle (no icon/shadow), date filter as a range picker with a preset sidebar + dropdown month/year caption, 5px inter-line gap; Columns manager reordered by live columnOrder with pinned-left/right + unpinned sections and checkboxes; removed the Inspector panel/dialog mode toggle from the toolbar
+- ContentToolbar: 42px bar matching ContentHeader, default-size controls, faceted status-filter live update fix, search clear button, and the multi-filter slot wired into the archetype-table debug demo
+- Reworked ContentHeader: merged breadcrumb+back-link+title nav (icon crumbs, collapsible native BreadcrumbEllipsis dropdown, Single-only back link), rebuilt view tabs (mandatory count badges, flush underline, no per-tab icons, mandatory All + active kept inline), container-query responsive collapse driven by the header's own width, uniform gaps, 42px height, Favorite-only actions; added a Pin icon to the icon packs
+
+## [v0.20.1] — 2026-07-14
+
+### Added
+
 - Accounting: createEvent now resolves a supplier/customer IDENTITY to a workspace-shared counterparty (resolveCounterparty, find-or-create deduped by IČO then DIČ then name+country, self-org excluded, NULL-only backfill), so the derive booker opens the saldokonto obligation against the right partner. createAccountingEvent accepts an optional counterparty {name,ico,dic,countryCode} object (counterpartyId still wins). Partial unique indexes on counterparty (workspace_id,ico)/(workspace_id,tax_id) (migration 0058) make the dedup race-safe so one vendor never splits across two saldokonto partners.
 - Accounting: approving a captured invoice now opens its saldokonto obligation (pohledávka/závazek) in the same tx — bookDocument calls the new openObligation helper per event, so an approved invoice lands fully-wired into závazky/pohledávky (previously openItem had zero production callers and saldokonto stayed empty). A dobropis (net ≤ 0) opens nothing; an invoice event with no counterparty fails closed (holds); a UNIQUE(origin_posting_id) guards against a duplicate open. Migration 0057.
+
+### Fixed
+
+- Auth: the edge proxy session-presence check now reads the per-workspace cookie prefix ($CONDUCTOR_PORT), fixing a redirect loop to /auth/login introduced when the dev cookie was namespaced — getSessionCookie was still looking for the default cookie name.
+- Auth: dev session cookies are namespaced per Conductor workspace (advanced.cookiePrefix keyed on $CONDUCTOR_PORT), so parallel workspace dev servers on localhost no longer clobber each other's session and silently sign you out; production cookie name is unchanged.
+
+## [v0.20.0] — 2026-07-14
+
+### Added
+
 - Accounting: fetchDocuments now returns posting status (is_posted / posting_id); new unlinkedInvoiceLines invariant flags any non-generated invoice ledger line missing its partial_record link.
 - Brain: classify_accounting_event echoes supplyKind and the intake harness threads it onto the capture partial, so a derived invoice books to the correct cost/revenue account with no human friction (still held for review).
 - Accounting: deterministic whole-document booking (bookDocument) runs in the capture-approve transaction, so approving a captured invoice lands one fully-wired posting per event with every ledger line linked to its source partial_record (§6/2), replacing the orphaned capture + preview-vs-apply drift.
-- Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
+
+### Fixed
+
+- Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
+- Conductor Web Run now starts Postgres, repairs a missing or unseeded workspace database, and applies any pending migrations before launching Next.js.
+
+## [v0.19.3] — 2026-07-14
+
+### Added
+
 - Notify signed-in web and admin users when a newer deployment is available, with a user-confirmed reload action that stays dismissed until the next deployment.
+
+### Changed
+
+- Conductor web/api/admin Run buttons now auto-open the app in the default browser once the port answers (bounded, macOS-gated poller in .conductor/settings.toml)
+
+### Fixed
+
+- PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
+
+## [v0.19.2] — 2026-07-14
+
+### Added
+
+- Conductor: admin dev server run button ($CONDUCTOR_PORT+2) with its own generated apps/admin/.env.local (shared workspace DB + auth secret, ADMIN_WORKSPACE_ALLOWLIST = seeded workspace id); committed [prompts] action-button instructions for Review/Create PR/Fix errors/Resolve conflicts/Branch rename
+
+### Fixed
+
+- Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
+
+## [v0.19.1] — 2026-07-14
+
+### Added
+
 - Conductor: full per-workspace isolation (own $CONDUCTOR_PORT range + own seeded Postgres database per workspace, demo login owner@example.com), committed setup/archive scripts replacing untracked local config, and cloud-safe (Docker-gated) setup
+
+### Dependencies
+
+- Bump the dev-dependencies group across 1 directory with 9 updates (#704)
+
+## [v0.19.0] — 2026-07-13
+
+### Added
+
 - Section Details Table — a data-driven content-panel section (Data Table on the right of a Details Form), with readonly (display + add editable rows) and editable (edit rows in place) modes; action buttons as data (add-row local state, link navigation).
 - UI: **Tabs** section (`sectionTabs`) — a Form section whose right column is a set of tabs (default segmented variant), each tab carrying its own 6-column field grid; reuses the Form section's shared `FieldGrid` + `SectionTwoCol` parts. Tab switching is data-driven (`tabs` + `defaultTab`)
 - UI: **Group** section (`sectionGroup`) — a titled, rule-bracketed container that nests other sections (one level); subsumes and replaces the standalone Title + Divider sections (its chrome = the h2 + top/bottom rules). ContentBody now delegates to a shared recursive `SectionList` so the brand guard runs at every level; the closed registry stays leaf-only (no import cycle)
@@ -53,14 +182,6 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
-- Rebuild the workspace Profile as grouped General, Appearance, Security, Privacy, and Permissions pages with contextual dialogs and history, editable identity, avatar, contact, signature, shared company-structure fields, regional and consent settings, session and API-key visibility, permission grants, workspace departure, and OTP-confirmed account deletion.
-- Document S3 bucket responsibilities, implemented upload/read/delete flows, limits, local MinIO operation, alarms, troubleshooting, follow-up ownership, Frankfurt pricing, and scale guardrails in ADR-0031 and the document-store runbook.
-- Conductor dev setup: bring up the dev-compose minio + seed the documents-dev bucket, and add the S3 document store env (DOCUMENTS_BUCKET / S3_ENDPOINT / minio creds) to the generated apps/web/.env.local, so the /workspace/debug-documents harness works locally out of the box.
-- Table archetype hardening: controlled column pinning + order in useDataTable (pinned columns drag-reorder within their group; a header-menu pin lands before the action column, never outside it); row actions trimmed to one primary action + overflow; the columns dropdown rows became clean whole-row toggles; and the per-column header menu gained Filter (opens the shared toolbar filter at that column) + AI-analyze items.
-- ContentToolbar/filter polish: option-filter count badges pinned to the right edge, Reset chip restyle (no icon/shadow), date filter as a range picker with a preset sidebar + dropdown month/year caption, 5px inter-line gap; Columns manager reordered by live columnOrder with pinned-left/right + unpinned sections and checkboxes; removed the Inspector panel/dialog mode toggle from the toolbar
-- ContentToolbar: 42px bar matching ContentHeader, default-size controls, faceted status-filter live update fix, search clear button, and the multi-filter slot wired into the archetype-table debug demo
-- Reworked ContentHeader: merged breadcrumb+back-link+title nav (icon crumbs, collapsible native BreadcrumbEllipsis dropdown, Single-only back link), rebuilt view tabs (mandatory count badges, flush underline, no per-tab icons, mandatory All + active kept inline), container-query responsive collapse driven by the header's own width, uniform gaps, 42px height, Favorite-only actions; added a Pin icon to the icon packs
-- Conductor web/api/admin Run buttons now auto-open the app in the default browser once the port answers (bounded, macOS-gated poller in .conductor/settings.toml)
 - Refactor Details Table renderer to a single draft-row state model (from a 6-piece overlay), move the adjacent-group divider overlap to one CSS rule, derive section payload types from their props, and correct the Space section's default-size JSDoc
 - Tabs: bump the horizontal TabsList height h-8 → h-9 in packages/ui (applies everywhere the segmented Tabs is used, incl. the Details Tabs section).
 - Details Table polish: the per-row Edit icon toggles to an Apply (check) action that returns the row to read mode keeping its edits; read-only tables can show a 'to edit, go to <link> ↗' hint; two Details groups stacked with no Space now collapse to a single divider (no gap) via a 1px overlap.
@@ -89,20 +210,6 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
-- Block accounting period close on unresolved period-scoped HELD Brain proposals, and fail closed on unscoped legacy proposals. (#738)
-- S3 document store debug harness: page body now scrolls (h-full overflow-y-auto) so a tall image/PDF preview is fully visible instead of clipped by the app-shell content slot's by-design overflow-hidden.
-- S3 document store: inline image/PDF preview was blocked in local dev by the site CSP — the minio dev origin (S3_ENDPOINT) is now added to img-src and connect-src when NODE_ENV=development, so presigned-URL previews render (download always worked as a top-level navigation). Production CSP is unchanged (real S3 presigned URLs already matched https://*.amazonaws.com).
-- S3 document store now works against S3-compatible endpoints (minio dev): pin explicit static credentials when a custom S3_ENDPOINT is set (avoids the AWS SDK error when both AWS_PROFILE and AWS_ACCESS_KEY_ID are present), and source the pinned VersionId for version-safe confirm/undo from HeadObject (which every implementation returns) instead of GetObjectTagging (which minio omits). Dev-compose minio bucket now has versioning enabled.
-- S3 document store hardening (advisor Stage 0): UUID-validate document object keys so presign and confirm agree, size-filter Intelligent-Tiering to the ≥128KiB tail, alarm when the sole-delete reaper stops running, and document that presignGet is not an authorization boundary (the route is)
-- Harden S3 document uploads and cleanup with complete presigned POST fields, authoritative file validation, version-safe confirmation and undo, and race-safe reaper deletes.
-- Brain: approving a captured invoice through the public API (POST /v1/accounting/held-writes/:id/resolve) now books it (posting per event + saldokonto obligation) instead of leaving an orphaned capture — parity with the web approvals path (PR #712/#715). POST /v1/invoices now persists its held write under the shared captureAccountingDocument tool_name (normalized body), so a held invoice is approvable through the existing replay case instead of dead-ending on an unknown 'createInvoice' operation. Both approve surfaces share one captureAndBookIfInvoice unit; the API held-row read takes FOR UPDATE so a concurrent double-approve cannot double-book.
-- Made accounting period roll-forward fail closed on authoritative readiness checks, generate the period output atomically before close, and disclose blockers and unsupported statutory checks in Settings. (#724)
-- Auth: the edge proxy session-presence check now reads the per-workspace cookie prefix ($CONDUCTOR_PORT), fixing a redirect loop to /auth/login introduced when the dev cookie was namespaced — getSessionCookie was still looking for the default cookie name.
-- Auth: dev session cookies are namespaced per Conductor workspace (advanced.cookiePrefix keyed on $CONDUCTOR_PORT), so parallel workspace dev servers on localhost no longer clobber each other's session and silently sign you out; production cookie name is unchanged.
-- Accounting: resolveHeldWrite locks the held tool_call_log row (SELECT ... FOR UPDATE) so concurrent approves of the same capture can't double-book the ledger; bookDocument also fails closed on §37a ADVANCE partials.
-- Conductor Web Run now starts Postgres, repairs a missing or unseeded workspace database, and applies any pending migrations before launching Next.js.
-- PWA web manifest route no longer errors on unfilled brand copy: <BRAND-*> i18n placeholders are ICU-escaped ('...') so next-intl renders them literally instead of throwing UNCLOSED_TAG
-- Restore the admin Platform Debug page in production so its Input Fields board is reachable from the existing navigation entry.
 - Storybook a11y baseline: re-map the app-content→content-panel rename's story ids and cover the new ContentFooter selection story; make the admin utility-page-catalog test await async content (findByText) to de-flake it under CI load
 - Details Table: clicking Apply (check) on a still-empty newly-added row now discards it instead of leaving a blank '—' row behind — an empty new row's Apply behaves like the X remove.
 

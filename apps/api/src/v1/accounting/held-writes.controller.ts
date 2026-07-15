@@ -31,16 +31,27 @@ import {
 import { tool_call_log } from "@workspace/db/schema"
 import {
   captureAndBookIfInvoice,
+  createAsset,
+  createDepreciationPlan,
   createEvent,
+  createInventoryCount,
+  mintInboxItem,
   postWithObligation as postPosting,
+  type AssetInput,
+  type DepreciationPlanInput,
   type DocumentInput,
   type EventInput,
+  type InventoryCountInput,
   type PostWithObligationInput,
 } from "@workspace/accounting"
 import {
   CaptureAccountingDocumentRequestSchema,
   CreateAccountingEventRequestSchema,
   CreateAccountingPostingRequestSchema,
+  CreateAssetRequestSchema,
+  CreateDepreciationPlanRequestSchema,
+  CreateInventoryCountRequestSchema,
+  INBOX_STAMPED_OPERATION_IDS,
   stripGateEnvelope,
   type ListHeldWritesResponse,
   type ResolveHeldWriteResponse,
@@ -186,6 +197,9 @@ export class HeldWritesController {
               // their OWN held write (author != approver, closes agent
               // self-approval even if a Brain key leaks).
               user_id: tool_call_log.user_id,
+              // [Tier 4] provenance for the inbox_item minted at approve.
+              actor_kind: tool_call_log.actor_kind,
+              rationale: tool_call_log.rationale,
             })
             .from(tool_call_log)
             .where(
@@ -275,11 +289,41 @@ export class HeldWritesController {
             return { id, resolution: "rejected" }
           }
 
+          // [Tier 4] Mint the provenance record for this landed proposal and
+          // thread its id onto the ctx, so every row executeStored INSERTs carries
+          // inbox_id ("Created by Agent"). Same withOrganization tx (sets
+          // app.workspace_id) → the workspace-scoped inbox_item insert resolves;
+          // atomic with the landing; FOR-UPDATE guard above makes it single-mint.
+          // Gated on actor_kind so a HUMAN-authored held write leaves inbox_id NULL
+          // — the read-model filter then means exactly "agent-originated". Also
+          // gated on the op: only the ledger-fact ops land rows with an inbox_id
+          // column, so a register-card creator mints no orphan inbox_item.
+          const inboxId =
+            row.actor_kind !== "human" &&
+            (INBOX_STAMPED_OPERATION_IDS as readonly string[]).includes(
+              row.tool_name,
+            )
+              ? await mintInboxItem(
+                  db,
+                  {
+                    organizationId: principal.organizationId,
+                    workspaceId: principal.workspaceId,
+                  },
+                  {
+                    toolCallLogId: id,
+                    kind: row.tool_name,
+                    createdBy: row.actor_kind,
+                    source: "agent",
+                    reasoning: row.rationale,
+                  },
+                )
+              : null
           const result = await this.executeStored(
             db,
             {
               organizationId: principal.organizationId,
               workspaceId: principal.workspaceId,
+              inboxId,
             },
             row.tool_name,
             row.input_json,
@@ -314,7 +358,11 @@ export class HeldWritesController {
    */
   private async executeStored(
     db: OrganizationBoundDb,
-    ctx: { organizationId: string; workspaceId: string },
+    ctx: {
+      organizationId: string
+      workspaceId: string
+      inboxId?: string | null
+    },
     toolName: string,
     input: unknown,
     approverUserId: string,
@@ -396,6 +444,57 @@ export class HeldWritesController {
           obligation: openObligation ?? null,
         } as unknown as PostWithObligationInput)
         return { postingId: posting.postingId, lineIds: posting.lineIds }
+      }
+      case "createAsset": {
+        const parsed = CreateAssetRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        // periodId binds the proposal to a period (audit + close-blocking); not
+        // domain data for the org-scoped card, peeled off before the insert.
+        const { periodId, ...cardFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const asset = await createAsset(db, ctx, {
+          ...cardFields,
+          responsibleUserId: approverUserId,
+        } as unknown as AssetInput)
+        return {
+          assetId: asset.id,
+          designation: asset.designation,
+          sequenceNumber: asset.sequenceNumber,
+        }
+      }
+      case "createDepreciationPlan": {
+        const parsed = CreateDepreciationPlanRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        const { periodId, ...planFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const planId = await createDepreciationPlan(
+          db,
+          ctx,
+          planFields as unknown as DepreciationPlanInput,
+        )
+        return { depreciationPlanId: planId }
+      }
+      case "createInventoryCount": {
+        const parsed = CreateInventoryCountRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        const { periodId, ...countFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const count = await createInventoryCount(
+          db,
+          ctx,
+          countFields as unknown as InventoryCountInput,
+        )
+        return {
+          inventoryCountId: count.id,
+          designation: count.designation,
+          sequenceNumber: count.sequenceNumber,
+        }
       }
       default:
         throw new ValidationError(

@@ -158,11 +158,11 @@ export async function createEvent(
     db,
     sql`INSERT INTO accounting_event
           (organization_id, workspace_id, period_id, number_series_id, sequence_number, designation,
-           party_id, counterparty_id, description, content, occurred_at, occurred_on, responsible_user_id)
+           party_id, counterparty_id, description, content, occurred_at, occurred_on, responsible_user_id, inbox_id)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
            ${allocated.sequenceNumber}, ${allocated.designation}, ${input.partyId ?? null}, ${counterpartyId},
-           ${input.description}, ${input.content ?? null}, ${occurredAt}, ${occurredOn}, ${input.responsibleUserId}::uuid)
+           ${input.description}, ${input.content ?? null}, ${occurredAt}, ${occurredOn}, ${input.responsibleUserId}::uuid, ${ctx.inboxId ?? null})
         RETURNING id`,
   )
   return {
@@ -204,11 +204,11 @@ export async function captureDocument(
     db,
     sql`INSERT INTO summary_record
           (organization_id, workspace_id, period_id, number_series_id, sequence_number, designation,
-           type, issued_at, tax_point_date, received_date, rounding_amount)
+           type, issued_at, tax_point_date, received_date, rounding_amount, inbox_id)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.periodId}::uuid, ${input.seriesId}::uuid,
            ${allocated.sequenceNumber}, ${allocated.designation}, ${input.type}, ${input.issuedAt}::timestamptz,
-           ${input.taxPointDate ?? null}::date, ${input.receivedDate ?? null}::date, ${input.roundingAmount ?? "0"})
+           ${input.taxPointDate ?? null}::date, ${input.receivedDate ?? null}::date, ${input.roundingAmount ?? "0"}, ${ctx.inboxId ?? null})
         RETURNING id`,
   )
 
@@ -216,8 +216,8 @@ export async function captureDocument(
   for (const line of input.lines) {
     const indiv = await one<{ id: string }>(
       db,
-      sql`INSERT INTO individual_record (organization_id, summary_record_id, accounting_event_id, description)
-          VALUES (${ctx.organizationId}::uuid, ${doc.id}::uuid, ${line.eventId}::uuid, ${line.description ?? null})
+      sql`INSERT INTO individual_record (organization_id, summary_record_id, accounting_event_id, description, inbox_id)
+          VALUES (${ctx.organizationId}::uuid, ${doc.id}::uuid, ${line.eventId}::uuid, ${line.description ?? null}, ${ctx.inboxId ?? null})
           RETURNING id`,
     )
     const partialRecordIds: string[] = []
@@ -300,12 +300,12 @@ async function insertPartial(
           (organization_id, individual_record_id, quantity, measure_unit, unit_price,
            base_amount, vat_rate, vat_mode, vat_jurisdiction, supply_kind, commodity_code, vat_deductible, advance_settlement, vat_amount,
            currency_code, fx_rate_kind, fx_rate, vat_fx_rate,
-           base_in_accounting_currency, vat_in_accounting_currency)
+           base_in_accounting_currency, vat_in_accounting_currency, inbox_id)
         VALUES
           (${ctx.organizationId}::uuid, ${individualRecordId}::uuid, ${p.quantity ?? null}, ${p.measureUnit ?? null}, ${p.unitPrice ?? null},
            ${p.baseAmount}, ${p.vatRate ?? null}, ${p.vatMode}, ${p.vatJurisdiction ?? null}, ${p.supplyKind ?? null}, ${p.commodityCode ?? null}, ${p.vatDeductible ?? true}, ${p.advanceSettlement ?? false}, ${vatAmount},
            ${p.currencyCode}, ${p.fxRateKind ?? null}, ${p.fxRate ?? null}, ${p.vatFxRate ?? null},
-           ${baseInAcc}, ${vatInAcc})
+           ${baseInAcc}, ${vatInAcc}, ${ctx.inboxId ?? null})
         RETURNING id`,
   )
   return r.id

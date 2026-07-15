@@ -45,11 +45,11 @@ export async function openItem(
     db,
     sql`INSERT INTO open_item
           (organization_id, workspace_id, counterparty_id, origin_posting_id, account_number, direction,
-           variable_symbol, original_amount, currency_code, issue_date, due_date)
+           variable_symbol, original_amount, currency_code, issue_date, due_date, inbox_id)
         VALUES
           (${ctx.organizationId}::uuid, ${ctx.workspaceId}::uuid, ${input.counterpartyId}::uuid, ${input.originPostingId}::uuid,
            ${input.accountNumber}, ${input.direction}, ${input.variableSymbol ?? null}, ${input.originalAmount},
-           ${input.currencyCode}, ${input.issueDate}::date, ${input.dueDate ?? null})
+           ${input.currencyCode}, ${input.issueDate}::date, ${input.dueDate ?? null}, ${ctx.inboxId ?? null})
         RETURNING id`,
   )
   return r.id

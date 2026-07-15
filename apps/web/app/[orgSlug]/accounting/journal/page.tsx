@@ -43,6 +43,7 @@ export default async function JournalPage({
     amount: r.amount,
     eventDescription: r.event_description,
     counterpartyName: r.counterparty_name,
+    createdByAgent: r.inbox_id != null,
   }))
 
   return (

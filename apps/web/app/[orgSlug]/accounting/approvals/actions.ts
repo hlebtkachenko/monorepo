@@ -16,13 +16,24 @@ import {
 import { organization } from "@workspace/db/schema"
 import {
   captureAndBookIfInvoice,
+  createAsset,
+  createDepreciationPlan,
   createEvent,
-  post,
+  createInventoryCount,
+  mintInboxItem,
+  postWithObligation,
+  type AssetInput,
+  type DepreciationPlanInput,
   type DocumentInput,
   type EventInput,
-  type PostInput,
+  type InventoryCountInput,
+  type ObligationDirective,
+  type PostWithObligationInput,
 } from "@workspace/accounting"
-import { stripGateEnvelope } from "@workspace/shared/api"
+import {
+  INBOX_STAMPED_OPERATION_IDS,
+  stripGateEnvelope,
+} from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
 import {
@@ -66,6 +77,10 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /** [Tier 4] Actor that authored the write → inbox_item.created_by provenance. */
+  actor_kind: string
+  /** [Tier 4] The agent's rationale → inbox_item.reasoning. */
+  rationale: string | null
   /**
    * [WS-2] OCR template this write was derived from, read from the gate's audit
    * `output_json.serverGate.templateId` (NULL for structured-export writes).
@@ -145,6 +160,7 @@ export async function resolveHeldWrite(
           // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
+                     actor_kind::text as actor_kind, rationale,
                      (output_json->'serverGate'->>'templateId') as template_id,
                      (output_json->'serverGate') as server_gate
               from tool_call_log
@@ -215,6 +231,31 @@ export async function resolveHeldWrite(
           : rawInput
         const fields = stripGateEnvelope(mergedInput)
 
+        // [Tier 4] Mint the provenance record for this landed proposal and thread
+        // its id onto the ctx, so every row the replay INSERTs carries inbox_id
+        // ("Created by Agent"). Minted inside the FOR-UPDATE-guarded approve tx →
+        // atomic with the landing, one item per approved write (append-only).
+        // Gated on actor_kind: a HUMAN-authored held write (e.g. a human-bound key
+        // parked on the amount ceiling) approved here leaves inbox_id NULL —
+        // indistinguishable from a direct human booking — so the read-model
+        // `inbox_id IS NOT NULL` filter means exactly "agent-originated". Also
+        // gated on the op: only the ledger-fact ops land rows with an inbox_id
+        // column, so a register-card creator mints no orphan inbox_item.
+        const inboxId =
+          row.actor_kind !== "human" &&
+          (INBOX_STAMPED_OPERATION_IDS as readonly string[]).includes(
+            row.tool_name,
+          )
+            ? await mintInboxItem(db, orgCtx, {
+                toolCallLogId: id,
+                kind: row.tool_name,
+                createdBy: row.actor_kind,
+                source: "agent",
+                reasoning: row.rationale,
+              })
+            : null
+        const writeCtx = { ...orgCtx, inboxId }
+
         let applied: Record<string, unknown>
         switch (row.tool_name) {
           case "createAccountingEvent": {
@@ -223,7 +264,7 @@ export async function resolveHeldWrite(
               orgCtx.organizationId,
               (fields as { periodId: string }).periodId,
             )
-            const ev = await createEvent(db, orgCtx, {
+            const ev = await createEvent(db, writeCtx, {
               ...fields,
               responsibleUserId: ctx.userId,
             } as unknown as EventInput)
@@ -250,7 +291,7 @@ export async function resolveHeldWrite(
             // (throws → the whole approve rolls back, the row stays held).
             const { doc, postingIds } = await captureAndBookIfInvoice(
               db,
-              orgCtx,
+              writeCtx,
               docInput,
               ctx.userId,
             )
@@ -264,23 +305,87 @@ export async function resolveHeldWrite(
             break
           }
           case "createAccountingPosting": {
-            const { kind, entry } = fields as {
+            const { kind, entry, openObligation } = fields as {
               kind?: unknown
               entry?: unknown
+              openObligation?: unknown
             }
             await lockPeriodInTx(
               db,
               orgCtx.organizationId,
               (entry as { periodId: string }).periodId,
             )
-            const posting = await post(db, orgCtx, {
+            // postWithObligation, NOT bare post — the stored payload's optional
+            // openObligation directive (top-level domain data, survives
+            // stripGateEnvelope) must replay identically to the API held-write
+            // path (held-writes.controller.ts), or approving the SAME held posting
+            // via the web UI vs the public API would book differently (the web
+            // path would silently drop the saldokonto obligation). #740 wired the
+            // live + API paths; this closes the web replay to match.
+            const posting = await postWithObligation(db, writeCtx, {
               kind,
               entry: {
                 ...(entry as Record<string, unknown>),
                 responsibleUserId: ctx.userId,
               },
-            } as unknown as PostInput)
+              obligation:
+                (openObligation as ObligationDirective | null | undefined) ??
+                null,
+            } as unknown as PostWithObligationInput)
             applied = { postingId: posting.postingId, lineIds: posting.lineIds }
+            break
+          }
+          case "createAsset": {
+            // periodId binds the proposal to a period (audit + close-blocking);
+            // it is not domain data for the org-scoped asset card, so peel it off
+            // before the domain insert (same as the API controller).
+            const { periodId, ...cardFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const asset = await createAsset(db, writeCtx, {
+              ...cardFields,
+              responsibleUserId: ctx.userId,
+            } as unknown as AssetInput)
+            applied = {
+              assetId: asset.id,
+              designation: asset.designation,
+              sequenceNumber: asset.sequenceNumber,
+            }
+            break
+          }
+          case "createDepreciationPlan": {
+            const { periodId, ...planFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const planId = await createDepreciationPlan(
+              db,
+              writeCtx,
+              planFields as unknown as Parameters<
+                typeof createDepreciationPlan
+              >[2],
+            )
+            applied = { depreciationPlanId: planId }
+            break
+          }
+          case "createInventoryCount": {
+            const { periodId, ...countFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const count = await createInventoryCount(
+              db,
+              writeCtx,
+              countFields as unknown as Parameters<
+                typeof createInventoryCount
+              >[2],
+            )
+            applied = {
+              inventoryCountId: count.id,
+              designation: count.designation,
+              sequenceNumber: count.sequenceNumber,
+            }
             break
           }
           default:

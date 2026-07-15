@@ -35,6 +35,9 @@ export {
   createDepreciationPlan,
   createInventoryCount,
   recordSignature,
+  type AssetInput,
+  type DepreciationPlanInput,
+  type InventoryCountInput,
 } from "./setup"
 export {
   DEFAULT_NUMBER_SERIES,
@@ -49,6 +52,7 @@ export {
 } from "./capture-and-book"
 export { resolveCounterparty } from "./counterparty"
 export type { CounterpartyIdentity } from "./types"
+export { mintInboxItem, type MintInboxItemInput } from "./inbox"
 
 // Posting (UC-1 step 4 — Zaúčtování)
 export {

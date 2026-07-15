@@ -79,6 +79,44 @@ function GroupHarness() {
   )
 }
 
+/** A pivot-like table: two high-level groups, each with an "Orders" measure leaf
+ * (same label) — the manager must dedup them into ONE low-level switch. */
+function PivotLikeHarness() {
+  const table = useReactTable<Row>({
+    data: [{ a: "1", b: "2" }],
+    columns: [
+      {
+        id: "online",
+        header: "Online",
+        enableHiding: true,
+        columns: [
+          { id: "o1", accessorFn: (r) => r.a, header: "x", meta: { label: "Orders" } }, // prettier-ignore
+        ],
+      },
+      {
+        id: "retail",
+        header: "Retail",
+        enableHiding: true,
+        columns: [
+          { id: "o2", accessorFn: (r) => r.b, header: "y", meta: { label: "Orders" } }, // prettier-ignore
+        ],
+      },
+    ] as ColumnDef<Row>[],
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <div>
+      <span data-testid="o1-visible">
+        {String(table.getColumn("o1")!.getIsVisible())}
+      </span>
+      <span data-testid="o2-visible">
+        {String(table.getColumn("o2")!.getIsVisible())}
+      </span>
+      <ColumnManagerMenuContent table={table} />
+    </div>
+  )
+}
+
 interface Row6 {
   a: string
   b: string
@@ -222,6 +260,18 @@ describe("ColumnManagerMenuContent", () => {
       "Zeta",
       "Epsilon",
     ])
+  })
+
+  it("dedups a reused measure into ONE low-level switch hiding it under every group", () => {
+    render(<PivotLikeHarness />)
+    expect(screen.getByTestId("o1-visible").textContent).toBe("true")
+    // Exactly one "Orders" low-level switch, not one per group.
+    const orders = screen.getAllByRole("button", { name: /Orders/ })
+    expect(orders).toHaveLength(1)
+    fireEvent.click(orders[0]!)
+    // Toggling it hides the Orders leaf under BOTH groups.
+    expect(screen.getByTestId("o1-visible").textContent).toBe("false")
+    expect(screen.getByTestId("o2-visible").textContent).toBe("false")
   })
 
   it("cascades a group (pivot high-level) column's hide toggle to its leaves", () => {

@@ -122,6 +122,72 @@ export function ColumnManagerMenuContent<TData>({
     .filter((column) => !pinnedIds.has(column.id))
     .sort((a, b) => orderIndex(a.id) - orderIndex(b.id))
 
+  // Pivot (grouped columns): the top-level rows ARE the high-level group headers;
+  // the value columns are their leaves, deduped by label into ONE low-level entry
+  // per measure — so an "Orders" toggle hides Orders under EVERY group.
+  const hasGroups = columns.some((column) => (column.columns?.length ?? 0) > 0)
+  const measureEntries: { label: string; cols: Column<TData>[] }[] = []
+  if (hasGroups) {
+    const byLabel = new Map<string, Column<TData>[]>()
+    for (const leaf of table.getAllLeafColumns()) {
+      if (!leaf.parent || !leaf.getCanHide()) continue
+      const label = getColumnLabel(leaf)
+      const list = byLabel.get(label)
+      if (list) list.push(leaf)
+      else byLabel.set(label, [leaf])
+    }
+    for (const [label, cols] of byLabel) measureEntries.push({ label, cols })
+  }
+
+  /** A deduped low-level (measure) row: one switch that toggles that measure's
+   *  column under every group at once. */
+  const renderMeasureRow = ({
+    label,
+    cols,
+  }: {
+    label: string
+    cols: Column<TData>[]
+  }) => {
+    const visible = cols.some((c) => c.getIsVisible())
+    const toggle = () => cols.forEach((c) => c.toggleVisibility(!visible))
+    return (
+      <div key={`measure:${label}`} className="relative">
+        <div className="group/col flex items-center rounded-sm hover:bg-accent">
+          <span className="flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground opacity-40">
+            <GripVertical className="size-4" />
+          </span>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={toggle}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                toggle()
+              }
+            }}
+            aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+            aria-pressed={visible}
+            className="flex h-8 flex-1 cursor-pointer items-center gap-2 rounded-sm pr-2.5 text-left text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            <span className="flex-1 truncate text-foreground">{label}</span>
+            <span
+              aria-hidden
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                visible
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input",
+              )}
+            >
+              {visible ? <CheckIcon className="size-3.5" /> : null}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const renderRow = (column: (typeof columns)[number], draggable: boolean) => {
     const visible = column.getIsVisible()
     const label = getColumnLabel(column)
@@ -251,8 +317,15 @@ export function ColumnManagerMenuContent<TData>({
           {pinnedLeft.length > 0 || pinnedRight.length > 0 ? (
             <Separator className="my-1" />
           ) : null}
-          {sectionLabel("Unpinned")}
-          {unpinned.map((column) => renderRow(column, true))}
+          {sectionLabel(hasGroups ? "High-level columns" : "Unpinned")}
+          {unpinned.map((column) => renderRow(column, !hasGroups))}
+        </>
+      ) : null}
+      {measureEntries.length > 0 ? (
+        <>
+          <Separator className="my-1" />
+          {sectionLabel("Low-level columns")}
+          {measureEntries.map((entry) => renderMeasureRow(entry))}
         </>
       ) : null}
       {/* Pinned to the bottom of the (scrolling) popover: reset the whole column

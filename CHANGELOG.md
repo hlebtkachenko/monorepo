@@ -38,6 +38,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Pivot-aware columns manager: grouped tables show a 'High-level columns' section (the group headers) plus a 'Low-level columns' section that dedups each reused measure into ONE switch (an 'Orders' toggle hides Orders under every group).
 - Pivot value columns are drag-reorderable again, but constrained WITHIN their group: each group's header gets its own dnd SortableContext so a value column can't be dragged into another group; the header-menu Move is dropped for grouped columns (drag only).
 - Pivot header polish: group double-click auto-fit now sizes every sub-column to its rendered (formatted) cell text; group-tier header cells regain the normal header hover/active states; the top-left corner cells above the pinned select + label are a clean white block with no divider.
 - Pivot header polish: group (high-level) headers now render as real interactive header cells (same dropdown/pin/resize, not a hardcoded label); pin seam + Total-row seam unified to a single 2px full-weight double border; the columns manager cascades a group column's hide toggle to its leaf value columns.

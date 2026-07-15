@@ -9,6 +9,7 @@ import type {
   ContentFooterSave,
   ContentHeaderBreadcrumbItem,
   SectionDescriptor,
+  SectionAction,
 } from "@workspace/ui/blocks/content-panel"
 
 import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
@@ -23,6 +24,8 @@ export interface ArchetypeDetailsProps {
    * `sectionSpace(...)`), rendered in order and stacked; the body scrolls.
    */
   sections: readonly SectionDescriptor[]
+  /** Handles action ids emitted by interactive section controls. */
+  onSectionAction?: (action: SectionAction) => void
   /**
    * Optional Save / Discard footer for a dirty record. Self-hides when
    * `dirty` is false. Omit entirely for a read-only Details page.
@@ -45,6 +48,7 @@ export function ArchetypeDetails({
   title,
   breadcrumb,
   sections,
+  onSectionAction,
   save,
 }: ArchetypeDetailsProps) {
   return (
@@ -54,6 +58,7 @@ export function ArchetypeDetails({
       </AppPageHeader>
       <ContentPanel
         sections={sections}
+        onSectionAction={onSectionAction}
         footer={save != null ? <ContentFooter save={save} /> : undefined}
       />
     </>

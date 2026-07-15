@@ -1667,8 +1667,25 @@ CREATE TABLE public.app_user (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     experience public.app_user_experience,
+    title_prefix text,
+    given_name text,
+    family_name text,
+    title_suffix text,
+    department text,
+    theme character varying(10) DEFAULT 'system'::character varying NOT NULL,
+    icon_style character varying(20) DEFAULT 'lucide'::character varying NOT NULL,
+    date_format character varying(20) DEFAULT 'DD/MM/YYYY'::character varying NOT NULL,
+    time_format character varying(10) DEFAULT '24-hour'::character varying NOT NULL,
+    marketing_consent boolean DEFAULT false NOT NULL,
+    product_updates_consent boolean DEFAULT false NOT NULL,
+    signature_data text,
+    deleted_at timestamp with time zone,
+    CONSTRAINT app_user_date_format_valid CHECK (((date_format)::text = ANY ((ARRAY['DD/MM/YYYY'::character varying, 'MM/DD/YYYY'::character varying, 'YYYY-MM-DD'::character varying])::text[]))),
+    CONSTRAINT app_user_icon_style_valid CHECK (((icon_style)::text = ANY ((ARRAY['lucide'::character varying, 'phosphor'::character varying, 'fontawesome'::character varying])::text[]))),
     CONSTRAINT app_user_phone_format CHECK (((phone IS NULL) OR (phone ~ '^\+[1-9][0-9]{7,14}$'::text))),
-    CONSTRAINT app_user_system_role_valid CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text])))
+    CONSTRAINT app_user_system_role_valid CHECK ((role = ANY (ARRAY['user'::text, 'admin'::text]))),
+    CONSTRAINT app_user_theme_valid CHECK (((theme)::text = ANY ((ARRAY['system'::character varying, 'light'::character varying, 'dark'::character varying])::text[]))),
+    CONSTRAINT app_user_time_format_valid CHECK (((time_format)::text = ANY ((ARRAY['24-hour'::character varying, '12-hour'::character varying])::text[])))
 );
 
 --

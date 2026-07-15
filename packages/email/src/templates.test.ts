@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
 
 import {
+  accountDangerOtpEmail,
   inviteEmail,
   magicLinkEmail,
   passwordResetEmail,
@@ -96,6 +97,24 @@ describe("inviteEmail", () => {
   it("degrades gracefully without an inviter", () => {
     const m = build({ inviterName: null, inviterEmail: null })
     expect(m.html).toContain("You've been invited to")
+  })
+})
+
+describe("account danger OTP email", () => {
+  it("contains the one-time code and the requested action", () => {
+    const message = accountDangerOtpEmail({
+      to: "owner@example.com",
+      code: "123456",
+      purpose: "delete_account",
+    })
+
+    expect(message.subject).toBe("Confirm a sensitive account action")
+    expect(message.html).toContain("123456")
+    expect(message.text).toContain("delete your account")
+    expect(message.text).toContain("expires in 10 minutes")
+    // Migrated onto the shared shell during merge — verify it routes through it.
+    expect(message.replyTo).toBe("support@afframe.com")
+    expect(message.html).toContain("https://app.afframe.com/icon-512.png")
   })
 })
 

@@ -55,10 +55,15 @@ describe("ContentFooter — save", () => {
 
     wrap(<ContentFooter save={{ dirty: true, onSave, onDiscard }} />)
 
-    await user.click(screen.getByRole("button", { name: "Discard" }))
+    const discard = screen.getByRole("button", { name: "Discard" })
+    const save = screen.getByRole("button", { name: "Save changes" })
+    expect(discard).toHaveAttribute("type", "button")
+    expect(save).toHaveAttribute("type", "button")
+
+    await user.click(discard)
     expect(onDiscard).toHaveBeenCalledTimes(1)
 
-    await user.click(screen.getByRole("button", { name: "Save changes" }))
+    await user.click(save)
     expect(onSave).toHaveBeenCalledTimes(1)
   })
 
@@ -85,6 +90,41 @@ describe("ContentFooter — save", () => {
       />,
     )
     expect(container.querySelector('[data-slot="content-footer"]')).toBeNull()
+  })
+
+  it("keeps a persistent page link visible when the record is clean", () => {
+    wrap(
+      <ContentFooter
+        save={{
+          dirty: false,
+          onSave: () => {},
+          onDiscard: () => {},
+          persistentLink: { label: "Profile history", href: "/history" },
+        }}
+      />,
+    )
+    expect(
+      screen.getByRole("link", { name: "Profile history" }),
+    ).toHaveAttribute("href", "/history")
+  })
+
+  it("runs a persistent local action when the record is clean", async () => {
+    const user = userEvent.setup()
+    const onSelect = vi.fn()
+
+    wrap(
+      <ContentFooter
+        save={{
+          dirty: false,
+          onSave: () => {},
+          onDiscard: () => {},
+          persistentAction: { label: "Profile history", onSelect },
+        }}
+      />,
+    )
+
+    await user.click(screen.getByRole("button", { name: "Profile history" }))
+    expect(onSelect).toHaveBeenCalledTimes(1)
   })
 })
 

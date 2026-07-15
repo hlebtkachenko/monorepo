@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, within } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
 
@@ -7,6 +7,7 @@ import { sectionDetailsTable } from "./section-details-table"
 import { SectionDetailsTableRenderer } from "./section-details-table-renderer"
 import type { SectionDetailsTablePayload } from "./section-details-table"
 import { isSectionDescriptor } from "./section"
+import { SectionActionProvider } from "./section-action-context"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
@@ -101,6 +102,40 @@ describe("SectionDetailsTableRenderer — display", () => {
     wrap(<SectionDetailsTableRenderer props={base({ mode: "readonly" })} />)
     expect(screen.queryByRole("button", { name: "Edit row" })).toBeNull()
     expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull()
+  })
+
+  it("dispatches a confirmed read-only row action with the row id", () => {
+    const onAction = vi.fn()
+    wrap(
+      <SectionActionProvider onAction={onAction}>
+        <SectionDetailsTableRenderer
+          props={base({
+            mode: "readonly",
+            rowAction: {
+              label: "Revoke key",
+              actionId: "api-key.revoke",
+              variant: "destructive",
+              confirmTitle: "Revoke this API key?",
+              confirmDescription: "This cannot be undone.",
+            },
+          })}
+        />
+      </SectionActionProvider>,
+    )
+
+    const csRow = screen
+      .getByText("Česká spořitelna")
+      .closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(csRow).getByRole("button", { name: "Revoke key" }))
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Revoke key",
+      }),
+    )
+    expect(onAction).toHaveBeenCalledWith({
+      id: "api-key.revoke",
+      payload: { rowId: "cs" },
+    })
   })
 })
 

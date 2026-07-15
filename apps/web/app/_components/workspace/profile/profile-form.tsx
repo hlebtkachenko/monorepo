@@ -1,221 +1,403 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useLocale } from "next-intl"
-import { useTheme } from "next-themes"
 
-import {
-  locales,
-  localeLabel,
-  LOCALE_COOKIE,
-  isLocale,
-} from "@workspace/i18n/config"
-import { ContentPanel, RecordWorkspace } from "@workspace/ui/blocks/content-panel"
+import { ArchetypeDetails } from "@workspace/ui/blocks/archetypes"
 import { initialsOf } from "@workspace/ui/blocks/app-header"
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@workspace/ui/components/avatar"
-import { Badge } from "@workspace/ui/components/badge"
-import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
-import { Field, FieldLabel } from "@workspace/ui/components/field"
-import { Input } from "@workspace/ui/components/input"
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@workspace/ui/components/native-select"
+  sectionDetailsForm,
+  sectionDetailsGroup,
+  type SectionAction,
+} from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { saveDisplayNameAction } from "../../../workspace/profile/actions"
+import { saveProfileAction } from "../../../workspace/profile/actions"
+import { EmailChangeDialog } from "./email-editor"
+import {
+  ProfileHistorySheet,
+  type ProfileHistoryEvent,
+} from "./profile-history-sheet"
+import { SignatureDialog } from "./signature-editor"
+
+const PHONE_CHANGED = "profile.phone.changed"
+const AVATAR_CHANGED = "profile.avatar.changed"
+const AVATAR_REMOVED = "profile.avatar.removed"
+const CHANGE_EMAIL = "profile.email.open"
+const EDIT_SIGNATURE = "profile.signature.open"
+const POSITION_CHANGED = "profile.position.changed"
+const DEPARTMENT_CHANGED = "profile.department.changed"
 
 export interface ProfileData {
   displayName: string
   email: string
   image?: string
-  twoFactorEnabled: boolean
+  titlePrefix: string
+  givenName: string
+  familyName: string
+  titleSuffix: string
+  phone: string
+  jobTitle: string
+  department: string
+  jobTitleOptions: string[]
+  departmentOptions: string[]
+  experience: string | null
+  signatureSet: boolean
+  signaturePaths: string[]
+  history: ProfileHistoryEvent[]
 }
 
 /**
- * Your profile — the Single archetype (stack) for the signed-in user's account.
- * Display name writes back through `saveDisplayNameAction` (updates
- * `app_user.name` + `display_name`); locale + theme are already fully real
- * (cookie write + `next-themes`, untouched here). The two-factor section is
- * FULLY REAL — it reads the live `twoFactorEnabled` flag and links to the
- * real `/auth/mfa/setup` flow.
- *
- * No portaled `ContentHeader`: the nav-derived title ("Your profile") is
- * correct, so a custom header would only echo it.
+ * Your profile — the Details archetype for the signed-in user's account.
+ * Identity writes through `saveProfileAction`; account preferences live on
+ * their dedicated profile subpage.
  */
 export function ProfileForm({ profile }: { profile: ProfileData }) {
-  const [displayName, setDisplayName] = React.useState(profile.displayName)
+  const [form, setForm] = React.useState(profile)
+  const [croppedAvatar, setCroppedAvatar] = React.useState<Blob | null>(null)
+  const [removeAvatar, setRemoveAvatar] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
-  const dirty = displayName !== profile.displayName
+  const [revision, setRevision] = React.useState(0)
+  const [emailOpen, setEmailOpen] = React.useState(false)
+  const [signatureOpen, setSignatureOpen] = React.useState(false)
+  const [historyOpen, setHistoryOpen] = React.useState(false)
+  const profileDirty = JSON.stringify(form) !== JSON.stringify(profile)
+  const avatarDirty =
+    croppedAvatar !== null || (removeAvatar && profile.image !== undefined)
+  const dirty = profileDirty || avatarDirty
 
   const router = useRouter()
-  const locale = useLocale()
-  const { theme = "system", setTheme } = useTheme()
+  const formRef = React.useRef<HTMLFormElement>(null)
+  const set = <K extends keyof ProfileData>(key: K, value: ProfileData[K]) =>
+    setForm((current) => ({ ...current, [key]: value }))
 
-  async function onSave() {
-    setSaving(true)
-    const result = await saveDisplayNameAction({ displayName })
-    setSaving(false)
-    if (result.ok) {
-      toast.success("Profile saved")
-      router.refresh()
-    } else {
-      toast.error("Could not save profile", {
-        description: "Try again in a moment.",
-      })
+  function onSectionAction(action: SectionAction) {
+    if (action.id === PHONE_CHANGED && typeof action.payload === "string") {
+      set("phone", action.payload)
+    }
+    if (action.id === AVATAR_CHANGED && action.payload instanceof Blob) {
+      setCroppedAvatar(action.payload)
+      setRemoveAvatar(false)
+    }
+    if (action.id === AVATAR_REMOVED) {
+      setCroppedAvatar(null)
+      setRemoveAvatar(true)
+    }
+    if (action.id === CHANGE_EMAIL) setEmailOpen(true)
+    if (action.id === EDIT_SIGNATURE) setSignatureOpen(true)
+    if (action.id === POSITION_CHANGED && typeof action.payload === "string") {
+      set("jobTitle", action.payload)
+    }
+    if (
+      action.id === DEPARTMENT_CHANGED &&
+      typeof action.payload === "string"
+    ) {
+      set("department", action.payload)
     }
   }
 
-  // Persist the chosen locale (NEXT_LOCALE cookie, 1y) + refresh so the
-  // server re-resolves messages — same mechanism as the header account menu.
-  const setLocale = (next: string) => {
-    if (!isLocale(next)) return
-    document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
-    router.refresh()
+  async function onSave() {
+    if (!formRef.current?.reportValidity()) return
+    setSaving(true)
+    try {
+      if (removeAvatar && !croppedAvatar) {
+        const response = await fetch("/api/upload/avatar", { method: "DELETE" })
+        if (!response.ok) throw new Error("avatar delete failed")
+      }
+      if (croppedAvatar) {
+        const body = new FormData()
+        body.append(
+          "file",
+          croppedAvatar,
+          croppedAvatar.type === "image/png" ? "avatar.png" : "avatar.jpg",
+        )
+        const response = await fetch("/api/upload/avatar", {
+          method: "POST",
+          body,
+        })
+        if (!response.ok) throw new Error("avatar upload failed")
+      }
+      if (profileDirty) {
+        const result = await saveProfileAction({
+          titlePrefix: form.titlePrefix,
+          givenName: form.givenName,
+          familyName: form.familyName,
+          titleSuffix: form.titleSuffix,
+          displayName: form.displayName,
+          phone: form.phone,
+          jobTitle: form.jobTitle,
+          department: form.department,
+        })
+        if (!result.ok) throw new Error("profile save failed")
+      }
+      toast.success("Profile saved")
+      setCroppedAvatar(null)
+      setRemoveAvatar(false)
+      router.refresh()
+    } catch {
+      toast.error("Could not save profile", {
+        description: "Try again in a moment.",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
+  function onFormChange(event: React.FormEvent<HTMLFormElement>) {
+    const target = event.target as HTMLInputElement
+    switch (target.name) {
+      case "title_prefix":
+        set("titlePrefix", target.value)
+        break
+      case "given_name":
+        set("givenName", target.value)
+        break
+      case "family_name":
+        set("familyName", target.value)
+        break
+      case "title_suffix":
+        set("titleSuffix", target.value)
+        break
+      case "display_name":
+        set("displayName", target.value)
+        break
+    }
+  }
+
+  const sections = [
+    sectionDetailsGroup({
+      title: "General information",
+      sections: [
+        sectionDetailsForm({
+          title: "Identity",
+          description: "How your name appears across the app.",
+          fields: [
+            {
+              label: "Profile photo",
+              span: 6,
+              control: {
+                kind: "image-upload",
+                src: removeAvatar ? undefined : profile.image,
+                alt: form.displayName,
+                fallback: initialsOf(form.displayName),
+                changeActionId: AVATAR_CHANGED,
+                removeActionId: AVATAR_REMOVED,
+                resetKey: revision,
+              },
+            },
+            {
+              label: "Public / display name",
+              name: "display_name",
+              span: 3,
+              hover: {
+                description:
+                  "Other people see this name in activity logs and when they mention you.",
+              },
+              control: {
+                kind: "text",
+                value: form.displayName,
+                required: true,
+              },
+            },
+            {
+              label: "Title before",
+              name: "title_prefix",
+              span: 1,
+              startNewRow: true,
+              control: {
+                kind: "text",
+                value: form.titlePrefix,
+                placeholder: "Ing.",
+              },
+            },
+            {
+              label: "First name",
+              name: "given_name",
+              span: 2,
+              control: {
+                kind: "text",
+                value: form.givenName,
+              },
+            },
+            {
+              label: "Last name",
+              name: "family_name",
+              span: 2,
+              control: {
+                kind: "text",
+                value: form.familyName,
+              },
+            },
+            {
+              label: "Title after",
+              name: "title_suffix",
+              span: 1,
+              control: {
+                kind: "text",
+                value: form.titleSuffix,
+                placeholder: "MBA",
+              },
+            },
+          ],
+        }),
+        sectionDetailsForm({
+          title: "Contact and signature",
+          description: "Your verified contact details and saved signing mark.",
+          fields: [
+            {
+              label: "Phone",
+              name: "phone",
+              span: 3,
+              startNewRow: true,
+              control: {
+                kind: "phone",
+                value: form.phone,
+                changeActionId: PHONE_CHANGED,
+              },
+            },
+            {
+              label: "Email",
+              name: "email",
+              span: 3,
+              startNewRow: true,
+              control: { kind: "text", value: profile.email, disabled: true },
+            },
+            {
+              label: "Email address",
+              span: 3,
+              control: {
+                kind: "button",
+                label: "Change email",
+                actionId: CHANGE_EMAIL,
+                variant: "outline",
+              },
+            },
+            {
+              label: "Signature",
+              span: 3,
+              startNewRow: true,
+              control: {
+                kind: "status",
+                value: profile.signatureSet ? "Saved" : "Not added",
+                tone: profile.signatureSet ? "success" : "destructive",
+              },
+            },
+            {
+              label: "Signing pad",
+              span: 3,
+              control: {
+                kind: "button",
+                label: profile.signatureSet
+                  ? "Edit signature"
+                  : "Add signature",
+                actionId: EDIT_SIGNATURE,
+                variant: "outline",
+              },
+            },
+          ],
+        }),
+        sectionDetailsForm({
+          title: "Company structure",
+          description:
+            "Your role in this workspace and where colleagues find you.",
+          fields: [
+            {
+              label: "Position",
+              name: "job_title",
+              span: 3,
+              control: {
+                kind: "creatable-combobox",
+                value: form.jobTitle,
+                placeholder: "Select or create a position",
+                options: profile.jobTitleOptions.map((value) => ({
+                  label: value,
+                  value,
+                })),
+                changeActionId: POSITION_CHANGED,
+              },
+            },
+            {
+              label: "Department",
+              name: "department",
+              span: 3,
+              control: {
+                kind: "creatable-combobox",
+                value: form.department,
+                placeholder: "Select or create a department",
+                options: profile.departmentOptions.map((value) => ({
+                  label: value,
+                  value,
+                })),
+                changeActionId: DEPARTMENT_CHANGED,
+              },
+            },
+            {
+              label: "Onboarding experience",
+              span: 3,
+              control: {
+                kind: "text",
+                value:
+                  {
+                    new: "New to accounting",
+                    some: "Some experience",
+                    bookkeeper: "Bookkeeper",
+                    accountant: "Accountant",
+                  }[form.experience ?? ""] ?? "Not selected",
+                disabled: true,
+              },
+            },
+          ],
+        }),
+      ],
+    }),
+  ]
+
   return (
-    <ContentPanel bodyClassName="flex min-h-0 flex-col p-0">
-      <RecordWorkspace
-        maxWidth="3xl"
-        footer={
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={!dirty || saving}
-              onClick={() => setDisplayName(profile.displayName)}
-            >
-              Discard
-            </Button>
-            <Button
-              size="sm"
-              disabled={!dirty || saving}
-              onClick={() => void onSave()}
-            >
-              {saving ? "Saving…" : "Save changes"}
-            </Button>
-          </>
-        }
+    <>
+      <form
+        ref={formRef}
+        className="flex h-full min-h-0 flex-col overflow-hidden"
+        onChange={onFormChange}
+        onSubmit={(event) => event.preventDefault()}
       >
-        <div className="flex flex-col gap-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Identity</h2>
-              </CardTitle>
-              <CardDescription>
-                Your name and avatar across the app.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="@container">
-              <div className="flex flex-col gap-4 @xl:flex-row @xl:items-start">
-                <Avatar className="size-14">
-                  <AvatarImage src={profile.image} alt={profile.displayName} />
-                  <AvatarFallback>
-                    {initialsOf(profile.displayName)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 grid-cols-1 gap-4 @sm:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="pf-name">Display name</FieldLabel>
-                    <Input
-                      id="pf-name"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="pf-email">Email</FieldLabel>
-                    <Input id="pf-email" value={profile.email} readOnly />
-                  </Field>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Two-factor authentication</h2>
-              </CardTitle>
-              <CardDescription>
-                Protect your account with a TOTP authenticator app.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-4">
-                <Badge
-                  variant={profile.twoFactorEnabled ? "default" : "outline"}
-                >
-                  {profile.twoFactorEnabled ? "Enabled" : "Not set up"}
-                </Badge>
-                {!profile.twoFactorEnabled ? (
-                  <Button asChild variant="outline" size="sm">
-                    <Link href="/auth/mfa/setup">Set up two-factor</Link>
-                  </Button>
-                ) : null}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                <h2>Preferences</h2>
-              </CardTitle>
-              <CardDescription>
-                Theme and language for your account.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="@container">
-              <div className="grid grid-cols-1 gap-4 @sm:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="pf-theme">Theme</FieldLabel>
-                  <NativeSelect
-                    id="pf-theme"
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                  >
-                    <NativeSelectOption value="system">
-                      System
-                    </NativeSelectOption>
-                    <NativeSelectOption value="light">Light</NativeSelectOption>
-                    <NativeSelectOption value="dark">Dark</NativeSelectOption>
-                  </NativeSelect>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="pf-language">Language</FieldLabel>
-                  <NativeSelect
-                    id="pf-language"
-                    value={locale}
-                    onChange={(e) => setLocale(e.target.value)}
-                  >
-                    {locales.map((code) => (
-                      <NativeSelectOption key={code} value={code}>
-                        {localeLabel[code]}
-                      </NativeSelectOption>
-                    ))}
-                  </NativeSelect>
-                </Field>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </RecordWorkspace>
-    </ContentPanel>
+        <ArchetypeDetails
+          key={revision}
+          title="Profile"
+          sections={sections}
+          onSectionAction={onSectionAction}
+          save={{
+            dirty,
+            saving,
+            persistentAction: {
+              label: "Profile history",
+              onSelect: () => setHistoryOpen(true),
+            },
+            onSave: () => void onSave(),
+            onDiscard: () => {
+              formRef.current?.reset()
+              setForm(profile)
+              setCroppedAvatar(null)
+              setRemoveAvatar(false)
+              setRevision((value) => value + 1)
+            },
+          }}
+        />
+      </form>
+      <EmailChangeDialog
+        currentEmail={profile.email}
+        open={emailOpen}
+        onOpenChange={setEmailOpen}
+      />
+      <SignatureDialog
+        initialPaths={profile.signaturePaths}
+        open={signatureOpen}
+        onOpenChange={setSignatureOpen}
+      />
+      <ProfileHistorySheet
+        events={profile.history}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
+    </>
   )
 }

@@ -55,7 +55,18 @@ export function workspaceBottomNav(): BottomNavItem[] {
 function companiesNav(): SidebarNavEntry[] {
   return [
     { label: "All companies", href: BASE, icon: "Building2" },
-    { label: "Your profile", href: `${BASE}/profile`, icon: "User" },
+    {
+      label: "Your profile",
+      href: `${BASE}/profile`,
+      icon: "User",
+      subpages: [
+        { label: "General", href: `${BASE}/profile` },
+        { label: "Appearance", href: `${BASE}/profile/appearance` },
+        { label: "Security", href: `${BASE}/profile/security` },
+        { label: "Privacy", href: `${BASE}/profile/privacy` },
+        { label: "Permissions", href: `${BASE}/profile/permissions` },
+      ],
+    },
   ]
 }
 

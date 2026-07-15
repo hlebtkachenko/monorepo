@@ -38,7 +38,7 @@ export interface ContentFooterSelection {
 
 /** Changed-data surface — Save / Discard for a dirty record. */
 export interface ContentFooterSave {
-  /** Whether the record has unsaved edits. The footer is hidden when `false`. */
+  /** Whether the record has unsaved edits. */
   dirty: boolean
   /** A save is in flight — both buttons disable, Save shows `savingLabel`. */
   saving?: boolean
@@ -48,6 +48,10 @@ export interface ContentFooterSave {
   saveLabel?: string
   savingLabel?: string
   discardLabel?: string
+  /** Optional page action that remains visible when the form is clean. */
+  persistentLink?: { label: string; href: string }
+  /** Optional local action that remains visible when the form is clean. */
+  persistentAction?: { label: string; onSelect: () => void }
 }
 
 export interface ContentFooterProps {
@@ -59,7 +63,7 @@ export interface ContentFooterProps {
 }
 
 const BAR =
-  "flex shrink-0 items-center gap-2 border-t border-border-subtle bg-shell-surface px-3 py-2"
+  "flex shrink-0 flex-wrap items-center gap-2 border-t border-border-subtle bg-shell-surface px-3 py-2"
 
 /**
  * ContentFooter — the single sticky bottom action surface of the Content Panel.
@@ -108,7 +112,7 @@ export function ContentFooter({
             return (
               <Button
                 key={action.id}
-                size="sm"
+                type="button"
                 variant={action.variant ?? "secondary"}
                 disabled={action.disabled}
                 onClick={action.onSelect}
@@ -124,32 +128,58 @@ export function ContentFooter({
     )
   }
 
-  if (save && save.dirty === true && !selection) {
+  if (
+    save &&
+    (save.dirty || save.persistentLink || save.persistentAction) &&
+    !selection
+  ) {
     return (
       <div
         data-slot="content-footer"
         role="group"
-        aria-label="Unsaved changes"
+        aria-label={save.dirty ? "Unsaved changes" : "Page actions"}
         className={cn(BAR, className)}
       >
-        <span className="text-sm text-muted-foreground">
-          {save.message ?? "Unsaved changes"}
-        </span>
-        <div className="ml-auto flex items-center gap-1.5">
+        {save.persistentLink ? (
+          <Button asChild variant="outline">
+            <a href={save.persistentLink.href}>{save.persistentLink.label}</a>
+          </Button>
+        ) : null}
+        {save.persistentAction ? (
           <Button
-            variant="ghost"
-            size="sm"
-            disabled={save.saving}
-            onClick={save.onDiscard}
+            type="button"
+            variant="outline"
+            onClick={save.persistentAction.onSelect}
           >
-            {save.discardLabel ?? "Discard"}
+            {save.persistentAction.label}
           </Button>
-          <Button size="sm" disabled={save.saving} onClick={save.onSave}>
-            {save.saving
-              ? (save.savingLabel ?? "Saving…")
-              : (save.saveLabel ?? "Save changes")}
-          </Button>
-        </div>
+        ) : null}
+        {save.dirty ? (
+          <>
+            <span className="hidden text-sm text-muted-foreground sm:inline">
+              {save.message ?? "Unsaved changes"}
+            </span>
+            <div className="ml-auto flex items-center gap-1.5">
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={save.saving}
+                onClick={save.onDiscard}
+              >
+                {save.discardLabel ?? "Discard"}
+              </Button>
+              <Button
+                type="button"
+                disabled={save.saving}
+                onClick={save.onSave}
+              >
+                {save.saving
+                  ? (save.savingLabel ?? "Saving…")
+                  : (save.saveLabel ?? "Save changes")}
+              </Button>
+            </div>
+          </>
+        ) : null}
       </div>
     )
   }

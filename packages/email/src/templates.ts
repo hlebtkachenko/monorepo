@@ -279,3 +279,31 @@ export function inviteEmail(input: {
     brandName: input.brandName,
   })
 }
+
+export function accountDangerOtpEmail(input: {
+  to: string
+  code: string
+  purpose: "delete_account" | "leave_workspace"
+}): EmailMessage {
+  const action =
+    input.purpose === "delete_account"
+      ? "delete your account"
+      : "leave your workspace"
+  const subject = "Confirm a sensitive account action"
+  // No button/link — the payload is a one-time code, not a URL.
+  const content = headingRow(
+    `              <h1 style="${H1_STYLE}">Confirm your account action</h1>
+              <p style="${BODY_STYLE}">Use this one-time code to ${escapeHtml(action)}:</p>
+              <p style="margin:0 0 16px 0; font-size:32px; line-height:1.2; font-weight:700; letter-spacing:0.18em; color:#111111;">${escapeHtml(input.code)}</p>
+              <p style="${BODY_STYLE}">The code expires in 10 minutes and can be used only once.</p>
+              <p style="margin:0; font-size:13px; line-height:1.6; color:#6b7280;">If you did not request this, do not share the code and secure your account.</p>`,
+  )
+  const text = `Use code ${input.code} to ${action}. It expires in 10 minutes and can be used only once. If you did not request this, secure your account.`
+  return renderShell({
+    to: input.to,
+    subject,
+    preheader: `Your one-time code to ${action}. Expires in 10 minutes.`,
+    contentHtml: content,
+    text,
+  })
+}

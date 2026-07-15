@@ -189,6 +189,9 @@ paths = [
   '''(^|/)CLAUDE\.md$''',
   '''(^|/)SECURITY\.md$''',
   '''(^|/)\.gitleaks\.toml$''',
+  # @workspace/filing README carries example ISDOC invoice data (fake IBAN/DIČ,
+  # the same canonical test values as its allowlisted fixtures) in code samples.
+  '''(^|/)packages/filing/README\.md$''',
   # Test fixtures + committed OpenAPI snapshots.
   '''(^|/)tests?/''',
   '''(^|/)__fixtures__/''',

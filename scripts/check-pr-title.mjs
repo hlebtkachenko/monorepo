@@ -54,6 +54,7 @@ const SCOPES = [
   "deps-dev",
   "docs",
   "email",
+  "filing",
   "github",
   "governance",
   "i18n",

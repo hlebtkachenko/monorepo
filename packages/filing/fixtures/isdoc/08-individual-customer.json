@@ -1,0 +1,50 @@
+{
+  "invoice_id": "FV-2025-008-FO",
+  "uuid": "88888888-8888-4888-8888-888888888888",
+  "doc_type": "1",
+  "direction": "vydana",
+  "issue_date": "2025-11-28",
+  "tax_point_date": "2025-11-28",
+  "due_date": "2025-12-12",
+  "supplier": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "customer": {
+    "ico": "00000000",
+    "name": "Jan Novák",
+    "street": "Dlouhá",
+    "building": "12",
+    "city": "Praha 1",
+    "zip": "11000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": false
+  },
+  "lines": [
+    {
+      "description": "Revize komínu – byt",
+      "qty": "1",
+      "unit": "ks",
+      "unit_price_base": "800.00",
+      "vat_rate": "21"
+    }
+  ],
+  "payment_method": 42,
+  "bank": {
+    "account": "1111222233",
+    "code": "0100",
+    "name": "Komerční banka",
+    "iban": "CZ6501000000001111222233",
+    "bic": "KOMBCZPP"
+  },
+  "variable_symbol": "2025000008"
+}

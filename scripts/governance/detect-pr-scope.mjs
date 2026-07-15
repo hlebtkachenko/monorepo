@@ -52,6 +52,7 @@ const SCOPE_RULES = [
   { key: "cli", match: (f) => f.startsWith("apps/cli/") },
   { key: "auth", match: (f) => f.startsWith("packages/auth/") },
   { key: "db", match: (f) => f.startsWith("packages/db/") },
+  { key: "filing", match: (f) => f.startsWith("packages/filing/") },
   { key: "infra", match: (f) => f.startsWith("infra/") },
   { key: "ci", match: (f) => f.startsWith(".github/") },
   { key: "ui", match: (f) => f.startsWith("packages/ui/") },

@@ -1,0 +1,58 @@
+{
+  "invoice_id": "FV-2025-010-EUR",
+  "uuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "doc_type": "1",
+  "direction": "vydana",
+  "issue_date": "2025-12-01",
+  "tax_point_date": "2025-12-01",
+  "due_date": "2025-12-15",
+  "currency": {
+    "local": "CZK",
+    "foreign": "EUR",
+    "rate": "25.20",
+    "ref_rate": "1"
+  },
+  "supplier": {
+    "ico": "87654321",
+    "dic": "CZ87654321",
+    "name": "Odběratel Beta s.r.o.",
+    "street": "Anglická",
+    "building": "20",
+    "city": "Praha",
+    "zip": "12000",
+    "country_code": "CZ",
+    "country_name": "Česká republika",
+    "is_vat_payer": true
+  },
+  "customer": {
+    "ico": "SK12345678",
+    "dic": "SK2020123456",
+    "name": "Partner Delta s.r.o.",
+    "street": "Hlavná",
+    "building": "1",
+    "city": "Bratislava",
+    "zip": "81101",
+    "country_code": "SK",
+    "country_name": "Slovensko",
+    "is_vat_payer": true
+  },
+  "lines": [
+    {
+      "description": "Export of goods to SK",
+      "qty": "2",
+      "unit": "ks",
+      "unit_price_base": "12600.00",
+      "unit_price_base_curr": "500.00",
+      "vat_rate": "0"
+    }
+  ],
+  "payment_method": 42,
+  "bank": {
+    "account": "1111222233",
+    "code": "0100",
+    "name": "Komerční banka",
+    "iban": "CZ6501000000001111222233",
+    "bic": "KOMBCZPP"
+  },
+  "variable_symbol": "2025000010"
+}

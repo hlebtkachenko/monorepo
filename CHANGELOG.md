@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- New `@workspace/filing` package: Czech e-filing XML engine. Tier 1 = ISDOC 6.0.1 read (`readIsdoc`) + write (`generateIsdoc`) + `xmllint-wasm` XSD validation (`validateFiling`) over a generic XML core, the foundation for the FÚ EPO tax filings (DPH / KH / DPPO) in later tiers
 - S3 document store: rate limiting on the cost-bearing document routes (presign-upload / confirm / mint-url) — per-user 90/min, per-workspace 900/hour, per-IP 180/min, returning 429 with Retry-After. Bounds how fast an authed tenant can mint S3 objects/egress URLs (bytes go direct-to-S3, so the risk is the S3 bill, not compute). Absolute per-workspace storage quota tracked as follow-up #729.
 - S3 document store (Stage 4b): public /v1 read/retrieve API twin — GET /v1/documents (list, workspace-scoped, includeDeleted filter) and GET /v1/documents/{id}/download-url (short-lived presigned URL, bytes fetched direct from S3, never proxied). Workspace derived from the API key, no tenant identifiers accepted; internal S3 key never exposed. OpenAPI/SDK/MCP regenerated (2 new MCP tools).
 - S3 document store (Stage 4): reusable UI-agnostic browser client (app/_lib/documents-client.ts — uploadDocument/getDocumentUrl/deleteDocument/restoreDocument, bytes direct to S3, sha256 computed in-browser) + a dev-only /workspace/debug-documents harness exercising upload→confirm→preview(PdfViewer/img)→download→soft-delete→undo end-to-end. Storage stays decoupled from any product surface.

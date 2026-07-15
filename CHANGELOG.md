@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Security
+
+- Allowlist Debian-base perl CVE-2026-13221 + Storable CVE-2026-57433 in the ECR deploy gate — base-essential, never in the Node runtime path, no upstream Debian fix; same disposition as the existing perl entries
+
 ## [v0.22.6] — 2026-07-15
 
 ### Added

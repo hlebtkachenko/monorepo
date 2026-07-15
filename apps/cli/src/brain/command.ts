@@ -27,9 +27,12 @@ import {
   type BrainDryRunInputs,
   type BrainDryRunPlan,
   type BrainSessionPlan,
+  type IrToEventContext,
   type OnboardingPlan,
   type PostingSessionContext,
 } from "@workspace/intake"
+import { createAfframeClient } from "@afframe/sdk"
+import type { CreateAccountingEventRequest } from "@workspace/shared/api"
 import { assembleLoginSections } from "@workspace/brain"
 import type {
   Invoice,
@@ -65,6 +68,13 @@ import {
   renderOnboardingExecuteResults,
   renderOnboardingPlan,
 } from "./onboard"
+import {
+  buildEventProposal,
+  eventIdempotencyKey,
+  executeEventCreate,
+  renderEventProposal,
+  renderEventResult,
+} from "./event"
 import { classifyExtractionEngine } from "./extraction-engine"
 import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
@@ -413,6 +423,124 @@ export function registerBrainCommand(program: Command): void {
         process.exitCode = 1
       }
     })
+
+  brain
+    .command("event")
+    .description(
+      "Propose the accounting EVENT (case) for an extracted invoice, carrying the supplier/customer " +
+        "IDENTITY (name/IČO/DIČ) so the derived invoice books against the RIGHT counterparty instead of " +
+        "holding on a null one. DETERMINISTIC: a plain operator-key POST /v1/accounting/events (no agent " +
+        "session). The write is GATED — HELD for human review at cold start; approve it, then pass the " +
+        "applied eventId to `brain book`. Default is print-only; --execute POSTs after confirmation. " +
+        "Needs BRAIN_API_KEY.",
+    )
+    .requiredOption(
+      "--extracted <path>",
+      "Path to the IR Invoice JSON a `brain extract` run produced.",
+    )
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { periodId, eventSeriesId, confidence, rationale, conversationId?, signals? }. " +
+        "eventSeriesId is the EVENT number series (NOT the capture's DOCUMENT series).",
+    )
+    .option(
+      "--execute",
+      "POST the create_accounting_event call (gated → HELD for review) after an explicit confirmation. " +
+        "Default is print-only.",
+    )
+    .option(
+      "--allow-missing-counterparty",
+      "Proceed with --execute even when no counterparty identity was extracted (the derived invoice will " +
+        "then HOLD on a null counterparty when booked).",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt on --execute (non-interactive operators).",
+    )
+    .action(
+      async (opts: {
+        extracted: string
+        context: string
+        execute?: boolean
+        allowMissingCounterparty?: boolean
+        yes?: boolean
+      }) => {
+        const invoice = readExtractedInvoice(opts.extracted)
+        const ctx = readEventContext(opts.context)
+        const proposal = buildEventProposal(invoice, ctx)
+        output.write(renderEventProposal(proposal))
+
+        if (!opts.execute) return
+
+        // Fail closed on a missing counterparty: emitting a bare event silently would recreate exactly the
+        // null-counterparty HOLD this command exists to avoid. Require an explicit override.
+        if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
+          output.write(
+            "brain event: refusing --execute — no counterparty identity extracted. Fix the source/IR, or " +
+              "pass --allow-missing-counterparty to propose a bare event anyway.\n",
+          )
+          process.exitCode = 1
+          return
+        }
+
+        const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
+        if (!apiKey) {
+          output.write("brain event blocked: missing BRAIN_API_KEY.\n")
+          process.exit(1)
+        }
+
+        const ok = opts.yes || (await confirmEventExecute(proposal.request))
+        if (!ok) {
+          output.write("brain event: aborted, nothing executed.\n")
+          // A non-interactive run with no --yes auto-refused (fail-closed) — signal non-zero so automation
+          // can tell "refused" from a print-only exit 0. An interactive decline stays exit 0.
+          if (!input.isTTY) process.exitCode = 1
+          return
+        }
+
+        const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
+        const key = eventIdempotencyKey(proposal.request)
+        const result = await executeEventCreate(proposal.request, client, key)
+        output.write("\n" + renderEventResult(result))
+        if (result.status === "failed") process.exitCode = 1
+      },
+    )
+}
+
+/**
+ * Read + shallow-validate the `brain event` `--context` file at the system boundary: the EVENT write needs
+ * `periodId`, `eventSeriesId` (the EVENT number series — NOT the capture's DOCUMENT series), and the gate
+ * envelope (`confidence` / `rationale`, plus optional carry-through `conversationId` / `signals`). Delegates
+ * to the shared parametric `readContextFile` (the single reader every operator input uses); its anti-widening
+ * pick keeps a stray key out, and the `_minor` reviver is a harmless no-op on a bigint-free event context.
+ */
+function readEventContext(path: string): IrToEventContext {
+  return readContextFile(
+    path,
+    "--context",
+    ["periodId", "eventSeriesId", "confidence", "rationale"],
+    ["conversationId", "signals"],
+  ) as unknown as IrToEventContext
+}
+
+/**
+ * The `brain event --execute` confirmation gate — mirrors `confirmOnboardingExecute` (same TTY check, same
+ * fail-closed non-interactive default), but names what this is: a GATED write that HOLDS for human review
+ * at cold start (not an immediately-applied create). Spells out the case description + the counterparty the
+ * server will find-or-create, so the operator confirms the partner before the write is queued.
+ */
+function confirmEventExecute(
+  request: CreateAccountingEventRequest,
+): Promise<boolean> {
+  return confirmYesNo(
+    `This will POST create_accounting_event (a GATED write — HELD for human review at cold start):\n` +
+      `  ${request.description}\n` +
+      `  counterparty: ${
+        request.counterparty ? JSON.stringify(request.counterparty) : "(none)"
+      }\n` +
+      `Proceed? [y/N]: `,
+    "brain event: non-interactive and no --yes — refusing to POST without confirmation.\n",
+  )
 }
 
 /**
@@ -459,6 +587,7 @@ function readContextFile<K extends string>(
   path: string,
   flag: string,
   requiredKeys: readonly K[],
+  optionalKeys: readonly K[] = [],
 ): Record<K, unknown> {
   const parsed: unknown = JSON.parse(
     readFileSync(path, "utf8"),
@@ -477,6 +606,9 @@ function readContextFile<K extends string>(
   const obj = parsed as Record<string, unknown>
   const picked = {} as Record<K, unknown>
   for (const key of requiredKeys) picked[key] = obj[key]
+  // Carry-through optionals: picked ONLY when present, so a widening key is still DROPPED (the
+  // anti-widening guarantee holds) while a genuine optional (conversationId / signals) survives.
+  for (const key of optionalKeys) if (key in obj) picked[key] = obj[key]
   return picked
 }
 
@@ -772,58 +904,48 @@ function readExtractedInvoice(path: string): Invoice {
 }
 
 /**
- * The live-run confirmation gate. It PROMPTS (Accept/decline) on a TTY after the plan is printed; a
- * non-interactive invocation with no `--yes` is treated as DECLINE (fail-safe — never auto-run live without
- * an explicit operator OK). Returns true only on an explicit yes.
+ * TTY-guarded yes/no confirmation gate — the single interactive-confirm helper every write command shares
+ * (book / onboard / event). Prompts on a TTY; a non-interactive invocation (no `--yes`) is a DECLINE
+ * (fail-safe — never auto-run a write without an explicit operator OK), printing `refusalMessage`. Returns
+ * true only on an explicit `y` / `yes`.
  */
-async function confirmLiveRun(count: number): Promise<boolean> {
+async function confirmYesNo(
+  prompt: string,
+  refusalMessage: string,
+): Promise<boolean> {
   if (!input.isTTY) {
-    output.write(
-      "brain book: non-interactive and no --yes — refusing to run live without confirmation.\n",
-    )
+    output.write(refusalMessage)
     return false
   }
   const rl = createInterface({ input, output })
-  const answer = (
-    await rl.question(
-      `Run ${count} live booking session(s) with the plan above? [y/N]: `,
-    )
-  )
-    .trim()
-    .toLowerCase()
+  const answer = (await rl.question(prompt)).trim().toLowerCase()
   rl.close()
   return answer === "y" || answer === "yes"
 }
 
+/** The live-run confirmation gate (after the plan is printed). */
+function confirmLiveRun(count: number): Promise<boolean> {
+  return confirmYesNo(
+    `Run ${count} live booking session(s) with the plan above? [y/N]: `,
+    "brain book: non-interactive and no --yes — refusing to run live without confirmation.\n",
+  )
+}
+
 /**
- * The `brain onboard --execute` confirmation gate — mirrors `confirmLiveRun` above exactly (same TTY check,
- * same fail-closed non-interactive default, same `readline` prompt shape), but names EXACTLY what will be
- * created: these are immediately-applied writes (a 201 on success, not a review-queue HELD), so the prompt
- * spells out each proposed call's tool name before asking. Returns true only on an explicit yes.
+ * The `brain onboard --execute` gate — spells out each proposed call (these are immediately-applied writes,
+ * a 201 on success, NOT a review-queue HELD) before asking.
  */
-export async function confirmOnboardingExecute(
+export function confirmOnboardingExecute(
   plan: OnboardingPlan,
 ): Promise<boolean> {
-  if (!input.isTTY) {
-    output.write(
-      "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
-    )
-    return false
-  }
   const summary = plan.proposedCalls
     .map((call, index) => `  [${index + 1}] ${call.tool} — ${call.purpose}`)
     .join("\n")
-  const rl = createInterface({ input, output })
-  const answer = (
-    await rl.question(
-      `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
-        `Proceed? [y/N]: `,
-    )
+  return confirmYesNo(
+    `This will CREATE the following (immediately applied, not a dry run):\n${summary}\n` +
+      `Proceed? [y/N]: `,
+    "brain onboard: non-interactive and no confirmation possible — refusing to execute without one.\n",
   )
-    .trim()
-    .toLowerCase()
-  rl.close()
-  return answer === "y" || answer === "yes"
 }
 
 /**

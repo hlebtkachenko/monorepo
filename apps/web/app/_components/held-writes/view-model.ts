@@ -86,6 +86,15 @@ export interface HeldWritePostingLineRow {
 
 export interface HeldWriteHeader {
   counterpartyName: string | null
+  /**
+   * The EXTRACTED counterparty IČO / DIČ carried on a held `createAccountingEvent` payload
+   * (`input_json.counterparty.{ico,dic}`). The server find-or-creates the counterparty by IČO → DIČ →
+   * name PRECEDENCE, so the IČO is the field that BINDS the partner — it must be visible to the reviewer,
+   * not just the name (a mis-OCR'd-but-valid IČO with a right-looking name would otherwise bind the wrong
+   * real partner undetectably). Null for capture/posting writes (their identity lives on the event).
+   */
+  counterpartyIco: string | null
+  counterpartyDic: string | null
   /** Označení of the účetní případ this write books (`UC2025…`) — null when no event resolves. */
   caseDesignation: string | null
   /** účetní případ description — the supplier/context text, shown when no counterparty row is linked. */
@@ -664,8 +673,13 @@ function headerFromEvent(
   input: Record<string, unknown>,
   counterpartyName: string | null,
 ): HeldWriteHeader {
+  // The extracted identity the server will find-or-create the counterparty from. Surface the IČO/DIČ (the
+  // dedup keys) so a reviewer verifies the field that BINDS the partner, not just the name.
+  const cp = isRecord(input["counterparty"]) ? input["counterparty"] : {}
   return {
     counterpartyName,
+    counterpartyIco: asString(cp["ico"]),
+    counterpartyDic: asString(cp["dic"]),
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
@@ -687,6 +701,8 @@ function headerFromCapture(
     .find((c): c is string => c !== null)
   return {
     counterpartyName,
+    counterpartyIco: null,
+    counterpartyDic: null,
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
@@ -712,6 +728,8 @@ function headerFromPosting(
   )
   return {
     counterpartyName,
+    counterpartyIco: null,
+    counterpartyDic: null,
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,

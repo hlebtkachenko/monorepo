@@ -475,6 +475,18 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
         label="Protistrana"
         value={header.counterpartyName ?? header.caseDescription ?? "—"}
       />
+      {(header.counterpartyIco || header.counterpartyDic) && (
+        <DetailField
+          label="IČO / DIČ"
+          value={
+            <span className="tabular-nums">
+              {[header.counterpartyIco, header.counterpartyDic]
+                .filter(Boolean)
+                .join(" / ")}
+            </span>
+          }
+        />
+      )}
       <DetailField
         label="Číslo dokladu"
         value={

@@ -10,7 +10,7 @@ import {
 import { CreateFeedbackRequestSchema } from "@workspace/shared/api"
 import { ValidationError } from "@workspace/shared/errors"
 import { ApiCreatedResponse, ApiOperation, ApiTags } from "@nestjs/swagger"
-import { sendEmail } from "@workspace/email"
+import { sendEmail, escapeHtml } from "@workspace/email"
 import { BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets/constants"
 import type {
   CreateFeedbackRequest,
@@ -83,15 +83,6 @@ function buildEmail(
     text,
   )}</pre>`
   return { subject, html, text }
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
 }
 
 /**
@@ -281,7 +272,15 @@ export class FeedbackController {
     const { subject, html, text } = buildEmail(body, referenceId)
 
     try {
-      await sendEmail({ to: SUPPORT_INBOX, subject, html, text })
+      // Reply-To the submitter (when given) so support can reply directly from
+      // the notification instead of copying the address out of the body.
+      await sendEmail({
+        to: SUPPORT_INBOX,
+        subject,
+        html,
+        text,
+        replyTo: body.email ?? undefined,
+      })
     } catch (err) {
       this.logger.error(
         `[feedback ${referenceId}] email dispatch failed: ${

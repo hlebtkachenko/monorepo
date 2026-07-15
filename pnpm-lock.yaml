@@ -90,6 +90,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@workspace/filing':
         specifier: workspace:*
         version: link:../../packages/filing
@@ -828,6 +831,9 @@ importers:
       '@aws-sdk/client-sesv2':
         specifier: ^3.1079.0
         version: 3.1084.0
+      '@workspace/ui':
+        specifier: workspace:*
+        version: link:../ui
       resend:
         specifier: ^6.17.1
         version: 6.17.2

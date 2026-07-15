@@ -141,6 +141,17 @@ When a brand value isn't decided yet, the slot ships with an explicit `<BRAND-..
 
 Never hardcode product name, brand color, support email, or any brand URL outside this surface. Never re-introduce `WalletMinimal` or any other Lucide icon as a brand-mark placeholder. Never duplicate brand strings in app code — always go through `<Brand*>` components, `getBrandText()`, or `BRAND_*` constants.
 
+## Transactional Emails
+
+All transactional emails live in **`packages/email/src/templates.ts`** and share one
+cross-client shell (`renderShell`) — never hand-roll a new `<html>` or reinvent the layout.
+Key rules when adding one: `return renderShell(...)` (it returns the `EmailMessage` and stamps
+the support `replyTo`), take brand only from `BRAND_*` constants + `BRAND_APP_URL` (hosted PNG
+mark, never inline SVG), inline styles + tables only, and add a test (a guard test enforces the
+shell). Sending goes through `@workspace/email` `sendEmail()`. Full authoring + decisions:
+[`packages/email/README.md`](packages/email/README.md) and
+[`docs/specs/TRANSACTIONAL-EMAILS.md`](docs/specs/TRANSACTIONAL-EMAILS.md).
+
 ## Before Importing a Component
 
 READ the source file first. Never guess exports. The export list is at the bottom of each component file.

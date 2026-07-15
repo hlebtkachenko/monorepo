@@ -4,6 +4,7 @@ import {
   app_user,
   organization,
   organization_membership,
+  workspace,
 } from "@workspace/db/schema"
 import { sendEmail, inviteEmail } from "@workspace/email"
 
@@ -124,50 +125,63 @@ export async function issueInvite(
   // so the in-memory + payload values must agree.
   const normalizedEmail = input.email.trim().toLowerCase()
 
-  const { orgRow, inviterName } = await withAdminBypass(async (db) => {
-    const [org] = await db
-      .select({
-        id: organization.id,
-        workspace_id: organization.workspace_id,
-        legal_name: organization.legal_name,
-      })
-      .from(organization)
-      .where(eq(organization.id, input.organizationId))
-      .limit(1)
-    if (!org) {
-      throw new Error(`Organization ${input.organizationId} not found`)
-    }
-
-    let inviterDisplay: string | null = null
-    if (input.issuedByUserId) {
-      const [issuer] = await db
+  const { orgRow, workspaceName, inviterName, inviterEmail } =
+    await withAdminBypass(async (db) => {
+      const [org] = await db
         .select({
-          display_name: app_user.display_name,
-          name: app_user.name,
+          id: organization.id,
+          workspace_id: organization.workspace_id,
+          legal_name: organization.legal_name,
+          workspace_name: workspace.display_name,
         })
-        .from(app_user)
-        .where(eq(app_user.id, input.issuedByUserId))
+        .from(organization)
+        .leftJoin(workspace, eq(workspace.id, organization.workspace_id))
+        .where(eq(organization.id, input.organizationId))
         .limit(1)
-      inviterDisplay = issuer?.display_name ?? issuer?.name ?? null
-    }
+      if (!org) {
+        throw new Error(`Organization ${input.organizationId} not found`)
+      }
+      // display_name is NOT NULL + FK-guaranteed; fall back defensively.
+      const workspaceName = org.workspace_name ?? org.legal_name
 
-    // Pre-insert guard for the common (non-race) duplicate: an existing
-    // pending invite for the same (organization, email) is a clear error,
-    // not a silent second row. The partial unique index (migration 0043)
-    // closes the residual TOCTOU window between this read and the insert.
-    const [dup] = await db
-      .select({ id: auth_token.id })
-      .from(auth_token)
-      .where(
-        sql`${auth_token.kind} = 'inv' AND ${auth_token.status} = 'pending'
+      let inviterDisplay: string | null = null
+      let inviterEmail: string | null = null
+      if (input.issuedByUserId) {
+        const [issuer] = await db
+          .select({
+            display_name: app_user.display_name,
+            name: app_user.name,
+            email: app_user.email,
+          })
+          .from(app_user)
+          .where(eq(app_user.id, input.issuedByUserId))
+          .limit(1)
+        inviterDisplay = issuer?.display_name ?? issuer?.name ?? null
+        inviterEmail = issuer?.email ?? null
+      }
+
+      // Pre-insert guard for the common (non-race) duplicate: an existing
+      // pending invite for the same (organization, email) is a clear error,
+      // not a silent second row. The partial unique index (migration 0043)
+      // closes the residual TOCTOU window between this read and the insert.
+      const [dup] = await db
+        .select({ id: auth_token.id })
+        .from(auth_token)
+        .where(
+          sql`${auth_token.kind} = 'inv' AND ${auth_token.status} = 'pending'
             AND ${auth_token.payload} ->> 'organizationId' = ${org.id}
             AND lower(${auth_token.payload} ->> 'email') = ${normalizedEmail}`,
-      )
-      .limit(1)
-    if (dup) throw new DuplicatePendingInviteError(org.id, normalizedEmail)
+        )
+        .limit(1)
+      if (dup) throw new DuplicatePendingInviteError(org.id, normalizedEmail)
 
-    return { orgRow: org, inviterName: inviterDisplay }
-  })
+      return {
+        orgRow: org,
+        workspaceName,
+        inviterName: inviterDisplay,
+        inviterEmail,
+      }
+    })
 
   let minted
   try {
@@ -200,8 +214,10 @@ export async function issueInvite(
       to: normalizedEmail,
       url,
       brandName: input.brandName,
-      workspaceName: orgRow.legal_name,
+      workspaceName,
+      organizationName: orgRow.legal_name,
       inviterName,
+      inviterEmail,
       role: input.role,
       expiresAt: minted.expiresAt,
     }),

@@ -42,6 +42,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Table archetype: the Columns manager row toggle was a native <button> wrapping the Radix Checkbox (also a <button>), causing a button-in-button hydration error. The row is now a role=button div with a non-interactive check indicator; a regression test + an open-state story keep the a11y gate (nested-interactive) covering it.
 - Table archetype: a per-column header "Filter" on the column delegated to the faceted statusFilter no longer crashes the toolbar (FilterSelector.getColumn threw on the unknown id). The chrome now guards the multi-filter `property` to columns it owns and routes the delegated column to the statusFilter via a new StatusFilterDescriptor.columnId.
 
+### Security
+
+- Allowlist Debian-base perl CVE-2026-13221 + Storable CVE-2026-57433 in the ECR deploy gate — base-essential, never in the Node runtime path, no upstream Debian fix; same disposition as the existing perl entries
+
 ## [v0.22.6] — 2026-07-15
 
 ### Added

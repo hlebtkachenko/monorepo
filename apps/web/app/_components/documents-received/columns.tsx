@@ -29,7 +29,23 @@ export interface DocumentRow {
   base_total: string
   vat_total: string
   counterparty_name: string | null
+  /**
+   * [Tier 4] The inbox_item this document landed from. Non-null ⇒ the Afframe
+   * Brain proposed it (a human approved) — drives the "Created by Agent" filter.
+   * Null ⇒ entered by a human.
+   */
+  inbox_id?: string | null
 }
+
+/** Provenance bucket for the "Zdroj" (source) filter. */
+function documentSource(row: DocumentRow): "agent" | "human" {
+  return row.inbox_id ? "agent" : "human"
+}
+
+const DOCUMENT_SOURCE_OPTIONS = [
+  { label: "Agent", value: "agent" },
+  { label: "Ruční", value: "human" },
+]
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   RECEIVED_INVOICE: "Faktura přijatá",
@@ -173,6 +189,29 @@ export function buildDocumentColumns({
       enableSorting: true,
     },
     {
+      id: "source",
+      accessorFn: (row) => documentSource(row),
+      header: "Zdroj",
+      size: 110,
+      cell: ({ row }) =>
+        documentSource(row.original) === "agent" ? (
+          <Badge variant="secondary">Agent</Badge>
+        ) : (
+          <span className="text-muted-foreground">Ruční</span>
+        ),
+      meta: {
+        label: "Zdroj",
+        variant: "multiSelect",
+        options: DOCUMENT_SOURCE_OPTIONS,
+      },
+      enableColumnFilter: true,
+      filterFn: (row, columnId, value) => {
+        if (!Array.isArray(value) || value.length === 0) return true
+        return value.includes(row.getValue(columnId))
+      },
+      enableSorting: true,
+    },
+    {
       accessorKey: "base_total",
       header: "Základ",
       size: 140,
@@ -250,6 +289,16 @@ export function DocumentDetail({
       <DetailField
         label={counterpartyLabel}
         value={row.counterparty_name ?? "—"}
+      />
+      <DetailField
+        label="Zdroj"
+        value={
+          documentSource(row) === "agent" ? (
+            <Badge variant="secondary">Vytvořeno agentem</Badge>
+          ) : (
+            "Ruční"
+          )
+        }
       />
       <DetailField
         label="Základ"

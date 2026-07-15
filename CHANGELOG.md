@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Brain Tier 4 (surfacing): "Created by Agent" (Zdroj) filter + column on the Records/documents and Journal (deník) tables, driven by inbox_id — any agent-proposed, human-approved accounting fact is now filterable system-wide.
 - Brain Tier 4 (provenance): inbox_item table + inbox_id stamped on every agent-landed accounting row (posting, summary/individual/partial record, double-entry + monetary line, accounting_event, open_item), minted at approve from the held write — the spine of the system-wide "Created by Agent" filter. Workspace-scoped with the composite-FK / bare-uuid split that keeps RLS intact.
 - Brain Tier 3: gated register-card creators (createAsset / createDepreciationPlan / createInventoryCount) so the agent can propose asset cards, depreciation plans (odpisy), and inventory counts through the confidence gate (held → human approves).
 - Wire the internal-documents, obligation-vouchers (+ payable/receivable), and trial-balance (obratová předvaha) pages from ModulePage placeholders to real data-backed views, reusing the existing fetchDocuments / saldokonto / general-ledger read models and table components.

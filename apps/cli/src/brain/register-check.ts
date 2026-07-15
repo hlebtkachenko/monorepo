@@ -32,7 +32,7 @@ export type EventCounterparty = NonNullable<
  *  - `no_ico`         — no IČO to check against (foreign / individual / name-only) → nothing to verify.
  *  - `unavailable`    — ARES could not be reached / returned nothing (fail-open: warn, never block).
  */
-export type RegisterVerdictStatus =
+type RegisterVerdictStatus =
   "match" | "mismatch" | "not_in_register" | "no_ico" | "unavailable"
 
 export interface RegisterVerdict {

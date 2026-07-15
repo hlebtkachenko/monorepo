@@ -99,6 +99,29 @@ describe("filter: true — kind derives the variant", () => {
     ])
   })
 
+  it("a `creatable` select column carries `creatable` into its option filter config", () => {
+    const columns: TableColumnSpec[] = [
+      {
+        id: "party",
+        header: "Party",
+        kind: "select",
+        creatable: true,
+        options: [{ value: "acme", label: "Acme" }],
+      },
+    ]
+    const [party] = deriveFilterColumns(columns)
+    expect(party?.type).toBe("option")
+    expect((party as { creatable?: boolean })?.creatable).toBe(true)
+  })
+
+  it("a non-creatable option filter leaves `creatable` unset", () => {
+    const columns: TableColumnSpec[] = [
+      { id: "kind", header: "Kind", kind: "select", options: [] },
+    ]
+    const [kind] = deriveFilterColumns(columns)
+    expect((kind as { creatable?: boolean })?.creatable).toBeUndefined()
+  })
+
   it("a `badge` column becomes an OPTION filter carrying its own `options`", () => {
     const columns: TableColumnSpec[] = [
       {

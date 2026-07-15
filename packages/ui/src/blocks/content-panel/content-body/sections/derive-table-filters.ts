@@ -12,7 +12,7 @@ import {
 import {
   Calendar1,
   CaseUpper,
-  ChevronsUpDown,
+  ChevronsUpDownSquare,
   CircleDot,
   SquareSigma,
 } from "@workspace/ui/lib/icons"
@@ -37,14 +37,14 @@ import type {
  */
 
 /** Default filter icon per preset variant (a column may still carry its own).
- * `multiOption` uses `ChevronsUpDown` — the closest available glyph to the
- * requested `chevrons-up-down-square`, which isn't in the pinned lucide 1.24.0. */
+ * `multiOption` uses the lucide LAB `chevrons-up-down-square` (built via
+ * `createLucideIcon` in `lib/icons`, since it isn't in the stable icon set). */
 const VARIANT_ICON: Record<TableColumnFilterVariant, typeof CaseUpper> = {
   text: CaseUpper,
   number: SquareSigma,
   date: Calendar1,
   option: CircleDot,
-  multiOption: ChevronsUpDown,
+  multiOption: ChevronsUpDownSquare,
 }
 
 /** A comma-joined tag cell → the trimmed, non-empty string[] the multiOption
@@ -133,28 +133,32 @@ export function deriveFilterColumns(
         )
         break
       case "option":
-        configs.push(
-          helper
+        configs.push({
+          ...(helper
             .option()
             .id(col.id)
             .accessor((row) => String(row[col.id] ?? ""))
             .displayName(label)
             .icon(icon)
             .options(options ?? [])
-            .build() as ColumnConfig<TableSectionRow>,
-        )
+            .build() as ColumnConfig<TableSectionRow>),
+          // A creatable `select` column carries its extensibility into the filter:
+          // the option value editor gets a "Create …" row (see filter-bar-value).
+          ...(col.creatable ? { creatable: true } : {}),
+        })
         break
       case "multiOption":
-        configs.push(
-          helper
+        configs.push({
+          ...(helper
             .multiOption()
             .id(col.id)
             .accessor((row) => toTags(row[col.id]))
             .displayName(label)
             .icon(icon)
             .options(options ?? [])
-            .build() as ColumnConfig<TableSectionRow>,
-        )
+            .build() as ColumnConfig<TableSectionRow>),
+          ...(col.creatable ? { creatable: true } : {}),
+        })
         break
     }
   }

@@ -160,4 +160,14 @@ export {
 } from "lucide-react"
 
 export { createLucideIcon } from "lucide-react"
+
+// A lucide LAB icon (not in the stable set): built from the `@lucide/lab` icon
+// node via `createLucideIcon`, so it's a drop-in `LucideIcon` component like any
+// other. Used as the `multiOption` filter-variant glyph.
+import { createLucideIcon as buildLucideIcon } from "lucide-react"
+import { chevronsUpDownSquare } from "@lucide/lab"
+export const ChevronsUpDownSquare = buildLucideIcon(
+  "ChevronsUpDownSquare",
+  chevronsUpDownSquare,
+)
 export type { LucideIcon, LucideProps, IconNode } from "lucide-react"

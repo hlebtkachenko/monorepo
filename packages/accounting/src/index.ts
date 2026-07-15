@@ -35,6 +35,9 @@ export {
   createDepreciationPlan,
   createInventoryCount,
   recordSignature,
+  type AssetInput,
+  type DepreciationPlanInput,
+  type InventoryCountInput,
 } from "./setup"
 export {
   DEFAULT_NUMBER_SERIES,

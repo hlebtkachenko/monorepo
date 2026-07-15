@@ -14,6 +14,7 @@ import {
   formatDate,
   formatDecimal,
 } from "../_shared/accounting-format"
+import { buildSourceColumn } from "../_shared/source-column"
 
 /**
  * Captured-document row as served by `fetchDocuments` in
@@ -41,11 +42,6 @@ export interface DocumentRow {
 function documentSource(row: DocumentRow): "agent" | "human" {
   return row.inbox_id ? "agent" : "human"
 }
-
-const DOCUMENT_SOURCE_OPTIONS = [
-  { label: "Agent", value: "agent" },
-  { label: "Ruční", value: "human" },
-]
 
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   RECEIVED_INVOICE: "Faktura přijatá",
@@ -188,29 +184,7 @@ export function buildDocumentColumns({
       meta: { label: counterpartyHeader },
       enableSorting: true,
     },
-    {
-      id: "source",
-      accessorFn: (row) => documentSource(row),
-      header: "Zdroj",
-      size: 110,
-      cell: ({ row }) =>
-        documentSource(row.original) === "agent" ? (
-          <Badge variant="secondary">Agent</Badge>
-        ) : (
-          <span className="text-muted-foreground">Ruční</span>
-        ),
-      meta: {
-        label: "Zdroj",
-        variant: "multiSelect",
-        options: DOCUMENT_SOURCE_OPTIONS,
-      },
-      enableColumnFilter: true,
-      filterFn: (row, columnId, value) => {
-        if (!Array.isArray(value) || value.length === 0) return true
-        return value.includes(row.getValue(columnId))
-      },
-      enableSorting: true,
-    },
+    buildSourceColumn<DocumentRow>(documentSource),
     {
       accessorKey: "base_total",
       header: "Základ",

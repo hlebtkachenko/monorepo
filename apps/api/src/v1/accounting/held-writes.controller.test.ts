@@ -549,10 +549,12 @@ describe("HeldWritesController", () => {
         { organizationId: string; workspaceId: string },
         Record<string, unknown>,
       ]
+      // createAsset is a register-card op, NOT in INBOX_STAMPED_OPERATION_IDS —
+      // approving it mints no inbox_item, so the ctx carries inboxId: null.
       expect(ctx).toEqual({
         organizationId: ORG_A,
         workspaceId: WORKSPACE,
-        inboxId: "0196f1de-0000-7000-8000-000000000f01",
+        inboxId: null,
       })
       expect(input).toMatchObject({
         name: VALID_ASSET_INPUT.name,

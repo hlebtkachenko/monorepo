@@ -8,6 +8,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { formatDecimal, formatDate } from "../_shared/accounting-format"
+import { buildSourceColumn } from "../_shared/source-column"
 import { useDenik } from "./context"
 import type { JournalRow } from "./data"
 
@@ -167,32 +168,9 @@ export const journalColumns: ColumnDef<JournalRow>[] = [
     enableSorting: true,
     sortingFn: (a, b) => Number(a.original.amount) - Number(b.original.amount),
   },
-  {
-    id: "source",
-    accessorFn: (row) => (row.createdByAgent ? "agent" : "human"),
-    header: "Zdroj",
-    size: 110,
-    cell: ({ row }) =>
-      row.original.createdByAgent ? (
-        <Badge variant="secondary">Agent</Badge>
-      ) : (
-        <span className="text-muted-foreground">Ruční</span>
-      ),
-    meta: {
-      label: "Zdroj",
-      variant: "multiSelect",
-      options: [
-        { label: "Agent", value: "agent" },
-        { label: "Ruční", value: "human" },
-      ],
-    },
-    enableColumnFilter: true,
-    filterFn: (row, columnId, value) => {
-      if (!Array.isArray(value) || value.length === 0) return true
-      return value.includes(row.getValue(columnId))
-    },
-    enableSorting: true,
-  },
+  buildSourceColumn<JournalRow>((row) =>
+    row.createdByAgent ? "agent" : "human",
+  ),
   {
     id: "inspect",
     size: 44,

@@ -26,7 +26,7 @@ export function registerCreateInventoryCount(
     "create_inventory_count",
     {
       title: "Create an inventurní soupis",
-      description: `Create an inventory count (§29-30; pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal.`,
+      description: `Create an inventory count (§29-30; pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("post"),

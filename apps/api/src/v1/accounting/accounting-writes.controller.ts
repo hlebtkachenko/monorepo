@@ -15,7 +15,10 @@ import {
   createEvent,
   createInventoryCount,
   postWithObligation,
+  type AssetInput,
   type CapturedDocument,
+  type DepreciationPlanInput,
+  type InventoryCountInput,
   type CapturedEvent,
   type DocumentInput,
   type EventInput,
@@ -349,7 +352,7 @@ export class AccountingWritesController {
         createAsset(db, ctx, {
           ...(fields as Record<string, unknown>),
           responsibleUserId: principal.userId as string,
-        } as Parameters<typeof createAsset>[2]),
+        } as AssetInput),
       applied: (a) => ({
         assetId: a.id,
         designation: a.designation,
@@ -404,7 +407,7 @@ export class AccountingWritesController {
         createDepreciationPlan(
           db,
           ctx,
-          fields as unknown as Parameters<typeof createDepreciationPlan>[2],
+          fields as unknown as DepreciationPlanInput,
         ),
       applied: (id) => ({ depreciationPlanId: id }),
     })
@@ -457,11 +460,7 @@ export class AccountingWritesController {
       holdAmounts: [],
       deriveVeto: () => Promise.resolve(deriveRegisterCardVeto()),
       run: (db, ctx) =>
-        createInventoryCount(
-          db,
-          ctx,
-          fields as unknown as Parameters<typeof createInventoryCount>[2],
-        ),
+        createInventoryCount(db, ctx, fields as unknown as InventoryCountInput),
       applied: (c) => ({
         inventoryCountId: c.id,
         designation: c.designation,

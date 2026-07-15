@@ -21,12 +21,19 @@ import {
   createEvent,
   createInventoryCount,
   mintInboxItem,
-  post,
+  postWithObligation,
+  type AssetInput,
+  type DepreciationPlanInput,
   type DocumentInput,
   type EventInput,
-  type PostInput,
+  type InventoryCountInput,
+  type ObligationDirective,
+  type PostWithObligationInput,
 } from "@workspace/accounting"
-import { stripGateEnvelope } from "@workspace/shared/api"
+import {
+  INBOX_STAMPED_OPERATION_IDS,
+  stripGateEnvelope,
+} from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
 import {
@@ -228,13 +235,25 @@ export async function resolveHeldWrite(
         // its id onto the ctx, so every row the replay INSERTs carries inbox_id
         // ("Created by Agent"). Minted inside the FOR-UPDATE-guarded approve tx →
         // atomic with the landing, one item per approved write (append-only).
-        const inboxId = await mintInboxItem(db, orgCtx, {
-          toolCallLogId: id,
-          kind: row.tool_name,
-          createdBy: row.actor_kind,
-          source: "agent",
-          reasoning: row.rationale,
-        })
+        // Gated on actor_kind: a HUMAN-authored held write (e.g. a human-bound key
+        // parked on the amount ceiling) approved here leaves inbox_id NULL —
+        // indistinguishable from a direct human booking — so the read-model
+        // `inbox_id IS NOT NULL` filter means exactly "agent-originated". Also
+        // gated on the op: only the ledger-fact ops land rows with an inbox_id
+        // column, so a register-card creator mints no orphan inbox_item.
+        const inboxId =
+          row.actor_kind !== "human" &&
+          (INBOX_STAMPED_OPERATION_IDS as readonly string[]).includes(
+            row.tool_name,
+          )
+            ? await mintInboxItem(db, orgCtx, {
+                toolCallLogId: id,
+                kind: row.tool_name,
+                createdBy: row.actor_kind,
+                source: "agent",
+                reasoning: row.rationale,
+              })
+            : null
         const writeCtx = { ...orgCtx, inboxId }
 
         let applied: Record<string, unknown>
@@ -286,22 +305,33 @@ export async function resolveHeldWrite(
             break
           }
           case "createAccountingPosting": {
-            const { kind, entry } = fields as {
+            const { kind, entry, openObligation } = fields as {
               kind?: unknown
               entry?: unknown
+              openObligation?: unknown
             }
             await lockPeriodInTx(
               db,
               orgCtx.organizationId,
               (entry as { periodId: string }).periodId,
             )
-            const posting = await post(db, writeCtx, {
+            // postWithObligation, NOT bare post — the stored payload's optional
+            // openObligation directive (top-level domain data, survives
+            // stripGateEnvelope) must replay identically to the API held-write
+            // path (held-writes.controller.ts), or approving the SAME held posting
+            // via the web UI vs the public API would book differently (the web
+            // path would silently drop the saldokonto obligation). #740 wired the
+            // live + API paths; this closes the web replay to match.
+            const posting = await postWithObligation(db, writeCtx, {
               kind,
               entry: {
                 ...(entry as Record<string, unknown>),
                 responsibleUserId: ctx.userId,
               },
-            } as unknown as PostInput)
+              obligation:
+                (openObligation as ObligationDirective | null | undefined) ??
+                null,
+            } as unknown as PostWithObligationInput)
             applied = { postingId: posting.postingId, lineIds: posting.lineIds }
             break
           }
@@ -316,7 +346,7 @@ export async function resolveHeldWrite(
             const asset = await createAsset(db, writeCtx, {
               ...cardFields,
               responsibleUserId: ctx.userId,
-            } as unknown as Parameters<typeof createAsset>[2])
+            } as unknown as AssetInput)
             applied = {
               assetId: asset.id,
               designation: asset.designation,

@@ -21,9 +21,10 @@ import postgres from "postgres"
 
 import {
   CreateAssetRequestSchema,
+  INBOX_STAMPED_OPERATION_IDS,
   stripGateEnvelope,
 } from "@workspace/shared/api"
-import type { OrgCtx } from "@workspace/accounting"
+import type { AssetInput, OrgCtx } from "@workspace/accounting"
 
 process.env["BETTER_AUTH_SECRET"] =
   process.env["BETTER_AUTH_SECRET"] ??
@@ -189,13 +190,20 @@ async function approveAsset(s: Scenario, toolCallLogId: string) {
     const parsed = CreateAssetRequestSchema.safeParse(row.input_json)
     if (!parsed.success) throw new Error("stored payload no longer validates")
 
-    const inboxId = await mintInboxItem(db, orgCtx, {
-      toolCallLogId,
-      kind: row.tool_name,
-      createdBy: row.actor_kind,
-      source: "agent",
-      reasoning: row.rationale,
-    })
+    // Mirror the real approve gating: a register-card op is NOT in
+    // INBOX_STAMPED_OPERATION_IDS (its table has no inbox_id column), so it mints
+    // no inbox_item. The ledger-fact ops mint; createAsset must not.
+    const inboxId =
+      row.actor_kind !== "human" &&
+      (INBOX_STAMPED_OPERATION_IDS as readonly string[]).includes(row.tool_name)
+        ? await mintInboxItem(db, orgCtx, {
+            toolCallLogId,
+            kind: row.tool_name,
+            createdBy: row.actor_kind,
+            source: "agent",
+            reasoning: row.rationale,
+          })
+        : null
     const writeCtx = { ...orgCtx, inboxId }
 
     const { periodId, ...cardFields } = stripGateEnvelope(parsed.data) as {
@@ -205,7 +213,7 @@ async function approveAsset(s: Scenario, toolCallLogId: string) {
     const asset = await createAsset(db, writeCtx, {
       ...cardFields,
       responsibleUserId: s.userId,
-    } as unknown as Parameters<typeof createAsset>[2])
+    } as unknown as AssetInput)
     return { asset, inboxId }
   })
 }
@@ -218,6 +226,8 @@ describe("gated createAsset approve — real domain replay (Tier 3 cast + Tier 4
     const { asset, inboxId } = await approveAsset(s, logId)
     expect(asset.id).toBeTruthy()
     expect(asset.designation).toMatch(/^DM2026/)
+    // A register-card op mints no inbox_item (no landed row carries inbox_id).
+    expect(inboxId).toBeNull()
 
     // Every schema field name reached the right column (the cast would hide a miss).
     const [row] = await sql<
@@ -241,15 +251,10 @@ describe("gated createAsset approve — real domain replay (Tier 3 cast + Tier 4
     })
     expect(Number(row!.acquisition_cost)).toBe(45000)
 
-    // Tier 4: the approve minted exactly one inbox_item for this write.
-    const [item] = await sql<
-      Array<{ kind: string; created_by: string; tool_call_log_id: string }>
-    >`SELECT kind, created_by, tool_call_log_id::text as tool_call_log_id
-        FROM inbox_item WHERE id = ${inboxId}::uuid`
-    expect(item).toMatchObject({
-      kind: "createAsset",
-      created_by: "ai_on_behalf",
-      tool_call_log_id: logId,
-    })
+    // Tier 4: a register-card approve mints NO provenance row (its table has no
+    // inbox_id column) — no orphan inbox_item is created for the org.
+    const minted = await sql<Array<{ n: string }>>`
+      SELECT count(*)::text as n FROM inbox_item WHERE tool_call_log_id = ${logId}::uuid`
+    expect(Number(minted[0]!.n)).toBe(0)
   })
 })

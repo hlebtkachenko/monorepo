@@ -37,8 +37,11 @@ import {
   createInventoryCount,
   mintInboxItem,
   postWithObligation as postPosting,
+  type AssetInput,
+  type DepreciationPlanInput,
   type DocumentInput,
   type EventInput,
+  type InventoryCountInput,
   type PostWithObligationInput,
 } from "@workspace/accounting"
 import {
@@ -48,6 +51,7 @@ import {
   CreateAssetRequestSchema,
   CreateDepreciationPlanRequestSchema,
   CreateInventoryCountRequestSchema,
+  INBOX_STAMPED_OPERATION_IDS,
   stripGateEnvelope,
   type ListHeldWritesResponse,
   type ResolveHeldWriteResponse,
@@ -290,20 +294,30 @@ export class HeldWritesController {
           // inbox_id ("Created by Agent"). Same withOrganization tx (sets
           // app.workspace_id) → the workspace-scoped inbox_item insert resolves;
           // atomic with the landing; FOR-UPDATE guard above makes it single-mint.
-          const inboxId = await mintInboxItem(
-            db,
-            {
-              organizationId: principal.organizationId,
-              workspaceId: principal.workspaceId,
-            },
-            {
-              toolCallLogId: id,
-              kind: row.tool_name,
-              createdBy: row.actor_kind,
-              source: "agent",
-              reasoning: row.rationale,
-            },
-          )
+          // Gated on actor_kind so a HUMAN-authored held write leaves inbox_id NULL
+          // — the read-model filter then means exactly "agent-originated". Also
+          // gated on the op: only the ledger-fact ops land rows with an inbox_id
+          // column, so a register-card creator mints no orphan inbox_item.
+          const inboxId =
+            row.actor_kind !== "human" &&
+            (INBOX_STAMPED_OPERATION_IDS as readonly string[]).includes(
+              row.tool_name,
+            )
+              ? await mintInboxItem(
+                  db,
+                  {
+                    organizationId: principal.organizationId,
+                    workspaceId: principal.workspaceId,
+                  },
+                  {
+                    toolCallLogId: id,
+                    kind: row.tool_name,
+                    createdBy: row.actor_kind,
+                    source: "agent",
+                    reasoning: row.rationale,
+                  },
+                )
+              : null
           const result = await this.executeStored(
             db,
             {
@@ -443,7 +457,7 @@ export class HeldWritesController {
         const asset = await createAsset(db, ctx, {
           ...cardFields,
           responsibleUserId: approverUserId,
-        } as unknown as Parameters<typeof createAsset>[2])
+        } as unknown as AssetInput)
         return {
           assetId: asset.id,
           designation: asset.designation,
@@ -460,7 +474,7 @@ export class HeldWritesController {
         const planId = await createDepreciationPlan(
           db,
           ctx,
-          planFields as unknown as Parameters<typeof createDepreciationPlan>[2],
+          planFields as unknown as DepreciationPlanInput,
         )
         return { depreciationPlanId: planId }
       }
@@ -474,7 +488,7 @@ export class HeldWritesController {
         const count = await createInventoryCount(
           db,
           ctx,
-          countFields as unknown as Parameters<typeof createInventoryCount>[2],
+          countFields as unknown as InventoryCountInput,
         )
         return {
           inventoryCountId: count.id,

@@ -439,7 +439,7 @@ export interface paths {
         put?: never;
         /**
          * Create a fixed-asset register card
-         * @description Create a karta majetku (pure register insert, no ledger posting). Gated: auto-applies (201) at/above the confidence threshold, otherwise held (202) for human review. Tenant + responsible user injected from the principal.
+         * @description Create a karta majetku (pure register insert, no ledger posting). ALWAYS held (202) for human review — agent-authored master data never auto-applies. Tenant + responsible user injected from the principal.
          */
         post: operations["createAsset"];
         delete?: never;
@@ -459,7 +459,7 @@ export interface paths {
         put?: never;
         /**
          * Create an účetní odpisový plán
-         * @description Create a depreciation plan (pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time.
+         * @description Create a depreciation plan (pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal; account numbers resolved to the chart at posting time.
          */
         post: operations["createDepreciationPlan"];
         delete?: never;
@@ -479,7 +479,7 @@ export interface paths {
         put?: never;
         /**
          * Create an inventurní soupis
-         * @description Create an inventory count (§29-30; pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal.
+         * @description Create an inventory count (§29-30; pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal.
          */
         post: operations["createInventoryCount"];
         delete?: never;

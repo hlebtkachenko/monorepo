@@ -32,7 +32,7 @@ export function registerCreateAsset(
     "create_asset",
     {
       title: "Create a fixed-asset register card",
-      description: `Create a karta majetku (pure register insert, no ledger posting). Gated: auto-applies (201) at/above the confidence threshold, otherwise held (202) for human review. Tenant + responsible user injected from the principal.`,
+      description: `Create a karta majetku (pure register insert, no ledger posting). ALWAYS held (202) for human review — agent-authored master data never auto-applies. Tenant + responsible user injected from the principal.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("post"),

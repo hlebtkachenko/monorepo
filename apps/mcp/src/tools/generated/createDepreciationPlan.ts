@@ -32,7 +32,7 @@ export function registerCreateDepreciationPlan(
     "create_depreciation_plan",
     {
       title: "Create an účetní odpisový plán",
-      description: `Create a depreciation plan (pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time.`,
+      description: `Create a depreciation plan (pure register insert, no ledger posting). ALWAYS held (202) for human review (never auto-applies). Tenant injected from the principal; account numbers resolved to the chart at posting time.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("post"),

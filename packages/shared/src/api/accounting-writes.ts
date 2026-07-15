@@ -509,8 +509,12 @@ export function stripGateEnvelope<T extends Record<string, unknown>>(
  * whose `tool_name` is registered in the live controller + OpenAPI registry but
  * MISSED in either resolve switch (the web approvals action OR the API held-write
  * controller) is permanently un-approvable — a stuck safety state, not just a
- * bug. Adding a new gated op MUST extend this list, and the coverage tests then
- * force a matching replay branch in BOTH switches or fail.
+ * bug. Adding a new gated op MUST extend this list. The API held-write
+ * controller's replay-coverage test (`held-writes.controller.test.ts`) then
+ * asserts, via this list, that the API switch handles every op or fails; the web
+ * `resolveHeldWrite` switch (`approvals/actions.ts`) MUST be kept in sync by hand
+ * (its `default` returns "Neznámá operace"), and its per-op replay is exercised
+ * end-to-end for a representative op by `gated-creator-approve-e2e.test.ts`.
  */
 export const GATED_WRITE_OPERATION_IDS = [
   "createAccountingEvent",
@@ -521,6 +525,22 @@ export const GATED_WRITE_OPERATION_IDS = [
   "createInventoryCount",
 ] as const
 export type GatedWriteOperationId = (typeof GATED_WRITE_OPERATION_IDS)[number]
+
+/**
+ * The gated ops whose approved landing writes rows that CARRY an `inbox_id`
+ * column — the ledger-fact ops (event / document / posting → accounting_event,
+ * summary/individual/partial record, posting + lines, open_item). The Tier-3
+ * register-card creators (createAsset / createDepreciationPlan /
+ * createInventoryCount) insert org-level MASTER DATA (asset / depreciation_plan /
+ * inventory_count) that has no `inbox_id` column, so approving one mints NO
+ * inbox_item — there would be no landed row to reference it. The approve path
+ * uses this to decide whether to mint provenance.
+ */
+export const INBOX_STAMPED_OPERATION_IDS = [
+  "createAccountingEvent",
+  "captureAccountingDocument",
+  "createAccountingPosting",
+] as const
 
 // --- POST /v1/accounting/events ---------------------------------------------
 export const CreateAccountingEventRequestSchema = z

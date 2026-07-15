@@ -1074,9 +1074,9 @@ registry.registerPath({
   operationId: "createAsset",
   summary: "Create a fixed-asset register card",
   description:
-    "Create a karta majetku (pure register insert, no ledger posting). Gated: " +
-    "auto-applies (201) at/above the confidence threshold, otherwise held (202) " +
-    "for human review. Tenant + responsible user injected from the principal.",
+    "Create a karta majetku (pure register insert, no ledger posting). ALWAYS " +
+    "held (202) for human review — agent-authored master data never auto-applies. " +
+    "Tenant + responsible user injected from the principal.",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
@@ -1112,8 +1112,8 @@ registry.registerPath({
   summary: "Create an účetní odpisový plán",
   description:
     "Create a depreciation plan (pure register insert, no ledger posting). " +
-    "Gated (201 applied / 202 held). Tenant injected from the principal; " +
-    "account numbers resolved to the chart at posting time.",
+    "ALWAYS held (202) for human review (never auto-applies). Tenant injected " +
+    "from the principal; account numbers resolved to the chart at posting time.",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
   request: {
@@ -1149,8 +1149,8 @@ registry.registerPath({
   summary: "Create an inventurní soupis",
   description:
     "Create an inventory count (§29-30; pure register insert, no ledger " +
-    "posting). Gated (201 applied / 202 held). Tenant injected from the " +
-    "principal.",
+    "posting). ALWAYS held (202) for human review (never auto-applies). Tenant " +
+    "injected from the principal.",
   tags: ["Accounting"],
   security: [{ [bearerAuth.name]: [] }],
   request: {

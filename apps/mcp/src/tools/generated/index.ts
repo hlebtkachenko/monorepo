@@ -30,6 +30,8 @@ import { registerCreateInvoice } from "./createInvoice"
 import { registerGetInvoice } from "./getInvoice"
 import { registerListAccounts } from "./listAccounts"
 import { registerGetAccount } from "./getAccount"
+import { registerListDocuments } from "./listDocuments"
+import { registerGetDocumentDownloadUrl } from "./getDocumentDownloadUrl"
 import { registerListOcrTemplates } from "./listOcrTemplates"
 import { registerCreateOcrTemplate } from "./createOcrTemplate"
 import { registerConfirmOcrTemplate } from "./confirmOcrTemplate"
@@ -70,6 +72,8 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerGetInvoice(server, client)
   registerListAccounts(server, client)
   registerGetAccount(server, client)
+  registerListDocuments(server, client)
+  registerGetDocumentDownloadUrl(server, client)
   registerListOcrTemplates(server, client)
   registerCreateOcrTemplate(server, client)
   registerConfirmOcrTemplate(server, client)
@@ -111,6 +115,8 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "getInvoice",
   "listAccounts",
   "getAccount",
+  "listDocuments",
+  "getDocumentDownloadUrl",
   "listOcrTemplates",
   "createOcrTemplate",
   "confirmOcrTemplate",

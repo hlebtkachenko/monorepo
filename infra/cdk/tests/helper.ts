@@ -55,6 +55,7 @@ export function buildTestApp(
     vpc: network.vpc,
     dataSubnets: network.dataSubnets,
     appSecurityGroupId: network.appSecurityGroup.securityGroupId,
+    domain: TEST_DOMAIN,
   })
 
   const appStack = new AppStack(app, `App-${envName}`, {
@@ -67,6 +68,8 @@ export function buildTestApp(
     databaseSecret: data.databaseSecret,
     appUserSecret: data.appUserSecret,
     appBucket: data.appBucket,
+    documentsBucket: data.documentsBucket,
+    documentsKey: data.documentsKey,
     webRepository: data.webRepository,
     apiRepository: data.apiRepository,
     adminRepository: data.adminRepository,
@@ -80,6 +83,7 @@ export function buildTestApp(
     envName,
     appStack,
     dataStack: data,
+    documentsBucket: data.documentsBucket,
   })
 
   const observability = new ObservabilityStack(

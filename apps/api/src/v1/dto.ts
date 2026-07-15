@@ -39,6 +39,9 @@ import {
   OcrTemplateResponseSchema,
   CreateOcrTemplateRequestSchema,
   UpdateOcrTemplateRequestSchema,
+  ListDocumentsQuerySchema,
+  ListDocumentsResponseSchema,
+  DocumentDownloadUrlResponseSchema,
   ListBookingTemplatesQuerySchema,
   ListBookingTemplatesResponseSchema,
   BookingTemplateResponseSchema,
@@ -147,6 +150,15 @@ export class GetAccountResponseDto extends createZodDto(
 ) {}
 export class UpdateAccountRequestDto extends createZodDto(
   UpdateAccountRequestSchema,
+) {}
+export class ListDocumentsQueryDto extends createZodDto(
+  ListDocumentsQuerySchema,
+) {}
+export class ListDocumentsResponseDto extends createZodDto(
+  ListDocumentsResponseSchema,
+) {}
+export class DocumentDownloadUrlResponseDto extends createZodDto(
+  DocumentDownloadUrlResponseSchema,
 ) {}
 export class ListOcrTemplatesQueryDto extends createZodDto(
   ListOcrTemplatesQuerySchema,

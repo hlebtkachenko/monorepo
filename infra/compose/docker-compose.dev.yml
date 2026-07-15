@@ -60,6 +60,46 @@ services:
       retries: 10
       start_period: 5s
 
+  minio:
+    # S3-compatible object store for the DocumentStore (packages/storage) —
+    # documents are core dev infra like postgres, so this is a default
+    # service (no profile). apps/web + apps/api point S3_ENDPOINT at this
+    # container and DOCUMENTS_BUCKET at the bucket minio-createbucket seeds.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: dev_minio
+      MINIO_ROOT_PASSWORD: dev_minio_password
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000" # S3 API
+      - "9001:9001" # Web console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  minio-createbucket:
+    # One-shot: waits for minio then creates the dev documents bucket AND
+    # enables versioning on it. Versioning is load-bearing: the document store's
+    # version-safe confirm/undo (copyWithMergedTags pins a source VersionId) and
+    # the reaper's version-pinned deletes require it, mirroring the CDK bucket.
+    # Runs on every `up`; `mb --ignore-existing` + `version enable` are idempotent.
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set dev http://minio:9000 dev_minio dev_minio_password &&
+      mc mb --ignore-existing dev/documents-dev &&
+      mc version enable dev/documents-dev
+      "
+
   cerbos:
     # L3 of three-layer authz (ADR-0018). Upstream image, policies + config
     # bind-mounted from the repo so edits hot-reload via the shared
@@ -75,8 +115,8 @@ services:
       - ../cerbos/policies:/policies:ro
       - ../cerbos/config/cerbos-config.yaml:/etc/cerbos/config.yaml:ro
     ports:
-      - "3592:3592"  # HTTP (admin + healthcheck)
-      - "3593:3593"  # gRPC (api calls this)
+      - "3592:3592" # HTTP (admin + healthcheck)
+      - "3593:3593" # gRPC (api calls this)
     environment:
       CERBOS_NO_TELEMETRY: "1"
     healthcheck:
@@ -111,8 +151,8 @@ services:
     profiles:
       - mailpit
     ports:
-      - "1025:1025"  # SMTP
-      - "8025:8025"  # Web UI
+      - "1025:1025" # SMTP
+      - "8025:8025" # Web UI
     environment:
       MP_MAX_MESSAGES: "500"
       MP_SMTP_AUTH_ACCEPT_ANY: "1"
@@ -120,3 +160,4 @@ services:
 
 volumes:
   postgres_data:
+  minio_data:

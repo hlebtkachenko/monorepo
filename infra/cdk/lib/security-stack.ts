@@ -18,6 +18,7 @@ import {
   Runtime,
 } from "aws-cdk-lib/aws-lambda"
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs"
+import type { Bucket } from "aws-cdk-lib/aws-s3"
 import { Topic } from "aws-cdk-lib/aws-sns"
 import { LambdaSubscription } from "aws-cdk-lib/aws-sns-subscriptions"
 import { Queue } from "aws-cdk-lib/aws-sqs"
@@ -29,6 +30,14 @@ export interface SecurityStackProps extends StackProps {
   readonly envName: string
   readonly appStack: AppStack
   readonly dataStack: DataStack
+  /**
+   * The documents working-store bucket (from DataStack). SecurityStack owns
+   * the document reaper — the SOLE holder of s3:DeleteObject /
+   * s3:DeleteObjectVersion on this bucket (design A, PLAN §3). Passed
+   * explicitly (mirroring how AppStack receives `documentsBucket`) so the
+   * reaper's delete grant is scoped to exactly this bucket.
+   */
+  readonly documentsBucket: Bucket
 }
 
 // Operator email subscriptions to the alert SNS topics are managed by the
@@ -504,6 +513,170 @@ export class SecurityStack extends Stack {
       },
       targets: [new LambdaTarget(rdsRestartWatcherFn)],
     })
+
+    // ----- Documents reaper (S3 document store, P1b) -----
+    //
+    // The SOLE S3-delete principal for the documents bucket. Design A (PLAN
+    // §1, §3): the bucket is a WORKING store, not the statutory archive, so
+    // there is NO Object Lock — tamper/wipe protection is IAM (the shared
+    // app/api/admin + Brain task role holds Get + Put + tag but NEVER Delete,
+    // proved by tests/documents-store.test.ts) + versioning + this ONE
+    // dedicated reaper. An hourly EventBridge schedule invokes it; it reads S3
+    // object tag VALUES only (never any DB) and purges by age:
+    //   - `orphan-at`  older than 1h  → purge (bad-magic-byte / rejected upload)
+    //   - untagged     older than 24h → purge (never-confirmed abandoned upload)
+    //   - `deleted-at` older than 60d → purge (user soft-delete past redemption)
+    // A live confirmed doc (`confirmed-at`, no `deleted-at`) is NEVER purged.
+    // Decisions are pinned to a specific VersionId. Orphan/abandoned cleanup
+    // removes only that version; expired soft-delete cleanup removes the
+    // evaluated version plus older history, preserving concurrent re-uploads.
+    // Runs in every env (the bucket exists in all).
+    //
+    // CROSS-TRACK INVARIANT (contract the P3 confirm endpoint MUST honor; NOT
+    // enforced here): the "untagged > 24h → purge" branch is safe ONLY if
+    // confirm tags `confirmed-at` on EVERY kept object at/with the DB write, so
+    // a live document is never left untagged and reaped as "abandoned".
+    //
+    // FOLLOW-UP (not in P1b): CloudTrail write-data-events on this bucket for
+    // tamper-evidence (PUT / tagging / DELETE) — deferred to the account-global
+    // AuditStack (cross-stack); see PLAN §6.
+    const documentReaperLogGroup = new LogGroup(this, "DocumentReaperLogs", {
+      logGroupName: `/aws/lambda/monorepo-${props.envName}-document-reaper`,
+      retention: RetentionDays.ONE_MONTH,
+    })
+
+    const documentReaperFn = new LambdaFunction(this, "DocumentReaperFn", {
+      functionName: `monorepo-${props.envName}-document-reaper`,
+      runtime: Runtime.NODEJS_22_X,
+      handler: "index.handler",
+      code: Code.fromAsset(path.join(__dirname, "lambda", "document-reaper")),
+      timeout: Duration.seconds(60),
+      memorySize: 256,
+      logGroup: documentReaperLogGroup,
+      environment: {
+        DOCUMENTS_BUCKET: props.documentsBucket.bucketName,
+      },
+      description:
+        "Sole S3-delete principal for the documents bucket. Hourly, version-pinned cleanup for orphan-at>1h, untagged>24h, and deleted-at>60d (PLAN §3).",
+    })
+
+    // Enumerate keys + versions on the BUCKET arn.
+    documentReaperFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: ["s3:ListBucket", "s3:ListBucketVersions"],
+        resources: [props.documentsBucket.bucketArn],
+      }),
+    )
+    // Read version-specific tag VALUES + delete selected versions on
+    // ${bucket}/*. This role — and ONLY this role — holds Delete on the
+    // documents bucket. Deliberately NO kms:* (deleting an SSE-KMS object never
+    // decrypts it) and NO PutObject / PutObjectTagging (the reaper never writes).
+    documentReaperFn.addToRolePolicy(
+      new PolicyStatement({
+        effect: Effect.ALLOW,
+        actions: [
+          "s3:GetObjectTagging",
+          "s3:GetObjectVersionTagging",
+          "s3:DeleteObject",
+          "s3:DeleteObjectVersion",
+        ],
+        resources: [props.documentsBucket.arnForObjects("*")],
+      }),
+    )
+
+    new Rule(this, "DocumentReaperSchedule", {
+      ruleName: `monorepo-${props.envName}-document-reaper`,
+      description:
+        "Hourly: purge orphaned / abandoned / soft-deleted documents past their tag-age window (PLAN §3).",
+      // Minute 0 of every hour → cron(0 * * * ? *).
+      schedule: Schedule.cron({ minute: "0" }),
+      targets: [new LambdaTarget(documentReaperFn)],
+    })
+
+    // The reaper is the SOLE delete principal — it must not fail silently. A
+    // crash or timeout (a Lambda timeout is recorded as an Error) means
+    // orphaned/abandoned/soft-deleted documents stop being purged. Page the
+    // ops topic (same email subscriber as the kill-switch).
+    const documentReaperErrors = new Alarm(this, "DocumentReaperErrorsAlarm", {
+      alarmName: `monorepo-${props.envName}-document-reaper-errors`,
+      alarmDescription:
+        "Document reaper Lambda failed or timed out; document purging has stalled.",
+      metric: new Metric({
+        namespace: "AWS/Lambda",
+        metricName: "Errors",
+        dimensionsMap: { FunctionName: documentReaperFn.functionName },
+        period: Duration.hours(1),
+        statistic: "Sum",
+      }),
+      threshold: 1,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    documentReaperErrors.addAlarmAction(new SnsAction(this.killSwitchOpsTopic))
+
+    // Duration creeping toward the 60s timeout = the sequential
+    // List+GetObjectTagging sweep is outgrowing the object count and will soon
+    // fail to cover the whole keyspace (PLAN §6 flags the S3-Inventory rewrite
+    // as the scale fix). Warn well before it starts timing out and dropping the
+    // tail of the keyspace.
+    const documentReaperDuration = new Alarm(
+      this,
+      "DocumentReaperDurationAlarm",
+      {
+        alarmName: `monorepo-${props.envName}-document-reaper-duration-high`,
+        alarmDescription:
+          "Document reaper approaching its 60s timeout — migrate the sweep to S3 Inventory (PLAN §6) before it stops covering the full keyspace.",
+        metric: new Metric({
+          namespace: "AWS/Lambda",
+          metricName: "Duration",
+          dimensionsMap: { FunctionName: documentReaperFn.functionName },
+          period: Duration.hours(1),
+          statistic: "Maximum",
+        }),
+        threshold: 50_000, // ms — 60s timeout
+        evaluationPeriods: 3,
+        comparisonOperator:
+          ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: TreatMissingData.NOT_BREACHING,
+      },
+    )
+    documentReaperDuration.addAlarmAction(
+      new SnsAction(this.killSwitchOpsTopic),
+    )
+
+    // The reaper is the SOLE delete principal, scheduled hourly. A DISABLED or
+    // broken EventBridge rule publishes ZERO metrics — the Errors alarm above
+    // (NOT_BREACHING) stays OK while purging silently stops forever, so orphans
+    // and expired soft-deletes accumulate undetected. This alarm watches
+    // Invocations and fires when they stay below 1 across a multi-hour window;
+    // treatMissingData BREACHING means "no data == not running == alarm",
+    // exactly the absence-of-runs case the Errors alarm structurally cannot
+    // catch (S4). A healthy hourly run publishes Invocations=1 (not < 1 = OK).
+    const documentReaperNotRunning = new Alarm(
+      this,
+      "DocumentReaperNotRunningAlarm",
+      {
+        alarmName: `monorepo-${props.envName}-document-reaper-not-running`,
+        alarmDescription:
+          "Document reaper has not run — the sole S3-delete principal is idle and purging has stalled. Check the EventBridge schedule.",
+        metric: new Metric({
+          namespace: "AWS/Lambda",
+          metricName: "Invocations",
+          dimensionsMap: { FunctionName: documentReaperFn.functionName },
+          period: Duration.hours(1),
+          statistic: "Sum",
+        }),
+        threshold: 1,
+        evaluationPeriods: 3,
+        comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+        treatMissingData: TreatMissingData.BREACHING,
+      },
+    )
+    documentReaperNotRunning.addAlarmAction(
+      new SnsAction(this.killSwitchOpsTopic),
+    )
 
     // ----- Env auto-cold-pause (max-uptime TTL) -----
     //

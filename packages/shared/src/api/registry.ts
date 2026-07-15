@@ -109,6 +109,13 @@ import {
   UpdateOcrTemplateRequestSchema,
 } from "./ocr-templates"
 import {
+  DocumentDownloadUrlResponseSchema,
+  DocumentIdParamSchema,
+  DocumentSchema,
+  ListDocumentsQuerySchema,
+  ListDocumentsResponseSchema,
+} from "./documents"
+import {
   BookingTemplateIdParamSchema,
   BookingTemplateResponseSchema,
   BookingTemplateSchema,
@@ -316,6 +323,15 @@ const GetAccountResponse = registry.register(
 const UpdateAccountRequest = registry.register(
   "UpdateAccountRequest",
   UpdateAccountRequestSchema,
+)
+registry.register("Document", DocumentSchema)
+const ListDocumentsResponse = registry.register(
+  "ListDocumentsResponse",
+  ListDocumentsResponseSchema,
+)
+const DocumentDownloadUrlResponse = registry.register(
+  "DocumentDownloadUrlResponse",
+  DocumentDownloadUrlResponseSchema,
 )
 registry.register("OcrTemplate", OcrTemplateSchema)
 const ListOcrTemplatesResponse = registry.register(
@@ -1255,6 +1271,53 @@ registry.registerPath({
     "200": {
       description: "The updated account.",
       content: { "application/json": { schema: GetAccountResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/documents",
+  operationId: "listDocuments",
+  summary: "List documents",
+  description:
+    "Returns the caller's workspace documents (confirmed source-document " +
+    "blobs in the S3 document store). WORKSPACE-scoped (FORCE RLS). By default " +
+    "soft-deleted documents are excluded; pass `includeDeleted=true` to " +
+    "include those still inside the 60-day redemption window. The workspace " +
+    "comes from the API key; no tenant identifiers are accepted.",
+  tags: ["Documents"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { query: ListDocumentsQuerySchema },
+  responses: {
+    "200": {
+      description: "The workspace's documents.",
+      content: { "application/json": { schema: ListDocumentsResponse } },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "get",
+  path: "/v1/documents/{id}/download-url",
+  operationId: "getDocumentDownloadUrl",
+  summary: "Get a document download URL",
+  description:
+    "Mints a short-lived presigned S3 URL for a document's bytes (attachment " +
+    "disposition). The caller fetches the bytes DIRECT from S3 — they never " +
+    "pass through the API. Returns 404 when the document is not visible to the " +
+    "caller's workspace or has been soft-deleted.",
+  tags: ["Documents"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: { params: DocumentIdParamSchema },
+  responses: {
+    "200": {
+      description: "A short-lived presigned download URL.",
+      content: {
+        "application/json": { schema: DocumentDownloadUrlResponse },
+      },
     },
     ...ERROR_RESPONSE_REFS,
   },

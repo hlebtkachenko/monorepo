@@ -162,6 +162,21 @@ ADR-0008 "Amendment 2026-05-17 — redirect base URLs".
 `AWS_ACCOUNT_ID` is NOT an app env. Runtime IAM identity comes from the task
 role. CI reads the account id from a GitHub Actions secret only.
 
+## Documents (packages/storage — `S3DocumentStore`)
+
+| Var                    | Required | Notes                                                                                                                                                                                                              |
+| ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DOCUMENTS_BUCKET`     | yes      | S3 bucket backing the `DocumentStore` (`packages/storage/src/document-store-s3.ts`). Content-addressed key convention `documents/{workspaceId}/{sha256}.{ext}`. `S3DocumentStore` throws at construction if unset. |
+| `DOCUMENTS_KMS_KEY_ID` | no       | Dedicated KMS CMK id/ARN. When set, `put`/`presignPost` enforce SSE-KMS (`ServerSideEncryption: "aws:kms"` on `put`; matching presigned-POST conditions). Unset = no CMK enforcement at this layer.                |
+| `S3_ENDPOINT`          | no       | S3-compatible endpoint override for local dev (minio). When set, forces `forcePathStyle: true` (minio does not support virtual-hosted-style addressing). Unset in staging/production (real S3 endpoint).           |
+
+Local dev: `infra/compose/docker-compose.dev.yml` runs a default (no-profile)
+`minio` service — `:9000` (S3 API), `:9001` (console) — plus a one-shot
+`minio-createbucket` service that seeds the `documents-dev` bucket. Point
+`S3_ENDPOINT=http://localhost:9000` and `DOCUMENTS_BUCKET=documents-dev` at it;
+dev credentials (`dev_minio` / `dev_minio_password`) resolve via the standard
+AWS env-var credential provider, same as production's task-role chain.
+
 ## Observability (apps/api, apps/web)
 
 | Var                 | Notes                                                                                                                                            |

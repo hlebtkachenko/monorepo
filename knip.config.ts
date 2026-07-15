@@ -98,10 +98,18 @@ const config: KnipConfig = {
     "infra/cdk": {
       // Lambda handlers are CDK assets loaded by string path (e.g.
       // security-stack.ts references lib/lambda/rds-restart-watcher), invisible
-      // to knip's import graph.
-      ignore: ["lib/lambda/*/index.mjs"],
+      // to knip's import graph. Cover every .mjs in a lambda dir, not just
+      // index.mjs: a multi-file lambda (document-reaper = index + sweep +
+      // decide) bundles its sibling modules the same way, so they are equally
+      // invisible to the import graph and must not be flagged as unused.
+      ignore: ["lib/lambda/*/*.mjs"],
       // CDK entrypoint runs via `npx tsx bin/app.ts` (cdk.json `"app"`).
-      ignoreDependencies: ["tsx"],
+      // @aws-sdk/client-s3 is imported by the document-reaper lambda asset
+      // (lib/lambda/document-reaper/*.mjs, ignored above), so its usage is
+      // invisible to knip's import graph — but `pnpm turbo boundaries` REQUIRES
+      // the explicit declaration because the .mjs imports it. Ignore here so the
+      // two gates don't contradict.
+      ignoreDependencies: ["tsx", "@aws-sdk/client-s3"],
     },
     "infra/cloudflare": {
       // src/ is vendored verbatim from turborepo-remote-cache-cloudflare v4.0.0

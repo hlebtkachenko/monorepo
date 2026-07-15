@@ -262,6 +262,88 @@ export class ObservabilityStack extends Stack {
     })
     s3BucketSize.addAlarmAction(snsAction)
 
+    // 3b) Documents bucket (S3 document store, P1a) — write-flood ALERT only.
+    // Deliberately does NOT carry the kill-switch, unlike the app bucket: a
+    // legitimate bulk invoice onboarding can exceed the threshold, and hard-
+    // stopping the whole ECS service over documents writes would be a multi-
+    // tenant outage. Cost is bounded by the size alarm + AWS Budgets. The
+    // metric SUMs PutRequests (per-document tagging at confirm) + PostRequests
+    // (browser presigned-POST uploads are HTTP POST, which PutRequests does
+    // NOT count) so it actually measures the write vector. Threshold is a
+    // starting alert level — tune post-launch for real documents volume.
+    const documentsBucketName = props.dataStack.documentsBucket.bucketName
+    const documentsWriteMetric = (id: string, metricName: string) =>
+      new Metric({
+        namespace: "AWS/S3",
+        metricName,
+        dimensionsMap: {
+          BucketName: documentsBucketName,
+          FilterId: "EntireBucket",
+        },
+        statistic: Stats.SUM,
+        period: Duration.hours(1),
+        label: id,
+      })
+    const s3DocumentsPutRate = new Alarm(this, "S3DocumentsPutRateHigh", {
+      alarmName: `monorepo-${props.envName}-s3-documents-put-rate-high`,
+      alarmDescription:
+        "S3 write requests (PutRequests + PostRequests) > 10k in 1h on the documents bucket. Possible bulk-write flood — alert only, does not stop the service.",
+      metric: new MathExpression({
+        expression: "puts + posts",
+        usingMetrics: {
+          puts: documentsWriteMetric("puts", "PutRequests"),
+          posts: documentsWriteMetric("posts", "PostRequests"),
+        },
+        period: Duration.hours(1),
+      }),
+      threshold: 10_000,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    s3DocumentsPutRate.addAlarmAction(snsAction)
+
+    // Documents bucket size. NOTE: objects are PUT straight into
+    // Intelligent-Tiering (day-0 lifecycle transition), so they report under
+    // the IntelligentTiering* StorageType dimensions, NOT StandardStorage. A
+    // plain StandardStorage metric (as on the S3_MANAGED appBucket) would read
+    // ~0 forever and never fire, so we SUM the automatic IT tiers
+    // (Frequent/Infrequent/Archive-Instant) plus Standard for the brief
+    // pre-transition window. This is a deliberate divergence from the literal
+    // appBucket mirror, made to keep the alarm meaningful.
+    const documentsSizeMetric = (id: string, storageType: string) =>
+      new Metric({
+        namespace: "AWS/S3",
+        metricName: "BucketSizeBytes",
+        dimensionsMap: {
+          BucketName: documentsBucketName,
+          StorageType: storageType,
+        },
+        statistic: Stats.MAXIMUM,
+        period: Duration.days(1),
+        label: id,
+      })
+    const s3DocumentsBucketSize = new Alarm(this, "S3DocumentsBucketSizeHigh", {
+      alarmName: `monorepo-${props.envName}-s3-documents-bucket-size-high`,
+      alarmDescription:
+        "S3 documents bucket size > 5 GB across Standard + Intelligent-Tiering (Frequent/Infrequent/Archive-Instant) storage classes. Possible storage flood.",
+      metric: new MathExpression({
+        expression: "std + fa + ia + aia",
+        usingMetrics: {
+          std: documentsSizeMetric("std", "StandardStorage"),
+          fa: documentsSizeMetric("fa", "IntelligentTieringFAStorage"),
+          ia: documentsSizeMetric("ia", "IntelligentTieringIAStorage"),
+          aia: documentsSizeMetric("aia", "IntelligentTieringAIAStorage"),
+        },
+        period: Duration.days(1),
+      }),
+      threshold: 5 * 1024 * 1024 * 1024,
+      evaluationPeriods: 1,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    })
+    s3DocumentsBucketSize.addAlarmAction(snsAction)
+
     // 4) CloudWatch Logs ingestion: 1 GB/h summed across ALL seven service
     // log groups. Log ingestion is $0.50/GB - a runaway loop can torch tens
     // of dollars per hour. admin/pgbouncer/cerbos/openfga were originally

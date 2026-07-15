@@ -41,7 +41,12 @@ const nextConfig = {
     "@workspace/shared",
     "@workspace/observability",
     "@workspace/email",
+    "@workspace/filing",
   ],
+  // xmllint-wasm ships a .wasm blob + a worker file; keep it a Node external so
+  // Next doesn't try to bundle those assets (the XML-filing debug validates
+  // server-side only).
+  serverExternalPackages: ["xmllint-wasm"],
   output: "standalone",
   poweredByHeader: false,
   // Site-wide security headers (H2) — stricter than web: admin is the most

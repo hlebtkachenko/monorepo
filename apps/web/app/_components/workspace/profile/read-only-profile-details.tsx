@@ -20,7 +20,7 @@ type ProfileDetailsSection =
       readonly props: SectionDetailsTableProps
     }
 
-export interface ReadOnlyProfileDetailsGroup {
+interface ReadOnlyProfileDetailsGroup {
   readonly title: string
   readonly sections: readonly ProfileDetailsSection[]
 }

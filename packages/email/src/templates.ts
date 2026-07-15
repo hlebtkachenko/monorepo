@@ -127,3 +127,27 @@ export function inviteEmail(input: {
     `The link expires ${expiresHuman} and can be used only once.`
   return { to: input.to, subject, html, text }
 }
+
+export function accountDangerOtpEmail(input: {
+  to: string
+  code: string
+  purpose: "delete_account" | "leave_workspace"
+}): EmailMessage {
+  const action =
+    input.purpose === "delete_account"
+      ? "delete your account"
+      : "leave your workspace"
+  const subject = "Confirm a sensitive account action"
+  const html = wrap(
+    subject,
+    `
+    <h2>Confirm your account action</h2>
+    <p>Use this one-time code to ${escapeHtml(action)}:</p>
+    <p style="font-size: 28px; font-weight: 700; letter-spacing: 0.18em;">${escapeHtml(input.code)}</p>
+    <p>The code expires in 10 minutes and can be used only once.</p>
+    <p class="muted">If you did not request this, do not share the code and secure your account.</p>
+    `,
+  )
+  const text = `Use code ${input.code} to ${action}. It expires in 10 minutes and can be used only once. If you did not request this, secure your account.`
+  return { to: input.to, subject, html, text }
+}

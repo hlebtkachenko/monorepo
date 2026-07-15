@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { describe, it, expect, vi } from "vitest"
 
 import { IconProvider } from "@workspace/ui/icon-packs"
@@ -8,6 +8,7 @@ import { ContentToolbar } from "./content-toolbar"
 import { ContentStatusBar } from "./content-status-bar"
 import { ContentPanel } from "./content-panel"
 import { sectionEmpty } from "./content-body"
+import { sectionDetailsForm } from "./content-body"
 import { DashboardChartCard, DashboardGrid } from "./dashboard-grid"
 import { DetailField } from "./detail-field"
 import { LaunchpadGrid, type LaunchpadSection } from "./launchpad-grid"
@@ -167,6 +168,49 @@ describe("ContentPanel", () => {
     expect(
       container.querySelector('[data-slot="content-section"]'),
     ).not.toBeNull()
+  })
+
+  it("dispatches interactive section action ids to the panel owner", () => {
+    const onSectionAction = vi.fn()
+    wrap(
+      <ContentPanel
+        onSectionAction={onSectionAction}
+        sections={[
+          sectionDetailsForm({
+            title: "Email",
+            fields: [
+              {
+                label: "New email",
+                control: {
+                  kind: "text",
+                  value: "",
+                  changeActionId: "email.changed",
+                },
+              },
+              {
+                label: "Verification",
+                control: {
+                  kind: "button",
+                  label: "Send code",
+                  actionId: "email.send",
+                },
+              },
+            ],
+          }),
+        ]}
+      />,
+    )
+
+    fireEvent.change(screen.getByLabelText("New email"), {
+      target: { value: "new@example.com" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Send code" }))
+
+    expect(onSectionAction).toHaveBeenNthCalledWith(1, {
+      id: "email.changed",
+      payload: "new@example.com",
+    })
+    expect(onSectionAction).toHaveBeenNthCalledWith(2, { id: "email.send" })
   })
 })
 

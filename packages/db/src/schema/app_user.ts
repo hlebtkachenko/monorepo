@@ -27,8 +27,27 @@ export const app_user = pgTable("app_user", {
   two_factor_enabled: boolean("two_factor_enabled").notNull().default(false),
   display_name: text("display_name"),
   avatar_url: text("avatar_url"),
+  title_prefix: text("title_prefix"),
+  given_name: text("given_name"),
+  family_name: text("family_name"),
+  title_suffix: text("title_suffix"),
+  department: text("department"),
   locale: varchar("locale", { length: 10 }).notNull().default("en"),
+  theme: varchar("theme", { length: 10 }).notNull().default("system"),
+  icon_style: varchar("icon_style", { length: 20 }).notNull().default("lucide"),
   timezone: text("timezone").notNull().default("UTC"),
+  date_format: varchar("date_format", { length: 20 })
+    .notNull()
+    .default("DD/MM/YYYY"),
+  time_format: varchar("time_format", { length: 10 })
+    .notNull()
+    .default("24-hour"),
+  marketing_consent: boolean("marketing_consent").notNull().default(false),
+  product_updates_consent: boolean("product_updates_consent")
+    .notNull()
+    .default(false),
+  signature_data: text("signature_data"),
+  deleted_at: timestamp("deleted_at", { withTimezone: true }),
   job_title: text("job_title"),
   // Onboarding experience level — added in migration 0012_onboarding_extensions.sql
   experience: appUserExperience("experience"),

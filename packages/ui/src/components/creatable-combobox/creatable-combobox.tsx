@@ -73,8 +73,16 @@ function CreatableCombobox({
   createOptionPosition = "first",
   ...props
 }: CreatableComboboxProps) {
-  const [query, setQuery] = React.useState<string>("")
+  const [query, setQuery] = React.useState<string>(() =>
+    props.multiple || props.value == null ? "" : toLabel(props.value),
+  )
   const pendingCreateRef = React.useRef<string | null>(null)
+
+  React.useEffect(() => {
+    if (!props.multiple) {
+      setQuery(props.value == null ? "" : toLabel(props.value))
+    }
+  }, [props.multiple, props.value])
 
   const augmentedItems = React.useMemo(() => {
     const trimmedQuery = query.trim()
@@ -114,7 +122,9 @@ function CreatableCombobox({
 
     if (isCreatableItem(next)) {
       pendingCreateRef.current = next.value
-      setQuery("")
+      setQuery(next.value)
+    } else {
+      setQuery(next == null ? "" : toLabel(next))
     }
 
     props.onValueChange?.(next, details)

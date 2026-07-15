@@ -11,4 +11,5 @@ export {
   verifyEmailEmail,
   magicLinkEmail,
   inviteEmail,
+  accountDangerOtpEmail,
 } from "./templates"

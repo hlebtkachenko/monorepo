@@ -6,6 +6,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { ContentBody } from "./content-body"
 import type { SectionDescriptor } from "./content-body"
+import type { SectionAction } from "./content-body"
 import { Inspector } from "./inspector"
 import type { InspectorMode } from "./inspector"
 
@@ -59,6 +60,8 @@ export interface ContentPanelProps {
    * its sections. Mutually exclusive with the grandfathered `children`.
    */
   sections?: readonly SectionDescriptor[]
+  /** Receives action ids emitted by interactive controls in `sections`. */
+  onSectionAction?: (action: SectionAction) => void
   /**
    * @deprecated Legacy free-JSX body. Frozen to the grandfather allowlist in
    * `scripts/governance/archetype-body-allowlist.json`; the `check` CI job
@@ -92,6 +95,7 @@ export function ContentPanel({
   inspectorFooter,
   bodyClassName,
   sections,
+  onSectionAction,
   children,
 }: ContentPanelProps) {
   return (
@@ -100,7 +104,11 @@ export function ContentPanel({
       {filters}
       <div data-slot="content-row" className="flex min-h-0 flex-1">
         {sections != null ? (
-          <ContentBody sections={sections} className={bodyClassName} />
+          <ContentBody
+            sections={sections}
+            onAction={onSectionAction}
+            className={bodyClassName}
+          />
         ) : (
           <div
             data-slot="content-body"

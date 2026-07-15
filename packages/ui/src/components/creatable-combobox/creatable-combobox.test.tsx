@@ -69,6 +69,15 @@ describe("CreatableCombobox", () => {
     expect(screen.getByPlaceholderText("Search fruits...")).toBeInTheDocument()
   })
 
+  it("shows the selected label in a controlled input", async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const input = screen.getByPlaceholderText("Search fruits...")
+    await user.click(input)
+    await user.click(await screen.findByText("Apple"))
+    expect(input).toHaveValue("Apple")
+  })
+
   it("shows a creatable item when query has no exact match", async () => {
     const user = userEvent.setup()
     render(<Harness />)

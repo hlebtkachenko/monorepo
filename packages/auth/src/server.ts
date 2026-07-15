@@ -62,6 +62,10 @@ export function resolveAuditAction(
       return "auth.magic_link.issued"
     case "/magic-link/sign-in":
       return succeeded ? "auth.magic_link.consumed" : "auth.magic_link.failed"
+    case "/change-email":
+      return succeeded
+        ? "profile.email_change_requested"
+        : "profile.email_change_failed"
     default:
       return null
   }
@@ -249,6 +253,7 @@ export const auth = betterAuth({
   trustedOrigins: readTrustedOrigins(),
   user: {
     modelName: "app_user",
+    changeEmail: { enabled: true },
     fields: {
       emailVerified: "email_verified",
       createdAt: "created_at",

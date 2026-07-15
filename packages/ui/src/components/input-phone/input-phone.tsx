@@ -422,6 +422,7 @@ function useStore<T>(
 
 interface PhoneInputContextValue {
   rootId: string
+  name?: string
   countries: Country[]
   placeholder: string
   disabled: boolean
@@ -480,6 +481,7 @@ function PhoneInput(props: PhoneInputProps) {
     showFlag = true,
     className,
     id,
+    name,
     children,
     ...rootProps
   } = props
@@ -591,6 +593,7 @@ function PhoneInput(props: PhoneInputProps) {
   const contextValue = React.useMemo<PhoneInputContextValue>(
     () => ({
       rootId,
+      name,
       countries,
       placeholder,
       disabled: disabled ?? false,
@@ -602,6 +605,7 @@ function PhoneInput(props: PhoneInputProps) {
     }),
     [
       rootId,
+      name,
       countries,
       placeholder,
       disabled,
@@ -623,7 +627,7 @@ function PhoneInput(props: PhoneInputProps) {
           data-disabled={disabled ? "" : undefined}
           data-invalid={invalid ? "" : undefined}
           data-readonly={readOnly ? "" : undefined}
-          id={rootId}
+          id={`${rootId}-group`}
           {...rootProps}
           className={cn(
             "relative flex h-9 w-full min-w-0 items-center rounded-lg border border-input bg-transparent transition-colors has-[[aria-invalid=true]]:border-destructive has-[[aria-invalid=true]]:ring-3 has-[[aria-invalid=true]]:ring-destructive/20 has-[[data-slot=input-phone-field]:focus-visible]:border-ring has-[[data-slot=input-phone-field]:focus-visible]:ring-3 has-[[data-slot=input-phone-field]:focus-visible]:ring-ring/50 dark:bg-input/30 dark:has-[[aria-invalid=true]]:ring-destructive/40 data-disabled:pointer-events-none data-disabled:cursor-not-allowed data-disabled:opacity-50",
@@ -782,6 +786,7 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
   } = props
 
   const {
+    rootId,
     inputRef,
     disabled,
     invalid,
@@ -789,6 +794,7 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
     required,
     placeholder,
     countries,
+    name,
   } = usePhoneInputContext(FIELD_NAME)
   const store = useStoreContext(FIELD_NAME)
   const value = useStore((state) => state.value)
@@ -828,8 +834,10 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
         const dial = selected ? selected.dialCode.slice(1) : ""
         if (dial) {
           const typed = inputValue.replace(/\D/g, "")
+          const nextValue = `+${dial}${typed}`
           store.setState("startsWithPlus", true)
-          store.setState("value", `+${dial}${typed}`)
+          event.target.value = formatPhoneNumber(nextValue, countries)
+          store.setState("value", nextValue)
           return
         }
       }
@@ -838,6 +846,7 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
       const digits = inputValue.replace(/\D/g, "")
       const newValue = digits ? `+${digits}` : startsWithPlus ? "+" : ""
       store.setState("startsWithPlus", startsWithPlus)
+      event.target.value = formatPhoneNumber(newValue, countries)
       store.setState("value", newValue)
     },
     [store, onChangeRef, isDisabled, isReadOnly, countries],
@@ -849,6 +858,7 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
 
   return (
     <Input
+      id={rootId}
       type="tel"
       inputMode="tel"
       aria-required={isRequired}
@@ -858,6 +868,7 @@ function PhoneInputField(props: React.ComponentProps<typeof Input>) {
       readOnly={isReadOnly}
       required={isRequired}
       {...inputProps}
+      name={name}
       ref={composedRef}
       className={cn(
         "h-full flex-1 rounded-l-none border-0 bg-transparent shadow-none focus-visible:border-0 focus-visible:ring-0 disabled:bg-transparent dark:bg-transparent dark:disabled:bg-transparent",

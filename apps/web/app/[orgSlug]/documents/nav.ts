@@ -24,7 +24,7 @@ export function documentsNav(base: string): SidebarNavEntry[] {
               label: "Received",
               href: `${base}/invoices/received`,
             },
-            { label: "Issued", href: `${base}/invoices/issued`, tba: true },
+            { label: "Issued", href: `${base}/invoices/issued` },
           ],
         },
         {

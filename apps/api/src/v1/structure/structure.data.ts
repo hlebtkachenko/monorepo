@@ -321,7 +321,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Issued",
               "route": "documents/invoices/issued",
-              "tba": true,
+              "tba": false,
               "archetype": null,
               "purpose": null
             }

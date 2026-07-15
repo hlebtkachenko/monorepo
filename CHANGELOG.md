@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Faktury vydané (issued invoices) list page at documents/invoices/issued, wired to real captured documents (fetchDocuments filtered to ISSUED_INVOICE) via the shared DocumentsTable
 - Table archetype: two new column kinds — `currency` (decimal-string amount, cs-CZ formatted, right-aligned, numeric sort/filter with no float precision loss) and `date` (ISO string, cs-CZ short date, chronological sort); currency stays read-only in the grid so it never routes through the inline Number() editor
 
 ### Changed

@@ -270,6 +270,8 @@ const SIGNAL_LABELS: Record<string, string> = {
   reserve_or_impairment: "rezerva nebo opravná položka vyžaduje posouzení",
   dph_tax_point_timing: "nejistota v okamžiku vzniku daňové povinnosti (DUZP)",
   prior_without_source: "dřívější zápis bez podkladového dokladu",
+  counterparty_register_mismatch:
+    "název protistrany neodpovídá rejstříku ARES (ověřte IČO)",
 }
 
 function signalLabel(signal: string): string {

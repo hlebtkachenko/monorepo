@@ -729,6 +729,19 @@ describe("holdReasonsFrom", () => {
     expect(holdReasonsFrom({})).toEqual([])
   })
 
+  it("labels the Tier-1.5 counterparty_register_mismatch cap in Czech, not the raw token", () => {
+    const reasons = holdReasonsFrom({
+      serverGate: {
+        veto: { held: false, signals: [] },
+        score: { reasons: ["capped by counterparty_register_mismatch at 0.7"] },
+      },
+    })
+    expect(reasons).toEqual([
+      "Omezeno signálem „název protistrany neodpovídá rejstříku ARES (ověřte IČO)“ na jistotu 0.7",
+    ])
+    expect(reasons[0]).not.toContain("counterparty_register_mismatch")
+  })
+
   it("labels every Tier-1/Tier-3 block signal kind in Czech, not the raw token", () => {
     // extraction_failed is the dominant pre-launch cold-start hold reason (signals.ts TIER3_DEFER_KINDS)
     // — it MUST render as Czech prose, never as the raw "extraction_failed" jargon.

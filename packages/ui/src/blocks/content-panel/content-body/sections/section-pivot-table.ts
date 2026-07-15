@@ -71,6 +71,28 @@ export interface PivotMeasure {
 }
 
 /**
+ * The context of one drilled-into aggregate cell — the coordinates that produced
+ * it plus the SOURCE rows behind it. The renderer computes this on a cell click
+ * and hands it to the page's `onPivotDrill`, which renders the underlying records
+ * (a Sheet/dialog). Pure data — the renderer never opens the surface itself.
+ */
+export interface PivotDrillTarget {
+  /** Row-dimension field → value along the drilled cell's row path. */
+  readonly rowValues: Readonly<Record<string, string>>
+  /** Column-dimension values above the drilled cell (empty with no column dims). */
+  readonly columnPath: readonly string[]
+  /** The measure whose aggregate was drilled. */
+  readonly measureId: string
+  /** A human label for the cell (e.g. `EU · Widgets — Amount`). */
+  readonly label: string
+  /** The source rows contributing to the cell (already filtered by the renderer). */
+  readonly rows: readonly TableSectionRow[]
+}
+
+/** Page handler invoked when a pivot aggregate cell is drilled into. */
+export type SectionPivotDrill = (target: PivotDrillTarget) => void
+
+/**
  * A Pivot-table section, described as pure data. It takes LONG-format source
  * rows (one record per observation) and pivots them into a hierarchical matrix:
  * a row hierarchy (`rowDimensions`) × a column hierarchy (`columnDimensions`),

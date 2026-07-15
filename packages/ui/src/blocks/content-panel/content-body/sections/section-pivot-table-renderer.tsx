@@ -25,10 +25,12 @@ import { GridNumberCell } from "./section-grid-cells"
 import { buildSelectColumn, type RowOrder } from "./section-grid-select"
 import {
   PIVOT_ROW_LABEL_ID,
+  type PivotDrillTarget,
   type PivotMeasure,
   type SectionPivotTablePayload,
 } from "./section-pivot-table"
 import { useSectionGridTable } from "./section-grid-table"
+import { useSectionPivotDrill } from "./section-table-context"
 
 /**
  * The row-label cell: an expand/collapse toggle (only when the node has
@@ -90,6 +92,44 @@ function renderPivotCell(
     <GridNumberCell negative={cell.value < 0}>
       {format(cell.value)}
     </GridNumberCell>
+  )
+}
+
+/** A source-field value as its display string (`""` for null/undefined) — the
+ *  same normalization the transform uses, so drill matching lines up with the
+ *  buckets `buildPivot` folded. */
+function fieldStr(row: Record<string, unknown>, field: string): string {
+  const v = row[field]
+  return v == null ? "" : String(v)
+}
+
+/**
+ * One aggregate value cell. When drill-through is wired AND the cell has an
+ * underlying value (not empty), it renders as a button that opens the source
+ * records; otherwise it's the plain formatted number. `mousedown` is stopped so
+ * activating it never also grabs the grid cell's focus ring.
+ */
+function PivotValueCell({
+  cell,
+  format,
+  onDrill,
+}: {
+  cell: PivotCell | undefined
+  format: (value: number) => string
+  onDrill?: () => void
+}) {
+  const content = renderPivotCell(cell, format)
+  if (!onDrill || !cell || cell.kind === "empty") return content
+  return (
+    <button
+      type="button"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={onDrill}
+      title="Show underlying records"
+      className="w-full cursor-pointer text-right underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+    >
+      {content}
+    </button>
   )
 }
 
@@ -160,6 +200,40 @@ export function SectionPivotTableRenderer({
     return map
   }, [measures])
 
+  // Drill-through: page handler (null → cells are inert, non-clickable). The
+  // target is computed lazily on click, so no per-render row scan.
+  const drill = useSectionPivotDrill()
+  const buildDrillTarget = React.useCallback(
+    (
+      rowValues: Readonly<Record<string, string>>,
+      leaf: PivotLeafColumn,
+    ): PivotDrillTarget => {
+      // The source rows behind this cell: every row-dimension value on the node's
+      // path AND every column-dimension value above the leaf must match — the
+      // exact bucket predicate `buildPivot` folded (via the shared `fieldStr`).
+      const matching = rows.filter(
+        (row) =>
+          Object.entries(rowValues).every(
+            ([field, value]) => fieldStr(row, field) === value,
+          ) &&
+          columnDimensions.every(
+            (dim, i) => fieldStr(row, dim.field) === leaf.columnPath[i],
+          ),
+      )
+      const coords = [...Object.values(rowValues), ...leaf.columnPath].filter(
+        Boolean,
+      )
+      return {
+        rowValues,
+        columnPath: leaf.columnPath,
+        measureId: leaf.measureId,
+        label: `${coords.join(" · ") || "Total"} — ${leaf.label}`,
+        rows: matching,
+      }
+    },
+    [rows, columnDimensions],
+  )
+
   // Shift-range anchor + current display order (id → position in the CURRENT
   // expanded/filtered view), kept fresh in refs for the shared select column.
   const selectionAnchor = React.useRef<number | null>(null)
@@ -186,8 +260,17 @@ export function SectionPivotTableRenderer({
         size: valueWidth,
         enableGlobalFilter: false,
         meta: { label: leaf.label, align: "end", disableReorder: true },
-        cell: ({ row }) =>
-          renderPivotCell(row.original.values[leaf.id], format),
+        cell: ({ row }) => (
+          <PivotValueCell
+            cell={row.original.values[leaf.id]}
+            format={format}
+            onDrill={
+              drill
+                ? () => drill(buildDrillTarget(row.original.rowValues, leaf))
+                : undefined
+            }
+          />
+        ),
       }
     }
 
@@ -233,6 +316,8 @@ export function SectionPivotTableRenderer({
     labelWidth,
     valueWidth,
     formatByMeasure,
+    drill,
+    buildDrillTarget,
   ])
 
   // The grand total is a SEPARATE, stable summary row (a pinned footer OUTSIDE
@@ -250,10 +335,25 @@ export function SectionPivotTableRenderer({
     }
     for (const leaf of pivot.leafColumns) {
       const format = formatByMeasure.get(leaf.measureId) ?? String
-      cells[leaf.id] = renderPivotCell(pivot.grandTotals[leaf.id], format)
+      // The grand total drills to ALL source rows under the leaf's column path
+      // (no row-dimension constraint → `rowValues: {}`).
+      cells[leaf.id] = (
+        <PivotValueCell
+          cell={pivot.grandTotals[leaf.id]}
+          format={format}
+          onDrill={drill ? () => drill(buildDrillTarget({}, leaf)) : undefined}
+        />
+      )
     }
     return { cells, ariaLabel: "Grand total" }
-  }, [pivot.rows.length, pivot.leafColumns, pivot.grandTotals, formatByMeasure])
+  }, [
+    pivot.rows.length,
+    pivot.leafColumns,
+    pivot.grandTotals,
+    formatByMeasure,
+    drill,
+    buildDrillTarget,
+  ])
 
   const { table } = useSectionGridTable<PivotRow>({
     data: pivot.rows as PivotRow[],

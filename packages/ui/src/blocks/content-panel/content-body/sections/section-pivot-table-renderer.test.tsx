@@ -1,5 +1,5 @@
 import { act, render, screen, fireEvent, within } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import type { Table } from "@tanstack/react-table"
 
 import { SectionPivotTableRenderer } from "./section-pivot-table-renderer"
@@ -54,6 +54,37 @@ describe("SectionPivotTableRenderer", () => {
     expect(screen.getByText("US")).toBeInTheDocument()
     // No column dims → the measure label is the only value header.
     expect(screen.getByRole("button", { name: /Amount/ })).toBeInTheDocument()
+  })
+
+  it("drills a value cell into its underlying source rows", () => {
+    const onPivotDrill = vi.fn()
+    render(
+      <SectionTableProvider onPivotDrill={onPivotDrill}>
+        <div className="flex h-96 flex-col">
+          <SectionPivotTableRenderer props={payload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    // EU subtotal Amount = 15 (10 + 5); the cell is a drill button when wired.
+    const button = screen.getByText("15").closest("button")
+    expect(button).not.toBeNull()
+    fireEvent.click(button as HTMLButtonElement)
+    expect(onPivotDrill).toHaveBeenCalledTimes(1)
+    const target = onPivotDrill.mock.calls[0]![0]
+    expect(target.rowValues).toEqual({ region: "EU" })
+    expect(target.measureId).toBe("amt")
+    // Only the two EU source rows contribute to the cell.
+    expect(target.rows).toHaveLength(2)
+    expect(
+      target.rows.every((r: { region: string }) => r.region === "EU"),
+    ).toBe(true)
+  })
+
+  it("leaves pivot cells inert (no drill button) when no handler is wired", () => {
+    // `renderPivot` mounts the renderer with NO SectionTableProvider, so the
+    // drill bridge is null and value cells are plain (non-button) numbers.
+    renderPivot(payload)
+    expect(screen.getByText("15").closest("button")).toBeNull()
   })
 
   it("renders hierarchical column headers (a grouping tier per column dimension)", () => {

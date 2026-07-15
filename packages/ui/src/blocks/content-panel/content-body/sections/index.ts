@@ -65,6 +65,8 @@ export type {
   PivotDimension,
   PivotMeasure,
   PivotAggregation,
+  PivotDrillTarget,
+  SectionPivotDrill,
 } from "./section-pivot-table"
 export type {
   PivotCell,
@@ -85,6 +87,7 @@ export {
   useSectionColumnAnalyze,
   useSectionCellCommit,
   useSectionCreateOption,
+  useSectionPivotDrill,
 } from "./section-table-context"
 export type {
   SectionTableRegistration,

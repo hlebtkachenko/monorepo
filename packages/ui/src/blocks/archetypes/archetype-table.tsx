@@ -27,6 +27,7 @@ import type {
   SectionCellCommit,
   SectionCreateOption,
   SectionDescriptor,
+  SectionPivotDrill,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type { IconName } from "@workspace/ui/icon-packs"
@@ -138,6 +139,13 @@ export interface ArchetypeTableProps<TData> {
    * this to persist it. Unwired → the new option shows for the session only.
    */
   onCreateOption?: SectionCreateOption
+  /**
+   * Open the underlying records when a Pivot aggregate cell is drilled into.
+   * The renderer computes the {@link SectionPivotDrill} target (the cell's
+   * coordinates + the matching source rows) and hands it here; the page renders
+   * the records (e.g. a dialog/Sheet). Unwired → pivot cells are inert.
+   */
+  onPivotDrill?: SectionPivotDrill
   /** Row-detail Inspector — the detail of the chosen row (panel or dialog). */
   inspector?: React.ReactNode
   inspectorOpen?: boolean
@@ -177,6 +185,7 @@ export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
     <SectionTableProvider
       onCellCommit={props.onCellEdit}
       onCreateOption={props.onCreateOption}
+      onPivotDrill={props.onPivotDrill}
     >
       <ArchetypeTableChrome {...props} />
     </SectionTableProvider>

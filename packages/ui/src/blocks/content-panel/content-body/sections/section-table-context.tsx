@@ -4,6 +4,7 @@ import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
 import type { TableCellValue } from "./section-table"
+import type { SectionPivotDrill } from "./section-pivot-table"
 
 /** One committed inline-cell edit — the row id, the column, the new value. */
 export interface SectionCellEdit {
@@ -80,6 +81,8 @@ interface SectionTableContextValue {
   readonly cellCommit: SectionCellCommit | null
   /** Page-supplied persistence for a newly-created option; null when unwired. */
   readonly createOption: SectionCreateOption | null
+  /** Page handler for a pivot cell drill-through; null when unwired. */
+  readonly pivotDrill: SectionPivotDrill | null
 }
 
 const SectionTableContext =
@@ -95,12 +98,15 @@ export function SectionTableProvider({
   children,
   onCellCommit,
   onCreateOption,
+  onPivotDrill,
 }: {
   children: React.ReactNode
   /** Persist an inline-cell edit; the section renderer calls it (optimistic + revert). */
   onCellCommit?: SectionCellCommit
   /** Persist a new option created in a `creatable` select column. */
   onCreateOption?: SectionCreateOption
+  /** Open the underlying records when a pivot aggregate cell is drilled into. */
+  onPivotDrill?: SectionPivotDrill
 }) {
   const [registration, setRegistration] =
     React.useState<SectionTableRegistration | null>(null)
@@ -148,6 +154,7 @@ export function SectionTableProvider({
       requestColumnAnalyze,
       cellCommit: onCellCommit ?? null,
       createOption: onCreateOption ?? null,
+      pivotDrill: onPivotDrill ?? null,
     }),
     [
       registration,
@@ -161,6 +168,7 @@ export function SectionTableProvider({
       requestColumnAnalyze,
       onCellCommit,
       onCreateOption,
+      onPivotDrill,
     ],
   )
   return (
@@ -280,4 +288,11 @@ export function useSectionCellCommit(): SectionCellCommit | null {
  *  when the page wired none — the new option then lives only for the session. */
 export function useSectionCreateOption(): SectionCreateOption | null {
   return React.useContext(SectionTableContext)?.createOption ?? null
+}
+
+/** The page-supplied pivot drill-through handler, for the pivot renderer to call
+ *  when an aggregate cell is activated. `null` outside a provider or when the
+ *  page wired none — the renderer then renders inert (non-clickable) cells. */
+export function useSectionPivotDrill(): SectionPivotDrill | null {
+  return React.useContext(SectionTableContext)?.pivotDrill ?? null
 }

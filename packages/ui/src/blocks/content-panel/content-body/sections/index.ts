@@ -28,7 +28,11 @@ export type {
   DetailsTableMode,
   DetailsTableEditHint,
 } from "./section-details-table"
-export { sectionTable } from "./section-table"
+export {
+  sectionTable,
+  filterVariantForKind,
+  resolveColumnFilter,
+} from "./section-table"
 export type {
   SectionTableProps,
   TableColumnKind,
@@ -51,18 +55,26 @@ export type {
 export { deriveFilterColumns, applyTableFilters } from "./derive-table-filters"
 export { useTableFilters } from "./use-table-filters"
 export type { UseTableFiltersOptions } from "./use-table-filters"
-export { sectionPivotTable } from "./section-pivot-table"
+export { usePivotFilters } from "./use-pivot-filters"
+export type { UsePivotFiltersOptions } from "./use-pivot-filters"
+export { sectionPivotTable, PIVOT_ROW_LABEL_ID } from "./section-pivot-table"
 export type {
   SectionPivotTableProps,
+  SectionPivotTablePayload,
   PivotValueFormat,
+  PivotDimension,
+  PivotMeasure,
+  PivotAggregation,
 } from "./section-pivot-table"
 export type {
-  PivotConfig,
-  PivotAggregate,
-  PivotColumn,
+  PivotCell,
+  PivotLeafColumn,
+  PivotColumnNode,
   PivotRow,
   PivotResult,
+  BuildPivotInput,
 } from "./pivot-transform"
+export { buildPivot } from "./pivot-transform"
 export {
   SectionTableProvider,
   useSectionTable,
@@ -72,11 +84,14 @@ export {
   useSectionColumnFilter,
   useSectionColumnAnalyze,
   useSectionCellCommit,
+  useSectionCreateOption,
 } from "./section-table-context"
 export type {
   SectionTableRegistration,
   SectionCellEdit,
   SectionCellCommit,
+  SectionOptionCreate,
+  SectionCreateOption,
 } from "./section-table-context"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"

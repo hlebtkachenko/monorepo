@@ -25,6 +25,68 @@ function Harness() {
   return <ColumnManagerMenuContent table={table} />
 }
 
+/** Harness exposing column "a"'s live size + the live column order + controls to
+ * mutate both, so the reset action (sizes AND placing) is verified end-to-end. */
+function SizeHarness() {
+  const table = useReactTable<Row>({
+    data: [{ a: "1", b: "2" }],
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <div>
+      <span data-testid="size-a">{table.getColumn("a")!.getSize()}</span>
+      <span data-testid="order">{table.getState().columnOrder.join(",")}</span>
+      <button type="button" onClick={() => table.setColumnSizing({ a: 321 })}>
+        grow
+      </button>
+      <button type="button" onClick={() => table.setColumnOrder(["b", "a"])}>
+        reorder
+      </button>
+      <ColumnManagerMenuContent table={table} />
+    </div>
+  )
+}
+
+interface Row6 {
+  a: string
+  b: string
+  c: string
+  d: string
+  e: string
+  f: string
+}
+const columns6: ColumnDef<Row6>[] = [
+  { accessorKey: "a", header: "A", meta: { label: "Alpha" } },
+  { accessorKey: "b", header: "B", meta: { label: "Beta" } },
+  { accessorKey: "c", header: "C", meta: { label: "Gamma" } },
+  { accessorKey: "d", header: "D", meta: { label: "Delta" } },
+  { accessorKey: "e", header: "E", meta: { label: "Epsilon" } },
+  { accessorKey: "f", header: "F", meta: { label: "Zeta" } },
+]
+function PinningHarness({
+  columnOrder,
+  columnPinning,
+}: {
+  columnOrder: string[]
+  columnPinning: { left?: string[]; right?: string[] }
+}) {
+  const table = useReactTable<Row6>({
+    data: [{ a: "1", b: "2", c: "3", d: "4", e: "5", f: "6" }],
+    columns: columns6,
+    getCoreRowModel: getCoreRowModel(),
+    initialState: { columnOrder, columnPinning },
+  })
+  return <ColumnManagerMenuContent table={table} />
+}
+
+/** Row labels in DOM order, derived from each row's Hide/Show aria-label. */
+function renderedLabels() {
+  return screen
+    .getAllByRole("button", { name: /Hide|Show/ })
+    .map((el) => el.getAttribute("aria-label")?.replace(/^(Hide|Show) /, ""))
+}
+
 describe("ColumnManagerMenuContent", () => {
   it("renders no nested <button> (button-in-button crashes hydration)", () => {
     // Regression: the row toggle was a real <button> wrapping the Radix
@@ -51,5 +113,83 @@ describe("ColumnManagerMenuContent", () => {
     expect(
       screen.getByRole("button", { name: "Show Beta" }),
     ).toBeInTheDocument()
+  })
+
+  it("resets the column layout (sizes AND placing) to their defaults", () => {
+    render(<SizeHarness />)
+    const size = () => screen.getByTestId("size-a").textContent
+    const order = () => screen.getByTestId("order").textContent
+    const originalSize = size()
+    fireEvent.click(screen.getByRole("button", { name: "grow" }))
+    fireEvent.click(screen.getByRole("button", { name: "reorder" }))
+    expect(size()).toBe("321")
+    expect(order()).toBe("b,a")
+    fireEvent.click(screen.getByRole("button", { name: "Reset column layout" }))
+    // Both the widened size AND the reordered placing snap back to defaults.
+    expect(size()).toBe(originalSize)
+    expect(order()).toBe("")
+  })
+
+  it("orders the pinned-left group by columnPinning.left, not columnOrder", () => {
+    // columnOrder puts "b" before "a", but columnPinning.left says "a" then
+    // "b" — the manager must follow the pinning array for the pinned group.
+    render(
+      <PinningHarness
+        columnOrder={["f", "e", "b", "a", "d", "c"]}
+        columnPinning={{ left: ["a", "b"] }}
+      />,
+    )
+    const labels = renderedLabels()
+    // Pinned-left rows render first, in columnPinning.left order.
+    expect(labels.slice(0, 2)).toEqual(["Alpha", "Beta"])
+  })
+
+  it("orders the pinned-right group by columnPinning.right, not columnOrder", () => {
+    // columnOrder puts "c" before "d", but columnPinning.right says "d" then
+    // "c" — the manager must follow the pinning array for the pinned group.
+    render(
+      <PinningHarness
+        columnOrder={["a", "b", "c", "d", "e", "f"]}
+        columnPinning={{ right: ["d", "c"] }}
+      />,
+    )
+    const labels = renderedLabels()
+    // No pinned-left group here, so pinned-right rows render first.
+    expect(labels.slice(0, 2)).toEqual(["Delta", "Gamma"])
+  })
+
+  it("keeps unpinned columns ordered by columnOrder", () => {
+    // "e" and "f" are absent from columnOrder, so they fall back to
+    // definition order and sort after the explicitly ordered columns.
+    render(
+      <PinningHarness columnOrder={["c", "a", "d", "b"]} columnPinning={{}} />,
+    )
+    expect(renderedLabels()).toEqual([
+      "Gamma",
+      "Alpha",
+      "Delta",
+      "Beta",
+      "Epsilon",
+      "Zeta",
+    ])
+  })
+
+  it("keeps pinned and unpinned groups disjoint and matches full expected order", () => {
+    // a,b pinned left (in reverse of columnOrder); c,d pinned right (in
+    // reverse of columnOrder); e,f unpinned, following columnOrder.
+    render(
+      <PinningHarness
+        columnOrder={["b", "a", "c", "d", "f", "e"]}
+        columnPinning={{ left: ["a", "b"], right: ["d", "c"] }}
+      />,
+    )
+    expect(renderedLabels()).toEqual([
+      "Alpha",
+      "Beta",
+      "Delta",
+      "Gamma",
+      "Zeta",
+      "Epsilon",
+    ])
   })
 })

@@ -16,6 +16,20 @@ export interface SectionCellEdit {
  * failed write, which the renderer reverts optimistically. */
 export type SectionCellCommit = (edit: SectionCellEdit) => void | Promise<void>
 
+/** A new option value created in a `creatable` select column — the column and
+ * the raw value the user typed. The renderer adds it to the column's live
+ * options immediately; this persists it (e.g. append to a directory). */
+export interface SectionOptionCreate {
+  readonly columnId: string
+  readonly value: string
+}
+
+/** Persist a newly-created option for a `creatable` column. Optional; when
+ * unwired the new option still shows locally for the session. */
+export type SectionCreateOption = (
+  create: SectionOptionCreate,
+) => void | Promise<void>
+
 /**
  * The load-bearing bridge (Doc `table-stack-research` §3c). A `Table` section's
  * live TanStack instance is minted INSIDE the closed section renderer — it can
@@ -64,6 +78,8 @@ interface SectionTableContextValue {
   readonly requestColumnAnalyze: (columnId: string) => void
   /** Page-supplied persistence for an inline-cell edit; null when the page wires none. */
   readonly cellCommit: SectionCellCommit | null
+  /** Page-supplied persistence for a newly-created option; null when unwired. */
+  readonly createOption: SectionCreateOption | null
 }
 
 const SectionTableContext =
@@ -78,10 +94,13 @@ const SectionTableContext =
 export function SectionTableProvider({
   children,
   onCellCommit,
+  onCreateOption,
 }: {
   children: React.ReactNode
   /** Persist an inline-cell edit; the section renderer calls it (optimistic + revert). */
   onCellCommit?: SectionCellCommit
+  /** Persist a new option created in a `creatable` select column. */
+  onCreateOption?: SectionCreateOption
 }) {
   const [registration, setRegistration] =
     React.useState<SectionTableRegistration | null>(null)
@@ -128,6 +147,7 @@ export function SectionTableProvider({
       analyzeRequest,
       requestColumnAnalyze,
       cellCommit: onCellCommit ?? null,
+      createOption: onCreateOption ?? null,
     }),
     [
       registration,
@@ -140,6 +160,7 @@ export function SectionTableProvider({
       analyzeRequest,
       requestColumnAnalyze,
       onCellCommit,
+      onCreateOption,
     ],
   )
   return (
@@ -252,4 +273,11 @@ export function useSectionColumnAnalyze(): {
  *  renderer then keeps edits as local draft only. */
 export function useSectionCellCommit(): SectionCellCommit | null {
   return React.useContext(SectionTableContext)?.cellCommit ?? null
+}
+
+/** The page-supplied option-create persistence, for the section renderer to call
+ *  when a `creatable` column mints a new option. `null` outside a provider or
+ *  when the page wired none — the new option then lives only for the session. */
+export function useSectionCreateOption(): SectionCreateOption | null {
+  return React.useContext(SectionTableContext)?.createOption ?? null
 }

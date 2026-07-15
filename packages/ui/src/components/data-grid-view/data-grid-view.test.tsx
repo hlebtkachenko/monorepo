@@ -1,6 +1,10 @@
 import { act, render, renderHook, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { getExpandedRowModel, type ColumnDef } from "@tanstack/react-table"
+import {
+  getExpandedRowModel,
+  type ColumnDef,
+  type Table,
+} from "@tanstack/react-table"
 import { arrayMove } from "@dnd-kit/sortable"
 import * as React from "react"
 import { describe, expect, it } from "vitest"
@@ -8,7 +12,7 @@ import { describe, expect, it } from "vitest"
 import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { useDataTable } from "../data-table/use-data-table"
-import { DataGridView } from "./data-grid-view"
+import { DataGridView, type DataGridSummaryRow } from "./data-grid-view"
 import { commitCenter, getCenterIds } from "./data-grid-view-column-header"
 
 interface Row {
@@ -65,6 +69,14 @@ describe("DataGridView", () => {
     expect(screen.getByText("Ada")).toBeInTheDocument()
     expect(screen.getByText("Alan")).toBeInTheDocument()
     expect(screen.getByText("Grace")).toBeInTheDocument()
+  })
+
+  it("stacks the sticky header above the focused-row layer (D6A)", () => {
+    // The sticky header must sit above any body focus/selection layer (rows use
+    // `z-20`) so a focused row can never paint over it when scrolled.
+    const { container } = render(<Harness />)
+    const header = container.querySelector('[data-slot="grid-header"]')
+    expect(header?.className).toContain("z-30")
   })
 
   it("right-aligns a SORTABLE column header when meta.align is 'end'", () => {
@@ -262,6 +274,111 @@ describe("header alignment (meta.align)", () => {
     expect(header.className).not.toContain("justify-end")
     expect(header.className).not.toContain("justify-center")
     expect(header.className).toContain("px-3")
+  })
+})
+
+describe("summary row (grand-total footer, C3)", () => {
+  const summary: DataGridSummaryRow = {
+    ariaLabel: "Grand total",
+    cells: {
+      select: null,
+      name: <span>Total</span>,
+      age: <span>Σ 162</span>,
+    },
+  }
+
+  function SummaryHarness({
+    tableRef,
+    withSummary = true,
+  }: {
+    tableRef?: { current: Table<Row> | null }
+    withSummary?: boolean
+  }) {
+    const { table } = useDataTable<Row>({
+      data: seed,
+      columns,
+      getRowId: (row) => row.id,
+      columnResizeMode: "onChange",
+      // The archetype's single-page model; the footer coexists with virtualization.
+      paginated: false,
+      enableGlobalFilter: true,
+      globalFilterFn: "includesString",
+      initialState: { columnPinning: { left: ["select"] } },
+    })
+    if (tableRef) tableRef.current = table
+    return (
+      <DataGridView
+        table={table}
+        className="h-64"
+        summaryRow={withSummary ? summary : null}
+      />
+    )
+  }
+
+  const lastRowGroup = (container: HTMLElement) => {
+    const groups = container.querySelectorAll('[role="rowgroup"]')
+    return groups[groups.length - 1]
+  }
+
+  it("renders the total in a footer rowgroup, outside the body", () => {
+    const { container } = render(<SummaryHarness />)
+    const footer = container.querySelector('[data-slot="grid-footer"]')
+    expect(footer).not.toBeNull()
+    expect(footer).toHaveTextContent("Total")
+    expect(footer).toHaveTextContent("Σ 162")
+    // The body row model never carries the total.
+    const body = container.querySelector('[data-slot="grid-body"]')
+    expect(body?.textContent ?? "").not.toContain("Σ 162")
+  })
+
+  it("keeps the footer last + visible after ascending then descending sort", () => {
+    const tableRef: { current: Table<Row> | null } = { current: null }
+    const { container } = render(<SummaryHarness tableRef={tableRef} />)
+
+    act(() => tableRef.current!.setSorting([{ id: "age", desc: false }]))
+    expect(lastRowGroup(container)?.getAttribute("data-slot")).toBe(
+      "grid-footer",
+    )
+    expect(lastRowGroup(container)).toHaveTextContent("Total")
+
+    act(() => tableRef.current!.setSorting([{ id: "age", desc: true }]))
+    expect(lastRowGroup(container)?.getAttribute("data-slot")).toBe(
+      "grid-footer",
+    )
+    expect(lastRowGroup(container)).toHaveTextContent("Total")
+  })
+
+  it("keeps the footer visible after a filter drops body rows", () => {
+    const tableRef: { current: Table<Row> | null } = { current: null }
+    const { container } = render(<SummaryHarness tableRef={tableRef} />)
+
+    act(() => tableRef.current!.setGlobalFilter("Ada"))
+    expect(dataRowNames(container)).toEqual(["Ada"])
+    expect(
+      container.querySelector('[data-slot="grid-footer"]'),
+    ).toHaveTextContent("Total")
+  })
+
+  it("counts the footer in aria-rowcount but not the selected-row model", () => {
+    const tableRef: { current: Table<Row> | null } = { current: null }
+    const { container } = render(<SummaryHarness tableRef={tableRef} />)
+
+    // header (1) + 3 body + 1 summary = 5.
+    expect(
+      container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount"),
+    ).toBe("5")
+
+    act(() => tableRef.current!.toggleAllRowsSelected(true))
+    // Selecting every data row yields the 3 data rows only — never the total.
+    expect(tableRef.current!.getFilteredSelectedRowModel().rows).toHaveLength(3)
+  })
+
+  it("renders no footer (and no extra aria-rowcount) without a summaryRow", () => {
+    const { container } = render(<SummaryHarness withSummary={false} />)
+    expect(container.querySelector('[data-slot="grid-footer"]')).toBeNull()
+    expect(
+      container.querySelector('[role="grid"]')?.getAttribute("aria-rowcount"),
+    ).toBe("4")
   })
 })
 

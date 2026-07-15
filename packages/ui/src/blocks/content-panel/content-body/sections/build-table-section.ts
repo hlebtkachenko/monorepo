@@ -52,17 +52,36 @@ export function buildTableSection<T>({
   }
 
   const builtColumns: TableColumnSpec[] = columns.map((col) => {
-    const { accessor, ...spec } = col
+    const { accessor: _accessor, ...spec } = col
     return spec
   })
 
+  const seenRowIds =
+    process.env.NODE_ENV !== "production" ? new Set<string>() : null
+
   const rows: TableSectionRow[] = data.map((record) => {
-    const row: Record<string, TableCellValue> = {
-      [rowIdKey]: String(getRowId(record)),
-    }
+    // Build the mapped data cells FIRST. The stable row id is written LAST
+    // (below), so a data column whose id happens to equal `rowIdKey` can
+    // never overwrite it.
+    const row: Record<string, TableCellValue> = {}
     for (const col of columns) {
       row[col.id] = col.accessor(record)
     }
+
+    const rowId = String(getRowId(record))
+    if (seenRowIds) {
+      if (rowId.length === 0)
+        throw new Error(
+          "buildTableSection: `getRowId` produced a missing/empty row id.",
+        )
+      if (seenRowIds.has(rowId))
+        throw new Error(
+          `buildTableSection: duplicate generated row id "${rowId}".`,
+        )
+      seenRowIds.add(rowId)
+    }
+    row[rowIdKey] = rowId
+
     return row
   })
 

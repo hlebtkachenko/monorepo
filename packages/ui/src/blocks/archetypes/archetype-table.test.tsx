@@ -1,5 +1,11 @@
+import { render, screen, fireEvent } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
 
+import { IconProvider } from "@workspace/ui/icon-packs"
+import { sectionTable } from "@workspace/ui/blocks/content-panel"
+import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
+
+import { ArchetypeTable } from "./archetype-table"
 import { resolveHeaderFilterTarget } from "./archetype-table"
 
 describe("resolveHeaderFilterTarget", () => {
@@ -40,5 +46,50 @@ describe("resolveHeaderFilterTarget", () => {
       property: undefined,
       routeToStatus: false,
     })
+  })
+})
+
+describe("ArchetypeTable — row inspector", () => {
+  const ROWS: TableSectionRow[] = [
+    { id: "1", document: "FP-001" },
+    { id: "2", document: "FP-002" },
+  ]
+
+  function renderArchetype(inspect: boolean) {
+    return render(
+      <ArchetypeTable<TableSectionRow>
+        title="Invoices"
+        toolbar={() => ({})}
+        renderInspector={(row) => ({
+          title: `Inspector for ${String(row.document)}`,
+          body: <div>Row detail {String(row.id)}</div>,
+        })}
+        sections={[
+          sectionTable({
+            rowIdKey: "id",
+            columns: [
+              { id: "document", header: "Document", kind: "text", role: "id" },
+            ],
+            rows: ROWS,
+            features: { inspect },
+          }),
+        ]}
+      />,
+      { wrapper: IconProvider },
+    )
+  }
+
+  it("opens the renderInspector Sheet for the clicked row (end-to-end)", () => {
+    renderArchetype(true)
+    // The Sheet content is not mounted until the per-row opener fires.
+    expect(screen.queryByText("Inspector for FP-001")).not.toBeInTheDocument()
+    fireEvent.click(screen.getAllByLabelText("Open inspector")[0]!)
+    expect(screen.getByText("Inspector for FP-001")).toBeInTheDocument()
+    expect(screen.getByText(/Row detail 1/)).toBeInTheDocument()
+  })
+
+  it("has no Open inspector button when inspect is off", () => {
+    renderArchetype(false)
+    expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
   })
 })

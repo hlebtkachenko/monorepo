@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest"
 import type { Table } from "@tanstack/react-table"
 
+import type {
+  Column as FilterColumn,
+  DataTableFilterActions,
+} from "@workspace/ui/components/filter-bar"
+
 import { buildTableToolbar } from "./build-table-toolbar"
 
 interface Row {
@@ -65,5 +70,35 @@ describe("buildTableToolbar", () => {
     expect(setFilterValue).toHaveBeenCalledWith(undefined)
     toolbar.statusFilter?.onChange(["New"])
     expect(setFilterValue).toHaveBeenLastCalledWith(["New"])
+  })
+
+  function fakeFilterDescriptor(columnIds: string[]) {
+    return {
+      columns: columnIds.map((id) => ({ id }) as unknown as FilterColumn<Row>),
+      filters: [],
+      actions: {} as DataTableFilterActions,
+      strategy: "client" as const,
+    }
+  }
+
+  it("drops the status column from the multi-filter (delegated to one system)", () => {
+    // Columns are filterable by default, so the status column auto-lands in the
+    // multi-filter; the toolbar excludes it since the Status control owns it.
+    const { table } = fakeTable()
+    const result = buildTableToolbar(table, {
+      status: { columnId: "status", title: "Status", options: [] },
+      filter: fakeFilterDescriptor(["amount", "status"]),
+    })
+    expect(result.filter?.columns.map((c) => c.id)).toEqual(["amount"])
+    expect(result.statusFilter?.columnId).toBe("status")
+  })
+
+  it("leaves the multi-filter untouched when disjoint from the status column", () => {
+    const { table } = fakeTable()
+    const result = buildTableToolbar(table, {
+      status: { columnId: "status", title: "Status", options: [] },
+      filter: fakeFilterDescriptor(["amount", "date"]),
+    })
+    expect(result.filter?.columns.map((c) => c.id)).toEqual(["amount", "date"])
   })
 })

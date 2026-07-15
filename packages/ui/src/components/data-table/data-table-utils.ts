@@ -31,6 +31,12 @@ export interface DataTableColumnMeta {
    * cell here a white surface so it reads as an editable field.
    */
   editable?: boolean
+  /**
+   * Extra px this column's cell reserves AFTER its value (e.g. a trailing
+   * action button). Double-click auto-fit adds it so the fit shows the full
+   * text PLUS the button without overlap.
+   */
+  trailingWidth?: number
 }
 
 declare module "@tanstack/react-table" {

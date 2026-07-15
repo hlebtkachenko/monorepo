@@ -95,3 +95,4 @@ mlive.local.sh
 
 # Local-only DB-backed Table debug page (kept while iterating; not shipped)
 apps/web/app/\[orgSlug\]/settings/debug/archetype-table-db/
+apps/web/app/\[orgSlug\]/settings/debug/archetype-table-pivot/

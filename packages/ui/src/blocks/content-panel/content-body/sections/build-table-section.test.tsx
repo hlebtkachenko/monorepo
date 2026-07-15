@@ -186,4 +186,64 @@ describe("buildTableSection", () => {
       }),
     ).toThrow(/rowIdKey/)
   })
+
+  it("keeps the stable row id even when a column id collides with rowIdKey", () => {
+    const columns: TableColumnDef<Invoice>[] = [
+      {
+        id: "id", // collides with rowIdKey
+        header: "Id (bogus data column)",
+        kind: "text",
+        accessor: () => "not-the-real-id",
+      },
+    ]
+
+    const result = buildTableSection({
+      columns,
+      data: invoices,
+      rowIdKey: "id",
+      getRowId: (row) => row.id,
+    })
+
+    expect(result.rows).toEqual([{ id: "inv_1" }, { id: "inv_2" }])
+  })
+
+  it("throws on duplicate generated row ids (dev guard)", () => {
+    const columns: TableColumnDef<Invoice>[] = [
+      {
+        id: "customer",
+        header: "Customer",
+        kind: "text",
+        accessor: (row) => row.customer,
+      },
+    ]
+
+    expect(() =>
+      buildTableSection({
+        columns,
+        data: invoices,
+        rowIdKey: "id",
+        getRowId: () => "same-id",
+      }),
+    ).toThrow(/duplicate generated row id/)
+  })
+
+  it("throws on a missing/empty generated row id (dev guard)", () => {
+    const columns: TableColumnDef<Invoice>[] = [
+      {
+        id: "customer",
+        header: "Customer",
+        kind: "text",
+        accessor: (row) => row.customer,
+      },
+    ]
+
+    expect(() =>
+      buildTableSection({
+        columns,
+        data: [invoices[0]!],
+        rowIdKey: "id",
+        getRowId: () => "",
+      }),
+    ).toThrow(/missing\/empty row id/)
+  })
 })

@@ -72,6 +72,14 @@ export interface AppContextMenuProps {
   onAboutBlock?: (ctx: CapturedContext, formatted: string) => void
   /** Override the default clipboard write for Copy path. */
   onCopyPath?: (ctx: CapturedContext, formatted: string) => void
+  /**
+   * Switch the whole right-click menu off without unmounting anything: when
+   * `false` the app body renders in the same full-height wrapper but the custom
+   * ContextMenu (and its Bug dialog) are bypassed, so a right-click yields the
+   * native browser menu. Defaults to `true`. Flip it at the app wiring to
+   * disable the feature app-wide while keeping all the code in place.
+   */
+  enabled?: boolean
   children: React.ReactNode
 }
 
@@ -103,6 +111,7 @@ export function AppContextMenu({
   onAskSidekick,
   onAboutBlock,
   onCopyPath,
+  enabled = true,
   children,
 }: AppContextMenuProps) {
   const lastRef = React.useRef<{
@@ -196,6 +205,15 @@ export function AppContextMenu({
     }
     await onReportBug(payload)
   }
+
+  // Off switch: keep the full-height body wrapper (so page layout is unchanged)
+  // but drop the ContextMenu + Bug dialog entirely, yielding the native menu.
+  if (!enabled)
+    return (
+      <div data-slot="app-context-menu-trigger" className="min-h-svh">
+        {children}
+      </div>
+    )
 
   return (
     <>

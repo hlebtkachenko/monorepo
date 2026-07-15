@@ -55,6 +55,8 @@
   --color-grid-row-hover: var(--grid-row-hover);
   --color-grid-row-selected: var(--grid-row-selected);
   --color-grid-checkbox-border: var(--grid-checkbox-border);
+  --color-grid-action-icon: var(--grid-action-icon);
+  --color-grid-action-hover: var(--grid-action-hover);
   /* Icon-box color tokens → Tailwind utilities (text-icon, bg-icon-hover-bg, …).
      Shared by the rail, the header, and the IconButton primitive. */
   --color-icon: var(--icon);
@@ -118,6 +120,8 @@
   /* Data-grid surfaces (dense table). Header idle/hover, row idle/hover/selected,
      and the select-column checkbox border. Checked checkbox uses --brand-primary-*. */
   --grid-header: #fcfcfc;
+  --grid-action-icon: #646464;
+  --grid-action-hover: #e5e5e5;
   --grid-header-hover: #f0f0f0;
   --grid-row: #ffffff;
   --grid-row-hover: #f3f3f3;
@@ -230,6 +234,8 @@
   /* Data-grid surfaces — dark equivalents of the light grid tokens (the light
      spec is #fcfcfc/#f0f0f0/#fff/#f3f3f3/#f0f0f0/#8d8d8d). */
   --grid-header: #1e2022;
+  --grid-action-icon: #9a9a9a;
+  --grid-action-hover: #26292b;
   --grid-header-hover: #26292b;
   --grid-row: #161819;
   --grid-row-hover: #1e2022;

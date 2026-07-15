@@ -91,11 +91,11 @@ Columns are declared separately, with `createColumnConfigHelper()`
 // apps/web/app/[orgSlug]/settings/debug/archetype-table/archetype-table-view.tsx:165-222
 const filterHelper = createColumnConfigHelper<TableSectionRow>()
 const FILTER_COLUMNS = [
-  filterHelper.text().id("document").accessor(...).displayName("Document").icon(BaselineIcon).build(),
-  filterHelper.number().id("amount").accessor(...).displayName("Amount").icon(Calculator).build(),
-  filterHelper.date().id("date").accessor(...).displayName("Date").icon(CalendarIcon).build(),
-  filterHelper.option().id("kind").accessor(...).displayName("Kind").icon(ListIcon).options(KIND_OPTIONS).build(),
-  filterHelper.multiOption().id("tags").accessor(...).displayName("Tags").icon(ListChecksIcon).options(TAG_POOL).build(),
+  filterHelper.text().id("document").accessor(...).displayName("Document").icon(CaseUpper).build(),
+  filterHelper.number().id("amount").accessor(...).displayName("Amount").icon(SquareSigma).build(),
+  filterHelper.date().id("date").accessor(...).displayName("Date").icon(Calendar1).build(),
+  filterHelper.option().id("kind").accessor(...).displayName("Kind").icon(CircleDot).options(KIND_OPTIONS).build(),
+  filterHelper.multiOption().id("tags").accessor(...).displayName("Tags").icon(ChevronsUpDown).options(TAG_POOL).build(),
   // ... one entry per column, EXCEPT "status"
 ] as const
 ```
@@ -352,11 +352,41 @@ columns of the same variant (e.g. "Due date" and "Start date") reuse the same
 date-picker filter and only supply their own label — no per-page
 `createColumnConfigHelper` chain or `matchesFilters`.
 
-- **Declare** on the column spec (`section-table.ts`):
-  `{ id: "date", header: "Date", kind: "text", filter: { variant: "date" } }`.
-  `variant` is one of `text | number | date | option | multiOption`; option
-  variants default their values to the column's own `options`.
-- **Derive + apply** (`derive-table-filters.ts`): `deriveFilterColumns(columns)`
+- **Declare** on the column spec (`section-table.ts`). Filterable BY DEFAULT —
+  you never wire a filter per column; adding a column just works. Forms:
+  - absent / `filter: true` — the default. Filterable, deriving EVERYTHING from
+    the column's `kind`: the variant is `filterVariantForKind(kind)` and the
+    option variants default their selectable values to the column's own
+    `options`. A `select`/`badge` column is an OPTION dropdown for free; a
+    `number` a numeric-range filter; a `text` a text search. A column's kind
+    already knows what filter it wants (§5).
+  - `filter: { variant, options? }` — an explicit override when the kind default
+    is wrong (e.g. a `text` column holding ISO dates → `{ variant: "date" }`).
+    `variant` is one of `text | number | date | option | multiOption`; option
+    variants default their values to the column's own `options`.
+  - `filter: false` — opt OUT at the primitive level (still honored by
+    `resolveColumnFilter`/`deriveFilterColumns` for robustness). **`sectionTable()`
+    now REJECTS it**: every data column of a real table must be filterable (the
+    leading checkbox is the only column allowed to have no filter), so a
+    `filter: false` throws in dev. The column delegated to the single Status
+    filter does NOT use this — it keeps a normal preset and `buildTableToolbar`
+    drops it from the multi-filter for you (it's routed, not opted out).
+- **Per-variant icon** (`derive-table-filters.ts` `VARIANT_ICON`, all lucide):
+  `text → CaseUpper`, `number → SquareSigma`, `date → Calendar1`,
+  `option → CircleDot`, `multiOption → ChevronsUpDown` (the closest glyph to the
+  intended `chevrons-up-down-square`, which isn't in the pinned lucide version).
+- **Creatable option set** (`section-table.ts` `TableColumnSpec.creatable`): a
+  `kind: "select"` column may set `creatable: true` — its inline editor becomes a
+  `CreatableCombobox` (type-to-search + "Create …"), a value the user creates is
+  added to the column's live `options` immediately, and forwarded to the page via
+  `ArchetypeTable.onCreateOption` to persist (e.g. a counterparty directory). Only
+  valid for `select` (dev-throws otherwise).
+- **Normalize** (`section-table.ts`): `resolveColumnFilter(spec)` is the SINGLE
+  seam that turns the `boolean | preset` field into a concrete
+  `TableColumnFilterPreset | null`, applying the kind→variant default once.
+- **Derive + apply** (`derive-table-filters.ts`): both `deriveFilterColumns` and
+  `applyTableFilters` route each spec through `resolveColumnFilter`, so the
+  kind→variant default is never recomputed per page. `deriveFilterColumns(columns)`
   builds the FilterBar `columnsConfig` (accessor reads `row[col.id]` and coerces
   per variant); `applyTableFilters(rows, filters, columns)` is the row pre-filter,
   dispatching each `FilterModel` to the preset `filterFn`.
@@ -371,3 +401,50 @@ date-picker filter and only supply their own label — no per-page
 The Single Status Filter (§2) stays the special-cased single faceted column; a
 column delegated to it should carry no `filter` preset (the archetype filter
 column rule, §2, now enforced by simply omitting `filter` on that column).
+
+## 5. Column KIND is the source of truth
+
+A column's `kind` canonically determines BOTH its cell/edit control (in the
+renderer) AND its default toolbar filter (via `filterVariantForKind`). The two
+mappings live in exactly one global place each — never per page — so a `select`
+of companies with `filter: true` is an OPTION dropdown automatically, and can
+never accidentally get a text search because a page forgot to set a preset.
+
+### Canonical kind → (control, filter)
+
+| `kind`   | Cell / edit control (renderer)                         | Default filter variant (`filterVariantForKind`) | Example column                                       |
+| -------- | ------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------- |
+| `text`   | text span · inline `<Input>` (`edit`)                  | `text` (contains / starts with / …)              | `{ id: "note", header: "Note", kind: "text", filter: true }`     |
+| `number` | right-aligned numeric span · inline numeric `<Input>`  | `number` (is / is between / ≥ …)                 | `{ id: "amount", header: "Amount", kind: "number", filter: true }` |
+| `select` | option label span · inline `<Select>` dropdown         | `option` (values ← the column's `options`)       | `{ id: "company", header: "Company", kind: "select", options, filter: true }` |
+| `badge`  | `<Badge variant="secondary">` of the option label      | `option` (values ← the column's `options`)       | `{ id: "status", header: "Status", kind: "badge", options, filter: true }` |
+
+The option variants pull their selectable values from the column's own
+`options`, so a `select`/`badge` needs no second list for its filter.
+
+### Documented next arms (not built yet)
+
+Reserved kinds and the (control, filter) pair each will map to when added:
+
+| `kind`     | Intended control      | Intended default filter |
+| ---------- | --------------------- | ----------------------- |
+| `date`     | date picker           | `date`                  |
+| `tags`     | tag chips             | `multiOption`           |
+| `currency` | money cell            | `number`                |
+
+### How to add a new column type (global, 3 edits)
+
+The kind union is CLOSED. Adding a kind is three edits, all global — no page
+touches its filter wiring:
+
+1. **`TableColumnKind`** (`section-table.ts`) — add the new literal to the union.
+2. **`filterVariantForKind`** (`section-table.ts`) — add its arm to the
+   `KIND_FILTER_VARIANT` record. This is an exhaustive `Record<TableColumnKind, …>`,
+   so step 1 makes this a compile error until the arm exists.
+3. **The renderer's cell switch** (`section-table-renderer.tsx`) — add the
+   `case` binding the kind to its shadcn cell + inline editor.
+
+After that, any page can write `{ kind: "<new>", filter: true }` and get both
+the right cell and the right toolbar filter, with zero per-page filter code.
+`resolveColumnFilter` + `deriveFilterColumns` + `applyTableFilters` need no
+change — they read the variant through `filterVariantForKind`.

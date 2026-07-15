@@ -10,7 +10,12 @@ import {
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Separator } from "@workspace/ui/components/separator"
-import { CheckIcon, Columns3, GripVertical } from "@workspace/ui/lib/icons"
+import {
+  CheckIcon,
+  Columns3,
+  GripVertical,
+  RotateCcw,
+} from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { getColumnLabel } from "./data-table-utils"
@@ -70,23 +75,31 @@ export function ColumnManagerMenuContent<TData>({
     edge: "top" | "bottom"
   } | null>(null)
 
-  // Order the list by the table's live `columnOrder` so a header reorder shows
-  // here too (both write the same state). Fall back to definition order before
-  // any reorder has happened (columnOrder empty).
+  // Pinned groups render in TanStack's own pinning order (`columnPinning.left`
+  // / `.right`) — dragging a pinned header writes those arrays, not
+  // `columnOrder`, so the manager must read the same source to stay in sync.
+  // The unpinned centre group still follows `columnOrder`, falling back to
+  // definition order (via the stable sort) for ids it doesn't mention.
+  const { left: pinnedLeftIds = [], right: pinnedRightIds = [] } =
+    table.getState().columnPinning
   const orderIds = table.getState().columnOrder
   const orderIndex = (id: string) => {
     const index = orderIds.indexOf(id)
     return index === -1 ? Number.MAX_SAFE_INTEGER : index
   }
   const columns = table.getAllColumns().filter((column) => column.getCanHide())
-  const ordered = orderIds.length
-    ? [...columns].sort((a, b) => orderIndex(a.id) - orderIndex(b.id))
-    : columns
-  const pinnedLeft = ordered.filter((column) => column.getIsPinned() === "left")
-  const pinnedRight = ordered.filter(
-    (column) => column.getIsPinned() === "right",
-  )
-  const unpinned = ordered.filter((column) => !column.getIsPinned())
+  const columnById = new Map(columns.map((column) => [column.id, column]))
+
+  const pinnedLeft = pinnedLeftIds
+    .map((id) => columnById.get(id))
+    .filter((column): column is NonNullable<typeof column> => column != null)
+  const pinnedRight = pinnedRightIds
+    .map((id) => columnById.get(id))
+    .filter((column): column is NonNullable<typeof column> => column != null)
+  const pinnedIds = new Set([...pinnedLeftIds, ...pinnedRightIds])
+  const unpinned = columns
+    .filter((column) => !pinnedIds.has(column.id))
+    .sort((a, b) => orderIndex(a.id) - orderIndex(b.id))
 
   const renderRow = (column: (typeof columns)[number], draggable: boolean) => {
     const visible = column.getIsVisible()
@@ -221,6 +234,27 @@ export function ColumnManagerMenuContent<TData>({
           {unpinned.map((column) => renderRow(column, true))}
         </>
       ) : null}
+      {/* Pinned to the bottom of the (scrolling) popover: reset the whole column
+          layout — widths, order, AND pinning — back to the section defaults.
+          `resetColumnSizing(true)` clears widths so `getSize()` falls back to each
+          def `size`; `resetColumnOrder(true)` clears the custom order (definition
+          order returns); `resetColumnPinning()` restores `initialState` pinning
+          (the structural select-left / actions-right anchors). The layout
+          persistence then rewrites the reset state on the next change. */}
+      <div className="sticky bottom-0 z-10 -mx-1 mt-1 border-t bg-popover px-1 pt-1">
+        <button
+          type="button"
+          onClick={() => {
+            table.resetColumnSizing(true)
+            table.resetColumnOrder(true)
+            table.resetColumnPinning()
+          }}
+          className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-sm px-2 text-left text-sm text-foreground outline-none hover:bg-accent focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          <RotateCcw className="size-4 shrink-0 text-muted-foreground" />
+          <span className="flex-1 truncate">Reset column layout</span>
+        </button>
+      </div>
     </>
   )
 }

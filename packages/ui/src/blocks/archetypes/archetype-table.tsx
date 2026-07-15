@@ -25,6 +25,7 @@ import type {
   InspectorMetaItem,
   InspectorMode,
   SectionCellCommit,
+  SectionCreateOption,
   SectionDescriptor,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
@@ -130,6 +131,13 @@ export interface ArchetypeTableProps<TData> {
    * Inspector instead (page-owned).
    */
   onCellEdit?: SectionCellCommit
+  /**
+   * Persist a new option created in a `creatable: true` select column (e.g.
+   * "add this counterparty to the directory"). Wired through the same bridge; the
+   * renderer adds the value to the column's live options immediately and calls
+   * this to persist it. Unwired → the new option shows for the session only.
+   */
+  onCreateOption?: SectionCreateOption
   /** Row-detail Inspector — the detail of the chosen row (panel or dialog). */
   inspector?: React.ReactNode
   inspectorOpen?: boolean
@@ -166,7 +174,10 @@ export interface ArchetypeTableProps<TData> {
  */
 export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
   return (
-    <SectionTableProvider onCellCommit={props.onCellEdit}>
+    <SectionTableProvider
+      onCellCommit={props.onCellEdit}
+      onCreateOption={props.onCreateOption}
+    >
       <ArchetypeTableChrome {...props} />
     </SectionTableProvider>
   )

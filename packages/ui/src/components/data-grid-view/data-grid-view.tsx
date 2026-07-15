@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   flexRender,
   type Cell,
+  type Column,
   type Header,
   type Row,
   type Table,
@@ -38,8 +39,25 @@ import { cn } from "@workspace/ui/lib/utils"
  * virtualizer to measure) on the exact path they had before.
  */
 const VIRTUALIZE_THRESHOLD = 100
-/** Row pitch estimate (cells are `h-8` = 32px + the 1px bottom hairline). */
+/** Row pitch estimate: cells are `h-8` (32px) + the row's 1px bottom hairline,
+ * so a rendered row's box is 33px. Only seeds unmeasured rows — the virtualizer
+ * re-measures each mounted row via `measureElement`. */
 const ESTIMATED_ROW_HEIGHT = 33
+
+/**
+ * True when a keyboard event originates inside a control that owns its own key
+ * handling — a text/number input, textarea, native/Radix select or combobox, or
+ * a contenteditable element. The grid's arrow/Home/End/Page navigation must
+ * defer to these so the caret / option list moves instead of the grid focus.
+ */
+function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true
+  if (target.isContentEditable) return true
+  const role = target.getAttribute("role")
+  return role === "textbox" || role === "combobox" || role === "listbox"
+}
 
 import {
   DataGridViewColumnHeader,
@@ -54,6 +72,22 @@ import {
   pinStyle,
   type ScrollEdges,
 } from "./data-grid-view-pin"
+
+/**
+ * A pinned summary (grand-total / footer) row, rendered in its OWN sticky-bottom
+ * rowgroup OUTSIDE the table's sortable / filterable / selectable / expandable
+ * row model. It reuses the grid's live column tracks (widths + left/right pinning)
+ * so it lines up with the body, but the caller pre-renders each cell's content —
+ * the grid never treats the total as a real data row, so it can never be sorted,
+ * filtered, searched, selected, or expanded, and it always stays visible and
+ * last. Omit it (or pass `null`) to render no footer.
+ */
+export interface DataGridSummaryRow {
+  /** Cell content keyed by column id; a column with no entry renders empty. */
+  cells: Record<string, React.ReactNode>
+  /** Accessible name for the summary row (e.g. "Grand total"). */
+  ariaLabel?: string
+}
 
 interface DataGridViewProps<TData> extends Omit<
   React.ComponentProps<"div">,
@@ -76,6 +110,12 @@ interface DataGridViewProps<TData> extends Omit<
   headerTrailing?: React.ReactNode
   /** Double-click a row to activate it (e.g. open the row Inspector). */
   onRowActivate?: (row: Row<TData>) => void
+  /**
+   * A pinned grand-total / footer row rendered outside the body row model (see
+   * {@link DataGridSummaryRow}). Stays last + visible under any sort/filter and is
+   * never a selectable/searchable data row.
+   */
+  summaryRow?: DataGridSummaryRow | null
 }
 
 /**
@@ -97,6 +137,7 @@ export function DataGridView<TData>({
   onColumnAnalyze,
   headerTrailing,
   onRowActivate,
+  summaryRow,
   className,
   ...props
 }: DataGridViewProps<TData>) {
@@ -249,6 +290,11 @@ export function DataGridView<TData>({
   const onKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       if (rowCount === 0 || colCount === 0) return
+      // Keys bubbling up from an active editor (text/number input, Select, or any
+      // contenteditable) belong to that control — arrow/Home/End move its caret
+      // or its option list, NOT the grid focus. Only drive navigation when the
+      // event originates on the grid itself or a non-editor cell.
+      if (isTextEntryTarget(event.target)) return
       const cur = { row: focusRow ?? 0, col: focusCol ?? 0 }
       const mod = event.ctrlKey || event.metaKey
       switch (event.key) {
@@ -443,7 +489,8 @@ export function DataGridView<TData>({
       ref={gridRef}
       role="grid"
       aria-label="Data grid"
-      aria-rowcount={rowCount + 1}
+      // Header row + every body row (virtualized or not) + the summary row when present.
+      aria-rowcount={rowCount + 1 + (summaryRow ? 1 : 0)}
       aria-colcount={colCount}
       data-slot="data-grid-view"
       tabIndex={0}
@@ -452,9 +499,11 @@ export function DataGridView<TData>({
       onPointerDown={markPointerFocus}
       onScroll={updateEdges}
       className={cn(
-        // `antialiased` (grayscale smoothing) — without it, light row text on
-        // the dark row surface picks up a subpixel fringe that reads as an
-        // outline in dark mode.
+        // `antialiased` (grayscale smoothing) — MATCH the app-wide setting on
+        // <html> (layout.tsx). On real macOS Chrome, subpixel/LCD text (`auto`)
+        // on a dark surface renders colored fringes that read as an "outline";
+        // grayscale renders clean, exactly like every other app surface. Verified
+        // clean in Chromium via Playwright — the fringe is macOS-Chrome-only.
         "relative w-full overflow-auto bg-background antialiased outline-none",
         className,
       )}
@@ -483,7 +532,10 @@ export function DataGridView<TData>({
         <div
           role="rowgroup"
           data-slot="grid-header"
-          className="sticky top-0 z-10 border-b border-border-subtle bg-grid-header"
+          // `z-30` sits above the focused row (`z-20`) and focused cell (`z-10`)
+          // so a focused/selected body row can never paint over the sticky
+          // header when the grid is scrolled vertically.
+          className="sticky top-0 z-30 border-b border-border-subtle bg-grid-header"
           style={{ width: totalWidth, minWidth: "100%" }}
         >
           {table.getHeaderGroups().map((headerGroup) => {
@@ -561,12 +613,15 @@ export function DataGridView<TData>({
             return renderRow(row, virtualRow.index, {
               ref: rowVirtualizer.measureElement,
               dataIndex: virtualRow.index,
+              // Position with `top`, NOT `transform: translateY` — a transform
+              // promotes the row to its own composited layer, which disables LCD
+              // subpixel text and brings back the dark-mode "outline" halo. Plain
+              // absolute + top keeps the row on the crisp subpixel path.
               style: {
                 position: "absolute",
-                top: 0,
+                top: virtualRow.start,
                 left: 0,
                 width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
               },
             })
           })
@@ -574,6 +629,61 @@ export function DataGridView<TData>({
           rows.map((row, rowIndex) => renderRow(row, rowIndex))
         )}
       </div>
+      {summaryRow ? (
+        <div
+          role="rowgroup"
+          data-slot="grid-footer"
+          // A sticky-bottom footer (mirrors the sticky-top header) that stays
+          // visible + last. `z-30` sits above the body focus/selection layers.
+          // A DIRECT child of role="grid" (a11y aria-required-children) — its one
+          // row is separate from the body row model, so no sort/filter reaches it.
+          className="sticky bottom-0 z-30 border-t border-border-subtle bg-grid-header"
+          style={{ width: totalWidth, minWidth: "100%" }}
+        >
+          <div
+            role="row"
+            data-slot="grid-summary-row"
+            aria-rowindex={rowCount + 2}
+            aria-label={summaryRow.ariaLabel}
+            className="flex w-full"
+          >
+            {leafColumns
+              .filter((c) => c.getIsPinned() === "left")
+              .map((column) => (
+                <DataGridViewSummaryCell
+                  key={column.id}
+                  column={column}
+                  content={summaryRow.cells[column.id]}
+                  edges={edges}
+                />
+              ))}
+            {leafColumns
+              .filter((c) => !c.getIsPinned())
+              .map((column) => (
+                <DataGridViewSummaryCell
+                  key={column.id}
+                  column={column}
+                  content={summaryRow.cells[column.id]}
+                  edges={edges}
+                />
+              ))}
+            <div
+              data-slot="grid-summary-spacer"
+              className="flex-1 bg-grid-header"
+            />
+            {leafColumns
+              .filter((c) => c.getIsPinned() === "right")
+              .map((column) => (
+                <DataGridViewSummaryCell
+                  key={column.id}
+                  column={column}
+                  content={summaryRow.cells[column.id]}
+                  edges={edges}
+                />
+              ))}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -645,6 +755,50 @@ function DataGridViewCell<TData>({
         </div>
       )}
       <PinShadow column={cell.column} edges={edges} />
+    </div>
+  )
+}
+
+/**
+ * One cell of the pinned summary (grand-total) row. Non-interactive — no focus
+ * ring, no editing, not part of the focus grid — but it reuses the SAME column
+ * tracks (width CSS var, left/right pin sticky offset, edge shadow, divider) as a
+ * body cell so the total lines up under its column. Content is pre-rendered by the
+ * caller (already formatted); a column with no summary entry renders empty.
+ */
+function DataGridViewSummaryCell<TData>({
+  column,
+  content,
+  edges,
+}: {
+  column: Column<TData, unknown>
+  content: React.ReactNode
+  edges: ScrollEdges
+}) {
+  const pinned = column.getIsPinned()
+  const centered = column.columnDef.meta?.align === "center"
+  return (
+    <div
+      role="gridcell"
+      data-slot="grid-summary-cell"
+      className={cn(
+        // Opaque footer surface so a pinned summary cell can't show scrolled
+        // content through it (same reason the header/pinned body cells are opaque).
+        "flex h-8 shrink-0 items-center bg-grid-header text-sm",
+        centered ? "justify-center px-0" : "px-3",
+        borderClass(column),
+      )}
+      style={{
+        ...pinStyle(column),
+        width: `calc(var(--col-${column.id}-size) * 1px)`,
+      }}
+    >
+      {centered ? (
+        content
+      ) : (
+        <div className="w-full min-w-0 truncate">{content}</div>
+      )}
+      <PinShadow column={column} edges={edges} />
     </div>
   )
 }

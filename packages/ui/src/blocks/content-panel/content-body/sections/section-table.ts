@@ -2,11 +2,39 @@ import { type SectionDescriptor, defineSection } from "./section"
 
 /**
  * A column's cell/editor kind — a CLOSED union. The renderer maps each to OUR
- * shadcn control (display text · number · a Select dropdown · a Badge). Adding a
- * kind = one arm here + one case in the renderer ("interactivity as data").
- * `date` / `tags` / `combobox` are the documented next arms.
+ * shadcn control (display text · number · a Select dropdown · a Badge), and
+ * `filterVariantForKind` maps each to its default toolbar filter. A column's
+ * KIND canonically determines BOTH its cell control and its filter, from these
+ * two global places — never per page. Adding a kind = three global edits:
+ * this union + an arm in `filterVariantForKind` + a case in the renderer's cell
+ * switch ("interactivity as data").
+ *
+ * Documented next arms (control, filter): `date` (date picker, `date`) ·
+ * `tags` (tag chips, `multiOption`) · `currency` (money cell, `number`).
  */
 export type TableColumnKind = "text" | "number" | "select" | "badge"
+
+/**
+ * The SINGLE global mapping from a column KIND to its default toolbar-filter
+ * VARIANT (`text→text`, `number→number`, `select→option`, `badge→option`). A
+ * `select` of companies with `filter: true` is therefore an OPTION dropdown,
+ * never a text search. Backed by an exhaustive `Record<TableColumnKind, …>`, so
+ * adding a kind to the union is a compile error here until it is mapped —
+ * keeping the closed-union extension story honest. Read once through
+ * `resolveColumnFilter`, never recomputed per page.
+ */
+export function filterVariantForKind(
+  kind: TableColumnKind,
+): TableColumnFilterVariant {
+  return KIND_FILTER_VARIANT[kind]
+}
+
+const KIND_FILTER_VARIANT: Record<TableColumnKind, TableColumnFilterVariant> = {
+  text: "text",
+  number: "number",
+  select: "option",
+  badge: "option",
+}
 
 /** Horizontal alignment of a column's header + cells. Default "start". */
 export type TableColumnAlign = "start" | "end" | "center"
@@ -47,8 +75,24 @@ export interface TableColumnSpec {
   readonly id: string
   readonly header: string
   readonly kind: TableColumnKind
+  /**
+   * Marks this as the record's IDENTITY column (its business number, e.g. a
+   * document number from a number series). REQUIRED once per Table that enables
+   * the row inspector (`features.inspect`): the Open-inspector button renders
+   * right-aligned in this column's cells. Exactly one column may carry it.
+   */
+  readonly role?: "id"
   /** `select` / `badge` options (value ↔ label). */
   readonly options?: readonly TableColumnOption[]
+  /**
+   * Make a `select` column's option set EXTENSIBLE from the table: its inline
+   * editor becomes a CreatableCombobox (type-to-search + "Create …"), and a value
+   * the user creates is added to this column's checkable `options` on the spot
+   * (and forwarded to the page via `ArchetypeTable.onCreateOption` to persist —
+   * e.g. adding a new counterparty to the directory). Default false → a plain
+   * fixed-option Select. Only meaningful for `kind: "select"`.
+   */
+  readonly creatable?: boolean
   /** How this column's cells can be edited (grid vs Inspector). Default "readonly". */
   readonly edit?: TableColumnEditMode
   /** Freeze the column at the left or right body edge. */
@@ -60,16 +104,49 @@ export interface TableColumnSpec {
   /** Faceted-filter on this column (Status-style multi-select). Default false. */
   readonly enableFilter?: boolean
   /**
-   * Expose this column in the toolbar's multi-filter via a shared preset. The
-   * toolbar filter config + apply logic are derived from this (see
-   * `deriveFilterColumns` / `applyTableFilters`); `header` supplies the label.
-   * Independent of `enableFilter` (the in-grid faceted filter) — see
-   * `docs/specs/TABLE-FILTERS.md`.
+   * The column's place in the toolbar's multi-filter. Filterable BY DEFAULT so a
+   * new column just works — you never wire a filter per column.
+   * - absent / `true` — filterable, deriving EVERYTHING from `kind`: the variant
+   *   is `filterVariantForKind(kind)`, and the option variants default their
+   *   selectable values to this column's own `options` (a `select` becomes an
+   *   option dropdown for free, never a bare text search).
+   * - `{ variant, options? }` — an explicit override of the kind default.
+   * - `false` — opt OUT (e.g. the column delegated to the single Status filter).
+   *
+   * Normalized in ONE place, `resolveColumnFilter`, which both
+   * `deriveFilterColumns` and `applyTableFilters` consume — so kind→variant is
+   * computed once, never per page. `header` supplies the label. Independent of
+   * `enableFilter` (the in-grid faceted filter) — see `docs/specs/TABLE-FILTERS.md`.
    */
-  readonly filter?: TableColumnFilterPreset
+  readonly filter?: boolean | TableColumnFilterPreset
   readonly align?: TableColumnAlign
   /** Initial column width in px. Default 160. */
   readonly width?: number
+}
+
+/**
+ * Normalize a column's `filter` field to a concrete preset, or `null` when the
+ * column opts OUT of the toolbar multi-filter. Filterable BY DEFAULT — the SINGLE
+ * seam where the kind→variant default is applied:
+ *
+ * - `false` → `null` (opt out).
+ * - absent / `true` → derive from `kind`: `{ variant: filterVariantForKind(kind) }`;
+ *   the option variants' selectable values fall back to the column's own `options`
+ *   at build time (in `deriveFilterColumns`).
+ * - `{ variant, options? }` → taken as-is (an explicit override).
+ *
+ * Both `deriveFilterColumns` and `applyTableFilters` route through this, so the
+ * kind→variant default lands in exactly one place and is never recomputed per
+ * page.
+ */
+export function resolveColumnFilter(
+  spec: TableColumnSpec,
+): TableColumnFilterPreset | null {
+  const { filter } = spec
+  if (filter === false) return null
+  if (filter === undefined || filter === true)
+    return { variant: filterVariantForKind(spec.kind) }
+  return filter
 }
 
 /** A cell value — plain, serializable. */
@@ -93,31 +170,33 @@ export function anchorStructuralPins(
   pinning: PinnedColumns,
   opts: { hasSelect: boolean; hasActions: boolean },
 ): { left: string[]; right: string[] } {
-  const left = [...(pinning.left ?? [])]
-  const right = [...(pinning.right ?? [])]
+  // Strip BOTH structural ids from BOTH groups first, so a malformed `select`
+  // on the right (or `actions` on the left) can never survive re-insertion.
+  const isStructural = (id: string) => id === "select" || id === "actions"
+  const left = (pinning.left ?? []).filter((id) => !isStructural(id))
+  const right = (pinning.right ?? []).filter((id) => !isStructural(id))
   return {
-    left: opts.hasSelect
-      ? ["select", ...left.filter((id) => id !== "select")]
-      : left,
-    right: opts.hasActions
-      ? [...right.filter((id) => id !== "actions"), "actions"]
-      : right,
+    left: opts.hasSelect ? ["select", ...left] : left,
+    right: opts.hasActions ? [...right, "actions"] : right,
   }
 }
 
 /** One row: plain data keyed by column id (plus the id column named by `rowIdKey`). */
 export type TableSectionRow = Readonly<Record<string, TableCellValue>>
 
-/** Pure feature flags — no handlers. */
+/**
+ * Pure feature flags — no handlers. Selection is NOT a flag: the leading select
+ * column is mandatory and always rendered (spec §6), so there is nothing to
+ * toggle. These flags only add OPTIONAL surface on top of that baseline.
+ */
 export interface TableSectionFeatures {
-  /** Row selection mode. `"multi"` adds a leading select column. Default "multi". */
-  readonly selection?: "multi" | "none"
   /** Universal search over the rows (global filter). Default true. */
   readonly search?: boolean
   /**
-   * Leading select column shows a "maximize" affordance (on hover / when a
-   * single row is selected) to open the row inspector. Hidden while several
-   * rows are selected. Default false.
+   * Adds a per-row "Open inspector" button right-aligned in the `role: "id"`
+   * column (revealed on row hover), wired through `SectionTableProvider` to the
+   * archetype's `renderInspector` Sheet (inert without that provider). Requires
+   * one column with `role: "id"`. Default false.
    */
   readonly inspect?: boolean
   /**
@@ -143,6 +222,13 @@ export interface SectionTableProps {
    * Defaults to `anchor`; leave both unset for a demo table you won't submit.
    */
   readonly name?: string
+  /**
+   * Stable, page-unique key for persisting the user's column layout (widths /
+   * order / pinning) across reloads. When omitted the renderer auto-derives one
+   * from the page path + section name, so most pages get persistence for free;
+   * set it explicitly when a page hosts two tables that would otherwise collide.
+   */
+  readonly persistKey?: string
 }
 
 /**
@@ -172,6 +258,7 @@ export function sectionTable({
   features,
   emptyText,
   name,
+  persistKey,
 }: SectionTableProps): SectionDescriptor<"table", SectionTablePayload> {
   if (process.env.NODE_ENV !== "production") {
     const ids = new Set<string>()
@@ -179,10 +266,33 @@ export function sectionTable({
       if (ids.has(col.id))
         throw new Error(`sectionTable: duplicate column id "${col.id}".`)
       ids.add(col.id)
+      // Every data column MUST be filterable — the leading checkbox is the only
+      // column allowed to have no filter. Columns are filterable BY DEFAULT, so
+      // this only trips on an explicit `filter: false`. A column delegated to the
+      // Single Status Filter still resolves to a preset (it's routed, not opted
+      // out), so it passes. See docs/specs/TABLE-FILTERS.md.
+      if (resolveColumnFilter(col) === null)
+        throw new Error(
+          `sectionTable: column "${col.id}" opts out of filtering (\`filter: false\`). Every data column must be filterable; remove the \`filter: false\`.`,
+        )
+      // A creatable option set is only meaningful for a `select` cell editor.
+      if (col.creatable && col.kind !== "select")
+        throw new Error(
+          `sectionTable: column "${col.id}" is \`creatable\` but its kind is "${col.kind}"; only \`kind: "select"\` supports a creatable option set.`,
+        )
     }
-    if (!columns.some((col) => col.id === rowIdKey) && rowIdKey.length === 0)
+    if (rowIdKey.length === 0)
       throw new Error(
         "sectionTable: `rowIdKey` must be a non-empty field name.",
+      )
+    const idColumns = columns.filter((col) => col.role === "id")
+    if (idColumns.length > 1)
+      throw new Error('sectionTable: at most one column may have `role: "id"`.')
+    // A Table with the row inspector needs an identity column to host the
+    // right-aligned Open-inspector button (spec §3b).
+    if (features?.inspect && idColumns.length === 0)
+      throw new Error(
+        'sectionTable: a Table with `features.inspect` requires one column with `role: "id"`.',
       )
   }
   return defineSection(
@@ -192,13 +302,13 @@ export function sectionTable({
       rows,
       rowIdKey,
       features: {
-        selection: features?.selection ?? "multi",
         search: features?.search ?? true,
         inspect: features?.inspect ?? false,
         rowActions: features?.rowActions ?? false,
       },
       emptyText,
       name: name ?? anchor,
+      persistKey,
     },
     // The grid fills the remaining body height and scrolls internally.
     { anchor, fill: true },

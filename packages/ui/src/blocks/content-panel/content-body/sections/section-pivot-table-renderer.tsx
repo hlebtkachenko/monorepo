@@ -7,33 +7,32 @@ import {
   getExpandedRowModel,
 } from "@tanstack/react-table"
 
-import { DataGridView } from "@workspace/ui/components/data-grid-view"
-import { useDataTable } from "@workspace/ui/components/data-table"
+import {
+  DataGridView,
+  type DataGridSummaryRow,
+} from "@workspace/ui/components/data-grid-view"
 import { ChevronRight } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { buildPivot, type PivotRow } from "./pivot-transform"
+import { buildPivot, type PivotCell, type PivotRow } from "./pivot-transform"
 import { GridNumberCell } from "./section-grid-cells"
-import type { SectionPivotTablePayload } from "./section-pivot-table"
-import { useRegisterSectionTable } from "./section-table-context"
-
-/** The pinned leading column id — the row-label hierarchy tree. */
-const LABEL_COLUMN_ID = "__label"
-
-/** The synthetic id of the appended grand-total row. */
-const TOTAL_ROW_ID = "__total"
+import { buildSelectColumn, type RowOrder } from "./section-grid-select"
+import {
+  PIVOT_ROW_LABEL_ID,
+  type PivotMeasure,
+  type SectionPivotTablePayload,
+} from "./section-pivot-table"
+import { useSectionGridTable } from "./section-grid-table"
 
 /**
  * The row-label cell: an expand/collapse toggle (only when the node has
- * children), depth indentation, and the group label. Kept a plain flex row — the
- * grid cell itself is the `role="gridcell"`, so nesting a real `<button>` here is
- * safe (no button-in-button).
+ * children), depth indentation, and the group label. The grid cell itself is the
+ * `role="gridcell"`, so a real `<button>` here is safe (no button-in-button).
  */
 function PivotLabelCell({ row }: { row: Row<PivotRow> }) {
   const canExpand = row.getCanExpand()
   const expanded = row.getIsExpanded()
   const label = row.original.label
-  const isTotal = row.original.id === TOTAL_ROW_ID
   return (
     <div
       className="flex w-full items-center gap-1"
@@ -57,29 +56,62 @@ function PivotLabelCell({ row }: { row: Row<PivotRow> }) {
       ) : (
         <span className="size-4 shrink-0" aria-hidden />
       )}
-      {/* Every depth-0 label already reads bold; the grand-total row gets one
-          step heavier so it stands out from a regular top-level group row. */}
-      <span
-        className={cn(
-          "truncate",
-          row.depth === 0 && "font-medium",
-          isTotal && "font-semibold",
-        )}
-      >
+      <span className={cn("truncate", row.depth === 0 && "font-medium")}>
         {label}
       </span>
     </div>
   )
 }
 
+/** Render one aggregated cell: a formatted number, blank (empty), or a muted
+ *  "mixed currencies" marker — never a fake number. */
+function renderPivotCell(
+  cell: PivotCell | undefined,
+  format: (value: number) => string,
+): React.ReactNode {
+  if (!cell || cell.kind === "empty") return null
+  if (cell.kind === "mixed")
+    return (
+      <span
+        className="text-muted-foreground tabular-nums"
+        title="Mixed currencies — not summable"
+        aria-label="Mixed currencies — not summable"
+      >
+        —
+      </span>
+    )
+  return (
+    <GridNumberCell negative={cell.value < 0}>
+      {format(cell.value)}
+    </GridNumberCell>
+  )
+}
+
+/** Build a display formatter for one measure (per-measure `Intl.NumberFormat`). */
+function measureFormatter(measure: PivotMeasure): (value: number) => string {
+  const fmt = measure.format
+  const isCurrency = fmt?.style === "currency"
+  const nf = new Intl.NumberFormat(fmt?.locale, {
+    style: fmt?.style ?? "decimal",
+    currency: isCurrency ? fmt.currency : undefined,
+    // Explicit override wins; a currency keeps its own default fraction digits
+    // (2 for CZK/EUR/USD, 0 for JPY); a plain decimal defaults to 2.
+    ...(fmt?.maximumFractionDigits !== undefined
+      ? { maximumFractionDigits: fmt.maximumFractionDigits }
+      : isCurrency
+        ? {}
+        : { maximumFractionDigits: 2 }),
+  })
+  return (value: number) => nf.format(value)
+}
+
 /**
- * SectionPivotTableRenderer — the interactive Pivot-table section. It pivots the
+ * SectionPivotTableRenderer — the interactive Pivot section. It folds the
  * long-format source rows into a hierarchical matrix (`buildPivot`), then drives
- * the SAME `useDataTable` + `DataGridView` primitives as the flat Table section,
- * only with TanStack's expanded-row model turned on for the tree. Because the
- * grid rendering, pinning, column drag, resize, keyboard nav, and a11y all live
- * in `DataGridView`, a design change there (or a new mandatory pin convention in
- * `useDataTable`) reaches the pivot with no extra work.
+ * the SAME `useSectionGridTable` + `DataGridView` primitives as the flat Table —
+ * only with TanStack's expanded-row model on for the tree and a summary footer
+ * for the grand total. Sorting, resizing, pinning, keyboard nav, virtualization,
+ * and a11y all come from `DataGridView`; nothing is re-implemented here.
  */
 export function SectionPivotTableRenderer({
   props,
@@ -88,17 +120,17 @@ export function SectionPivotTableRenderer({
 }) {
   const {
     rows,
-    rowGroups,
-    pivotColumn,
-    valueField,
-    aggregate,
-    pivotColumnOrder,
-    labelHeader = "Name",
+    rowDimensions,
+    columnDimensions,
+    measures,
+    columnOrder,
+    rowLabelHeader = "Name",
     labelWidth = 260,
     valueWidth = 150,
-    valueFormat,
     defaultExpanded = true,
     search = true,
+    state = "ready",
+    errorText,
     emptyText,
   } = props
 
@@ -106,106 +138,127 @@ export function SectionPivotTableRenderer({
     () =>
       buildPivot({
         rows,
-        rowGroups,
-        pivotColumn,
-        valueField,
-        aggregate,
-        pivotColumnOrder,
+        rowDimensions,
+        columnDimensions,
+        measures,
+        columnOrder,
       }),
-    [rows, rowGroups, pivotColumn, valueField, aggregate, pivotColumnOrder],
+    [rows, rowDimensions, columnDimensions, measures, columnOrder],
   )
 
-  // v1: the grand-total row is a plain top-level PivotRow appended to the
-  // table's data array rather than a separate footer row model, so it sorts
-  // and filters like any other row (e.g. sorting a value column can move it
-  // out of the last position). Acceptable for now — a sort-exempt, pinned
-  // footer row needs its own TanStack row model. Skipped entirely when there
-  // are no pivot rows, so an empty pivot still shows `emptyMessage` instead of
-  // a lone "Total" row with nothing under it.
-  const dataWithTotal = React.useMemo<PivotRow[]>(() => {
-    if (pivot.rows.length === 0) return pivot.rows as PivotRow[]
-    return [
-      ...pivot.rows,
-      {
-        id: TOTAL_ROW_ID,
-        label: "Total",
-        depth: 0,
-        values: pivot.grandTotals,
-        leafCount: rows.length,
-        subRows: undefined,
-      },
-    ]
-  }, [pivot.rows, pivot.grandTotals, rows.length])
+  // One display formatter per measure id.
+  const formatByMeasure = React.useMemo(() => {
+    const map = new Map<string, (value: number) => string>()
+    for (const measure of measures)
+      map.set(measure.id, measureFormatter(measure))
+    return map
+  }, [measures])
 
-  const format = React.useMemo(() => {
-    const fmt = new Intl.NumberFormat(valueFormat?.locale, {
-      style: valueFormat?.style ?? "decimal",
-      currency:
-        valueFormat?.style === "currency" ? valueFormat.currency : undefined,
-      maximumFractionDigits: valueFormat?.maximumFractionDigits ?? 2,
-    })
-    return (value: number) => fmt.format(value)
-  }, [valueFormat])
+  // Shift-range anchor + current display order (id → position in the CURRENT
+  // expanded/filtered view), kept fresh in refs for the shared select column.
+  const selectionAnchor = React.useRef<number | null>(null)
+  const rowOrderRef = React.useRef<RowOrder<PivotRow>>({
+    rows: [],
+    indexById: new Map(),
+  })
 
   const columns = React.useMemo<ColumnDef<PivotRow>[]>(() => {
+    // The ALWAYS-present leading select column (shared with the flat Table), then
+    // the pinned row-label (hierarchy) column.
     const cols: ColumnDef<PivotRow>[] = [
+      buildSelectColumn<PivotRow>({ anchorRef: selectionAnchor, rowOrderRef }),
       {
-        id: LABEL_COLUMN_ID,
-        header: labelHeader,
-        // Accessor drives the global search; the cell renders the tree affordance.
+        id: PIVOT_ROW_LABEL_ID,
+        header: rowLabelHeader,
         accessorFn: (row) => row.label,
         size: labelWidth,
         minSize: 160,
-        enableSorting: false,
         enableHiding: false,
         cell: ({ row }) => <PivotLabelCell row={row} />,
       },
     ]
-    for (const col of pivot.columns) {
+    // Flat value columns (one per leaf). Hierarchical column-group headers are a
+    // later phase; here each leaf header carries its column path + measure label
+    // so multi-column-dim pivots are still unambiguous.
+    for (const leaf of pivot.leafColumns) {
+      const format = formatByMeasure.get(leaf.measureId) ?? String
+      const header =
+        leaf.columnPath.length > 0
+          ? `${leaf.columnPath.join(" · ")} · ${leaf.label}`
+          : leaf.label
       cols.push({
-        id: col.id,
-        header: col.header,
-        accessorFn: (row) => row.values[col.id] ?? null,
+        id: leaf.id,
+        header,
+        // Numeric-or-undefined accessor drives sort; non-value cells sort last
+        // in both directions via `sortUndefined`. The cell reads the full
+        // `PivotCell` off the row so it can show the mixed/empty state.
+        accessorFn: (row) => {
+          const cell = row.values[leaf.id]
+          return cell?.kind === "value" ? cell.value : undefined
+        },
+        sortUndefined: "last",
         size: valueWidth,
         enableGlobalFilter: false,
-        meta: { label: col.header, align: "end" },
-        cell: ({ getValue }) => {
-          const value = getValue() as number | null
-          if (value == null) return null
-          return (
-            <GridNumberCell negative={value < 0}>
-              {format(value)}
-            </GridNumberCell>
-          )
-        },
+        meta: { label: header, align: "end" },
+        cell: ({ row }) =>
+          renderPivotCell(row.original.values[leaf.id], format),
       })
     }
     return cols
-  }, [pivot.columns, labelHeader, labelWidth, valueWidth, format])
+  }, [
+    pivot.leafColumns,
+    rowLabelHeader,
+    labelWidth,
+    valueWidth,
+    formatByMeasure,
+  ])
 
-  const { table } = useDataTable<PivotRow>({
-    data: dataWithTotal,
+  // The grand total is a SEPARATE, stable summary row (a pinned footer OUTSIDE
+  // the sortable/filterable/selectable body model), so it always stays last +
+  // visible, is never sorted/searched/selected, and is omitted for an empty pivot.
+  const summaryRow = React.useMemo<DataGridSummaryRow | null>(() => {
+    if (pivot.rows.length === 0) return null
+    const cells: Record<string, React.ReactNode> = {
+      [PIVOT_ROW_LABEL_ID]: (
+        <div className="flex w-full items-center gap-1">
+          <span className="size-4 shrink-0" aria-hidden />
+          <span className="truncate font-semibold">Total</span>
+        </div>
+      ),
+    }
+    for (const leaf of pivot.leafColumns) {
+      const format = formatByMeasure.get(leaf.measureId) ?? String
+      cells[leaf.id] = renderPivotCell(pivot.grandTotals[leaf.id], format)
+    }
+    return { cells, ariaLabel: "Grand total" }
+  }, [pivot.rows.length, pivot.leafColumns, pivot.grandTotals, formatByMeasure])
+
+  const { table } = useSectionGridTable<PivotRow>({
+    data: pivot.rows as PivotRow[],
     columns,
     getRowId: (row) => row.id,
     getSubRows: (row) => row.subRows as PivotRow[] | undefined,
     getExpandedRowModel: getExpandedRowModel(),
     autoResetExpanded: false,
     filterFromLeafRows: true,
-    columnResizeMode: "onChange",
     enableGlobalFilter: search,
-    globalFilterFn: "includesString",
     defaultColumn: { minSize: 80, size: valueWidth, maxSize: 640 },
     initialState: {
-      // Big page so an expanded tree isn't paginated; the label column is frozen
-      // at the left edge (the one structural pin the pivot owns).
-      pagination: { pageIndex: 0, pageSize: 500 },
-      columnPinning: { left: [LABEL_COLUMN_ID] },
+      columnPinning: { left: ["select", PIVOT_ROW_LABEL_ID] },
     },
   })
 
-  // Expand the whole tree once on mount (useDataTable doesn't thread the
-  // `expanded` initial state, so seed it imperatively). Runs once — later
-  // user collapse/expand is preserved.
+  // Refresh the display-order map (id → position in the CURRENT expanded/filtered
+  // view) so the select column shows correct line numbers + shift-range as groups
+  // expand/collapse. Memoized on the row-model array (stable until the view changes).
+  const orderedRows = table.getRowModel().rows
+  rowOrderRef.current = React.useMemo(() => {
+    const indexById = new Map<string, number>()
+    orderedRows.forEach((r, i) => indexById.set(r.id, i))
+    return { rows: orderedRows, indexById }
+  }, [orderedRows])
+
+  // Expand every group once on first render (preserve later user collapse).
   const didExpand = React.useRef(false)
   React.useEffect(() => {
     if (defaultExpanded && !didExpand.current) {
@@ -214,24 +267,25 @@ export function SectionPivotTableRenderer({
     }
   }, [defaultExpanded, table])
 
-  // Publish the live instance up so the archetype toolbar (Columns/Sort) +
-  // universal search drive this grid too. Inert outside `ArchetypeTable`.
-  const state = table.getState()
-  const stateSignature = JSON.stringify({
-    s: state.sorting,
-    v: state.columnVisibility,
-    o: state.columnOrder,
-    p: state.columnPinning,
-    e: state.expanded,
-    g: state.globalFilter,
-  })
-  useRegisterSectionTable(table as never, 0, stateSignature)
+  if (state === "loading")
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+        Loading…
+      </div>
+    )
+  if (state === "error")
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center text-sm text-muted-foreground">
+        {errorText ?? "Could not load the pivot."}
+      </div>
+    )
 
   return (
     <DataGridView
       table={table}
       className="min-h-0 flex-1"
-      emptyMessage={emptyText ?? "No data."}
+      emptyMessage={emptyText ?? "No rows."}
+      summaryRow={summaryRow}
     />
   )
 }

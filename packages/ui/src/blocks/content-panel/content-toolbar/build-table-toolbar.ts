@@ -60,6 +60,21 @@ export function buildTableToolbar<TData>(
 ): ContentToolbarProps<TData> {
   const toolbar: ContentToolbarProps<TData> = {}
 
+  // The column delegated to the Single Status Filter must NOT also appear in the
+  // multi-filter — but since columns are now filterable BY DEFAULT, that column
+  // lands in `filter.columns` automatically. Drop it here (rather than forcing
+  // every page to set `filter: false` on it) so a column is filtered by exactly
+  // one system. See docs/specs/TABLE-FILTERS.md.
+  const filterDescriptor =
+    opts.status && opts.filter
+      ? {
+          ...opts.filter,
+          columns: opts.filter.columns.filter(
+            (column) => column.id !== opts.status!.columnId,
+          ),
+        }
+      : opts.filter
+
   if (opts.search) {
     const { value, onChange, placeholder } = opts.search
     toolbar.search = {
@@ -90,7 +105,7 @@ export function buildTableToolbar<TData>(
     }
   }
 
-  if (opts.filter) toolbar.filter = opts.filter
+  if (filterDescriptor) toolbar.filter = filterDescriptor
   if (opts.actions) toolbar.actions = opts.actions
   if (opts.add) toolbar.add = opts.add
   if ((opts.columnsManager ?? true) && table) toolbar.viewTools = { table }

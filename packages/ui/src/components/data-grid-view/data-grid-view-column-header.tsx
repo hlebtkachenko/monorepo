@@ -302,12 +302,16 @@ export function DataGridViewColumnHeader<TData, TValue>({
 function autoFitColumn<TData, TValue>(
   header: Header<TData, TValue>,
   table: Table<TData>,
+  /** The resize handle element — used to scope the font sample to THIS grid. */
+  resizerEl?: HTMLElement,
 ): void {
   const ctx = document.createElement("canvas").getContext("2d")
   if (!ctx) return
-  const sampleCell = document.querySelector<HTMLElement>(
-    '[data-slot="grid-cell"]',
-  )
+  // Sample a cell from the CURRENT grid only, never the first grid-cell on the
+  // page (two grids could use different fonts and mis-measure each other).
+  const scope: ParentNode =
+    resizerEl?.closest('[data-slot="data-grid-view"]') ?? document
+  const sampleCell = scope.querySelector<HTMLElement>('[data-slot="grid-cell"]')
   ctx.font = sampleCell
     ? getComputedStyle(sampleCell).font
     : "14px system-ui, sans-serif"
@@ -323,8 +327,17 @@ function autoFitColumn<TData, TValue>(
   }
 
   // Add the cell's horizontal padding — px-3 on BOTH sides (24) — so the right
-  // gap matches the left one (edge → text), not an inflated trailing gap.
-  const size = Math.ceil(max) + 24
+  // gap matches the left one (edge → text), not an inflated trailing gap. Plus
+  // any reserved trailing width (e.g. the identity column's inspector button)
+  // so the fit shows the full text AND the button without overlap. Plus a few px
+  // of SLACK: canvas `measureText` runs a hair narrower than the live font
+  // (hinting / letter-spacing), so a zero-slack fit lands exactly at the
+  // truncation threshold and clips the last glyph (an ellipsis crowding the
+  // trailing button on the identity column). The slack keeps the text fully
+  // visible — Excel leaves the same breathing room on a double-click fit.
+  const SLACK = 8
+  const trailing = header.column.columnDef.meta?.trailingWidth ?? 0
+  const size = Math.ceil(max) + 24 + trailing + SLACK
   const clamped = Math.min(
     header.column.columnDef.maxSize ?? Number.MAX_SAFE_INTEGER,
     Math.max(header.column.columnDef.minSize ?? 0, size),
@@ -350,7 +363,9 @@ function DataGridViewColumnResizer<TData, TValue>({
       data-resizing={header.column.getIsResizing() ? "" : undefined}
       onMouseDown={resize}
       onTouchStart={resize}
-      onDoubleClick={() => autoFitColumn(header, table)}
+      onDoubleClick={(event) =>
+        autoFitColumn(header, table, event.currentTarget)
+      }
       onClick={(event) => event.stopPropagation()}
       className={cn(
         "absolute inset-y-0 right-0 z-20 w-1 cursor-col-resize touch-none bg-transparent transition-colors select-none hover:bg-primary/60",

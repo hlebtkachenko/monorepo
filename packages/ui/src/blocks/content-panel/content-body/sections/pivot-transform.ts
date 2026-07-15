@@ -1,206 +1,326 @@
-import type { TableCellValue, TableSectionRow } from "./section-table"
+import type { TableSectionRow } from "./section-table"
+import type { PivotDimension, PivotMeasure } from "./section-pivot-table"
 
 /**
- * A pure, React-free pivot/aggregation transform. It folds long-format source
- * rows (one record per observation) into a nested tree of pivot rows plus the
- * generated matrix (pivot) columns, ready for a pivot TABLE renderer to consume.
- * No `Date`, no `Math.random`, no side effects — same input, same output.
+ * A pure, React-free pivot transform. It folds LONG-format source rows into a
+ * hierarchical matrix (row hierarchy × column hierarchy, each cell an aggregated
+ * measure) with per-node subtotals and grand totals. Aggregation is
+ * accumulator-based: one bucket pass over the rows, then a bottom-up MERGE of
+ * accumulators so a parent's value is a true re-aggregation of the leaves (a true
+ * mean at every level), never a mean-of-means and never a subtree rescan.
+ *
+ * Display-grade only: it aggregates with JS `number` and NEVER fabricates a
+ * number across mixed currencies — such a cell is flagged `mixed`.
  */
 
-/** How each matrix cell rolls up its underlying source values. */
-export type PivotAggregate = "sum" | "avg" | "min" | "max" | "count"
+/** A single aggregated cell's display state — never a fake number. */
+export type PivotCell =
+  | {
+      readonly kind: "value"
+      readonly value: number
+      readonly currency?: string
+    }
+  | { readonly kind: "empty" }
+  | { readonly kind: "mixed" }
 
-export interface PivotConfig {
-  /** Long-format source rows (one record per observation), keyed by field id. */
-  readonly rows: readonly TableSectionRow[]
-  /** Ordered field ids forming the row hierarchy — [outer, …, inner]. Min 1. */
-  readonly rowGroups: readonly string[]
-  /** Field id whose DISTINCT values become the matrix (pivot) columns. */
-  readonly pivotColumn: string
-  /** Numeric field id aggregated into each cell. */
-  readonly valueField: string
-  /** Cell aggregation. Default "sum". */
-  readonly aggregate?: PivotAggregate
-  /**
-   * Explicit column set + order (by pivot value). When given it is used
-   * VERBATIM — a listed value with no rows yields a column of null cells; a
-   * present value NOT listed is dropped. When omitted, columns are the distinct
-   * pivot values in first-seen order.
-   */
-  readonly pivotColumnOrder?: readonly string[]
+/** One flat value column (a column-path × a measure). */
+export interface PivotLeafColumn {
+  /** CSS-safe structural id (`val0`, `val1`, …) — feeds `--col-<id>-size`. */
+  readonly id: string
+  /** The measure label (bottom header row). */
+  readonly label: string
+  readonly measureId: string
+  /** The column-dimension values above this leaf. */
+  readonly columnPath: readonly string[]
 }
 
-export interface PivotColumn {
-  readonly id: string // the pivot value (stringified)
-  readonly header: string // display label (same as id)
+/** A node in the COLUMN header tree (drives hierarchical headers). */
+export interface PivotColumnNode {
+  /** CSS-safe id (`grp0`, … for groups; the leaf's `val…` id for leaves). */
+  readonly id: string
+  readonly label: string
+  readonly children?: readonly PivotColumnNode[]
+  /** Set only on a measure leaf — the `PivotLeafColumn.id`. */
+  readonly leafId?: string
 }
 
+/** One row node in the pivot hierarchy. */
 export interface PivotRow {
-  readonly id: string // stable path id = ancestor labels joined by "/"
-  readonly label: string // this level's group value (stringified)
-  readonly depth: number // 0-based (index in rowGroups)
-  readonly values: Readonly<Record<string, number | null>> // keyed by PivotColumn.id
-  readonly leafCount: number // # source rows in this subtree
+  /** Collision-safe id (`row:` + JSON of the dimension-value path). */
+  readonly id: string
+  readonly label: string
+  readonly depth: number
+  /** Aggregated cells keyed by `PivotLeafColumn.id`. */
+  readonly values: Readonly<Record<string, PivotCell>>
+  /** The dimension field → value map on this node's path (for drill-through). */
+  readonly rowValues: Readonly<Record<string, string>>
   readonly subRows?: readonly PivotRow[]
 }
 
 export interface PivotResult {
-  readonly columns: readonly PivotColumn[]
-  readonly rows: readonly PivotRow[] // top-level nodes (nest via subRows)
-  readonly grandTotals: Readonly<Record<string, number | null>>
+  readonly columnTree: readonly PivotColumnNode[]
+  readonly leafColumns: readonly PivotLeafColumn[]
+  readonly rows: readonly PivotRow[]
+  readonly grandTotals: Readonly<Record<string, PivotCell>>
 }
 
-/** Stringify a cell to a stable group key; a missing/`null` cell buckets under `""`. */
-function groupKey(value: TableCellValue | undefined): string {
-  return String(value ?? "")
+export interface BuildPivotInput {
+  readonly rows: readonly TableSectionRow[]
+  readonly rowDimensions: readonly PivotDimension[]
+  readonly columnDimensions: readonly PivotDimension[]
+  readonly measures: readonly PivotMeasure[]
+  readonly columnOrder?: Readonly<Record<string, readonly string[]>>
 }
 
-/** The matrix columns: `pivotColumnOrder` verbatim, else distinct first-seen values. */
-function collectColumns(config: PivotConfig): PivotColumn[] {
-  if (config.pivotColumnOrder) {
-    return config.pivotColumnOrder.map((value) => ({
-      id: value,
-      header: value,
-    }))
+/** Per-(rowNode × leafColumn) accumulator. Merged up the tree, resolved at end. */
+interface Acc {
+  matchCount: number // source rows matching this bucket (drives `count`)
+  sum: number
+  n: number // finite field values (drives sum/avg/min/max)
+  min: number
+  max: number
+  distinct: Set<string> // drives countDistinct
+  currencies: Set<string> // >1 ⇒ mixed
+}
+
+function emptyAcc(): Acc {
+  return {
+    matchCount: 0,
+    sum: 0,
+    n: 0,
+    min: Infinity,
+    max: -Infinity,
+    distinct: new Set(),
+    currencies: new Set(),
   }
-  const seen = new Set<string>()
-  const columns: PivotColumn[] = []
-  for (const row of config.rows) {
-    const id = String(row[config.pivotColumn])
-    if (!seen.has(id)) {
-      seen.add(id)
-      columns.push({ id, header: id })
-    }
-  }
-  return columns
 }
 
-/** Group rows by one field, preserving first-seen key order. */
-function groupBy(
+function mergeInto(target: Acc, src: Acc): void {
+  target.matchCount += src.matchCount
+  target.sum += src.sum
+  target.n += src.n
+  if (src.min < target.min) target.min = src.min
+  if (src.max > target.max) target.max = src.max
+  for (const d of src.distinct) target.distinct.add(d)
+  for (const c of src.currencies) target.currencies.add(c)
+}
+
+function resolveCell(acc: Acc, measure: PivotMeasure): PivotCell {
+  if (measure.agg === "count") return { kind: "value", value: acc.matchCount }
+  if (measure.agg === "countDistinct")
+    return { kind: "value", value: acc.distinct.size }
+  // sum / avg / min / max: no finite value ⇒ empty; mixed currencies ⇒ refuse.
+  if (acc.n === 0) return { kind: "empty" }
+  if (measure.currencyField && acc.currencies.size > 1) return { kind: "mixed" }
+  const currency =
+    measure.currencyField && acc.currencies.size === 1
+      ? [...acc.currencies][0]
+      : undefined
+  let value: number
+  if (measure.agg === "sum") value = acc.sum
+  else if (measure.agg === "avg") value = acc.sum / acc.n
+  else if (measure.agg === "min") value = acc.min
+  else value = acc.max
+  return currency !== undefined
+    ? { kind: "value", value, currency }
+    : { kind: "value", value }
+}
+
+/** Field value as a display string (`""` for null/undefined). */
+function fieldStr(row: TableSectionRow, field: string): string {
+  const v = row[field]
+  return v == null ? "" : String(v)
+}
+
+/** The ordered distinct values of a column dimension: `columnOrder` verbatim
+ *  (present-but-unlisted dropped), else first-seen while scanning rows. */
+function distinctValues(
   rows: readonly TableSectionRow[],
   field: string,
-): Array<{ key: string; rows: TableSectionRow[] }> {
-  const order: string[] = []
-  const buckets = new Map<string, TableSectionRow[]>()
+  ordered: readonly string[] | undefined,
+): string[] {
+  if (ordered) return [...ordered]
+  const seen = new Set<string>()
+  const out: string[] = []
   for (const row of rows) {
-    const key = groupKey(row[field])
-    let bucket = buckets.get(key)
-    if (!bucket) {
-      bucket = []
-      buckets.set(key, bucket)
-      order.push(key)
+    const v = fieldStr(row, field)
+    if (!seen.has(v)) {
+      seen.add(v)
+      out.push(v)
     }
-    bucket.push(row)
   }
-  return order.map((key) => ({ key, rows: buckets.get(key) ?? [] }))
+  return out
 }
 
-/** Fold the finite values (and raw match count) of one cell into a single scalar. */
-function summarize(
-  aggregate: PivotAggregate,
-  values: readonly number[],
-  count: number,
-): number | null {
-  // `count` is always a number (0 when no rows match); the rest are null-if-empty.
-  if (aggregate === "count") return count
-  if (values.length === 0) return null
-  if (aggregate === "min") return values.reduce((a, b) => (b < a ? b : a))
-  if (aggregate === "max") return values.reduce((a, b) => (b > a ? b : a))
-  const total = values.reduce((a, b) => a + b, 0)
-  return aggregate === "avg" ? total / values.length : total
+/** Cross-join the per-level distinct values into ordered column paths. */
+function crossJoin(levels: readonly string[][]): string[][] {
+  let paths: string[][] = [[]]
+  for (const level of levels) {
+    const next: string[][] = []
+    for (const path of paths) for (const v of level) next.push([...path, v])
+    paths = next
+  }
+  return paths
+}
+
+/** A mutable row-tree node built during the bucket pass. */
+interface BuildNode {
+  path: string[]
+  rowValues: Record<string, string>
+  children: Map<string, BuildNode>
+  order: string[] // child insertion order (first-seen)
+  acc: Acc[] // per leaf column
+}
+
+function newNode(
+  path: string[],
+  rowValues: Record<string, string>,
+  numLeaves: number,
+): BuildNode {
+  const acc: Acc[] = new Array(numLeaves)
+  for (let i = 0; i < numLeaves; i++) acc[i] = emptyAcc()
+  return { path, rowValues, children: new Map(), order: [], acc }
 }
 
 /**
- * The per-column aggregate for ONE node, computed from its OWN subtree source
- * rows — so a parent re-derives from the underlying records, not from its child
- * aggregates (an `avg` is a true mean, never a mean-of-means).
+ * Fold long-format `rows` into the pivot matrix. See the module doc for the
+ * accumulator/merge strategy. O(R·(Dr+Dc+M)) bucket pass + O(nodes·leaves) fold.
  */
-function computeValues(
-  subtree: readonly TableSectionRow[],
-  columns: readonly PivotColumn[],
-  pivotColumn: string,
-  valueField: string,
-  aggregate: PivotAggregate,
-): Record<string, number | null> {
-  const finiteByColumn = new Map<string, number[]>()
-  const countByColumn = new Map<string, number>()
-  for (const column of columns) {
-    finiteByColumn.set(column.id, [])
-    countByColumn.set(column.id, 0)
-  }
-  for (const row of subtree) {
-    const columnId = String(row[pivotColumn])
-    const finite = finiteByColumn.get(columnId)
-    // A pivot value outside the column set (e.g. dropped by pivotColumnOrder)
-    // contributes to no cell.
-    if (finite === undefined) continue
-    countByColumn.set(columnId, (countByColumn.get(columnId) ?? 0) + 1)
-    const numeric = Number(row[valueField])
-    if (Number.isFinite(numeric)) finite.push(numeric)
-  }
-  const values: Record<string, number | null> = {}
-  for (const column of columns) {
-    values[column.id] = summarize(
-      aggregate,
-      finiteByColumn.get(column.id) ?? [],
-      countByColumn.get(column.id) ?? 0,
-    )
-  }
-  return values
-}
+export function buildPivot(input: BuildPivotInput): PivotResult {
+  const { rows, rowDimensions, columnDimensions, measures, columnOrder } = input
 
-/** Build the pivot rows for one hierarchy level, recursing into deeper groups. */
-function buildLevel(
-  rows: readonly TableSectionRow[],
-  depth: number,
-  ancestorLabels: readonly string[],
-  config: PivotConfig,
-  columns: readonly PivotColumn[],
-  aggregate: PivotAggregate,
-): PivotRow[] {
-  // In range by construction — buildLevel is only entered for depth < length.
-  const field = config.rowGroups[depth]!
-  return groupBy(rows, field).map(({ key, rows: subtree }) => {
-    const path = [...ancestorLabels, key]
-    const node = {
-      id: path.join("/"),
-      label: key,
-      depth,
-      values: computeValues(
-        subtree,
-        columns,
-        config.pivotColumn,
-        config.valueField,
-        aggregate,
-      ),
-      leafCount: subtree.length,
-    }
-    // The deepest rowGroups level IS the leaf row — no per-record children.
-    if (depth + 1 >= config.rowGroups.length) return node
-    return {
-      ...node,
-      subRows: buildLevel(subtree, depth + 1, path, config, columns, aggregate),
-    }
-  })
-}
-
-/**
- * Fold long-format `config.rows` into the nested pivot tree + matrix columns.
- * See `PivotConfig` for the exact column/hierarchy/rollup semantics.
- */
-export function buildPivot(config: PivotConfig): PivotResult {
-  const aggregate = config.aggregate ?? "sum"
-  const columns = collectColumns(config)
-  const grandTotals = computeValues(
-    config.rows,
-    columns,
-    config.pivotColumn,
-    config.valueField,
-    aggregate,
+  // 1. Enumerate column paths + the flat value columns (colPath-major, measure-minor).
+  const colLevels = columnDimensions.map((dim) =>
+    distinctValues(rows, dim.field, columnOrder?.[dim.field]),
   )
-  if (config.rowGroups.length === 0) {
-    return { columns, rows: [], grandTotals }
+  const colPaths = crossJoin(colLevels)
+  const M = measures.length
+  const leafColumns: PivotLeafColumn[] = []
+  for (const colPath of colPaths) {
+    for (const measure of measures) {
+      leafColumns.push({
+        id: `val${leafColumns.length}`,
+        label: measure.label,
+        measureId: measure.id,
+        columnPath: colPath,
+      })
+    }
   }
-  const rows = buildLevel(config.rows, 0, [], config, columns, aggregate)
-  return { columns, rows, grandTotals }
+  const numLeaves = leafColumns.length
+  const colPathIndex = new Map<string, number>()
+  colPaths.forEach((p, i) => colPathIndex.set(JSON.stringify(p), i))
+
+  // 2. Build the column header tree (groups per level, measure leaves at bottom).
+  let groupCounter = 0
+  const buildColumnTree = (
+    dimIdx: number,
+    prefix: string[],
+  ): PivotColumnNode[] => {
+    if (dimIdx === columnDimensions.length) {
+      const base = colPathIndex.get(JSON.stringify(prefix))! * M
+      return measures.map((measure, mi) => {
+        const leaf = leafColumns[base + mi]!
+        return { id: leaf.id, label: measure.label, leafId: leaf.id }
+      })
+    }
+    return colLevels[dimIdx]!.map((value) => ({
+      id: `grp${groupCounter++}`,
+      label: value,
+      children: buildColumnTree(dimIdx + 1, [...prefix, value]),
+    }))
+  }
+  const columnTree = buildColumnTree(0, [])
+
+  // 3. Bucket pass — fold each source row into its DEEPEST row node.
+  const root = newNode([], {}, numLeaves)
+  for (const row of rows) {
+    // Which column bucket? (skip a row whose colPath was dropped by columnOrder)
+    const colPath = columnDimensions.map((dim) => fieldStr(row, dim.field))
+    const colIdx = colPathIndex.get(JSON.stringify(colPath))
+    if (colIdx === undefined) continue
+
+    // Descend/create the row node for this row's dimension path.
+    let node = root
+    const path: string[] = []
+    const rowValues: Record<string, string> = {}
+    for (const dim of rowDimensions) {
+      const value = fieldStr(row, dim.field)
+      path.push(value)
+      rowValues[dim.field] = value
+      let child = node.children.get(value)
+      if (!child) {
+        child = newNode([...path], { ...rowValues }, numLeaves)
+        node.children.set(value, child)
+        node.order.push(value)
+      }
+      node = child
+    }
+
+    // Fold into the leaf node's accumulators (one leaf column per measure here).
+    measures.forEach((measure, mi) => {
+      const acc = node.acc[colIdx * M + mi]!
+      acc.matchCount += 1
+      if (measure.field) {
+        // A missing value (null/undefined/"") is NOT a number — `Number(null)`
+        // is 0, which would wrongly count toward sum/avg. Skip it entirely.
+        const rawVal = row[measure.field]
+        if (rawVal != null && rawVal !== "") {
+          const raw = Number(rawVal)
+          if (Number.isFinite(raw)) {
+            acc.sum += raw
+            acc.n += 1
+            if (raw < acc.min) acc.min = raw
+            if (raw > acc.max) acc.max = raw
+            if (measure.currencyField)
+              acc.currencies.add(fieldStr(row, measure.currencyField))
+          }
+        }
+      }
+      if (measure.distinctField)
+        acc.distinct.add(fieldStr(row, measure.distinctField))
+    })
+  }
+
+  // 4. Roll up (post-order): parent accumulators = merge of children's.
+  const rollUp = (node: BuildNode): void => {
+    for (const value of node.order) {
+      const child = node.children.get(value)!
+      rollUp(child)
+      for (let i = 0; i < numLeaves; i++) mergeInto(node.acc[i]!, child.acc[i]!)
+    }
+  }
+  rollUp(root)
+
+  // 5. Materialize the immutable PivotRow tree + resolve cells.
+  const measureOfLeaf = (leafIdx: number): PivotMeasure =>
+    measures[leafIdx % M]!
+  const toValues = (acc: Acc[]): Record<string, PivotCell> => {
+    const out: Record<string, PivotCell> = {}
+    for (let i = 0; i < numLeaves; i++)
+      out[leafColumns[i]!.id] = resolveCell(acc[i]!, measureOfLeaf(i))
+    return out
+  }
+  const materialize = (node: BuildNode, depth: number): PivotRow => {
+    const subRows = node.order.map((value) =>
+      materialize(node.children.get(value)!, depth + 1),
+    )
+    return {
+      id: `row:${JSON.stringify(node.path)}`,
+      label: node.path[node.path.length - 1] ?? "",
+      depth,
+      values: toValues(node.acc),
+      rowValues: node.rowValues,
+      subRows: subRows.length ? subRows : undefined,
+    }
+  }
+  const rows_out = root.order.map((value) =>
+    materialize(root.children.get(value)!, 0),
+  )
+
+  return {
+    columnTree,
+    leafColumns,
+    rows: rows_out,
+    grandTotals: toValues(root.acc),
+  }
 }

@@ -55,6 +55,10 @@ export function AppContextMenuClient({
 
   return (
     <AppContextMenu
+      // Switched OFF for now (Hleb, 2026-07-15) — the block right-click menu
+      // (Ask Sidekick / About this block / Report bug / Copy path) is disabled
+      // app-wide but kept in place; flip back to `true` to re-enable.
+      enabled={false}
       pathname={pathname ?? "/"}
       orgSlug={orgSlug}
       user={user}

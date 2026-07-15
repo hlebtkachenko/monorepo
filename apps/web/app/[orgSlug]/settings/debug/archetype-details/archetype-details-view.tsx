@@ -296,6 +296,7 @@ export function ArchetypeDetailsView() {
   return (
     <ArchetypeDetails
       title="Archetype Details"
+      breadcrumb={[{ label: "Debug", href: "..", icon: "Bug" }]}
       sections={[
         sectionSpace(),
         sectionDetailsGroup({

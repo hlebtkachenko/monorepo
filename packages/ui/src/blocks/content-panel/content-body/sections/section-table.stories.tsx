@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react"
 import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { SectionTableRenderer } from "./section-table-renderer"
+import { SectionTableProvider } from "./section-table-context"
 
 /**
  * `SectionTable` is the full data grid the Table archetype composes — TanStack
@@ -36,7 +37,6 @@ export const Invoices: Story = {
     props: {
       rowIdKey: "id",
       features: {
-        selection: "multi",
         search: true,
         inspect: false,
         rowActions: false,
@@ -46,7 +46,7 @@ export const Invoices: Story = {
           id: "document",
           header: "Document",
           kind: "text",
-          editable: true,
+          edit: "inline",
           pin: "left",
           width: 170,
         },
@@ -54,14 +54,14 @@ export const Invoices: Story = {
           id: "partner",
           header: "Partner",
           kind: "text",
-          editable: true,
+          edit: "inline",
           width: 200,
         },
         {
           id: "status",
           header: "Status",
           kind: "select",
-          editable: true,
+          edit: "inline",
           enableFilter: true,
           options: [
             { value: "New", label: "New" },
@@ -74,7 +74,7 @@ export const Invoices: Story = {
           id: "amount",
           header: "Amount",
           kind: "number",
-          editable: true,
+          edit: "inline",
           align: "end",
           width: 130,
         },
@@ -106,13 +106,13 @@ export const Invoices: Story = {
   },
 }
 
-/** Read-only display grid — no leading select column, no inline editors. */
+/** Read-only display grid — no inline editors. The leading select column is
+ *  always present (selection is mandatory). */
 export const ReadOnly: Story = {
   args: {
     props: {
       rowIdKey: "id",
       features: {
-        selection: "none",
         search: true,
         inspect: false,
         rowActions: false,
@@ -141,6 +141,46 @@ export const ReadOnly: Story = {
           number: "CZ12345678",
           status: "Active",
         },
+      ],
+    },
+  },
+}
+
+/**
+ * With `features.inspect`, each row gets a keyboard-accessible "Open inspector"
+ * button in the trailing actions column. Wrapped in `SectionTableProvider` so the
+ * button is live (the archetype supplies this provider + the `renderInspector`
+ * Sheet in production).
+ */
+export const Inspector: Story = {
+  decorators: [
+    (Story) => (
+      <SectionTableProvider>
+        <Story />
+      </SectionTableProvider>
+    ),
+  ],
+  args: {
+    props: {
+      rowIdKey: "id",
+      features: {
+        search: true,
+        inspect: true,
+        rowActions: false,
+      },
+      columns: [
+        {
+          id: "document",
+          header: "Document",
+          kind: "text",
+          width: 200,
+          role: "id",
+        },
+        { id: "partner", header: "Partner", kind: "text", width: 220 },
+      ],
+      rows: [
+        { id: "1", document: "FP-2026-0001", partner: "Alza.cz a.s." },
+        { id: "2", document: "FP-2026-0002", partner: "ČEZ Prodej s.r.o." },
       ],
     },
   },

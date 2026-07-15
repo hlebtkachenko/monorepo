@@ -1270,6 +1270,9 @@ importers:
       '@hugeicons/react':
         specifier: ^1.1.9
         version: 1.1.9(react@19.2.7)
+      '@lucide/lab':
+        specifier: ^0.1.2
+        version: 0.1.2
       '@paper-design/shaders':
         specifier: ^0.0.77
         version: 0.0.77
@@ -3284,6 +3287,9 @@ packages:
     resolution: {integrity: sha512-p2+YcF+JE67SRX3mMlJ1TKCSTsgyOVdAwd/nxp3NuV1+Cb6MWALbN6nT7Ld4tpmYofcE5kcaSY1YBB9erY+6fw==}
     peerDependencies:
       '@types/react': 17 || 18 || 19
+
+  '@lucide/lab@0.1.2':
+    resolution: {integrity: sha512-VprF2BJa7ZuTGOhUd5cf8tHJXyL63wdxcGieAiVVoR9hO0YmPsnZO0AGqDiX2/br+/MC6n8BoJcmPilltOXIJA==}
 
   '@lukeed/csprng@1.1.0':
     resolution: {integrity: sha512-Z7C/xXCiGWsg0KuKsHTKJxbWhpI3Vs5GwLfOean7MGyVFGqdRgBbAjOCh6u4bbjPc/8MJ2pZmK/0DLdCbivLDA==}
@@ -14307,6 +14313,8 @@ snapshots:
   '@lit/react@1.0.8(@types/react@19.2.17)':
     dependencies:
       '@types/react': 19.2.17
+
+  '@lucide/lab@0.1.2': {}
 
   '@lukeed/csprng@1.1.0': {}
 

@@ -8,6 +8,7 @@ must remain true. Procedures belong in runbooks, rationale belongs in ADRs.
 - [`OIDC-TRUST.md`](OIDC-TRUST.md): GitHub Actions OIDC trust policy
 - [`SITEMAP.md`](SITEMAP.md): application information architecture
 - [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md): supply-chain security contract
+- [`TABLE-FILTERS.md`](TABLE-FILTERS.md): table column filter variants and kind-driven derivation
 - [`TRANSACTIONAL-EMAILS.md`](TRANSACTIONAL-EMAILS.md): transactional email shell, delivery, and authoring
 - [`api/`](api/): future public API contracts
 - [`accounting-schema.sql`](accounting-schema.sql): generated accounting schema snapshot

@@ -1,13 +1,7 @@
 import type { Column, ColumnSort, RowData } from "@tanstack/react-table"
 
 export type DataTableFilterVariant =
-  | "text"
-  | "number"
-  | "range"
-  | "date"
-  | "dateRange"
-  | "select"
-  | "multiSelect"
+  "text" | "number" | "range" | "date" | "dateRange" | "select" | "multiSelect"
 
 export interface DataTableFilterOption {
   label: string
@@ -26,6 +20,40 @@ export interface DataTableColumnMeta {
   icon?: React.FC<React.SVGProps<SVGSVGElement>>
   /** Cell content alignment — `center` squares up icon/checkbox columns. */
   align?: "start" | "center" | "end"
+  /**
+   * Whether the grid's keyboard cell-focus can land on this column. Default
+   * true. The select column sets it false so it is never a focusable/"selected"
+   * cell (no focus ring, arrow-nav skips it).
+   */
+  focusable?: boolean
+  /**
+   * Whether this column's cells are inline-editable — the grid gives a focused
+   * cell here a white surface so it reads as an editable field.
+   */
+  editable?: boolean
+  /**
+   * Extra px this column's cell reserves AFTER its value (e.g. a trailing
+   * action button). Double-click auto-fit adds it so the fit shows the full
+   * text PLUS the button without overlap.
+   */
+  trailingWidth?: number
+  /**
+   * Suppress drag-to-reorder for this header even though it is otherwise
+   * interactive (sortable/hideable). Set on pivot columns: the derived
+   * group/measure columns keep sorting but must not be dragged out of their
+   * hierarchy (the header layers are structural, not user-reorderable).
+   */
+  disableReorder?: boolean
+  /**
+   * The id the header's "Filter" action should route to instead of the column's
+   * own id. Used by pivot columns so same-meaning columns across groups open ONE
+   * toolbar filter: a GROUP header (a `grp…` column) passes its column-dimension
+   * FIELD (e.g. "channel"); a VALUE column passes its measure FIELD (e.g.
+   * "amount"), so every Amount column across every group routes to the same
+   * Amount toolbar filter. `resolveHeaderFilterTarget` matches it to a toolbar
+   * filter column.
+   */
+  filterColumnId?: string
 }
 
 declare module "@tanstack/react-table" {

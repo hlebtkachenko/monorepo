@@ -44,11 +44,42 @@ const DEFAULT_QUERY_KEYS: UseDataTableQueryKeys = {
   sort: "sort",
 }
 
+/**
+ * The slice of grid layout persisted per page (see `persistenceKey`). Only the
+ * user's structural layout — column widths, order, and left/right pinning —
+ * survives a reload; filters and sorting are intentionally NOT persisted (they
+ * are transient query state, saved Views are the future home for those).
+ */
+interface PersistedTableLayout {
+  columnSizing?: Record<string, number>
+  columnOrder?: string[]
+  columnPinning?: ColumnPinningState
+}
+
+function readPersistedLayout(key: string): PersistedTableLayout | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = window.localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as PersistedTableLayout) : null
+  } catch {
+    return null
+  }
+}
+
+function writePersistedLayout(key: string, layout: PersistedTableLayout): void {
+  if (typeof window === "undefined") return
+  try {
+    window.localStorage.setItem(key, JSON.stringify(layout))
+  } catch {
+    // Storage full / disabled (private mode) — persistence is best-effort.
+  }
+}
+
 type DataTableInitialState<TData> = Omit<Partial<TableState>, "sorting"> & {
   sorting?: ExtendedColumnSort<TData>[]
 }
 
-interface UseDataTableProps<TData> extends Omit<
+export interface UseDataTableProps<TData> extends Omit<
   TableOptions<TData>,
   "state" | "pageCount" | "getCoreRowModel"
 > {
@@ -74,6 +105,25 @@ interface UseDataTableProps<TData> extends Omit<
    * outside those anchors.
    */
   normalizeColumnPinning?: (pinning: ColumnPinningState) => ColumnPinningState
+  /**
+   * When set, the user's column layout — widths (`columnSizing`), order
+   * (`columnOrder`), and left/right pinning (`columnPinning`) — is saved to
+   * `localStorage` under this key and rehydrated on the next mount. Each page
+   * passes its own unique key so layouts never bleed across pages. Filters and
+   * sorting are deliberately excluded (transient query state).
+   */
+  persistenceKey?: string
+  /**
+   * Pagination mode. Default `true` — a `getPaginationRowModel()` is installed
+   * and the row model windows into pages (a `<DataTablePagination>` drives it).
+   *
+   * Pass `false` for the archetype's single-page model: the pagination row model
+   * is NOT installed, so `getRowModel()` returns the COMPLETE sorted/filtered
+   * dataset — sorting and filtering operate over every row, never a truncated
+   * page — and the mounted DOM is bounded by `DataGridView`'s row virtualization,
+   * not by a page size. No fake "huge pageSize" seed is needed.
+   */
+  paginated?: boolean
 }
 
 function readPagination(
@@ -174,6 +224,8 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     queryKeys,
     pageCount,
     normalizeColumnPinning,
+    persistenceKey,
+    paginated = true,
     ...tableProps
   } = props
 
@@ -260,11 +312,13 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       const base = searchParams
         ? paramsToURLSearchParams(searchParams)
         : new URLSearchParams()
-      writePagination(base, keys, nextPagination, initialPagination)
+      // Single-page mode owns no pagination state, so it never writes page keys.
+      if (paginated)
+        writePagination(base, keys, nextPagination, initialPagination)
       writeSorting(base, keys, nextSorting)
       callback(base)
     },
-    [initialPagination, keys, searchParams],
+    [initialPagination, keys, searchParams, paginated],
   )
 
   const onPaginationChange = React.useCallback(
@@ -308,7 +362,9 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
         : {}),
     },
     state: {
-      pagination,
+      // In single-page mode pagination is not controlled (no page model), so it
+      // is omitted from state; TanStack keeps its inert default internally.
+      ...(paginated ? { pagination } : {}),
       sorting,
       columnFilters,
       columnVisibility,
@@ -316,17 +372,23 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
       columnPinning,
       columnOrder,
     },
-    enableRowSelection: true,
-    onPaginationChange,
+    ...(paginated ? { onPaginationChange } : {}),
     onSortingChange,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     onColumnPinningChange,
     onColumnOrderChange,
+    // `enableRowSelection` may be a predicate — a pivot passes one that excludes
+    // synthetic subtotal (`isTotal`) rows so selecting a group never also selects
+    // its calculated total (which would double-count on sum). Default: all rows.
+    enableRowSelection: props.enableRowSelection ?? true,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Single-page: no pagination row model — `getRowModel()` returns the full
+    // sorted/filtered set (never truncated to a page). The DOM is bounded by
+    // `DataGridView`'s row virtualization instead.
+    ...(paginated ? { getPaginationRowModel: getPaginationRowModel() } : {}),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
@@ -338,13 +400,67 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
   // empty page. Runs in an effect (post-render) — never a render-phase setState.
   const currentPageCount = table.getPageCount()
   React.useEffect(() => {
+    if (!paginated) return
     if (pagination.pageIndex > 0 && pagination.pageIndex >= currentPageCount) {
       onPaginationChange((prev) => ({
         ...prev,
         pageIndex: Math.max(0, currentPageCount - 1),
       }))
     }
-  }, [currentPageCount, pagination.pageIndex, onPaginationChange])
+  }, [paginated, currentPageCount, pagination.pageIndex, onPaginationChange])
+
+  // --- Layout persistence (columns widths / order / pinning) ---------------
+  // Applied AFTER mount (never during render) so the client's hydration output
+  // matches the server's default layout — no hydration mismatch. The saved
+  // layout lands via the table's own setters (pinning still flows through the
+  // normalizer), one post-mount commit. Runs once per key.
+  const hydratedRef = React.useRef(false)
+  React.useEffect(() => {
+    if (!persistenceKey || hydratedRef.current) return
+    hydratedRef.current = true
+    const saved = readPersistedLayout(persistenceKey)
+    if (!saved) return
+    const known = new Set(table.getAllLeafColumns().map((c) => c.id))
+    if (saved.columnSizing) table.setColumnSizing(saved.columnSizing)
+    if (saved.columnOrder?.length) {
+      table.setColumnOrder(saved.columnOrder.filter((id) => known.has(id)))
+    }
+    if (saved.columnPinning) {
+      table.setColumnPinning({
+        left: (saved.columnPinning.left ?? []).filter((id) => known.has(id)),
+        right: (saved.columnPinning.right ?? []).filter((id) => known.has(id)),
+      })
+    }
+  }, [persistenceKey, table])
+
+  // Write the layout back whenever it changes. Column sizing lives in TanStack's
+  // internal (uncontrolled) state; read it from `table.getState()`. Skip writes
+  // WHILE a resize drag is live (columnResizeMode "onChange" fires every mouse
+  // move) — the release flips `isResizingColumn` to false and the final width is
+  // written once. The first invocation is skipped so the mount's default layout
+  // never clobbers a saved one before hydration applies it.
+  const sizingSnapshot = table.getState().columnSizing
+  const isResizingLive =
+    table.getState().columnSizingInfo.isResizingColumn !== false
+  const skipFirstPersistRef = React.useRef(true)
+  React.useEffect(() => {
+    if (!persistenceKey || isResizingLive) return
+    if (skipFirstPersistRef.current) {
+      skipFirstPersistRef.current = false
+      return
+    }
+    writePersistedLayout(persistenceKey, {
+      columnSizing: sizingSnapshot,
+      columnOrder,
+      columnPinning,
+    })
+  }, [
+    persistenceKey,
+    isResizingLive,
+    sizingSnapshot,
+    columnOrder,
+    columnPinning,
+  ])
 
   return { table }
 }

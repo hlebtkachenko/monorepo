@@ -9,18 +9,44 @@ import {
   type TableColumnSpec,
 } from "./section-table"
 import { SectionTableRenderer } from "./section-table-renderer"
-import { SectionTableProvider } from "./section-table-context"
+import {
+  SectionTableProvider,
+  useSectionInspect,
+} from "./section-table-context"
 import { isSectionDescriptor } from "./section"
 
 const wrap = (ui: React.ReactElement) => render(ui, { wrapper: IconProvider })
 
+/** Reflects the bridge's inspector open-state + row id, so a test can prove the
+ *  per-row "Open inspector" button drove the opener. */
+function InspectProbe() {
+  const { inspectOpen, inspectRow } = useSectionInspect()
+  const id = (inspectRow as { id?: string } | null)?.id
+  return (
+    <div data-testid="inspect-probe">
+      {inspectOpen ? `open:${id ?? ""}` : "closed"}
+    </div>
+  )
+}
+
+/** Whether a DOM node is an interactive control (encodes axe `nested-interactive`). */
+function isInteractive(node: Element): boolean {
+  const role = node.getAttribute("role")
+  return (
+    ["BUTTON", "A", "INPUT", "SELECT", "TEXTAREA"].includes(node.tagName) ||
+    role === "button" ||
+    role === "checkbox" ||
+    role === "link"
+  )
+}
+
 const COLUMNS: TableColumnSpec[] = [
-  { id: "doc", header: "Document", kind: "text", editable: true },
+  { id: "doc", header: "Document", kind: "text", edit: "inline", role: "id" },
   {
     id: "status",
     header: "Status",
     kind: "select",
-    editable: true,
+    edit: "inline",
     options: [
       { value: "new", label: "New" },
       { value: "posted", label: "Posted" },
@@ -56,7 +82,6 @@ describe("sectionTable (factory)", () => {
       rows: ROWS,
     })
     expect(desc.props.features).toEqual({
-      selection: "multi",
       search: true,
       inspect: false,
       rowActions: false,
@@ -75,6 +100,68 @@ describe("sectionTable (factory)", () => {
         rows: [],
       }),
     ).toThrow(/duplicate column id/)
+  })
+
+  it("throws on an empty rowIdKey unconditionally (dev)", () => {
+    expect(() =>
+      sectionTable({
+        rowIdKey: "",
+        columns: [{ id: "a", header: "A", kind: "text" }],
+        rows: [],
+      }),
+    ).toThrow(/rowIdKey/)
+  })
+
+  it("throws on an empty rowIdKey even when a column id happens to match it (dev)", () => {
+    // Regression: the old check only threw when NO column matched the empty
+    // rowIdKey, so a column with id "" masked the bug.
+    expect(() =>
+      sectionTable({
+        rowIdKey: "",
+        columns: [{ id: "", header: "Blank", kind: "text" }],
+        rows: [],
+      }),
+    ).toThrow(/rowIdKey/)
+  })
+
+  it("throws when a data column opts out of filtering (`filter: false`) (dev)", () => {
+    // Every non-checkbox column must be filterable — columns are filterable by
+    // default, so this only trips on an explicit `filter: false`.
+    expect(() =>
+      sectionTable({
+        rowIdKey: "id",
+        columns: [
+          { id: "a", header: "A", kind: "text" },
+          { id: "b", header: "B", kind: "text", filter: false },
+        ],
+        rows: [],
+      }),
+    ).toThrow(/must be filterable/)
+  })
+
+  it("throws when a non-`select` column is marked `creatable` (dev)", () => {
+    expect(() =>
+      sectionTable({
+        rowIdKey: "id",
+        columns: [{ id: "a", header: "A", kind: "text", creatable: true }],
+        rows: [],
+      }),
+    ).toThrow(/only `kind: "select"` supports a creatable/)
+  })
+
+  it("no longer accepts the removed `selection` feature flag (compile-level)", () => {
+    const desc = sectionTable({
+      rowIdKey: "id",
+      columns: COLUMNS,
+      rows: ROWS,
+      features: {
+        // @ts-expect-error `selection` was removed — the leading select column is
+        // mandatory (always rendered), so there is no selection flag to toggle.
+        selection: "none",
+      },
+    })
+    // The unknown key never reaches the payload either.
+    expect(desc.props.features).not.toHaveProperty("selection")
   })
 })
 
@@ -123,6 +210,26 @@ describe("anchorStructuralPins (pin invariant)", () => {
     )
     expect(next).toEqual({ left: ["a"], right: ["x"] })
   })
+
+  it("repairs a malformed `select` that landed in the right group", () => {
+    const next = anchorStructuralPins(
+      { left: ["doc"], right: ["select", "amount", "actions"] },
+      anchors,
+    )
+    expect(next.left).toEqual(["select", "doc"])
+    expect(next.right).toEqual(["amount", "actions"])
+    expect(next.right).not.toContain("select")
+  })
+
+  it("repairs a malformed `actions` that landed in the left group", () => {
+    const next = anchorStructuralPins(
+      { left: ["actions", "select", "doc"], right: ["amount"] },
+      anchors,
+    )
+    expect(next.left).toEqual(["select", "doc"])
+    expect(next.right).toEqual(["amount", "actions"])
+    expect(next.left).not.toContain("actions")
+  })
 })
 
 describe("SectionTableRenderer", () => {
@@ -141,6 +248,21 @@ describe("SectionTableRenderer", () => {
     expect(screen.getByText("Document")).toBeInTheDocument()
     expect(screen.getByText("Status")).toBeInTheDocument()
     expect(screen.getByLabelText("Select all")).toBeInTheDocument()
+  })
+
+  it("always renders the leading select column, even for a read-only table (selection is mandatory)", () => {
+    const readOnly = sectionTable({
+      rowIdKey: "id",
+      columns: [{ id: "name", header: "Name", kind: "text" }],
+      rows: [{ id: "1", name: "Ada" }],
+    }).props
+    wrap(
+      <div className="flex h-96 flex-col">
+        <SectionTableRenderer props={readOnly} />
+      </div>,
+    )
+    expect(screen.getByLabelText("Select all")).toBeInTheDocument()
+    expect(screen.getByLabelText("Select row 1")).toBeInTheDocument()
   })
 
   it("renders inline editors for editable cells", () => {
@@ -201,5 +323,149 @@ describe("SectionTableRenderer", () => {
     expect(await screen.findByText("Sort ascending")).toBeInTheDocument()
     expect(screen.queryByText("Filter")).not.toBeInTheDocument()
     expect(screen.queryByText("AI analyze")).not.toBeInTheDocument()
+  })
+})
+
+describe("SectionTableRenderer — row inspector affordance", () => {
+  const inspectPayload = sectionTable({
+    rowIdKey: "id",
+    columns: COLUMNS,
+    rows: ROWS,
+    features: { inspect: true },
+  }).props
+  const plainPayload = sectionTable({
+    rowIdKey: "id",
+    columns: COLUMNS,
+    rows: ROWS,
+  }).props
+
+  it("shows an Open inspector button per row when inspect is on", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={inspectPayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    expect(screen.getAllByLabelText("Open inspector")).toHaveLength(ROWS.length)
+  })
+
+  it("has no Open inspector button when inspect is off", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={plainPayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
+  })
+
+  it("opens the inspector for the clicked row (fires the bridge opener)", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={inspectPayload} />
+        </div>
+        <InspectProbe />
+      </SectionTableProvider>,
+    )
+    expect(screen.getByTestId("inspect-probe")).toHaveTextContent("closed")
+    fireEvent.click(screen.getAllByLabelText("Open inspector")[0]!)
+    // The opener recorded the FIRST row (id "1") and flipped the Sheet open.
+    expect(screen.getByTestId("inspect-probe")).toHaveTextContent("open:1")
+  })
+
+  it("keeps Open inspector out of any interactive ancestor (axe nested-interactive)", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={inspectPayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    const button = screen.getAllByLabelText("Open inspector")[0]!
+    // Walk up: an interactive control must never have an interactive ancestor.
+    let parent = button.parentElement
+    while (parent) {
+      expect(isInteractive(parent)).toBe(false)
+      parent = parent.parentElement
+    }
+  })
+
+  it("hosts the button in the identity column cell, not a separate actions column", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={inspectPayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    // rowActions is off → no Approve / More-actions column.
+    expect(screen.queryByLabelText("Approve")).not.toBeInTheDocument()
+    // The button lives inside a grid cell of the `role: "id"` column ("doc").
+    const button = screen.getAllByLabelText("Open inspector")[0]!
+    const cell = button.closest('[data-slot="grid-cell"]')
+    expect(cell).not.toBeNull()
+    expect(cell).toHaveAttribute("data-col", "1") // select is col 0, doc is col 1
+  })
+
+  it("renders the Open inspector as a 22px bordered icon box with a proportionate glyph", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={inspectPayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    const button = screen.getAllByLabelText("Open inspector")[0]!
+    // A white 22px box with the unselected-checkbox border + token hover fill.
+    expect(button.className).toContain("size-[22px]")
+    expect(button.className).toContain("border-grid-checkbox-border")
+    expect(button.className).toContain("bg-background")
+    expect(button.className).toContain("hover:bg-grid-action-hover")
+    expect(button.className).toContain("text-grid-action-icon")
+    // Glyph sized PROPORTIONATE to the smaller box (size-3.5), not oversized.
+    const svg = button.querySelector("svg")
+    expect(svg?.getAttribute("class") ?? "").toContain("size-3.5")
+  })
+})
+
+describe("SectionTableRenderer — creatable select column", () => {
+  const creatablePayload = sectionTable({
+    rowIdKey: "id",
+    columns: [
+      { id: "doc", header: "Document", kind: "text", role: "id" },
+      {
+        id: "party",
+        header: "Party",
+        kind: "select",
+        edit: "inline",
+        creatable: true,
+        options: [
+          { value: "a", label: "ACME" },
+          { value: "b", label: "Beta" },
+        ],
+      },
+    ],
+    rows: [
+      { id: "1", doc: "D1", party: "a" },
+      { id: "2", doc: "D2", party: null },
+    ],
+  }).props
+
+  it("renders a CreatableCombobox input (not a plain Select) for a creatable column", () => {
+    wrap(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionTableRenderer props={creatablePayload} />
+        </div>
+      </SectionTableProvider>,
+    )
+    // The creatable editor is a text INPUT (type to search / create), whereas the
+    // fixed-option SelectEditCell would render a Radix trigger BUTTON.
+    const editors = screen.getAllByLabelText("Party")
+    expect(editors.length).toBeGreaterThan(0)
+    expect(editors[0]!.tagName).toBe("INPUT")
   })
 })

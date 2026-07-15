@@ -31,6 +31,12 @@ export interface StatusFilterDescriptor {
   multiple?: boolean
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /**
+   * The table column this faceted control filters (e.g. `"status"`). Set it so a
+   * per-column header "Filter" on that column routes here instead of the
+   * multi-filter selector, which does not carry the delegated column.
+   */
+  columnId?: string
 }
 
 export interface SearchDescriptor {

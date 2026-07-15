@@ -277,6 +277,14 @@ export function settingsNav(base: string): SidebarNavEntry[] {
               href: `${base}/debug/archetype-details`,
             },
             {
+              label: "Archetype Table (DB)",
+              href: `${base}/debug/archetype-table-db`,
+            },
+            {
+              label: "Archetype Table (Pivot)",
+              href: `${base}/debug/archetype-table-pivot`,
+            },
+            {
               label: "Section Details Form",
               href: `${base}/debug/section-form`,
             },

@@ -30,35 +30,31 @@ export function ContentToolbar<TData>({
   add,
   className,
 }: ContentToolbarProps<TData>) {
-  const hasActiveFilters = filter != null && filter.filters.length > 0
-
   return (
     <div
       data-slot="content-toolbar"
       className={cn("shrink-0 border-b border-border-subtle", className)}
     >
-      {/* One flex-wrap row. The right cluster is pinned to the first line
-          (`order-1` + `ml-auto`). The filter band sits inline while it has no
-          active chips, but once it does it takes `basis-full` (`order-2`) and
-          drops to its OWN full-width line below — using the whole width instead
-          of the narrow gap the right cluster leaves. `order` only reorders
-          visually, so DOM + keyboard tab order stay status → search → filter →
-          right cluster. `gap-y-[5px]` = 5px between wrapped lines; `py-1` adds
-          the 1px top/bottom breathing room before the first / after the last. */}
-      <div className="flex min-h-[42px] flex-wrap items-center gap-x-2 gap-y-[5px] px-2 py-1">
-        {statusFilter ? <ContentToolbarStatusFilter {...statusFilter} /> : null}
-        {search ? <ContentToolbarSearch {...search} /> : null}
-        {filter ? (
-          <div
-            className={cn(
-              "flex min-w-0 items-center",
-              hasActiveFilters && "order-2 basis-full",
-            )}
-          >
-            <ContentToolbarFilter {...filter} />
-          </div>
-        ) : null}
-        <div className="order-1 ml-auto flex shrink-0 items-center gap-1">
+      {/* The left cluster (status → search → filter) takes the remaining width
+          and wraps INTERNALLY only when its own content no longer fits — so the
+          filter band stays inline next to search while there is room and drops
+          to a second line just when it must. The right cluster is `shrink-0`
+          and stays on the first line (`items-start`). DOM + keyboard order stay
+          status → search → filter → right cluster. `gap-y-[5px]` = 5px between
+          wrapped lines. */}
+      <div className="flex min-h-[42px] items-start gap-x-2 px-2 py-1">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-[5px]">
+          {statusFilter ? (
+            <ContentToolbarStatusFilter {...statusFilter} />
+          ) : null}
+          {search ? <ContentToolbarSearch {...search} /> : null}
+          {filter ? (
+            <div className="flex min-w-0 items-center">
+              <ContentToolbarFilter {...filter} />
+            </div>
+          ) : null}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
           {viewTools ? <ContentToolbarViewTools {...viewTools} /> : null}
           {actions?.map((action) => (
             <ContentToolbarActionButton key={action.id} {...action} />

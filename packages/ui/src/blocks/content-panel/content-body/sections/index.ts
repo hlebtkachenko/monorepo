@@ -29,17 +29,55 @@ export type {
   DetailsTableMode,
   DetailsTableEditHint,
 } from "./section-details-table"
-export { sectionTable } from "./section-table"
+export {
+  sectionTable,
+  filterVariantForKind,
+  resolveColumnFilter,
+} from "./section-table"
 export type {
   SectionTableProps,
   TableColumnKind,
   TableColumnAlign,
   TableColumnOption,
   TableColumnSpec,
+  TableColumnEditMode,
+  TableColumnFilterVariant,
+  TableColumnFilterPreset,
   TableCellValue,
   TableSectionRow,
   TableSectionFeatures,
 } from "./section-table"
+export { buildTableSection } from "./build-table-section"
+export type {
+  TableColumnDef,
+  BuildTableSectionOptions,
+  BuiltTableSection,
+} from "./build-table-section"
+export { deriveFilterColumns, applyTableFilters } from "./derive-table-filters"
+export { useTableFilters } from "./use-table-filters"
+export type { UseTableFiltersOptions } from "./use-table-filters"
+export { usePivotFilters } from "./use-pivot-filters"
+export type { UsePivotFiltersOptions } from "./use-pivot-filters"
+export { sectionPivotTable, PIVOT_ROW_LABEL_ID } from "./section-pivot-table"
+export type {
+  SectionPivotTableProps,
+  SectionPivotTablePayload,
+  PivotValueFormat,
+  PivotDimension,
+  PivotMeasure,
+  PivotAggregation,
+  PivotDrillTarget,
+  SectionPivotDrill,
+} from "./section-pivot-table"
+export type {
+  PivotCell,
+  PivotLeafColumn,
+  PivotColumnNode,
+  PivotRow,
+  PivotResult,
+  BuildPivotInput,
+} from "./pivot-transform"
+export { buildPivot } from "./pivot-transform"
 export {
   SectionTableProvider,
   useSectionTable,
@@ -48,8 +86,17 @@ export {
   useSectionColumnMenu,
   useSectionColumnFilter,
   useSectionColumnAnalyze,
+  useSectionCellCommit,
+  useSectionCreateOption,
+  useSectionPivotDrill,
 } from "./section-table-context"
-export type { SectionTableRegistration } from "./section-table-context"
+export type {
+  SectionTableRegistration,
+  SectionCellEdit,
+  SectionCellCommit,
+  SectionOptionCreate,
+  SectionCreateOption,
+} from "./section-table-context"
 export { sectionSpace } from "./section-space"
 export type { SectionSpaceProps } from "./section-space"
 export { sectionDetailsGroup } from "./section-details-group"

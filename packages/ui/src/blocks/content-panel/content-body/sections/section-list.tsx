@@ -74,7 +74,13 @@ export function SectionList({
             // keeping this generic loop free of any per-kind layout branch.
             data-section-kind={section.kind}
             className={cn(
-              "flex scroll-mt-16 flex-col",
+              // `min-w-0`: a flex item defaults to `min-width: auto`, which lets
+              // a WIDE child (a Table/Pivot grid, `overflow-auto`) push this
+              // wrapper past the body width so the whole ContentBody scrolls
+              // sideways instead of the grid scrolling INSIDE its own frozen
+              // (pinned) columns. Pinning min-width to 0 keeps the horizontal
+              // scroll where it belongs — inside the section's grid.
+              "flex min-w-0 scroll-mt-16 flex-col",
               // Fill sections (Empty) grow to the remaining height; the rest
               // take their natural height and let the body scroll.
               section.fill ? "min-h-0 flex-1" : "shrink-0",

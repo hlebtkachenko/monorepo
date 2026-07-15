@@ -24,7 +24,10 @@ import type {
   ContentToolbarProps,
   InspectorMetaItem,
   InspectorMode,
+  SectionCellCommit,
+  SectionCreateOption,
   SectionDescriptor,
+  SectionPivotDrill,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type { IconName } from "@workspace/ui/icon-packs"
@@ -62,6 +65,31 @@ export interface InspectorSheetRender {
   body: React.ReactNode
 }
 
+/**
+ * Route a per-column header "Filter" request to the right toolbar control.
+ *
+ * - a column the multi-filter owns → preselect it in that selector (`property`)
+ * - the column delegated to the faceted statusFilter (`statusColumnId`) →
+ *   `routeToStatus` (the chrome opens that control instead)
+ * - anything else (or no request) → neither, so the multi-filter never receives
+ *   an unknown id, which would throw in the FilterSelector's `getColumn`.
+ *
+ * Exported for unit testing; the chrome is the only caller.
+ */
+export function resolveHeaderFilterTarget(
+  requestedColumnId: string | undefined,
+  filterColumnIds: readonly string[],
+  statusColumnId: string | undefined,
+): { property: string | undefined; routeToStatus: boolean } {
+  if (requestedColumnId == null)
+    return { property: undefined, routeToStatus: false }
+  if (filterColumnIds.includes(requestedColumnId))
+    return { property: requestedColumnId, routeToStatus: false }
+  if (statusColumnId != null && requestedColumnId === statusColumnId)
+    return { property: undefined, routeToStatus: true }
+  return { property: undefined, routeToStatus: false }
+}
+
 export interface ArchetypeTableProps<TData> {
   /** Page title shown in the content header. */
   title: string
@@ -88,12 +116,36 @@ export interface ArchetypeTableProps<TData> {
    */
   sections: readonly SectionDescriptor[]
   /**
-   * Bulk actions for the selection footer. When present, the archetype renders a
-   * `ContentFooter` auto-wired to the Table section's selection (count + clear
-   * from the live instance); it self-hides when nothing is selected. There is NO
-   * status bar — it is legacy; aggregate/selection info lives in the footer.
+   * Bulk actions for the selection footer, as a FUNCTION of the live table (like
+   * `toolbar`) so each action's `onSelect` can close over the current selection
+   * (`table.getFilteredSelectedRowModel().rows`) to do real work. When it returns
+   * a non-empty array the archetype renders a `ContentFooter` auto-wired to the
+   * Table section's selection (count + clear from the live instance); it
+   * self-hides when nothing is selected. NO status bar (legacy).
    */
-  selectionActions?: ContentFooterAction[]
+  selectionActions?: (table: Table<TData> | null) => ContentFooterAction[]
+  /**
+   * Persist an inline-cell edit. Wired through the `SectionTableProvider` bridge
+   * to the Table section's cell editors (the descriptor stays pure data); the
+   * renderer applies the edit optimistically and reverts if this rejects. Columns
+   * opt in via `edit: "inline" | "both"`; `"inspector"` columns are edited in the
+   * Inspector instead (page-owned).
+   */
+  onCellEdit?: SectionCellCommit
+  /**
+   * Persist a new option created in a `creatable: true` select column (e.g.
+   * "add this counterparty to the directory"). Wired through the same bridge; the
+   * renderer adds the value to the column's live options immediately and calls
+   * this to persist it. Unwired → the new option shows for the session only.
+   */
+  onCreateOption?: SectionCreateOption
+  /**
+   * Open the underlying records when a Pivot aggregate cell is drilled into.
+   * The renderer computes the {@link SectionPivotDrill} target (the cell's
+   * coordinates + the matching source rows) and hands it here; the page renders
+   * the records (e.g. a dialog/Sheet). Unwired → pivot cells are inert.
+   */
+  onPivotDrill?: SectionPivotDrill
   /** Row-detail Inspector — the detail of the chosen row (panel or dialog). */
   inspector?: React.ReactNode
   inspectorOpen?: boolean
@@ -130,7 +182,11 @@ export interface ArchetypeTableProps<TData> {
  */
 export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
   return (
-    <SectionTableProvider>
+    <SectionTableProvider
+      onCellCommit={props.onCellEdit}
+      onCreateOption={props.onCreateOption}
+      onPivotDrill={props.onPivotDrill}
+    >
       <ArchetypeTableChrome {...props} />
     </SectionTableProvider>
   )
@@ -178,14 +234,29 @@ function ArchetypeTableChrome<TData>({
   // selector share a single source of truth.
   const columnFilter = useSectionColumnFilter()
   const toolbarProps = toolbar(table)
+  const filterTarget = resolveHeaderFilterTarget(
+    columnFilter.filterColumnId,
+    toolbarProps.filter?.columns.map((c) => c.id) ?? [],
+    toolbarProps.statusFilter?.columnId,
+  )
+  const openStatusFilter = toolbarProps.statusFilter?.onOpenChange
+  React.useEffect(() => {
+    if (!filterTarget.routeToStatus || !columnFilter.filterOpen) return
+    openStatusFilter?.(true)
+    // Consume the bridge request so the multi-filter never sees the delegated id.
+    columnFilter.setFilterOpen(false)
+    columnFilter.setFilterColumnId(undefined)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterTarget.routeToStatus, columnFilter.filterOpen])
   const wiredToolbar: ContentToolbarProps<TData> = toolbarProps.filter
     ? {
         ...toolbarProps,
         filter: {
           ...toolbarProps.filter,
-          property: columnFilter.filterColumnId,
+          property: filterTarget.property,
           onPropertyChange: columnFilter.setFilterColumnId,
-          open: columnFilter.filterOpen,
+          // Keep the multi-filter closed while a statusFilter request is in flight.
+          open: filterTarget.routeToStatus ? false : columnFilter.filterOpen,
           onOpenChange: columnFilter.setFilterOpen,
         },
       }
@@ -207,13 +278,16 @@ function ArchetypeTableChrome<TData>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyzeNonce])
 
+  // Resolve the selection actions against the live table so each `onSelect` can
+  // read the current selection; self-hides when there are none.
+  const resolvedSelectionActions = selectionActions?.(table) ?? []
   const footer =
-    selectionActions && selectionActions.length > 0 ? (
+    resolvedSelectionActions.length > 0 ? (
       <ContentFooter
         selection={{
           count: registration?.selectionCount ?? 0,
           onClear: () => registration?.table.resetRowSelection(),
-          actions: selectionActions,
+          actions: resolvedSelectionActions,
         }}
       />
     ) : undefined

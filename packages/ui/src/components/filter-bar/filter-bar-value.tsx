@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Ellipsis } from "@workspace/ui/lib/icons"
+import { Ellipsis, PlusIcon } from "@workspace/ui/lib/icons"
 import {
   endOfDay,
   endOfMonth,
@@ -62,6 +62,7 @@ import type {
   FilterBarStrings,
   FilterModel,
   FilterStrategy,
+  OptionBasedColumnDataType,
 } from "./filter-bar-types"
 import { FILTER_BAR_DEFAULT_STRINGS } from "./filter-bar-types"
 
@@ -447,6 +448,77 @@ const OptionItem = React.memo(function OptionItem({
   )
 })
 
+/** A row (rendered per option controller) shown by the `creatable` columns for a
+ *  typed value with no match: selecting it mints the value as a filter value. */
+function CreateOptionItem({
+  query,
+  onCreate,
+}: {
+  query: string
+  onCreate: (value: string) => void
+}) {
+  const value = query.trim()
+  return (
+    <CommandGroup forceMount>
+      <CommandItem
+        // cmdk scores an item by its `value` vs the search text; prefixing keeps
+        // this row from colliding with a real option of the same name, and
+        // `forceMount` keeps it visible regardless of the fuzzy filter.
+        value={`__create__${value}`}
+        forceMount
+        onSelect={() => onCreate(value)}
+        className="gap-1.5 [&>svg]:hidden"
+      >
+        <PlusIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span>{`Create "${value}"`}</span>
+      </CommandItem>
+    </CommandGroup>
+  )
+}
+
+/** The option controller's initial list: the column's own options plus any active
+ *  filter value NOT among them (a value minted earlier via "Create …") so it still
+ *  shows as selected when the popover is reopened. */
+function initialFilterOptions<TData, TType extends OptionBasedColumnDataType>(
+  column: Column<TData, TType>,
+  values: readonly string[] | undefined,
+): (ColumnOptionExtended & { initialSelected: boolean })[] {
+  const counts = column.getFacetedUniqueValues()
+  const base = column.getOptions().map((o) => ({
+    ...o,
+    selected: !!values?.includes(o.value),
+    initialSelected: !!values?.includes(o.value),
+    count: counts?.get(o.value) ?? 0,
+  }))
+  if (column.creatable && values) {
+    const known = new Set(base.map((o) => o.value))
+    for (const v of values)
+      if (!known.has(v))
+        base.push({
+          value: v,
+          label: v,
+          selected: true,
+          initialSelected: true,
+          count: 0,
+        })
+  }
+  return base
+}
+
+/** Whether the creatable "Create …" row should show for the current query. */
+function canCreateFilterOption<TData, TType extends OptionBasedColumnDataType>(
+  column: Column<TData, TType>,
+  query: string,
+  options: readonly { value: string; label: string }[],
+): boolean {
+  if (!column.creatable) return false
+  const q = query.trim().toLowerCase()
+  if (q === "") return false
+  return !options.some(
+    (o) => o.value.toLowerCase() === q || o.label.toLowerCase() === q,
+  )
+}
+
 export function FilterValueOptionController<TData>({
   filter,
   column,
@@ -456,18 +528,14 @@ export function FilterValueOptionController<TData>({
   // Snapshot of options at mount time — drives the initial selection state.
   // Deliberately memoized with no deps so reordering on selection changes
   // doesn't reshuffle the visible list inside the popover.
-  const initialOptions = React.useMemo(() => {
-    const counts = column.getFacetedUniqueValues()
-    return column.getOptions().map((o) => ({
-      ...o,
-      selected: filter?.values.includes(o.value),
-      initialSelected: !!filter?.values.includes(o.value),
-      count: counts?.get(o.value) ?? 0,
-    }))
+  const initialOptions = React.useMemo(
+    () => initialFilterOptions(column, filter?.values),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    [],
+  )
 
   const [options, setOptions] = React.useState(initialOptions)
+  const [query, setQuery] = React.useState("")
 
   React.useEffect(() => {
     setOptions((prev) =>
@@ -483,6 +551,32 @@ export function FilterValueOptionController<TData>({
     [actions, column],
   )
 
+  const createOption = React.useCallback(
+    (raw: string) => {
+      const value = raw.trim()
+      if (value === "") return
+      setOptions((prev) =>
+        prev.some((o) => o.value === value)
+          ? prev
+          : [
+              ...prev,
+              {
+                value,
+                label: value,
+                selected: true,
+                initialSelected: true,
+                count: 0,
+              },
+            ],
+      )
+      actions.addFilterValue(column, [value])
+      setQuery("")
+    },
+    [actions, column],
+  )
+
+  const showCreate = canCreateFilterOption(column, query, options)
+
   const { selectedOptions, unselectedOptions } = React.useMemo(() => {
     const sel: typeof options = []
     const unsel: typeof options = []
@@ -495,9 +589,17 @@ export function FilterValueOptionController<TData>({
 
   return (
     <Command loop className="min-w-56">
-      <CommandInput autoFocus placeholder={strings.search} />
-      <CommandEmpty>{strings.noResults}</CommandEmpty>
+      <CommandInput
+        autoFocus
+        placeholder={strings.search}
+        value={query}
+        onValueChange={setQuery}
+      />
+      {showCreate ? null : <CommandEmpty>{strings.noResults}</CommandEmpty>}
       <CommandList className="max-h-fit">
+        {showCreate ? (
+          <CreateOptionItem query={query} onCreate={createOption} />
+        ) : null}
         <CommandGroup className={cn(selectedOptions.length === 0 && "hidden")}>
           {selectedOptions.map((option) => (
             <OptionItem
@@ -539,21 +641,14 @@ export function FilterValueMultiOptionController<TData>({
   // Snapshot of options at mount time — drives the initial selection state.
   // Deliberately memoized with no deps so reordering on selection changes
   // doesn't reshuffle the visible list inside the popover.
-  const initialOptions = React.useMemo(() => {
-    const counts = column.getFacetedUniqueValues()
-    return column.getOptions().map((o) => {
-      const selected = !!filter?.values.includes(o.value)
-      return {
-        ...o,
-        selected,
-        initialSelected: selected,
-        count: counts?.get(o.value) ?? 0,
-      }
-    })
+  const initialOptions = React.useMemo(
+    () => initialFilterOptions(column, filter?.values),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    [],
+  )
 
   const [options, setOptions] = React.useState(initialOptions)
+  const [query, setQuery] = React.useState("")
 
   React.useEffect(() => {
     setOptions((prev) =>
@@ -569,6 +664,32 @@ export function FilterValueMultiOptionController<TData>({
     [actions, column],
   )
 
+  const createOption = React.useCallback(
+    (raw: string) => {
+      const value = raw.trim()
+      if (value === "") return
+      setOptions((prev) =>
+        prev.some((o) => o.value === value)
+          ? prev
+          : [
+              ...prev,
+              {
+                value,
+                label: value,
+                selected: true,
+                initialSelected: true,
+                count: 0,
+              },
+            ],
+      )
+      actions.addFilterValue(column, [value])
+      setQuery("")
+    },
+    [actions, column],
+  )
+
+  const showCreate = canCreateFilterOption(column, query, options)
+
   const { selectedOptions, unselectedOptions } = React.useMemo(() => {
     const sel: typeof options = []
     const unsel: typeof options = []
@@ -581,9 +702,17 @@ export function FilterValueMultiOptionController<TData>({
 
   return (
     <Command loop className="min-w-56">
-      <CommandInput autoFocus placeholder={strings.search} />
-      <CommandEmpty>{strings.noResults}</CommandEmpty>
+      <CommandInput
+        autoFocus
+        placeholder={strings.search}
+        value={query}
+        onValueChange={setQuery}
+      />
+      {showCreate ? null : <CommandEmpty>{strings.noResults}</CommandEmpty>}
       <CommandList>
+        {showCreate ? (
+          <CreateOptionItem query={query} onCreate={createOption} />
+        ) : null}
         <CommandGroup className={cn(selectedOptions.length === 0 && "hidden")}>
           {selectedOptions.map((option) => (
             <OptionItem

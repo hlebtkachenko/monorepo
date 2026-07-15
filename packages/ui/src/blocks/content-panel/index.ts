@@ -6,7 +6,11 @@ export type {
   ContentHeaderBreadcrumbItem,
   ContentHeaderBackLinkData,
 } from "./content-header"
-export { ContentToolbar, ContentToolbarLegacy } from "./content-toolbar"
+export {
+  ContentToolbar,
+  ContentToolbarLegacy,
+  buildTableToolbar,
+} from "./content-toolbar"
 export type {
   ContentToolbarProps,
   ContentToolbarLegacyProps,
@@ -19,6 +23,8 @@ export type {
   ActionVariant,
   AddDescriptor,
   AddVariant,
+  BuildTableToolbarOptions,
+  TableToolbarStatus,
 } from "./content-toolbar"
 export { ContentStatusBar } from "./content-status-bar"
 export type { ContentStatusBarProps } from "./content-status-bar"

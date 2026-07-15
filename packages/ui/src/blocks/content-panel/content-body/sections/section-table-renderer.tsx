@@ -1,15 +1,21 @@
 "use client"
 
 import * as React from "react"
-import type {
-  ColumnDef,
-  ColumnPinningState,
-  Row,
-  Table,
-} from "@tanstack/react-table"
+import type { ColumnDef, ColumnPinningState } from "@tanstack/react-table"
 
 import { Badge } from "@workspace/ui/components/badge"
-import { Checkbox } from "@workspace/ui/components/checkbox"
+import {
+  ComboboxContent,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@workspace/ui/components/combobox"
+import {
+  ComboboxItemCreatable,
+  CreatableCombobox,
+  isCreatableItem,
+  type CreatableItem,
+} from "@workspace/ui/components/creatable-combobox"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { Input } from "@workspace/ui/components/input"
 import { CircleCheckBig, Ellipsis, Maximize2 } from "@workspace/ui/lib/icons"
@@ -20,18 +26,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@workspace/ui/components/select"
-import { useDataTable } from "@workspace/ui/components/data-table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { cn } from "@workspace/ui/lib/utils"
 
 import {
-  useRegisterSectionTable,
+  useSectionCellCommit,
   useSectionColumnMenu,
+  useSectionCreateOption,
   useSectionInspectOpener,
 } from "./section-table-context"
+import { useSectionGridTable } from "./section-grid-table"
+import { GridNumberCell } from "./section-grid-cells"
+import { buildSelectColumn, type RowOrder } from "./section-grid-select"
 import { anchorStructuralPins } from "./section-table"
 import type {
   SectionTablePayload,
   TableCellValue,
+  TableColumnOption,
   TableColumnSpec,
   TableSectionRow,
 } from "./section-table"
@@ -65,21 +81,58 @@ function TextEditCell({
     setPrevValue(value)
     setDraft(String(value ?? ""))
   }
+  // Escape resets the draft and blurs; this flag tells the ensuing blur-commit
+  // to cancel rather than persist the reverted draft.
+  const cancelRef = React.useRef(false)
+  const commit = () => {
+    if (cancelRef.current) {
+      cancelRef.current = false
+      setDraft(String(value ?? ""))
+      return
+    }
+    if (!numeric) {
+      // Skip a no-op commit (blur without a change → no server round-trip).
+      if (draft === String(value ?? "")) return
+      onCommit(draft)
+      return
+    }
+    const trimmed = draft.trim()
+    if (trimmed === "") {
+      // Empty clears to null — but only if it wasn't already null.
+      if (value !== null) onCommit(null)
+      return
+    }
+    const parsed = Number(trimmed)
+    // Never commit NaN / Infinity — reject the draft and restore the last value.
+    if (!Number.isFinite(parsed)) {
+      setDraft(String(value ?? ""))
+      return
+    }
+    if (parsed === value) return
+    onCommit(parsed)
+  }
   return (
     <Input
       name={name}
       aria-label={ariaLabel}
       value={draft}
-      inputMode={numeric ? "numeric" : "text"}
+      // "decimal" (not "numeric") so negative + fractional amounts are typable.
+      inputMode={numeric ? "decimal" : "text"}
       onChange={(e) => setDraft(e.target.value)}
-      onBlur={() =>
-        onCommit(numeric ? (draft === "" ? null : Number(draft)) : draft)
-      }
+      onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur()
+        else if (e.key === "Escape") {
+          cancelRef.current = true
+          e.currentTarget.blur()
+        }
       }}
       className={cn(
-        "h-8 rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0",
+        // `dark:bg-transparent` overrides the Input's own `dark:bg-input/30` (a
+        // `dark:` variant that would otherwise win over a plain `bg-transparent`)
+        // — else an inline-editable cell shows a lighter field box behind its
+        // text in dark mode. The idle editor inherits the row surface.
+        "h-8 rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent",
         numeric && "text-right tabular-nums",
       )}
     />
@@ -103,7 +156,7 @@ function SelectEditCell({
       <SelectTrigger
         size="sm"
         aria-label={spec.header}
-        className="h-8 w-full rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+        className="h-8 w-full rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent"
       >
         <SelectValue placeholder="—" />
       </SelectTrigger>
@@ -118,57 +171,75 @@ function SelectEditCell({
   )
 }
 
-/** Row select checkbox for the leading selection column, plus (when `inspect`)
- * a maximize affordance that opens the row inspector. The maximize icon shows on
- * row hover or when this is the single selected row, and hides while several
- * rows are selected. */
-function SelectCell({
-  row,
-  table,
-  inspect,
-  onInspect,
+/**
+ * An inline CREATABLE select editor (for a `creatable: true` column, e.g. a
+ * counterparty picker built around a directory). Same slot as `SelectEditCell`,
+ * but backed by `CreatableCombobox`: type to search the existing options, or
+ * confirm "Create …" to mint a brand-new value. Picking an option commits it;
+ * creating a value commits it AND calls `onCreate` so the renderer adds it to the
+ * column's live options (and the page persists it). `options` is the column's
+ * CURRENT option set (grows as values are created).
+ */
+function CreatableSelectEditCell({
+  options,
+  value,
+  ariaLabel,
+  onCommit,
+  onCreate,
 }: {
-  row: Row<TableSectionRow>
-  table: Table<TableSectionRow>
-  inspect: boolean
-  onInspect?: (row: TableSectionRow) => void
+  options: readonly TableColumnOption[]
+  value: TableCellValue
+  ariaLabel: string
+  onCommit: (value: TableCellValue) => void
+  onCreate: (value: string) => void
 }) {
-  const checked = row.getIsSelected()
-  const selectedCount = table.getFilteredSelectedRowModel().rows.length
-  const multiSelected = selectedCount > 1
-  const singleSelected = selectedCount === 1 && checked
+  const items = React.useMemo(
+    () => options.map((o) => ({ value: o.value, label: o.label })),
+    [options],
+  )
+  const selected = items.find((o) => o.value === String(value ?? "")) ?? null
   return (
-    <div className="flex items-center gap-1">
-      <Checkbox
-        aria-label="Select row"
-        checked={checked}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
+    <CreatableCombobox
+      items={items}
+      value={selected}
+      onValueChange={(next) => {
+        // A real option OR the creatable item — both carry the underlying value
+        // (the creatable item's value is the raw typed text). Commit it either
+        // way; `onCreate` (fired on close) then persists a truly-new option.
+        const picked = next as { value?: string } | null
+        onCommit(picked?.value ?? null)
+      }}
+      onCreateValue={onCreate}
+    >
+      <ComboboxInput
+        aria-label={ariaLabel}
+        placeholder="—"
+        showClear={false}
+        className="h-8 rounded-none border-0 bg-transparent px-0 shadow-none dark:bg-transparent"
       />
-      {inspect && !multiSelected ? (
-        <button
-          type="button"
-          aria-label="Open details"
-          onClick={() => onInspect?.(row.original)}
-          className={cn(
-            "flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            singleSelected
-              ? "opacity-100"
-              : "opacity-0 group-hover/row:opacity-100",
-          )}
-        >
-          <Maximize2 className="size-3.5" />
-        </button>
-      ) : null}
-    </div>
+      <ComboboxContent>
+        <ComboboxList>
+          {(item: { value: string; label: string } | CreatableItem) =>
+            isCreatableItem(item) ? (
+              <ComboboxItemCreatable key="__create__" value={item} />
+            ) : (
+              <ComboboxItem key={item.value} value={item}>
+                {item.label}
+              </ComboboxItem>
+            )
+          }
+        </ComboboxList>
+      </ComboboxContent>
+    </CreatableCombobox>
   )
 }
 
 /**
- * Right-pinned per-row actions: ONE primary action placeholder + the overflow
- * menu. The row's default affordances (select checkbox, open-inspector) live in
- * the leading `select` column; this trailing column is for the one or two
- * line-level actions a surface needs (e.g. Approve on Posting Approval). Handlers
- * land per consumer later — the icons are the placeholder slots.
+ * Right-pinned per-row actions (the `rowActions` feature) — the ONE primary
+ * action placeholder + overflow menu a surface needs (e.g. Approve on Posting
+ * Approval). Handlers land per consumer later — the icons are the slots. The
+ * Open-inspector button is NOT here — it lives in the identity column (see
+ * `InspectorOpenButton`).
  */
 function RowActionsCell() {
   const action =
@@ -182,6 +253,36 @@ function RowActionsCell() {
         <Ellipsis className="size-4" />
       </button>
     </div>
+  )
+}
+
+/**
+ * The Open-inspector affordance, right-aligned in the identity (`role: "id"`)
+ * cell and revealed on row hover (idle when not hovered, like the leading select
+ * column's number↔checkbox swap). A white boxed icon button: a 22×22 box with
+ * the same border as an unselected checkbox (`--grid-checkbox-border`), a
+ * `--grid-action-icon` (#646464) `size-3.5` glyph (proportionate to the smaller
+ * box — a `size-4` looked oversized), a `--grid-action-hover` (#e5e5e5) hover
+ * fill, and an "Open Inspector" tooltip. Its right edge sits at the cell's
+ * `px-3` so the gap mirrors the left inset; `mousedown` is stopped so pressing
+ * it never grabs the cell's focus ring.
+ */
+function InspectorOpenButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label="Open inspector"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onClick}
+          className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-grid-checkbox-border bg-background text-grid-action-icon opacity-0 transition-[opacity,background-color] group-hover/row:opacity-100 hover:bg-grid-action-hover focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <Maximize2 className="size-3.5" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Open Inspector</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -200,14 +301,53 @@ export function SectionTableRenderer({
 }: {
   props: SectionTablePayload
 }) {
-  const { columns: specs, rows, rowIdKey, features, emptyText, name } = props
+  const {
+    columns: specs,
+    rows,
+    rowIdKey,
+    features,
+    emptyText,
+    name,
+    persistKey,
+  } = props
 
-  // Opener published by the archetype's bridge; the maximize affordance calls it
-  // with the clicked row. Null (inert) outside `ArchetypeTable`.
-  const openInspect = useSectionInspectOpener()
+  // Persist the user's column layout (widths / order / pinning) per page. An
+  // explicit `persistKey` wins; otherwise auto-derive from the page path + the
+  // section name so most pages persist for free. Client-only (reads
+  // `window.location`) and consumed only in effects, so it's SSR-safe — computed
+  // once in a lazy initializer to stay stable across re-renders.
+  const [persistenceKey] = React.useState<string | undefined>(() => {
+    if (persistKey) return `afframe.table.${persistKey}`
+    if (typeof window === "undefined") return undefined
+    return `afframe.table.auto:${window.location.pathname}:${name ?? "table"}`
+  })
+
   // Header-menu callbacks (Filter → toolbar filter, AI analyze → request) from
   // the bridge; null outside `ArchetypeTable`, so the menu drops both items.
   const columnMenu = useSectionColumnMenu()
+  // Row-inspector opener from the bridge; null outside `ArchetypeTable`, so the
+  // per-row "Open inspector" button (gated by `features.inspect`) stays inert.
+  const openInspect = useSectionInspectOpener()
+  // The trailing actions column exists only for `rowActions` — the Open-inspector
+  // button lives right-aligned in the identity (`role: "id"`) column instead.
+  const hasActionsColumn = features.rowActions
+  // The identity column that hosts the Open-inspector button when `inspect` is on
+  // (spec §3b: a required `role: "id"` column; fall back to the first column).
+  const idColumnId = features.inspect
+    ? (specs.find((s) => s.role === "id")?.id ?? specs[0]?.id)
+    : undefined
+  // Page-supplied persistence for an inline-cell edit; null → edits stay local draft.
+  const commitCell = useSectionCellCommit()
+  // Page-supplied persistence for a newly-created option (creatable columns).
+  const createOptionCommit = useSectionCreateOption()
+  // Anchor row index for shift-click range selection (like a normal file list).
+  const selectionAnchor = React.useRef<number | null>(null)
+  // Current display order + id→index map, refreshed after the table is built
+  // below. Declared here so the memoized select-cell closure can capture it.
+  const rowOrderRef = React.useRef<RowOrder<TableSectionRow>>({
+    rows: [],
+    indexById: new Map(),
+  })
 
   // Rows are held as local draft state so inline edits stick; seeded from the
   // descriptor. A new `rows` reference (fresh data) reseeds it — the render-time
@@ -219,57 +359,104 @@ export function SectionTableRenderer({
     setData([...rows])
   }
 
+  // Per-cell commit version. A cell can have several edits in flight; only the
+  // NEWEST one may ever roll back, and only if the cell still holds that exact
+  // optimistic value — so a stale rejection can never overwrite a later
+  // confirmed edit (C4: race-safe optimistic writes).
+  const cellVersionRef = React.useRef<Map<string, number>>(new Map())
   const updateCell = React.useCallback(
     (rowId: string, columnId: string, value: TableCellValue) => {
+      const cellKey = `${rowId}::${columnId}`
+      const version = (cellVersionRef.current.get(cellKey) ?? 0) + 1
+      cellVersionRef.current.set(cellKey, version)
+
+      // Optimistic local update; capture the prior value (from the state this
+      // edit is applied on top of) so a rejected persist can revert this cell.
+      let prevValue: TableCellValue = null
       setData((prev) =>
-        prev.map((row) =>
-          String(row[rowIdKey]) === rowId ? { ...row, [columnId]: value } : row,
-        ),
+        prev.map((row) => {
+          if (String(row[rowIdKey]) !== rowId) return row
+          prevValue = row[columnId] ?? null
+          return { ...row, [columnId]: value }
+        }),
       )
+      if (!commitCell) return
+      void Promise.resolve(commitCell({ rowId, columnId, value })).catch(() => {
+        // Superseded by a newer edit to the same cell → let the newer one own it.
+        if (cellVersionRef.current.get(cellKey) !== version) return
+        setData((prev) =>
+          prev.map((row) => {
+            if (String(row[rowIdKey]) !== rowId) return row
+            // The cell already moved on to another value → don't clobber it.
+            if (row[columnId] !== value) return row
+            return { ...row, [columnId]: prevValue }
+          }),
+        )
+      })
     },
-    [rowIdKey],
+    [rowIdKey, commitCell],
+  )
+
+  // Live option sets for `creatable` columns, seeded from each spec's `options`
+  // and grown when the user creates a value. Column-level (shared across every
+  // row's editor) so a value created in one row's cell is immediately checkable
+  // in every other row. Non-creatable columns never enter this map.
+  const [optionsByColumn, setOptionsByColumn] = React.useState<
+    Record<string, readonly TableColumnOption[]>
+  >(() => {
+    const seed: Record<string, readonly TableColumnOption[]> = {}
+    for (const spec of specs)
+      if (spec.creatable) seed[spec.id] = spec.options ?? []
+    return seed
+  })
+  // Reseed when the descriptor's specs change (new page data).
+  const [prevSpecs, setPrevSpecs] = React.useState(specs)
+  if (specs !== prevSpecs) {
+    setPrevSpecs(specs)
+    const seed: Record<string, readonly TableColumnOption[]> = {}
+    for (const spec of specs)
+      if (spec.creatable) seed[spec.id] = spec.options ?? []
+    setOptionsByColumn(seed)
+  }
+  const handleCreateOption = React.useCallback(
+    (columnId: string, value: string) => {
+      const trimmed = value.trim()
+      if (trimmed === "") return
+      setOptionsByColumn((prev) => {
+        const current = prev[columnId] ?? []
+        if (current.some((o) => o.value === trimmed)) return prev
+        return {
+          ...prev,
+          [columnId]: [...current, { value: trimmed, label: trimmed }],
+        }
+      })
+      // Persist (append to the directory) — best-effort; the option is already
+      // local. A rejection is a page concern (it can toast); we don't roll back
+      // the local option, so the user's in-progress edit isn't yanked away.
+      if (createOptionCommit)
+        void Promise.resolve(
+          createOptionCommit({ columnId, value: trimmed }),
+        ).catch(() => {})
+    },
+    [createOptionCommit],
   )
 
   const columns = React.useMemo<ColumnDef<TableSectionRow>[]>(() => {
     const cols: ColumnDef<TableSectionRow>[] = []
 
-    if (features.selection === "multi") {
-      const selectWidth = features.inspect ? 60 : 32
-      cols.push({
-        id: "select",
-        size: selectWidth,
-        minSize: selectWidth,
-        maxSize: selectWidth,
-        meta: { align: "center" },
-        header: ({ table }) => (
-          <Checkbox
-            aria-label="Select all"
-            className="border-primary"
-            checked={
-              table.getIsAllPageRowsSelected() ||
-              (table.getIsSomePageRowsSelected() ? "indeterminate" : false)
-            }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
-          />
-        ),
-        cell: ({ row, table }) => (
-          <SelectCell
-            row={row}
-            table={table}
-            inspect={features.inspect}
-            onInspect={openInspect ?? undefined}
-          />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-        enableResizing: false,
-      })
-    }
+    // The select column is ALWAYS present (leftmost, first) — even in a
+    // read-only table (spec §6). Shared with the Pivot section via
+    // `buildSelectColumn` so both render an identical select affordance.
+    cols.push(
+      buildSelectColumn<TableSectionRow>({
+        anchorRef: selectionAnchor,
+        rowOrderRef,
+      }),
+    )
 
     for (const spec of specs) {
       const align = spec.align ?? (spec.kind === "number" ? "end" : "start")
+      const inline = spec.edit === "inline" || spec.edit === "both"
       cols.push({
         accessorKey: spec.id,
         header: spec.header,
@@ -286,6 +473,10 @@ export function SectionTableRenderer({
         meta: {
           label: spec.header,
           align,
+          editable: inline,
+          // The identity column reserves room for its trailing inspector button
+          // (22px box + gap-2 8px = 30) so auto-fit never clips it.
+          ...(spec.id === idColumnId ? { trailingWidth: 30 } : {}),
           ...(spec.enableFilter
             ? {
                 variant: "multiSelect" as const,
@@ -299,21 +490,23 @@ export function SectionTableRenderer({
         cell: ({ row, getValue }) => {
           const value = getValue() as TableCellValue
           const rowId = String(row.original[rowIdKey])
-          if (spec.editable && spec.kind === "select") {
-            return (
+          const content =
+            inline && spec.kind === "select" && spec.creatable ? (
+              <CreatableSelectEditCell
+                options={optionsByColumn[spec.id] ?? spec.options ?? []}
+                value={value}
+                ariaLabel={spec.header}
+                onCommit={(v) => updateCell(rowId, spec.id, v)}
+                onCreate={(v) => handleCreateOption(spec.id, v)}
+              />
+            ) : inline && spec.kind === "select" ? (
               <SelectEditCell
                 spec={spec}
                 value={value}
                 name={name ? `${name}[${rowId}][${spec.id}]` : undefined}
                 onCommit={(v) => updateCell(rowId, spec.id, v)}
               />
-            )
-          }
-          if (
-            spec.editable &&
-            (spec.kind === "text" || spec.kind === "number")
-          ) {
-            return (
+            ) : inline && (spec.kind === "text" || spec.kind === "number") ? (
               <TextEditCell
                 value={value}
                 numeric={spec.kind === "number"}
@@ -321,27 +514,33 @@ export function SectionTableRenderer({
                 name={name ? `${name}[${rowId}][${spec.id}]` : undefined}
                 onCommit={(v) => updateCell(rowId, spec.id, v)}
               />
+            ) : spec.kind === "badge" ? (
+              <Badge variant="secondary">{optionLabel(spec, value)}</Badge>
+            ) : spec.kind === "select" ? (
+              <span>{optionLabel(spec, value)}</span>
+            ) : spec.kind === "number" ? (
+              <GridNumberCell>{value == null ? "" : value}</GridNumberCell>
+            ) : (
+              <span>{String(value ?? "")}</span>
             )
-          }
-          if (spec.kind === "badge") {
-            return <Badge variant="secondary">{optionLabel(spec, value)}</Badge>
-          }
-          if (spec.kind === "select") {
-            return <span>{optionLabel(spec, value)}</span>
-          }
-          if (spec.kind === "number") {
+          // The identity column hosts the right-aligned, hover-revealed
+          // Open-inspector button next to its value (spec §3b).
+          if (spec.id === idColumnId && openInspect) {
             return (
-              <div className="w-full text-right tabular-nums">
-                {value == null ? "" : value}
+              <div className="flex w-full items-center gap-2">
+                <div className="min-w-0 flex-1 truncate">{content}</div>
+                <InspectorOpenButton
+                  onClick={() => openInspect(row.original)}
+                />
               </div>
             )
           }
-          return <span>{String(value ?? "")}</span>
+          return content
         },
       })
     }
 
-    if (features.rowActions) {
+    if (hasActionsColumn) {
       cols.push({
         id: "actions",
         size: 76,
@@ -359,22 +558,25 @@ export function SectionTableRenderer({
     return cols
   }, [
     specs,
-    features.selection,
-    features.inspect,
     features.rowActions,
+    hasActionsColumn,
+    idColumnId,
+    openInspect,
     name,
     rowIdKey,
     updateCell,
-    openInspect,
+    optionsByColumn,
+    handleCreateOption,
   ])
 
   const columnPinning = React.useMemo<ColumnPinningState>(() => {
-    const left = features.selection === "multi" ? ["select"] : []
+    // `select` is always present and always first-left.
+    const left = ["select"]
     for (const spec of specs) if (spec.pin === "left") left.push(spec.id)
     const right = specs.filter((s) => s.pin === "right").map((s) => s.id)
-    if (features.rowActions) right.push("actions")
+    if (hasActionsColumn) right.push("actions")
     return { left, right }
-  }, [specs, features.selection, features.rowActions])
+  }, [specs, hasActionsColumn])
 
   // Keep the structural columns anchored on every pinning write (see
   // `anchorStructuralPins`): `select` first-left, `actions` last-right — so a
@@ -382,53 +584,49 @@ export function SectionTableRenderer({
   const normalizeColumnPinning = React.useCallback(
     (pinning: ColumnPinningState): ColumnPinningState =>
       anchorStructuralPins(pinning, {
-        hasSelect: features.selection === "multi",
-        hasActions: features.rowActions,
+        hasSelect: true,
+        hasActions: hasActionsColumn,
       }),
-    [features.selection, features.rowActions],
+    [hasActionsColumn],
   )
 
-  const { table } = useDataTable<TableSectionRow>({
+  // The mandatory single-page grid scaffold (`useDataTable` config + live-instance
+  // registration/signature) is owned by `useSectionGridTable`; only the
+  // flat-specific data pieces are supplied here.
+  const { table } = useSectionGridTable<TableSectionRow>({
     data,
     columns,
     getRowId: (row) => String(row[rowIdKey]),
-    columnResizeMode: "onChange",
     enableGlobalFilter: features.search,
-    globalFilterFn: "includesString",
     defaultColumn: { minSize: 56, size: 160, maxSize: 640 },
     normalizeColumnPinning,
+    persistenceKey,
     initialState: {
-      pagination: { pageIndex: 0, pageSize: 50 },
       columnPinning,
     },
   })
 
-  // Publish the live instance up so the toolbar (Columns/Sort) + selection footer
-  // stay in sync; re-register whenever a tracked slice of grid state changes.
-  const state = table.getState()
-  const selectionCount = table.getFilteredSelectedRowModel().rows.length
-  const stateSignature = JSON.stringify({
-    rs: state.rowSelection,
-    s: state.sorting,
-    v: state.columnVisibility,
-    o: state.columnOrder,
-    p: state.columnPinning,
-    // Filter + global-search state MUST be tracked too: the toolbar's faceted
-    // status filter reads its selected value from the live column filter state,
-    // so without this the dropdown checkbox + trigger badge stay stale until an
-    // unrelated re-render (e.g. closing the popover) refreshes the toolbar.
-    f: state.columnFilters,
-    g: state.globalFilter,
-  })
-  useRegisterSectionTable(table as never, selectionCount, stateSignature)
+  // Refresh the display-order map (id → position in the CURRENT sorted/filtered
+  // view) so the select column shows correct line numbers + shift-range even
+  // after a sort. Memoized on the row-model array (stable until the view changes).
+  const orderedRows = table.getRowModel().rows
+  rowOrderRef.current = React.useMemo(() => {
+    const indexById = new Map<string, number>()
+    orderedRows.forEach((r, i) => indexById.set(r.id, i))
+    return { rows: orderedRows, indexById }
+  }, [orderedRows])
 
   return (
-    <DataGridView
-      table={table}
-      className="min-h-0 flex-1"
-      emptyMessage={emptyText ?? "No rows."}
-      onColumnFilter={columnMenu?.onColumnFilter}
-      onColumnAnalyze={columnMenu?.onColumnAnalyze}
-    />
+    // Provider for the per-row Open-inspector tooltip; short delay so it doesn't
+    // flash while sweeping the mouse across rows.
+    <TooltipProvider delayDuration={400}>
+      <DataGridView
+        table={table}
+        className="min-h-0 flex-1"
+        emptyMessage={emptyText ?? "No rows."}
+        onColumnFilter={columnMenu?.onColumnFilter}
+        onColumnAnalyze={columnMenu?.onColumnAnalyze}
+      />
+    </TooltipProvider>
   )
 }

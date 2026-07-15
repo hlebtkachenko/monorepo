@@ -120,6 +120,7 @@ export { DataTableSliderFilter } from "./data-table-slider-filter"
 export { DataTableToolbar } from "./data-table-toolbar"
 export { DataTableViewOptions } from "./data-table-view-options"
 export { useDataTable } from "./use-data-table"
+export type { UseDataTableProps } from "./use-data-table"
 export {
   getColumnLabel,
   getColumnPinningStyle,

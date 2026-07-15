@@ -47,3 +47,43 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: () => false,
   }),
 })
+
+// Provide an in-memory Storage when the environment leaves window.localStorage
+// undefined (Node 24's experimental `localStorage` global shadows jsdom's
+// without `--localstorage-file`), which otherwise breaks any component that
+// reads a persisted theme on mount. Guarded: fill only when one is missing.
+function createMemoryStorage(): Storage {
+  const store = new Map<string, string>()
+  return {
+    get length() {
+      return store.size
+    },
+    clear: () => store.clear(),
+    getItem: (key: string) => (store.has(key) ? store.get(key)! : null),
+    key: (index: number) => Array.from(store.keys())[index] ?? null,
+    removeItem: (key: string) => {
+      store.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      store.set(key, String(value))
+    },
+  }
+}
+
+for (const name of ["localStorage", "sessionStorage"] as const) {
+  let usable = false
+  try {
+    usable =
+      typeof (window as unknown as Record<string, Storage>)[name]?.getItem ===
+      "function"
+  } catch {
+    usable = false
+  }
+  if (!usable) {
+    Object.defineProperty(window, name, {
+      configurable: true,
+      writable: true,
+      value: createMemoryStorage(),
+    })
+  }
+}

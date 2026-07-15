@@ -3,6 +3,7 @@ import { SectionEmptyRenderer } from "./section-empty"
 import { SectionDetailsFormRenderer } from "./section-details-form-renderer"
 import { SectionDetailsTableRenderer } from "./section-details-table-renderer"
 import { SectionTableRenderer } from "./section-table-renderer"
+import { SectionPivotTableRenderer } from "./section-pivot-table-renderer"
 import { SectionSpaceRenderer } from "./section-space"
 import { SectionDetailsTabsRenderer } from "./section-details-tabs-renderer"
 
@@ -21,5 +22,6 @@ export const SECTION_REGISTRY = {
   "details-tabs": SectionDetailsTabsRenderer,
   "details-table": SectionDetailsTableRenderer,
   table: SectionTableRenderer,
+  "pivot-table": SectionPivotTableRenderer,
   space: SectionSpaceRenderer,
 } satisfies Record<LeafSectionKind, SectionRenderer<never>>

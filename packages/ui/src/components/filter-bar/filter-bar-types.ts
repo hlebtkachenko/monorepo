@@ -59,6 +59,13 @@ export type ColumnConfig<
   iconColor?: string
   type: TType
   options?: TType extends OptionBasedColumnDataType ? ColumnOption[] : never
+  /**
+   * Let the value editor MINT new options (option/multiOption columns only): when
+   * true, the filter shows a "Create …" row for a typed value with no match,
+   * adding it as a filter value (mirrors our creatable cell editor — a
+   * directory-backed column).
+   */
+  creatable?: boolean
   facetedOptions?: TType extends OptionBasedColumnDataType
     ? Map<string, number>
     : never

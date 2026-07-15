@@ -37,12 +37,15 @@ export function SortableHeaderCell<TData>({
   header,
   table,
   edges,
+  groupEdge = false,
   onColumnFilter,
   onColumnAnalyze,
 }: {
   header: Header<TData, unknown>
   table: Table<TData>
   edges: ScrollEdges
+  /** This cell sits on a high-level pivot group's right edge → full divider. */
+  groupEdge?: boolean
   onColumnFilter?: (columnId: string) => void
   onColumnAnalyze?: (columnId: string) => void
 }) {
@@ -50,7 +53,9 @@ export function SortableHeaderCell<TData>({
   const interactive = column.getCanSort() || column.getCanHide()
   // Structural columns (select / actions) set canSort + canHide false, so they
   // stay non-draggable anchors; every data column — pinned or not — can drag.
-  const canReorder = interactive
+  // A column may still opt OUT of reordering while keeping sort (pivot columns:
+  // sortable by value, but structurally fixed in their header hierarchy).
+  const canReorder = interactive && !column.columnDef.meta?.disableReorder
   const align = column.columnDef.meta?.align
   const pinned = column.getIsPinned()
 
@@ -72,8 +77,17 @@ export function SortableHeaderCell<TData>({
       role="columnheader"
       data-slot="grid-header-cell"
       className={cn(
-        "group/col relative flex h-9 shrink-0 items-center bg-muted text-muted-foreground",
-        borderClass(column),
+        "group/col relative flex h-9 shrink-0 items-center text-muted-foreground",
+        // EVERY header cell — corner placeholders (upper-tier cells above the
+        // pinned select + row-label), group-tier cells, and leaf cells — shares
+        // the SAME neutral header surface (no blue group tint) and the SAME
+        // divider (`borderClass`), so the group tier reads as an ordinary header
+        // row that merely spans its children. Placeholders are inert (no hover);
+        // real header cells get the normal header hover.
+        header.isPlaceholder
+          ? "bg-grid-header"
+          : "bg-grid-header hover:bg-grid-header-hover",
+        borderClass(column, groupEdge),
       )}
       style={{
         ...pinStyle(column),
@@ -93,7 +107,7 @@ export function SortableHeaderCell<TData>({
           type="button"
           aria-label="Drag to reorder column"
           disabled={isResizing}
-          className="absolute left-0 z-30 flex h-full w-4 cursor-grab touch-none items-center justify-center text-muted-foreground/50 opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+          className="absolute left-0 z-30 flex h-full w-3 cursor-grab touch-none items-center justify-center text-muted-foreground opacity-0 group-hover/col:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
           {...attributes}
           {...listeners}
         >
@@ -110,8 +124,9 @@ export function SortableHeaderCell<TData>({
       ) : (
         <div
           className={cn(
-            "flex size-full items-center",
-            align === "center" ? "justify-center px-0" : "px-3",
+            "flex size-full items-center px-3",
+            align === "center" && "justify-center px-0",
+            align === "end" && "justify-end",
           )}
         >
           {flexRender(column.columnDef.header, header.getContext())}

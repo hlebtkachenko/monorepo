@@ -95,6 +95,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Guard bare localStorage access in ThemeProvider and ThemeToggle so Safari with cookies/storage blocked no longer throws "Can't find variable: localStorage" on every page (#749, #750)
 - Block accounting period close on unresolved period-scoped HELD Brain proposals, and fail closed on unscoped legacy proposals. (#738)
 - S3 document store debug harness: page body now scrolls (h-full overflow-y-auto) so a tall image/PDF preview is fully visible instead of clipped by the app-shell content slot's by-design overflow-hidden.
 - S3 document store: inline image/PDF preview was blocked in local dev by the site CSP — the minio dev origin (S3_ENDPOINT) is now added to img-src and connect-src when NODE_ENV=development, so presigned-URL previews render (download always worked as a top-level navigation). Production CSP is unchanged (real S3 presigned URLs already matched https://*.amazonaws.com).

@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.22.6] — 2026-07-15
+
 ### Added
 
 - Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
@@ -18,6 +20,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Changed
 
 - Rebuild the workspace Profile as grouped General, Appearance, Security, Privacy, and Permissions pages with contextual dialogs and history, editable identity, avatar, contact, signature, shared company-structure fields, regional and consent settings, session and API-key visibility, permission grants, workspace departure, and OTP-confirmed account deletion.
+
+### Fixed
+
+- Guard bare localStorage access in ThemeProvider and ThemeToggle so Safari with cookies/storage blocked no longer throws "Can't find variable: localStorage" on every page (#749, #750)
 
 ## [v0.22.5] — 2026-07-15
 

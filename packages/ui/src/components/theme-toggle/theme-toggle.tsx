@@ -26,9 +26,14 @@ function ThemeToggle() {
   const [isCompact, setIsCompact] = React.useState(false)
 
   React.useEffect(() => {
-    const saved = localStorage.getItem("color-theme") ?? ""
-    setColorTheme(saved)
-    setIsCompact(localStorage.getItem("density") === "compact")
+    try {
+      const saved = localStorage.getItem("color-theme") ?? ""
+      setColorTheme(saved)
+      setIsCompact(localStorage.getItem("density") === "compact")
+    } catch {
+      // localStorage unavailable (Safari with storage/cookies blocked throws a
+      // bare-identifier ReferenceError; also covers SSR) — keep defaults.
+    }
   }, [])
 
   function applyColorTheme(theme: string) {
@@ -38,7 +43,11 @@ function ThemeToggle() {
     }
     const match = COLOR_THEMES.find((t) => t.value === theme)
     if (match?.cssClass) html.classList.add(match.cssClass)
-    localStorage.setItem("color-theme", theme)
+    try {
+      localStorage.setItem("color-theme", theme)
+    } catch {
+      // localStorage unavailable — the choice just won't persist.
+    }
     setColorTheme(theme)
   }
 
@@ -47,10 +56,13 @@ function ThemeToggle() {
     const html = document.documentElement
     if (next) {
       html.setAttribute("data-density", "compact")
-      localStorage.setItem("density", "compact")
     } else {
       html.removeAttribute("data-density")
-      localStorage.setItem("density", "")
+    }
+    try {
+      localStorage.setItem("density", next ? "compact" : "")
+    } catch {
+      // localStorage unavailable — the choice just won't persist.
     }
     setIsCompact(next)
   }

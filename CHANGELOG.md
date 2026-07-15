@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Pivot Columns manager drag: dragging a low-level measure reorders it across EVERY high-level group at once, and dragging a high-level group reorders the whole group; pivot group headers gain a Filter action routed to their column-dimension's toolbar filter.
 - Pivot per-group subtotal rows (opt-in `subtotalRows`): a bold "Total …" row closes each group with the group's aggregate; the group's own value cells are blanked while expanded so the subtotal isn't shown twice.
 - Pivot value columns are now filterable (the general all-columns-filterable rule): each measure column carries an inline numeric min/max filter in its header dropdown wired to TanStack columnFilters; all pivot headers get the AI-analyze item via the section bridge.
 - Pivot drill-through: clicking any aggregate cell (subtotal, leaf, or grand total) opens the underlying source records behind it, via a new `ArchetypeTable.onPivotDrill` bridge that hands the page a `PivotDrillTarget` (cell coordinates + the filtered source rows); cells are inert when unwired.
@@ -38,6 +39,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Pivot high-level (group) headers render on the neutral header surface (no blue tint), with corner cells matching and a full-strength single divider between groups cascading down the body (no double line).
 - Pivot-aware columns manager: grouped tables show a 'High-level columns' section (the group headers) plus a 'Low-level columns' section that dedups each reused measure into ONE switch (an 'Orders' toggle hides Orders under every group).
 - Pivot value columns are drag-reorderable again, but constrained WITHIN their group: each group's header gets its own dnd SortableContext so a value column can't be dragged into another group; the header-menu Move is dropped for grouped columns (drag only).
 - Pivot header polish: group double-click auto-fit now sizes every sub-column to its rendered (formatted) cell text; group-tier header cells regain the normal header hover/active states; the top-left corner cells above the pinned select + label are a clean white block with no divider.
@@ -80,6 +82,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Pivot table now scrolls horizontally INSIDE its own grid (pinned + mandatory columns stay frozen) instead of scrolling the whole Content Body — the section wrapper was missing `min-w-0`, so any wide grid pushed the body sideways.
 - Table archetype: dark-mode lighter box behind inline-editable cell text (the shadcn Input's `dark:bg-input/30` outranked the cell's `bg-transparent` — the inline editors now force `dark:bg-transparent` and inherit the row surface), grid keyboard-nav hijacking inline-editor caret keys, unsafe optimistic-write rollback on out-of-order commits, invalid/NaN numeric commits, Columns-manager order not following pinned groups, filter coercion (missing-vs-zero, invalid dates, untrimmed tags, stale filter models), and descriptor/pin validation gaps
 - Table archetype: a column's `kind` now canonically drives its toolbar filter via one global `filterVariantForKind` map (`filter: true` derives everything from the kind — a `select`/`badge` column becomes a dropdown/option filter with its own options, never a text search); the row Inspector's Open button moved into a required right-aligned `role: "id"` identity column (hover-revealed, sized a step above the checkbox), replacing the generic actions-column placement
 - Table archetype (review-plan C-tasks): single-page row model (`useDataTable` `paginated: false`) replaces the hidden fake `pageSize` so sort/filter see every row and nothing is silently truncated; the Pivot grand total is a stable pinned footer row outside the sortable/selectable body model (never moves, never selectable, absent when empty); the Pivot section is documented display-grade (a UI package must not import domain `Money`) with zero-decimal-currency + epsilon-sum formatting fixed; the `selection` feature flag (which never worked) removed so the always-on select column matches the type, and the row Inspector is wired end-to-end (a per-row Open-inspector button opens the `renderInspector` Sheet); flat + Pivot renderers now share one `useSectionGridTable` scaffold so the mandatory single-page config + live-table registration have a single definition point

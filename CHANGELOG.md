@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.23.0] — 2026-07-16
+
 ### Added
 
 - Inspector Sheet: right-docked row inspector rail on the Table archetype (7-tab rail, section-registry-driven tabs, deep-link `?inspect=<id>`, adjacent-row navigation) + Inspector Attachments wired to the S3 document store

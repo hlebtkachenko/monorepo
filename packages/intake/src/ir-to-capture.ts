@@ -284,8 +284,10 @@ export function invoiceToEvent(
 ): CreateAccountingEventRequest {
   const party = invoiceParty(invoice)
   const counterparty = eventCounterparty(party)
-  const label = invoice.direction === "issued" ? "FV" : "FP"
-  const description = `${label} ${invoice.number}${
+  // The source document number already carries its own prefix (e.g. "FP-2025-0042"), so we do NOT prepend
+  // a synthetic "FP"/"FV" label (that produced an ugly "FP FP-…" double-label). Number + party name is the
+  // case description; the direction is implicit in which party (supplier/customer) is present.
+  const description = `${invoice.number}${
     party?.name ? ` — ${party.name}` : ""
   }`.slice(0, 2000)
   return {

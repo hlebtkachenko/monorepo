@@ -181,6 +181,34 @@ describe("buildHeldWriteViewModel", () => {
     expect(vm.postingKind).toBeNull()
   })
 
+  it("surfaces the extracted counterparty IČO/DIČ on a createAccountingEvent header (the field the server dedups on)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        tool_name: "createAccountingEvent",
+        counterparty_name: "Dodavatel s.r.o.",
+        input_json: {
+          counterparty: {
+            name: "Dodavatel s.r.o.",
+            ico: "10000001",
+            dic: "CZ10000001",
+          },
+          description: "FP-2025-0042 — Dodavatel s.r.o.",
+          occurredAt: "2026-06-01",
+        },
+      }),
+    )
+    expect(vm.header.counterpartyName).toBe("Dodavatel s.r.o.")
+    // The IČO/DIČ (dedup keys) are visible so a reviewer can verify the field that BINDS the partner.
+    expect(vm.header.counterpartyIco).toBe("10000001")
+    expect(vm.header.counterpartyDic).toBe("CZ10000001")
+  })
+
+  it("leaves counterparty IČO/DIČ null on a capture header (the identity lives on the event, not the capture)", () => {
+    const vm = buildHeldWriteViewModel(captureFixture())
+    expect(vm.header.counterpartyIco).toBeNull()
+    expect(vm.header.counterpartyDic).toBeNull()
+  })
+
   it("shapes a createAccountingPosting header from the debit side of a double entry", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({

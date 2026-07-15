@@ -630,14 +630,14 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
     ).toBe("2025-03-20")
   })
 
-  it("description carries the FP/FV label + number + party name (bounded to 2000)", () => {
+  it("description = document number + party name (no synthetic FP/FV double-label), bounded to 2000", () => {
     expect(invoiceToEvent(invoice({ supplier }), eventCtx).description).toBe(
-      "FP FP-2025-0042 — Dodavatel s.r.o.",
+      "FP-2025-0042 — Dodavatel s.r.o.",
     )
     expect(
       invoiceToEvent(invoice({ direction: "issued", customer }), eventCtx)
         .description,
-    ).toBe("FV FP-2025-0042 — Odběratel a.s.")
+    ).toBe("FP-2025-0042 — Odběratel a.s.")
   })
 
   it("omits counterparty when there is no party (bare event still validates — reproduces today's behavior)", () => {
@@ -647,7 +647,7 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
       true,
     )
     // description still satisfies min(1) — the number alone.
-    expect(request.description).toBe("FP FP-2025-0042")
+    expect(request.description).toBe("FP-2025-0042")
   })
 
   it("drops a malformed IČO (>8 digits or non-digit) — never coerces, never crashes the CHECK", () => {

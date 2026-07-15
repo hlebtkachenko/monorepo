@@ -13,7 +13,10 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { DataTable } from "./data-table"
 import { DataTableColumnHeader } from "./data-table-column-header"
-import { DataTableColumnManager } from "./data-table-column-manager"
+import {
+  ColumnManagerMenuContent,
+  DataTableColumnManager,
+} from "./data-table-column-manager"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 import { useDataTable } from "./use-data-table"
@@ -362,4 +365,22 @@ export const WithActionBar: Story = {
 /** Drag rows to reorder columns; the eye toggles each column's visibility. */
 export const WithColumnManager: Story = {
   render: () => <ColumnManagerExample />,
+}
+
+function ColumnManagerOpenExample() {
+  const { table } = useDataTable<Person>({ data: seed, columns: baseColumns })
+  return (
+    <div className="w-64 rounded-md border p-1">
+      <ColumnManagerMenuContent table={table} />
+    </div>
+  )
+}
+
+/**
+ * The manager list rendered inline (as if the popover were open) so the a11y
+ * gate actually covers it — the closed popover in `WithColumnManager` hides the
+ * content from axe, which let a nested-interactive row toggle slip through once.
+ */
+export const ColumnManagerOpen: Story = {
+  render: () => <ColumnManagerOpenExample />,
 }

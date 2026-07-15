@@ -4,14 +4,13 @@ import type { Table } from "@tanstack/react-table"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
-import { Checkbox } from "@workspace/ui/components/checkbox"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@workspace/ui/components/popover"
 import { Separator } from "@workspace/ui/components/separator"
-import { Columns3, GripVertical } from "@workspace/ui/lib/icons"
+import { CheckIcon, Columns3, GripVertical } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { getColumnLabel } from "./data-table-utils"
@@ -149,21 +148,41 @@ export function ColumnManagerMenuContent<TData>({
           >
             <GripVertical className="size-4" />
           </span>
-          <button
-            type="button"
+          {/* role="button" on a div, NOT a real <button>: the trailing Checkbox
+              is a Radix <button role="checkbox"> and a button can't nest a
+              button (invalid HTML + hydration error). The checkbox is a
+              decorative, aria-hidden state indicator; the row div owns the
+              toggle semantics (aria-pressed) + keyboard. */}
+          <div
+            role="button"
+            tabIndex={0}
             onClick={() => column.toggleVisibility(!visible)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault()
+                column.toggleVisibility(!visible)
+              }
+            }}
             aria-label={visible ? `Hide ${label}` : `Show ${label}`}
             aria-pressed={visible}
-            className="flex h-8 flex-1 items-center gap-2 pr-2.5 text-left text-sm outline-none"
+            className="flex h-8 flex-1 cursor-pointer items-center gap-2 rounded-sm pr-2.5 text-left text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
           >
             <span className="flex-1 truncate text-foreground">{label}</span>
-            <Checkbox
-              checked={visible}
+            {/* Non-interactive state indicator mirroring the Checkbox look — a
+                real <Checkbox> is a <button role="checkbox">, which axe flags as
+                nested-interactive inside the row's role="button". */}
+            <span
               aria-hidden
-              tabIndex={-1}
-              className="pointer-events-none shrink-0"
-            />
-          </button>
+              className={cn(
+                "flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors",
+                visible
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input",
+              )}
+            >
+              {visible ? <CheckIcon className="size-3.5" /> : null}
+            </span>
+          </div>
         </div>
         {over && dropTarget.edge === "bottom" ? (
           <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />

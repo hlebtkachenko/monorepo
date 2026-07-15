@@ -84,6 +84,14 @@ export interface HeldWritePostingLineRow {
   amount: string
 }
 
+/** The `openObligation` directive on a held `createAccountingPosting`, shaped for the review. */
+export interface HeldWriteObligation {
+  saldoAccountNumber: string
+  direction: "RECEIVABLE" | "PAYABLE"
+  dueDate: string | null
+  variableSymbol: string | null
+}
+
 export interface HeldWriteHeader {
   counterpartyName: string | null
   /**
@@ -101,6 +109,13 @@ export interface HeldWriteHeader {
   caseDescription: string | null
   /** Designation (Označení) of the doklad — a posting's linked `sr.designation` (`FP2025…`); null pre-allocation for tools that mint it only on apply. */
   documentNumber: string | null
+  /**
+   * The saldokonto obligation a `createAccountingPosting` will ALSO open (the `openObligation` directive),
+   * or null. Surfaced so the reviewer sees that approving this posting opens a tracked pohledávka/závazek —
+   * against which účet, in which direction, with what splatnost/VS — not just the MD/D lines (two postings
+   * with identical lines, one that merely posts and one that also opens an obligation, must NOT look alike).
+   */
+  obligation: HeldWriteObligation | null
   /** ISO date/datetime as carried by the payload (occurredAt / issuedAt / postingDate). */
   date: string | null
   /** Decimal-string total (base + VAT, or the double-entry debit total); null when the tool has no derivable amount. */
@@ -685,9 +700,32 @@ function headerFromEvent(
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: null,
     date: asString(input["occurredAt"]),
     totalAmount: null,
     currency: null,
+  }
+}
+
+/** Read the `openObligation` directive off a held `createAccountingPosting` payload, or null. */
+function obligationFromPosting(
+  input: Record<string, unknown>,
+): HeldWriteObligation | null {
+  const o = input["openObligation"]
+  if (!isRecord(o)) return null
+  const saldoAccountNumber = asString(o["saldoAccountNumber"])
+  const direction = o["direction"]
+  if (
+    !saldoAccountNumber ||
+    (direction !== "RECEIVABLE" && direction !== "PAYABLE")
+  ) {
+    return null
+  }
+  return {
+    saldoAccountNumber,
+    direction,
+    dueDate: asString(o["dueDate"]),
+    variableSymbol: asString(o["variableSymbol"]),
   }
 }
 
@@ -708,6 +746,7 @@ function headerFromCapture(
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: null,
     date: asString(input["issuedAt"]),
     totalAmount: partials.length > 0 ? toDecimal(totalBase + totalVat) : null,
     currency: currency ?? "CZK",
@@ -735,6 +774,7 @@ function headerFromPosting(
     caseDesignation: null,
     caseDescription: null,
     documentNumber: null,
+    obligation: obligationFromPosting(input),
     date: asString(entry["postingDate"]),
     totalAmount: lines.length > 0 ? toDecimal(total) : null,
     // Postings settle in the accounting currency (CZK) — no currencyCode on the payload.

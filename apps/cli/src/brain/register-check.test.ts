@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest"
 
 import {
   REGISTER_MISMATCH_CAP,
-  capSignalsForVerdict,
   crossCheckCounterparty,
   namesMatch,
   normalizeNameTokens,
@@ -55,12 +54,26 @@ describe("namesMatch", () => {
   })
 })
 
+const baseRequest: CreateAccountingEventRequest = {
+  periodId: "0196f1de-0000-7000-8000-000000000001",
+  seriesId: "0196f1de-0000-7000-8000-000000000002",
+  description: "FP — nájem",
+  occurredAt: "2025-03-14",
+  confidence: 0.9,
+  rationale: "test",
+}
+
+/** The cap that a verdict would assert on a request — [] when it is non-blocking. */
+function capsFor(verdict: RegisterVerdict): string[] {
+  return withRegisterCapSignals(baseRequest, verdict).signals?.capSignals ?? []
+}
+
 describe("crossCheckCounterparty", () => {
   it("returns no_ico when there is no checkable IČO", async () => {
     const v = await crossCheckCounterparty(cp({ ico: null }))
     expect(v.status).toBe("no_ico")
     expect(verdictBlocksExecute(v)).toBe(false)
-    expect(capSignalsForVerdict(v)).toEqual([])
+    expect(capsFor(v)).toEqual([])
   })
 
   it("returns no_ico for a >8-digit garbage IČO (not checkable)", async () => {
@@ -91,7 +104,7 @@ describe("crossCheckCounterparty", () => {
     expect(seen).toBe("01234567")
   })
 
-  it("flags a mismatch when ARES resolves a different name", async () => {
+  it("flags a mismatch when ARES resolves a different name (blocks + caps)", async () => {
     const v = await crossCheckCounterparty(cp({ name: "ACME s.r.o." }), {
       lookup: async () => ({
         legalName: "Globex s.r.o.",
@@ -100,20 +113,22 @@ describe("crossCheckCounterparty", () => {
     })
     expect(v.status).toBe("mismatch")
     expect(verdictBlocksExecute(v)).toBe(true)
-    expect(capSignalsForVerdict(v)).toEqual([REGISTER_MISMATCH_CAP])
+    expect(capsFor(v)).toEqual([REGISTER_MISMATCH_CAP])
     expect(v.message).toContain("Globex")
   })
 
-  it("flags not_in_register when ARES knows the IČO but it is not in a public register", async () => {
-    const v = await crossCheckCounterparty(cp({ name: "ACME s.r.o." }), {
+  it("does NOT block/cap a valid OSVČ (name matches, not in a public register)", async () => {
+    // inPublicRegister is the obchodní/spolkový rejstřík only — an OSVČ (natural person) is legitimately
+    // not_in_register with a matching name. Blocking it would break every OSVČ doc + mislabel a correct partner.
+    const v = await crossCheckCounterparty(cp({ name: "Jan Novák" }), {
       lookup: async () => ({
-        legalName: "ACME s.r.o.",
+        legalName: "Jan Novák",
         inPublicRegister: false,
       }),
     })
     expect(v.status).toBe("not_in_register")
-    expect(verdictBlocksExecute(v)).toBe(true)
-    expect(capSignalsForVerdict(v)).toEqual([REGISTER_MISMATCH_CAP])
+    expect(verdictBlocksExecute(v)).toBe(false)
+    expect(capsFor(v)).toEqual([])
   })
 
   it("is fail-open: an ARES error degrades to unavailable, never throws or blocks", async () => {
@@ -124,7 +139,7 @@ describe("crossCheckCounterparty", () => {
     })
     expect(v.status).toBe("unavailable")
     expect(verdictBlocksExecute(v)).toBe(false)
-    expect(capSignalsForVerdict(v)).toEqual([])
+    expect(capsFor(v)).toEqual([])
     expect(v.message).toContain("503")
   })
 
@@ -134,33 +149,38 @@ describe("crossCheckCounterparty", () => {
   })
 })
 
-describe("withRegisterCapSignals", () => {
-  const base: CreateAccountingEventRequest = {
-    periodId: "0196f1de-0000-7000-8000-000000000001",
-    seriesId: "0196f1de-0000-7000-8000-000000000002",
-    description: "FP — nájem",
-    occurredAt: "2025-03-14",
-    confidence: 0.9,
-    rationale: "test",
-  }
+const mismatchVerdict: RegisterVerdict = {
+  status: "mismatch",
+  extractedName: "ACME s.r.o.",
+  officialName: "Globex s.r.o.",
+  inPublicRegister: true,
+  ico: "12345678",
+  message: "mismatch",
+}
+const matchVerdict: RegisterVerdict = {
+  ...mismatchVerdict,
+  status: "match",
+  officialName: "ACME s.r.o.",
+}
 
-  it("is a no-op when there are no caps to add", () => {
-    expect(withRegisterCapSignals(base, [])).toBe(base)
+describe("withRegisterCapSignals", () => {
+  it("is a no-op for a non-blocking verdict", () => {
+    expect(withRegisterCapSignals(baseRequest, matchVerdict)).toBe(baseRequest)
   })
 
-  it("creates the signals envelope with the cap", () => {
-    const out = withRegisterCapSignals(base, [REGISTER_MISMATCH_CAP])
+  it("creates the signals envelope with the cap for a mismatch", () => {
+    const out = withRegisterCapSignals(baseRequest, mismatchVerdict)
     expect(out.signals?.capSignals).toEqual([REGISTER_MISMATCH_CAP])
     // does not mutate the input
-    expect(base.signals).toBeUndefined()
+    expect(baseRequest.signals).toBeUndefined()
   })
 
   it("merges into an existing envelope, de-duplicating", () => {
     const withExisting: CreateAccountingEventRequest = {
-      ...base,
+      ...baseRequest,
       signals: { capSignals: [REGISTER_MISMATCH_CAP], kbRule: "high_active" },
     }
-    const out = withRegisterCapSignals(withExisting, [REGISTER_MISMATCH_CAP])
+    const out = withRegisterCapSignals(withExisting, mismatchVerdict)
     expect(out.signals?.capSignals).toEqual([REGISTER_MISMATCH_CAP])
     expect(out.signals?.kbRule).toBe("high_active")
   })

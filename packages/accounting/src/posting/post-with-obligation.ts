@@ -21,9 +21,8 @@
  */
 
 import { sql } from "drizzle-orm"
-import { one } from "../sql"
+import { one, rows } from "../sql"
 import type { RowExecutor } from "../sql"
-import { resolveAccountIds } from "../accounts"
 import { openObligation } from "../saldokonto"
 import { post, type PostInput } from "./index"
 import type { DoubleEntryInput, OpenItemDirection, OrgCtx } from "../types"
@@ -71,6 +70,39 @@ async function readObligationContext(
 }
 
 /**
+ * Resolve the directive's saldo account to its id AND assert it is a saldokonto (open-item) account.
+ * `account.tracks_open_items` is the ONE user-chosen flag marking a pohledávky/závazky account (311/32x/33x…)
+ * — the authoritative saldo-class marker, not a brittle number-prefix heuristic. Opening an open_item on a
+ * non-saldo account (e.g. a 5xx cost line that happens to carry a positive movement) would tag a spurious,
+ * append-only (uncorrectable) obligation onto a cost account, so reject it up front rather than open it.
+ * Throws on a number missing from the period chart (same fail-closed contract as resolveAccountIds).
+ */
+async function resolveSaldoAccountId(
+  db: RowExecutor,
+  periodId: string,
+  number: string,
+): Promise<string> {
+  const found = await rows<{ id: string; tracks_open_items: boolean }>(
+    db,
+    sql`SELECT id, tracks_open_items FROM account
+         WHERE period_id = ${periodId}::uuid AND number = ${number}
+         LIMIT 1`,
+  )
+  const account = found[0]
+  if (!account) {
+    throw new Error(
+      `accounting: account "${number}" not in the period's chart of accounts (§25)`,
+    )
+  }
+  if (!account.tracks_open_items) {
+    throw new Error(
+      `accounting: account "${number}" is not a saldokonto (open-item) account — openObligation opens only on a pohledávky/závazky account (account.tracks_open_items)`,
+    )
+  }
+  return account.id
+}
+
+/**
  * Post, then — when the directive is present — open the obligation the posting's saldo leg
  * represents, in the SAME transaction (append-only ⇒ if opening throws, the posting rolls back
  * too, never an orphaned 311/321 leg). Returns the posting result plus the opened open_item id
@@ -101,12 +133,11 @@ export async function postWithObligation(
     entry.accountingEventId,
     entry.periodId,
   )
-  const accountIds = await resolveAccountIds(db, entry.periodId, [
+  const saldoAccountId = await resolveSaldoAccountId(
+    db,
+    entry.periodId,
     input.obligation.saldoAccountNumber,
-  ])
-  const saldoAccountId = accountIds.get(
-    input.obligation.saldoAccountNumber,
-  ) as string
+  )
   const openItemId = await openObligation(db, ctx, {
     counterpartyId,
     originPostingId: posting.postingId,

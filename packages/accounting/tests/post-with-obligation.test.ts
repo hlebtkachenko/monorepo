@@ -195,6 +195,48 @@ describe("postWithObligation", () => {
     expect(result.openItemId).toBeNull()
   })
 
+  it("rejects a directive that targets a non-saldokonto account (e.g. a 5xx cost account)", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2047-01-01",
+      periodEnd: "2047-12-31",
+    })
+    await expect(
+      withOrganization(orgA, userId, async (db) => {
+        const { eventId, summaryRecordId } = await scaffold(
+          db,
+          s.ctx,
+          s,
+          "2047-02-10",
+          true,
+        )
+        return postWithObligation(db, s.ctx, {
+          kind: "double",
+          entry: {
+            periodId: s.periodId,
+            summaryRecordId,
+            accountingEventId: eventId,
+            postingDate: "2047-02-10",
+            responsibleUserId: userId,
+            lines: [
+              {
+                accountId: s.accounts["518"]!,
+                side: "DEBIT",
+                amount: "600.00",
+              },
+              {
+                accountId: s.accounts["321"]!,
+                side: "CREDIT",
+                amount: "600.00",
+              },
+            ],
+          },
+          // 518 is a cost account (tracks_open_items = false) — must be rejected, not opened.
+          obligation: { saldoAccountNumber: "518", direction: "RECEIVABLE" },
+        })
+      }),
+    ).rejects.toThrow(/not a saldokonto/)
+  })
+
   it("fails closed on a null-counterparty event (the obligation needs a partner)", async () => {
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2046-01-01",

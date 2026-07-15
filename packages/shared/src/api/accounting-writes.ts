@@ -824,6 +824,9 @@ const OpenObligationDirectiveSchema = z
       "Open the saldokonto obligation (pohledávka/závazek) this posting's saldo " +
       "leg represents. Only valid for a double-entry posting.",
   })
+export type OpenObligationDirective = z.infer<
+  typeof OpenObligationDirectiveSchema
+>
 
 export const CreateAccountingPostingRequestSchema = z
   .object({

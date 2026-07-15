@@ -76,12 +76,14 @@ import {
   renderEventResult,
 } from "./event"
 import {
-  capSignalsForVerdict,
   crossCheckCounterparty,
   renderRegisterVerdict,
   verdictBlocksExecute,
   withRegisterCapSignals,
 } from "./register-check"
+
+/** Fail-open ceiling for the ARES cross-check so a black-hole socket can't hang `brain event` (no POST occurs). */
+const ARES_CHECK_TIMEOUT_MS = 5000
 import { classifyExtractionEngine } from "./extraction-engine"
 import { tryExtractTextLayer } from "./markitdown-adapter"
 import { renderLiveResult } from "./session-config"
@@ -489,6 +491,7 @@ export function registerBrainCommand(program: Command): void {
         // and the held-event review shows why.
         const verdict = await crossCheckCounterparty(
           proposal.request.counterparty,
+          { signal: AbortSignal.timeout(ARES_CHECK_TIMEOUT_MS) },
         )
         output.write(renderRegisterVerdict(verdict))
 
@@ -517,10 +520,7 @@ export function registerBrainCommand(program: Command): void {
         }
 
         // Assert the mismatch cap so the server holds the write sub-green and the review shows the reason.
-        const request = withRegisterCapSignals(
-          proposal.request,
-          capSignalsForVerdict(verdict),
-        )
+        const request = withRegisterCapSignals(proposal.request, verdict)
 
         const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
         if (!apiKey) {

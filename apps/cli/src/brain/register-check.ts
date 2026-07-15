@@ -201,14 +201,16 @@ export async function crossCheckCounterparty(
   }
 }
 
-/** A verdict that should refuse `--execute` (unless overridden) — a real, actionable register problem. */
+/**
+ * A verdict that should refuse `--execute` (unless overridden) — a real, actionable register problem.
+ * ONLY `mismatch` (the extracted name ≠ ARES obchodní jméno for that IČO — the mis-OCR'd-IČO case this
+ * feature targets). `not_in_register` is NOT blocking: `inPublicRegister` is the obchodní/spolkový rejstřík
+ * only, so a perfectly valid OSVČ (natural person, never in the OR) is `not_in_register` with a matching
+ * name — blocking it would break every OSVČ doc and mislabel a correct partner. It stays informational
+ * (printed, never blocks or caps), exactly like `unavailable` / `no_ico`.
+ */
 export function verdictBlocksExecute(verdict: RegisterVerdict): boolean {
-  return verdict.status === "mismatch" || verdict.status === "not_in_register"
-}
-
-/** The cap signals to assert on the write for this verdict, so the server holds it + the review shows why. */
-export function capSignalsForVerdict(verdict: RegisterVerdict): string[] {
-  return verdictBlocksExecute(verdict) ? [REGISTER_MISMATCH_CAP] : []
+  return verdict.status === "mismatch"
 }
 
 const STATUS_MARK: Record<RegisterVerdictStatus, string> = {
@@ -225,18 +227,19 @@ export function renderRegisterVerdict(verdict: RegisterVerdict): string {
 }
 
 /**
- * Merge the verdict's cap signals into the event request's evidence envelope (creating `signals` / `capSignals`
- * when absent, de-duplicating). Returns a fresh request — never mutates the input. A no-op when there are no
- * caps to add, so a clean verdict leaves the request byte-identical.
+ * When the verdict is blocking, assert the `counterparty_register_mismatch` cap on the event request's
+ * evidence envelope (creating `signals` / `capSignals` when absent, de-duplicating) so the server holds the
+ * write sub-green and the held-event review shows why. Returns a fresh request — never mutates the input. A
+ * no-op for a non-blocking verdict, so a clean verdict leaves the request byte-identical.
  */
 export function withRegisterCapSignals(
   request: CreateAccountingEventRequest,
-  caps: string[],
+  verdict: RegisterVerdict,
 ): CreateAccountingEventRequest {
-  if (caps.length === 0) return request
+  if (!verdictBlocksExecute(verdict)) return request
   const existing = request.signals ?? undefined
   const existingCaps = existing?.capSignals ?? []
-  const merged = [...new Set([...existingCaps, ...caps])]
+  const merged = [...new Set([...existingCaps, REGISTER_MISMATCH_CAP])]
   return {
     ...request,
     signals: { ...(existing ?? {}), capSignals: merged },

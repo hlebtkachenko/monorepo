@@ -16,7 +16,6 @@ import {
   type CapturedEvent,
   type DocumentInput,
   type EventInput,
-  type ObligationDirective,
   type PostWithObligationInput,
   type PostWithObligationResult,
 } from "@workspace/accounting"
@@ -37,7 +36,11 @@ import {
   derivePostingVeto,
   screenTemplateBasis,
 } from "./accounting-veto"
-import { stripGateEnvelope, type GateEnvelope } from "@workspace/shared/api"
+import {
+  stripGateEnvelope,
+  type GateEnvelope,
+  type OpenObligationDirective,
+} from "@workspace/shared/api"
 import type { EvidenceEnvelope } from "./evidence-gate"
 import { runGatedWrite, type GatedWriteResult } from "./accounting-writes.gate"
 
@@ -252,7 +255,7 @@ export class AccountingWritesController {
       rationale: string
       conversationId?: string
       signals?: EvidenceEnvelope | null
-      openObligation?: ObligationDirective | null
+      openObligation?: OpenObligationDirective | null
     }
     const holdAmounts = (
       (entry as { lines?: Array<{ amount: string }> }).lines ?? []

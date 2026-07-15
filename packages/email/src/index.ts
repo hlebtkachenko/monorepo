@@ -12,3 +12,4 @@ export {
   magicLinkEmail,
   inviteEmail,
 } from "./templates"
+export { escapeHtml } from "./html"

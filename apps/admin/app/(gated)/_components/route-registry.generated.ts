@@ -101,6 +101,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform debug platform debug"
   },
   {
+    "href": "/platform/debug/emails",
+    "label": "Emails · Debug",
+    "section": "Platform",
+    "keywords": "platform debug emails platform debug emails"
+  },
+  {
     "href": "/platform/debug/input-fields",
     "label": "Input Fields · Debug",
     "section": "Platform",

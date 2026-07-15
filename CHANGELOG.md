@@ -8,6 +8,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
 - admin: XML-filing operator debug page (Platform → Debug → XML filing) — import a DPPO/DPHDP3/DPHKH1/ISDOC XML, round-trip it through @workspace/filing, XSD-validate the regenerated output, and run the DPPO kritické kontroly; prod-live (staff-only), not dev-gated
 - filing: DPPO input + validity layers — field parsers (@workspace/filing/fields: parseKoruna/parseSazba/parseDic/parseEpoDate + fieldTypeFor), offline IČO/DIČ mod-11 checksum (@workspace/filing/business-validity), and warn-only EPO kritické-kontroly (checkDppo, @workspace/filing/dppo-checks) — the demo-independent input contract a real filing UI binds to
 - filing: Tier 3 FÚ EPO DPPO engine (DPPDP9 v05.01.01) — generateDppo/readDppo, validateFiling(…, "dppo", "05.01.01"), buildDppoFromAccounting, computeDppoTotals (@workspace/filing/dppo-compute), vendored official XSD
@@ -53,6 +55,11 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
+- Rebuild the workspace Profile as grouped General, Appearance, Security, Privacy, and Permissions pages with contextual dialogs and history, editable identity, avatar, contact, signature, shared company-structure fields, regional and consent settings, session and API-key visibility, permission grants, workspace departure, and OTP-confirmed account deletion.
 - Document S3 bucket responsibilities, implemented upload/read/delete flows, limits, local MinIO operation, alarms, troubleshooting, follow-up ownership, Frankfurt pricing, and scale guardrails in ADR-0031 and the document-store runbook.
 - Conductor dev setup: bring up the dev-compose minio + seed the documents-dev bucket, and add the S3 document store env (DOCUMENTS_BUCKET / S3_ENDPOINT / minio creds) to the generated apps/web/.env.local, so the /workspace/debug-documents harness works locally out of the box.
 - Table archetype hardening: controlled column pinning + order in useDataTable (pinned columns drag-reorder within their group; a header-menu pin lands before the action column, never outside it); row actions trimmed to one primary action + overflow; the columns dropdown rows became clean whole-row toggles; and the per-column header menu gained Filter (opens the shared toolbar filter at that column) + AI-analyze items.

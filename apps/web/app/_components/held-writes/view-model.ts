@@ -88,6 +88,7 @@ export interface HeldWritePostingLineRow {
 interface HeldWriteObligation {
   saldoAccountNumber: string
   direction: "RECEIVABLE" | "PAYABLE"
+  issueDate: string | null
   dueDate: string | null
   variableSymbol: string | null
 }
@@ -724,6 +725,7 @@ function obligationFromPosting(
   return {
     saldoAccountNumber,
     direction,
+    issueDate: asString(o["issueDate"]),
     dueDate: asString(o["dueDate"]),
     variableSymbol: asString(o["variableSymbol"]),
   }

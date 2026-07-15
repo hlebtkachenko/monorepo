@@ -532,6 +532,9 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
                 ? "závazek"
                 : "pohledávka"}{" "}
               — účet {header.obligation.saldoAccountNumber}
+              {header.obligation.issueDate
+                ? `, vystaveno ${formatDate(header.obligation.issueDate)}`
+                : ""}
               {header.obligation.dueDate
                 ? `, splatnost ${formatDate(header.obligation.dueDate)}`
                 : ""}

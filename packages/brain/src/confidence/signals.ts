@@ -87,11 +87,13 @@ export const TIER2_CAP_VALUES = {
   dph_tax_point_timing: 0.7, // DPH belongs to the DUZP period, not the invoice-issue date
   prior_without_source: 0.55, // a prior booking with no underlying primary fact in the dump — cannot re-derive
   // Tier-1.5 register cross-check (2026-07-15). The Brain CLI cross-checks an extracted counterparty IČO
-  // against the ARES public register (`brain event`); when the official obchodní jméno does not match the
-  // extracted name, OR the IČO is not in a public register, it asserts this cap so the write is held
-  // sub-green and the held-event review shows the mismatch — turning "a human might spot the wrong IČO" into
-  // "the system flags it". Client-asserted only (a cap can only LOWER trust, never release), fail-safe: an
-  // ARES-down run asserts nothing and the write holds on the cold-start floor anyway.
+  // against the ARES public register (`brain event`); when the official obchodní jméno does NOT match the
+  // extracted name (the mis-OCR'd-IČO → wrong-but-real-partner case), it asserts this cap so the write is
+  // held sub-green and the held-event review shows the mismatch — turning "a human might spot the wrong IČO"
+  // into "the system flags it". (A not-in-public-register IČO is NOT a mismatch — an OSVČ is legitimately
+  // absent from the obchodní rejstřík — so it is informational only, never caps.) Client-asserted only (a cap
+  // can only LOWER trust, never release), fail-safe: an ARES-down run asserts nothing and the write holds on
+  // the cold-start floor anyway.
   counterparty_register_mismatch: 0.7,
 } as const
 export type Tier2CapKind = keyof typeof TIER2_CAP_VALUES

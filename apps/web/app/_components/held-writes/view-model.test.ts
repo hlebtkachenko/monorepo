@@ -751,6 +751,7 @@ describe("holdReasonsFrom", () => {
         openObligation: {
           saldoAccountNumber: "321",
           direction: "PAYABLE",
+          issueDate: "2026-03-14",
           dueDate: "2026-04-14",
           variableSymbol: "12345",
         },
@@ -760,6 +761,7 @@ describe("holdReasonsFrom", () => {
     expect(vm.header.obligation).toEqual({
       saldoAccountNumber: "321",
       direction: "PAYABLE",
+      issueDate: "2026-03-14",
       dueDate: "2026-04-14",
       variableSymbol: "12345",
     })

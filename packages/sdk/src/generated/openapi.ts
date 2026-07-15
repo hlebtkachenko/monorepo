@@ -3800,7 +3800,7 @@ export interface components {
                 partialRecordIds: string[];
             }[] | null;
         };
-        /** @description Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting. Tenant + responsible user injected; opening/correction/generated linkage is not client-settable. */
+        /** @description Post a double-entry (kind=double) or monetary/cash-regime (kind=monetary) posting, optionally opening its saldokonto obligation (openObligation, double-entry only). Tenant + responsible user injected; opening/correction/generated linkage is not client-settable. */
         CreateAccountingPostingRequest: {
             /** @enum {string} */
             kind: "double" | "monetary";
@@ -3864,6 +3864,34 @@ export interface components {
                     partialRecordId?: string | null;
                 }[];
             };
+            /** @description Open the saldokonto obligation (pohledávka/závazek) this posting's saldo leg represents. Only valid for a double-entry posting. */
+            openObligation?: {
+                /**
+                 * @description saldokonto účet BY NUMBER (311/321/…).
+                 * @example 321
+                 */
+                saldoAccountNumber: string;
+                /**
+                 * @description pohledávka (RECEIVABLE, 311) / závazek (PAYABLE, 321).
+                 * @example PAYABLE
+                 * @enum {string}
+                 */
+                direction: "RECEIVABLE" | "PAYABLE";
+                /**
+                 * Format: date
+                 * @description Obligation issue date; defaults to the posting date.
+                 * @example 2026-03-14
+                 */
+                issueDate?: string | null;
+                /**
+                 * Format: date
+                 * @description Splatnost (due date).
+                 * @example 2026-03-14
+                 */
+                dueDate?: string | null;
+                /** @description Variabilní symbol for párování. */
+                variableSymbol?: string | null;
+            } | null;
             /**
              * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
              * @example 0.95

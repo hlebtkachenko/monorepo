@@ -11,13 +11,14 @@ import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import {
   captureDocument,
   createEvent,
-  post as postPosting,
+  postWithObligation,
   type CapturedDocument,
   type CapturedEvent,
   type DocumentInput,
   type EventInput,
-  type PostInput,
-  type PostedPosting,
+  type ObligationDirective,
+  type PostWithObligationInput,
+  type PostWithObligationResult,
 } from "@workspace/accounting"
 
 import { ApiKeyGuard } from "../../auth/api-key.guard"
@@ -238,17 +239,25 @@ export class AccountingWritesController {
     @Res({ passthrough: true }) res: Response,
     @Headers("idempotency-key") idempotencyKey?: string,
   ): Promise<Record<string, unknown>> {
-    const { confidence, rationale, conversationId, signals, kind, entry } =
-      body as unknown as CreateAccountingPostingRequestDto & {
-        confidence: number
-        rationale: string
-        conversationId?: string
-        signals?: EvidenceEnvelope | null
-      }
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      kind,
+      entry,
+      openObligation,
+    } = body as unknown as CreateAccountingPostingRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      openObligation?: ObligationDirective | null
+    }
     const holdAmounts = (
       (entry as { lines?: Array<{ amount: string }> }).lines ?? []
     ).map((l) => l.amount)
-    const result = await runGatedWrite<PostedPosting>({
+    const result = await runGatedWrite<PostWithObligationResult>({
       principal,
       idempotencyKey,
       operationId: "createAccountingPosting",
@@ -262,13 +271,14 @@ export class AccountingWritesController {
       deriveVeto: (db) =>
         derivePostingVeto(db, principal.organizationId, kind, entry),
       run: (db, ctx) =>
-        postPosting(db, ctx, {
+        postWithObligation(db, ctx, {
           kind,
           entry: {
             ...(entry as Record<string, unknown>),
             responsibleUserId: principal.userId as string,
           },
-        } as unknown as PostInput),
+          obligation: openObligation ?? null,
+        } as unknown as PostWithObligationInput),
       applied: (p) => ({ postingId: p.postingId, lineIds: p.lineIds }),
     })
     return this.send(res, result)

@@ -55,6 +55,12 @@ export interface PivotRow {
   /** The dimension field → value map on this node's path (for drill-through). */
   readonly rowValues: Readonly<Record<string, string>>
   readonly subRows?: readonly PivotRow[]
+  /**
+   * A synthetic per-group SUBTOTAL row (`subtotalRows` on): the last child of a
+   * group, carrying the group's aggregate under a "Total …" label. Its parent's
+   * own value cells are then hidden while expanded so the subtotal isn't doubled.
+   */
+  readonly isTotal?: boolean
 }
 
 export interface PivotResult {
@@ -70,6 +76,8 @@ export interface BuildPivotInput {
   readonly columnDimensions: readonly PivotDimension[]
   readonly measures: readonly PivotMeasure[]
   readonly columnOrder?: Readonly<Record<string, readonly string[]>>
+  /** Append a "Total …" subtotal row at the end of each group (see PivotRow.isTotal). */
+  readonly subtotalRows?: boolean
 }
 
 /** Per-(rowNode × leafColumn) accumulator. Merged up the tree, resolved at end. */
@@ -187,7 +195,14 @@ function newNode(
  * accumulator/merge strategy. O(R·(Dr+Dc+M)) bucket pass + O(nodes·leaves) fold.
  */
 export function buildPivot(input: BuildPivotInput): PivotResult {
-  const { rows, rowDimensions, columnDimensions, measures, columnOrder } = input
+  const {
+    rows,
+    rowDimensions,
+    columnDimensions,
+    measures,
+    columnOrder,
+    subtotalRows,
+  } = input
 
   // 1. Enumerate column paths + the flat value columns (colPath-major, measure-minor).
   const colLevels = columnDimensions.map((dim) =>
@@ -301,12 +316,24 @@ export function buildPivot(input: BuildPivotInput): PivotResult {
     return out
   }
   const materialize = (node: BuildNode, depth: number): PivotRow => {
-    const subRows = node.order.map((value) =>
+    const label = node.path[node.path.length - 1] ?? ""
+    const subRows: PivotRow[] = node.order.map((value) =>
       materialize(node.children.get(value)!, depth + 1),
     )
+    // A "Total <label>" subtotal row closes each group (its aggregate = the
+    // group's), so the group's own value cells can be blanked while expanded.
+    if (subtotalRows && subRows.length)
+      subRows.push({
+        id: `total:${JSON.stringify(node.path)}`,
+        label: `Total ${label}`,
+        depth: depth + 1,
+        values: toValues(node.acc),
+        rowValues: node.rowValues,
+        isTotal: true,
+      })
     return {
       id: `row:${JSON.stringify(node.path)}`,
-      label: node.path[node.path.length - 1] ?? "",
+      label,
       depth,
       values: toValues(node.acc),
       rowValues: node.rowValues,

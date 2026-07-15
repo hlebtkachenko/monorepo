@@ -83,7 +83,14 @@ function PivotLabelCell({ row }: { row: Row<PivotRow> }) {
       ) : (
         <span className="size-4 shrink-0" aria-hidden />
       )}
-      <span className={cn("truncate", row.depth === 0 && "font-medium")}>
+      <span
+        className={cn(
+          "truncate",
+          row.depth === 0 && "font-medium",
+          // A per-group "Total …" subtotal row reads bold, like the grand total.
+          row.original.isTotal && "font-semibold",
+        )}
+      >
         {label}
       </span>
     </div>
@@ -193,6 +200,7 @@ export function SectionPivotTableRenderer({
     labelWidth = 260,
     valueWidth = 150,
     defaultExpanded = true,
+    subtotalRows = false,
     search = true,
     state = "ready",
     errorText,
@@ -207,8 +215,16 @@ export function SectionPivotTableRenderer({
         columnDimensions,
         measures,
         columnOrder,
+        subtotalRows,
       }),
-    [rows, rowDimensions, columnDimensions, measures, columnOrder],
+    [
+      rows,
+      rowDimensions,
+      columnDimensions,
+      measures,
+      columnOrder,
+      subtotalRows,
+    ],
   )
 
   // One display formatter per measure id.
@@ -291,17 +307,24 @@ export function SectionPivotTableRenderer({
           disableReorder: true,
           inlineNumberFilter: true,
         },
-        cell: ({ row }) => (
-          <PivotValueCell
-            cell={row.original.values[leaf.id]}
-            format={format}
-            onDrill={
-              drill
-                ? () => drill(buildDrillTarget(row.original.rowValues, leaf))
-                : undefined
-            }
-          />
-        ),
+        cell: ({ row }) => {
+          // With subtotal rows on, an EXPANDED group's own value cells are blank
+          // — its aggregate shows in the trailing "Total …" row instead, so the
+          // number isn't repeated. Collapsed, the group keeps its preview values.
+          if (subtotalRows && row.getCanExpand() && row.getIsExpanded())
+            return null
+          return (
+            <PivotValueCell
+              cell={row.original.values[leaf.id]}
+              format={format}
+              onDrill={
+                drill
+                  ? () => drill(buildDrillTarget(row.original.rowValues, leaf))
+                  : undefined
+              }
+            />
+          )
+        },
       }
     }
 
@@ -355,6 +378,7 @@ export function SectionPivotTableRenderer({
     formatByMeasure,
     drill,
     buildDrillTarget,
+    subtotalRows,
   ])
 
   // The grand total is a SEPARATE, stable summary row (a pinned footer OUTSIDE

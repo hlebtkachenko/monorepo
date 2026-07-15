@@ -48,6 +48,30 @@ describe("buildPivot", () => {
     expect(cellValue(eu.subRows![1]!.values[leaf])).toBe(60) // DE
   })
 
+  it("subtotalRows appends a `Total …` isTotal row (= the group aggregate) per group", () => {
+    const rows: TableSectionRow[] = [
+      { region: "EU", country: "CZ", amount: 10 },
+      { region: "EU", country: "DE", amount: 20 },
+    ]
+    const r = buildPivot({
+      rows,
+      rowDimensions: [{ field: "region" }, { field: "country" }],
+      columnDimensions: [],
+      measures: [{ id: "s", label: "Sum", agg: "sum", field: "amount" }],
+      subtotalRows: true,
+    })
+    const leaf = r.leafColumns[0]!.id
+    const eu = r.rows[0]!
+    // EU's children: CZ, DE, then a trailing "Total EU" subtotal row (= 30).
+    const sub = eu.subRows!
+    const total = sub[sub.length - 1]!
+    expect(total.isTotal).toBe(true)
+    expect(total.label).toBe("Total EU")
+    expect(cellValue(total.values[leaf])).toBe(30)
+    // The real children carry no isTotal flag.
+    expect(sub[0]!.isTotal).toBeUndefined()
+  })
+
   it("multi-level column hierarchy: leafColumns order + columnTree shape", () => {
     const rows: TableSectionRow[] = [
       { region: "EU", q: "Q1", amount: 1 },

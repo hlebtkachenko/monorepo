@@ -127,6 +127,13 @@ export interface SectionPivotTableProps {
   readonly valueWidth?: number
   /** Expand every group row on first render. Default true. */
   readonly defaultExpanded?: boolean
+  /**
+   * Append a "Total …" subtotal row at the end of each group's children (like a
+   * spreadsheet's per-group total), in addition to the grand total. The group's
+   * own value cells are blanked while it's expanded so the subtotal isn't shown
+   * twice. Default false.
+   */
+  readonly subtotalRows?: boolean
   /** Universal search over the row labels (global filter). Default true. */
   readonly search?: boolean
   /**

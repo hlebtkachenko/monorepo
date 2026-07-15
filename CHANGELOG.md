@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Pivot per-group subtotal rows (opt-in `subtotalRows`): a bold "Total …" row closes each group with the group's aggregate; the group's own value cells are blanked while expanded so the subtotal isn't shown twice.
 - Pivot value columns are now filterable (the general all-columns-filterable rule): each measure column carries an inline numeric min/max filter in its header dropdown wired to TanStack columnFilters; all pivot headers get the AI-analyze item via the section bridge.
 - Pivot drill-through: clicking any aggregate cell (subtotal, leaf, or grand total) opens the underlying source records behind it, via a new `ArchetypeTable.onPivotDrill` bridge that hands the page a `PivotDrillTarget` (cell coordinates + the filtered source rows); cells are inert when unwired.
 - Table archetype: per-page persistence of column widths/order/pinning across reloads, and a sticky "Reset column sizes" action in the Columns manager

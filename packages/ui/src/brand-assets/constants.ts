@@ -11,6 +11,12 @@
  * placeholder remains under CHECK_BRAND_STRICT=true.
  */
 
+// Product name — proper noun, identical across every locale. Mirrors the i18n
+// `brand.name` for framework-free consumers (transactional emails, PDF) that
+// can't reach `getBrandText()` (which is next-intl request-scoped), the same
+// way tokens.ts mirrors globals.css hex for non-CSS consumers.
+export const BRAND_NAME = "Afframe"
+
 // Emails
 export const BRAND_SUPPORT_EMAIL = "support@afframe.com"
 export const BRAND_SALES_EMAIL = "sales@afframe.com"

@@ -1,5 +1,6 @@
 import { Resend } from "resend"
 import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2"
+import { BRAND_NAME } from "@workspace/ui/brand-assets/constants"
 
 /**
  * Outbound email transport.
@@ -28,6 +29,8 @@ export interface EmailMessage {
   subject: string
   html: string
   text?: string
+  /** Optional Reply-To header (e.g. support inbox) when From is no-reply. */
+  replyTo?: string
 }
 
 export interface EmailTransport {
@@ -36,6 +39,19 @@ export interface EmailTransport {
 }
 
 const FROM_FALLBACK = "no-reply@localhost"
+
+/**
+ * Compose the From header. `EMAIL_FROM` holds the bare sender address
+ * (e.g. `no-reply@afframe.com`); we prepend the brand display name so inboxes
+ * show "Afframe" instead of deriving "no-reply" from the local-part. If the env
+ * value already carries a display name (`Name <addr>`) or isn't a bare address,
+ * it is used verbatim — so setting a full `EMAIL_FROM` still overrides.
+ */
+function resolveFrom(): string {
+  const raw = process.env.EMAIL_FROM ?? FROM_FALLBACK
+  if (raw.includes("<") || !raw.includes("@")) return raw
+  return `${BRAND_NAME} <${raw}>`
+}
 
 export interface OutboxEntry {
   at: string
@@ -87,7 +103,7 @@ export function readDevOutbox(): OutboxEntry[] {
 class ConsoleTransport implements EmailTransport {
   readonly kind = "console" as const
   async send(message: EmailMessage): Promise<void> {
-    const from = process.env.EMAIL_FROM ?? FROM_FALLBACK
+    const from = resolveFrom()
     const url = extractUrl(message.text)
     recordOutbox({
       at: new Date().toISOString(),
@@ -102,6 +118,9 @@ class ConsoleTransport implements EmailTransport {
       `\n┌─ email:console ───────────────────────────────────────────\n` +
         `│ to:      ${stripLineBreaks(message.to)}\n` +
         `│ from:    ${stripLineBreaks(from)}\n` +
+        (message.replyTo
+          ? `│ replyTo: ${stripLineBreaks(message.replyTo)}\n`
+          : "") +
         `│ subject: ${stripLineBreaks(message.subject)}\n` +
         (url ? `│ link:    ${stripLineBreaks(url)}\n` : "") +
         `└───────────────────────────────────────────────────────────\n`,
@@ -117,11 +136,12 @@ class ResendTransport implements EmailTransport {
   }
   async send(message: EmailMessage): Promise<void> {
     const { error } = await this.client.emails.send({
-      from: process.env.EMAIL_FROM ?? FROM_FALLBACK,
+      from: resolveFrom(),
       to: message.to,
       subject: message.subject,
       html: message.html,
       text: message.text,
+      replyTo: message.replyTo,
     })
     if (error) {
       throw new Error(`resend.send failed: ${error.name} ${error.message}`)
@@ -138,8 +158,9 @@ class SesTransport implements EmailTransport {
   async send(message: EmailMessage): Promise<void> {
     await this.client.send(
       new SendEmailCommand({
-        FromEmailAddress: process.env.EMAIL_FROM ?? FROM_FALLBACK,
+        FromEmailAddress: resolveFrom(),
         Destination: { ToAddresses: [message.to] },
+        ReplyToAddresses: message.replyTo ? [message.replyTo] : undefined,
         Content: {
           Simple: {
             Subject: { Data: message.subject, Charset: "UTF-8" },

@@ -23,6 +23,7 @@
     "@workspace/filing": "workspace:*",
     "@workspace/i18n": "workspace:*",
     "@workspace/notify": "workspace:*",
+    "@workspace/email": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "~1.6.11",
     "drizzle-orm": "^0.45.2",

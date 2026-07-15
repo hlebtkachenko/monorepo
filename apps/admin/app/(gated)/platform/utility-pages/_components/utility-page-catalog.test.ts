@@ -53,9 +53,19 @@ describe("UtilityPageCatalog", () => {
         container.querySelector("[data-slot='utility-page']"),
       ).toHaveAttribute("data-state", "service_unavailable"),
     )
-    expect(await screen.findByText("Report this problem")).toBeInTheDocument()
+    // Heavy async render under CI load can exceed findBy's default 1000ms wait
+    // (the whole case budgets 20s); give these the same headroom.
     expect(
-      await screen.findByRole("button", { name: "Send report" }),
+      await screen.findByText("Report this problem", undefined, {
+        timeout: 10_000,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByRole(
+        "button",
+        { name: "Send report" },
+        { timeout: 10_000 },
+      ),
     ).toHaveAttribute("data-variant", "link")
   }, 20_000)
 })

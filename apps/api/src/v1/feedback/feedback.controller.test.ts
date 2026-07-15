@@ -6,7 +6,8 @@ const notifyMock = vi.hoisted(() => ({
   notify: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock("@workspace/email", () => ({
+vi.mock("@workspace/email", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@workspace/email")>()),
   sendEmail: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -47,6 +48,7 @@ describe("FeedbackController", () => {
     expect(sendEmail).toHaveBeenCalledTimes(1)
     const call = vi.mocked(sendEmail).mock.calls[0]?.[0]
     expect(call?.to).toBe("support+feedback@afframe.com")
+    expect(call?.replyTo).toBe("dev@partner.example")
     expect(call?.subject).toContain("[Afframe feedback · request]")
     expect(call?.text).toContain("dev@partner.example")
     expect(call?.text).toContain("idempotency-key")

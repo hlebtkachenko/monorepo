@@ -22,7 +22,7 @@
 // gate / safety spine. The live "run one document" step and the on-disk checkpoint store are INJECTED, so the
 // pool + retry + resume engine is pure and unit-testable without live creds (the caller wires the real ones).
 
-import { createHash } from "node:crypto"
+import { contentHash } from "./idempotency"
 import type { BrainDryRunPlan } from "@workspace/intake"
 
 /** One document the batch books: its stable identity, kind, and the inspected plan the live run would drive. */
@@ -153,39 +153,10 @@ export interface BatchSummary {
  * prefixed) is well within that.
  */
 export function deriveIdempotencyKey(job: BatchJob): string {
-  const canonical = canonicalJson({
+  return `brain-book-${contentHash({
     sourceLocator: job.sourceLocator,
     captureRequest: job.plan.captureRequest,
-  })
-  const digest = createHash("sha256").update(canonical).digest("hex")
-  return `brain-book-${digest}`
-}
-
-/**
- * Stable JSON: object keys sorted recursively so the serialization is order-independent. The `bigintReplacer`
- * renders any `bigint` (Money minor units are `bigint` in TypeScript) as a decimal string — a capture request
- * carries none today, but this keeps the key derivation from THROWING ("Do not know how to serialize a BigInt")
- * the moment a future adapter threads a bigint into the capture body. PURE.
- */
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortKeys(value), bigintReplacer)
-}
-
-/** JSON.stringify replacer that renders bigint fields as decimal strings (deterministic; defensive). PURE. */
-function bigintReplacer(_key: string, value: unknown): unknown {
-  return typeof value === "bigint" ? value.toString() : value
-}
-
-function sortKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(sortKeys)
-  if (value && typeof value === "object") {
-    const out: Record<string, unknown> = {}
-    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
-      out[key] = sortKeys((value as Record<string, unknown>)[key])
-    }
-    return out
-  }
-  return value
+  })}`
 }
 
 /**

@@ -27,12 +27,14 @@ import {
   ClassifyEventResponseSchema,
   type CaptureAccountingDocumentRequest,
   type ClassifyEventResponse,
+  type CreateAccountingEventRequest,
   type GateEnvelope,
 } from "@workspace/shared/api"
 import { minorToDecimal } from "@workspace/brain/confidence"
 import type {
   BankTransaction,
   CashDocument,
+  Counterparty,
   Invoice,
   VatSummaryRow,
 } from "@workspace/brain"
@@ -169,6 +171,132 @@ export function invoiceToCapture(
       },
     ],
     ...gateEnvelope(ctx),
+  }
+}
+
+// ── IR Invoice → accounting EVENT (case) with the supplier/customer identity ─────────────────────────
+//
+// The counterparty lives on the EVENT (accounting_event.counterparty_id), NOT the capture. The derive
+// booker opens the saldokonto obligation against it (openObligation) and fails CLOSED when it is null.
+// So to make the loop book against the right partner automatically, the event-create write must carry the
+// identity extracted from the source. This adapter maps the IR party (supplier for a received invoice,
+// customer for an issued one) into the server's find-or-create `counterparty` identity object.
+//
+// SAFETY: it fabricates NOTHING the server can't re-verify — every identity field is source-verbatim, and
+// a MALFORMED value is OMITTED (never coerced, never synthesized), so the write stays re-verifiable and a
+// bad extraction can't poison the approve transaction. A well-formed but mis-OCR'd IČO would resolve to a
+// wrong-but-real partner; the mitigation is the write gate — createAccountingEvent HOLDS at cold start, so
+// a human eyeballs {name, ico, dic} at /approvals before the event is ever applied. No tenancy keys.
+
+/**
+ * The EVENT gate-envelope — SMALLER than the capture's: createAccountingEvent carries only
+ * `confidence` / `rationale` / `conversationId` / `signals` (NO `templateId` / `extractionMethod`, which
+ * are capture-only OCR-screen fields). Single-sourced from the request DTO so it can never drift.
+ */
+type EventGateEnvelope = Pick<
+  CreateAccountingEventRequest,
+  "confidence" | "rationale" | "conversationId" | "signals"
+>
+
+/**
+ * Harness-supplied context for the EVENT write. `eventSeriesId` is the EVENT-type number series —
+ * DISTINCT from the capture's DOCUMENT `seriesId`; passing the document series would corrupt event
+ * numbering. NOT tenant data: no organization_id / user_id / workspace_id / role.
+ */
+export interface IrToEventContext extends EventGateEnvelope {
+  /** Účetní období uuid (the same period the capture books into). */
+  periodId: string
+  /** EVENT number-series uuid (from listAccountingNumberSeries) — NOT the capture's DOCUMENT series. */
+  eventSeriesId: string
+}
+
+/** The server's find-or-create counterparty identity object (dedup IČO → DIČ → name+country). */
+type EventCounterparty = NonNullable<
+  CreateAccountingEventRequest["counterparty"]
+>
+
+function eventGateEnvelope(ctx: IrToEventContext): EventGateEnvelope {
+  return {
+    confidence: ctx.confidence,
+    rationale: ctx.rationale,
+    ...(ctx.conversationId ? { conversationId: ctx.conversationId } : {}),
+    ...(ctx.signals ? { signals: ctx.signals } : {}),
+  }
+}
+
+/**
+ * Digits-only IČO in the 1–8 range the request regex (`^\d{1,8}$`) accepts, else `undefined` (dropped).
+ * The server left-pads to 8 — so we send clean 1–8 digits or nothing, NEVER a malformed value that would
+ * crash the approve-tx CHECK. `> 8` digits is not a valid IČO and is dropped (fall through to DIČ / name).
+ */
+function eventIco(raw: string | undefined): string | undefined {
+  if (!raw) return undefined
+  const digits = raw.replace(/\D/g, "")
+  return digits.length >= 1 && digits.length <= 8 ? digits : undefined
+}
+
+/**
+ * ISO 3166-1 alpha-2 ONLY (the schema requires `.length(2)`). IR `Address.country` is free-form, so a
+ * "Czech Republic" / "Česká republika" is DROPPED — never coerced to "CZ".
+ */
+function eventCountryCode(country: string | undefined): string | undefined {
+  if (!country) return undefined
+  const trimmed = country.trim()
+  return /^[A-Za-z]{2}$/.test(trimmed) ? trimmed.toUpperCase() : undefined
+}
+
+/** THEIR side by direction: issued (FV) → customer, received (FP) → supplier. A swapped side books the
+ *  wrong partner AND the wrong saldo leg (311 vs 321). */
+function invoiceParty(invoice: Invoice): Counterparty | undefined {
+  return invoice.direction === "issued" ? invoice.customer : invoice.supplier
+}
+
+/**
+ * Build the identity object from the IR party, or `undefined` when there is no usable name — in which case
+ * the event is emitted WITHOUT a counterparty (reproducing today's bare event; the command boundary decides
+ * whether that is allowed). Never synthesizes an IČO/DIČ; a DIČ over the schema's 20-char cap is dropped.
+ */
+function eventCounterparty(
+  party: Counterparty | undefined,
+): EventCounterparty | undefined {
+  if (!party?.name) return undefined
+  const ico = eventIco(party.ico)
+  const dic = party.dic && party.dic.length <= 20 ? party.dic : undefined
+  const countryCode = eventCountryCode(party.address?.country)
+  return {
+    name: party.name,
+    ...(ico ? { ico } : {}),
+    ...(dic ? { dic } : {}),
+    ...(countryCode ? { countryCode } : {}),
+  }
+}
+
+/**
+ * IR Invoice → CreateAccountingEventRequest — the accounting EVENT (case) a capture's lines hang off.
+ * Emits the supplier/customer identity so the server finds-or-creates the right counterparty and the
+ * derived invoice opens its obligation against that partner. `occurredAt` = the plnění / §11/1e
+ * (`tax_point_date`, defaulting to `issue_date` — the capture's `issuedAt` = §11/1d vyhotovení is a
+ * DIFFERENT legal date). PURE; emits NO tenancy keys; fabricates nothing the server can't re-verify.
+ */
+export function invoiceToEvent(
+  invoice: Invoice,
+  ctx: IrToEventContext,
+): CreateAccountingEventRequest {
+  const party = invoiceParty(invoice)
+  const counterparty = eventCounterparty(party)
+  // The source document number already carries its own prefix (e.g. "FP-2025-0042"), so we do NOT prepend
+  // a synthetic "FP"/"FV" label (that produced an ugly "FP FP-…" double-label). Number + party name is the
+  // case description; the direction is implicit in which party (supplier/customer) is present.
+  const description = `${invoice.number}${
+    party?.name ? ` — ${party.name}` : ""
+  }`.slice(0, 2000)
+  return {
+    periodId: ctx.periodId,
+    seriesId: ctx.eventSeriesId,
+    description,
+    occurredAt: invoice.tax_point_date ?? invoice.issue_date,
+    ...(counterparty ? { counterparty } : {}),
+    ...eventGateEnvelope(ctx),
   }
 }
 

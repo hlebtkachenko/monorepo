@@ -53,6 +53,110 @@ function reorderColumn<TData>(
   table.setColumnOrder([...left, ...next, ...right])
 }
 
+/** The top-level (root) ancestor of a column — the pivot high-level group a value
+ *  leaf sits under. A root column returns itself. */
+function rootColumn<TData>(column: Column<TData>): Column<TData> {
+  let c = column
+  while (c.parent) c = c.parent
+  return c
+}
+
+/** The value-leaf blocks (one per high-level group), in current display order.
+ *  Value leaves are the VISIBLE leaves that sit under a group (`parent` set). */
+function groupBlocks<TData>(
+  table: Table<TData>,
+): { id: string; leafIds: string[] }[] {
+  const blocks: { id: string; leafIds: string[] }[] = []
+  const byId = new Map<string, { id: string; leafIds: string[] }>()
+  for (const leaf of table.getVisibleLeafColumns()) {
+    if (!leaf.parent) continue
+    const id = rootColumn(leaf).id
+    let block = byId.get(id)
+    if (!block) {
+      block = { id, leafIds: [] }
+      byId.set(id, block)
+      blocks.push(block)
+    }
+    block.leafIds.push(leaf.id)
+  }
+  return blocks
+}
+
+/**
+ * Re-emit `columnOrder` from reordered value blocks: the non-value leaves
+ * (select / row-label) stay leading in their current order, the reordered value
+ * leaves follow, and any HIDDEN leaves append so a set-order can never drop them.
+ * Group contiguity is preserved (each block's leaves stay together), so the
+ * hierarchical header stays intact.
+ */
+function commitBlocks<TData>(
+  table: Table<TData>,
+  blocks: { leafIds: string[] }[],
+): void {
+  const valueOrder = blocks.flatMap((b) => b.leafIds)
+  const valueSet = new Set(valueOrder)
+  const leading = table
+    .getVisibleLeafColumns()
+    .map((l) => l.id)
+    .filter((id) => !valueSet.has(id))
+  const leadingSet = new Set(leading)
+  const hidden = table
+    .getAllLeafColumns()
+    .map((l) => l.id)
+    .filter((id) => !valueSet.has(id) && !leadingSet.has(id))
+  table.setColumnOrder([...leading, ...valueOrder, ...hidden])
+}
+
+/** Move high-level group `sourceId` before/after `targetId` among the groups. */
+function reorderGroups<TData>(
+  table: Table<TData>,
+  sourceId: string,
+  targetId: string,
+  edge: "top" | "bottom",
+): void {
+  if (sourceId === targetId) return
+  const blocks = groupBlocks(table)
+  const from = blocks.findIndex((b) => b.id === sourceId)
+  if (from < 0) return
+  const next = [...blocks]
+  const [moved] = next.splice(from, 1)
+  if (!moved) return
+  const to = next.findIndex((b) => b.id === targetId)
+  if (to < 0) return
+  next.splice(edge === "top" ? to : to + 1, 0, moved)
+  commitBlocks(table, next)
+}
+
+/**
+ * Move measure `sourceLabel` before/after `targetLabel` WITHIN EVERY group, so
+ * the same measure order applies across ALL high-level groups — the "drag one
+ * Orders switch, it moves Orders under every group" behaviour.
+ */
+function reorderMeasures<TData>(
+  table: Table<TData>,
+  sourceLabel: string,
+  targetLabel: string,
+  edge: "top" | "bottom",
+): void {
+  if (sourceLabel === targetLabel) return
+  const next = groupBlocks(table).map((block) => {
+    const labeled = block.leafIds.map((id) => ({
+      id,
+      label: getColumnLabel(table.getColumn(id)),
+    }))
+    const from = labeled.findIndex((l) => l.label === sourceLabel)
+    if (from < 0) return block
+    const arr = [...labeled]
+    const [moved] = arr.splice(from, 1)
+    if (!moved) return block
+    const to = arr.findIndex((l) => l.label === targetLabel)
+    if (to < 0) return block
+    arr.splice(edge === "top" ? to : to + 1, 0, moved)
+    return { ...block, leafIds: arr.map((l) => l.id) }
+  })
+  commitBlocks(table, next)
+}
+
 /**
  * The column manager body — pinned + unpinned sections (divider between), each
  * row a grey grip handle (drag to reorder), a black column label, and a
@@ -85,12 +189,21 @@ function setColumnVisibility<TData>(
     if (leaf.getCanHide()) leaf.toggleVisibility(visible)
 }
 
+/** What a manager row reorders when dragged: a flat centre column, a pivot
+ *  high-level group, or a deduped pivot measure (applied across every group). */
+type DragKind = "column" | "group" | "measure"
+
 export function ColumnManagerMenuContent<TData>({
   table,
 }: {
   table: Table<TData>
 }) {
-  const [dragId, setDragId] = React.useState<string | null>(null)
+  // Drag carries its KIND so a group drag only lands on group rows, a measure
+  // drag only on measure rows, etc. `id` is the column id (column/group) or the
+  // measure label (measure).
+  const [drag, setDrag] = React.useState<{ id: string; kind: DragKind } | null>(
+    null,
+  )
   const [dropTarget, setDropTarget] = React.useState<{
     id: string
     edge: "top" | "bottom"
@@ -140,7 +253,8 @@ export function ColumnManagerMenuContent<TData>({
   }
 
   /** A deduped low-level (measure) row: one switch that toggles that measure's
-   *  column under every group at once. */
+   *  column under every group at once, and a grip that DRAGS the measure to a new
+   *  position across EVERY group (`reorderMeasures`). Keyed by the measure label. */
   const renderMeasureRow = ({
     label,
     cols,
@@ -150,10 +264,49 @@ export function ColumnManagerMenuContent<TData>({
   }) => {
     const visible = cols.some((c) => c.getIsVisible())
     const toggle = () => cols.forEach((c) => c.toggleVisibility(!visible))
+    const over = dropTarget?.id === label
     return (
       <div key={`measure:${label}`} className="relative">
-        <div className="group/col flex items-center rounded-sm hover:bg-accent">
-          <span className="flex h-8 w-6 shrink-0 items-center justify-center text-muted-foreground opacity-40">
+        {over && dropTarget.edge === "top" ? (
+          <span className="pointer-events-none absolute inset-x-1 top-0 z-10 h-0.5 -translate-y-1/2 rounded-full bg-foreground" />
+        ) : null}
+        <div
+          onDragOver={(event) => {
+            if (!drag || drag.kind !== "measure" || drag.id === label) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = "move"
+            const rect = event.currentTarget.getBoundingClientRect()
+            const edge =
+              event.clientY < rect.top + rect.height / 2 ? "top" : "bottom"
+            setDropTarget({ id: label, edge })
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            if (drag && drag.kind === "measure")
+              reorderMeasures(table, drag.id, label, dropTarget?.edge ?? "top")
+            setDrag(null)
+            setDropTarget(null)
+          }}
+          className={cn(
+            "group/col flex items-center rounded-sm hover:bg-accent",
+            drag?.kind === "measure" && drag.id === label && "opacity-40",
+          )}
+        >
+          <span
+            draggable
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "move"
+              event.dataTransfer.setData("text/plain", label)
+              setDrag({ id: label, kind: "measure" })
+            }}
+            onDragEnd={() => {
+              setDrag(null)
+              setDropTarget(null)
+            }}
+            className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
+          >
             <GripVertical className="size-4" />
           </span>
           <div
@@ -184,11 +337,15 @@ export function ColumnManagerMenuContent<TData>({
             </span>
           </div>
         </div>
+        {over && dropTarget.edge === "bottom" ? (
+          <span className="pointer-events-none absolute inset-x-1 bottom-0 z-10 h-0.5 translate-y-1/2 rounded-full bg-foreground" />
+        ) : null}
       </div>
     )
   }
 
-  const renderRow = (column: (typeof columns)[number], draggable: boolean) => {
+  const renderRow = (column: (typeof columns)[number], kind?: DragKind) => {
+    const draggable = kind !== undefined
     const visible = column.getIsVisible()
     const label = getColumnLabel(column)
     const over = dropTarget?.id === column.id
@@ -203,7 +360,7 @@ export function ColumnManagerMenuContent<TData>({
             target. */}
         <div
           onDragOver={(event) => {
-            if (!dragId || dragId === column.id || !draggable) return
+            if (!drag || drag.kind !== kind || drag.id === column.id) return
             event.preventDefault()
             event.stopPropagation()
             event.dataTransfer.dropEffect = "move"
@@ -215,30 +372,33 @@ export function ColumnManagerMenuContent<TData>({
           onDrop={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            if (dragId) {
-              reorderColumn(table, dragId, column.id, dropTarget?.edge ?? "top")
+            if (drag && drag.kind === kind) {
+              const edge = dropTarget?.edge ?? "top"
+              if (kind === "group")
+                reorderGroups(table, drag.id, column.id, edge)
+              else reorderColumn(table, drag.id, column.id, edge)
             }
-            setDragId(null)
+            setDrag(null)
             setDropTarget(null)
           }}
           className={cn(
             "group/col flex items-center rounded-sm hover:bg-accent",
-            dragId === column.id && "opacity-40",
+            drag?.id === column.id && "opacity-40",
           )}
         >
           <span
             draggable={draggable}
             onDragStart={
-              draggable
+              kind !== undefined
                 ? (event) => {
                     event.dataTransfer.effectAllowed = "move"
                     event.dataTransfer.setData("text/plain", column.id)
-                    setDragId(column.id)
+                    setDrag({ id: column.id, kind })
                   }
                 : undefined
             }
             onDragEnd={() => {
-              setDragId(null)
+              setDrag(null)
               setDropTarget(null)
             }}
             className={cn(
@@ -302,14 +462,14 @@ export function ColumnManagerMenuContent<TData>({
       {pinnedLeft.length > 0 ? (
         <>
           {sectionLabel("Pinned left")}
-          {pinnedLeft.map((column) => renderRow(column, false))}
+          {pinnedLeft.map((column) => renderRow(column))}
         </>
       ) : null}
       {pinnedRight.length > 0 ? (
         <>
           {pinnedLeft.length > 0 ? <Separator className="my-1" /> : null}
           {sectionLabel("Pinned right")}
-          {pinnedRight.map((column) => renderRow(column, false))}
+          {pinnedRight.map((column) => renderRow(column))}
         </>
       ) : null}
       {unpinned.length > 0 ? (
@@ -318,7 +478,11 @@ export function ColumnManagerMenuContent<TData>({
             <Separator className="my-1" />
           ) : null}
           {sectionLabel(hasGroups ? "High-level columns" : "Unpinned")}
-          {unpinned.map((column) => renderRow(column, !hasGroups))}
+          {/* Pivot: high-level rows DRAG to reorder groups; a flat table's rows
+              drag to reorder the centre column order. */}
+          {unpinned.map((column) =>
+            renderRow(column, hasGroups ? "group" : "column"),
+          )}
         </>
       ) : null}
       {measureEntries.length > 0 ? (

@@ -117,6 +117,48 @@ function PivotLikeHarness() {
   )
 }
 
+/** A pivot with TWO high-level groups, each carrying the SAME two measures (M1,
+ * M2) — enough structure to verify that a manager drag reorders a measure across
+ * EVERY group and reorders the groups themselves, both via `columnOrder`. Exposes
+ * the live visible-leaf order so the effect is asserted directly. */
+function ReorderHarness() {
+  const table = useReactTable<Row>({
+    data: [{ a: "1", b: "2" }],
+    columns: [
+      {
+        id: "g1",
+        header: "G1",
+        enableHiding: true,
+        columns: [
+          { id: "g1m1", accessorFn: (r) => r.a, header: "x", meta: { label: "M1" } }, // prettier-ignore
+          { id: "g1m2", accessorFn: (r) => r.a, header: "y", meta: { label: "M2" } }, // prettier-ignore
+        ],
+      },
+      {
+        id: "g2",
+        header: "G2",
+        enableHiding: true,
+        columns: [
+          { id: "g2m1", accessorFn: (r) => r.b, header: "x", meta: { label: "M1" } }, // prettier-ignore
+          { id: "g2m2", accessorFn: (r) => r.b, header: "y", meta: { label: "M2" } }, // prettier-ignore
+        ],
+      },
+    ] as ColumnDef<Row>[],
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <div>
+      <span data-testid="leaf-order">
+        {table
+          .getVisibleLeafColumns()
+          .map((c) => c.id)
+          .join(",")}
+      </span>
+      <ColumnManagerMenuContent table={table} />
+    </div>
+  )
+}
+
 interface Row6 {
   a: string
   b: string
@@ -284,5 +326,51 @@ describe("ColumnManagerMenuContent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hide Channel" }))
     expect(screen.getByTestId("a-visible").textContent).toBe("false")
     expect(screen.getByTestId("b-visible").textContent).toBe("false")
+  })
+
+  // A minimal HTML5-DnD dataTransfer for fireEvent (jsdom has none). The row's
+  // getBoundingClientRect is 0×0 in jsdom, so a clientY > 0 lands on the BOTTOM
+  // edge → the dragged item drops AFTER the target.
+  const dataTransfer = () => ({
+    setData: () => {},
+    getData: () => "",
+    dropEffect: "",
+    effectAllowed: "",
+  })
+  /** The drag/drop container div of a manager row (parent of its Hide/Show toggle). */
+  const rowOf = (label: string) =>
+    screen.getByRole("button", { name: `Hide ${label}` })
+      .parentElement as HTMLElement
+  /** The row's drag grip (the only draggable element inside it). */
+  const gripOf = (label: string) =>
+    rowOf(label).querySelector('[draggable="true"]') as HTMLElement
+
+  it("drags a low-level measure to reorder it across EVERY high-level group", () => {
+    render(<ReorderHarness />)
+    const order = () => screen.getByTestId("leaf-order").textContent
+    expect(order()).toBe("g1m1,g1m2,g2m1,g2m2")
+    // Drag the single deduped "M1" switch onto "M2" — one drag reorders M1 after
+    // M2 under BOTH groups (that's the "applies to all same columns" rule).
+    fireEvent.dragStart(gripOf("M1"), { dataTransfer: dataTransfer() })
+    fireEvent.dragOver(rowOf("M2"), {
+      dataTransfer: dataTransfer(),
+      clientY: 99,
+    })
+    fireEvent.drop(rowOf("M2"), { dataTransfer: dataTransfer() })
+    expect(order()).toBe("g1m2,g1m1,g2m2,g2m1")
+  })
+
+  it("drags a high-level group to reorder the groups (block-wise)", () => {
+    render(<ReorderHarness />)
+    const order = () => screen.getByTestId("leaf-order").textContent
+    expect(order()).toBe("g1m1,g1m2,g2m1,g2m2")
+    // Drag group G1 onto G2 → G1's whole leaf block moves after G2's.
+    fireEvent.dragStart(gripOf("G1"), { dataTransfer: dataTransfer() })
+    fireEvent.dragOver(rowOf("G2"), {
+      dataTransfer: dataTransfer(),
+      clientY: 99,
+    })
+    fireEvent.drop(rowOf("G2"), { dataTransfer: dataTransfer() })
+    expect(order()).toBe("g2m1,g2m2,g1m1,g1m2")
   })
 })

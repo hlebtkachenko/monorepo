@@ -4,6 +4,10 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { SectionList } from "./sections/section-list"
 import type { SectionDescriptor } from "./sections/section"
+import {
+  SectionActionProvider,
+  type SectionAction,
+} from "./sections/section-action-context"
 
 export interface ContentBodyProps {
   /**
@@ -18,6 +22,8 @@ export interface ContentBodyProps {
    * never as a callback or node smuggled through `props`.
    */
   sections: readonly SectionDescriptor[]
+  /** Handles action ids emitted by interactive controls inside the sections. */
+  onAction?: (action: SectionAction) => void
   /** Extra classes for the body region. Sections own their own inner padding. */
   className?: string
 }
@@ -30,7 +36,11 @@ export interface ContentBodyProps {
  * at every list level by SectionList, and the `check-archetype-body` CI ratchet
  * over the legacy `children` path on ContentPanel. No path accepts bespoke JSX.
  */
-export function ContentBody({ sections, className }: ContentBodyProps) {
+export function ContentBody({
+  sections,
+  onAction,
+  className,
+}: ContentBodyProps) {
   return (
     <div
       data-slot="content-body"
@@ -47,7 +57,9 @@ export function ContentBody({ sections, className }: ContentBodyProps) {
         className,
       )}
     >
-      <SectionList sections={sections} />
+      <SectionActionProvider onAction={onAction}>
+        <SectionList sections={sections} />
+      </SectionActionProvider>
     </div>
   )
 }

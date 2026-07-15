@@ -23,6 +23,7 @@ export type {
   DetailsTableControl,
   DetailsTableCellValue,
   DetailsTableRow,
+  DetailsTableRowAction,
   DetailsTableAction,
   DetailsTableActionIcon,
   DetailsTableMode,
@@ -58,4 +59,5 @@ export type {
   SectionKind,
   LeafSectionDescriptor,
 } from "./section"
+export type { SectionAction } from "./section-action-context"
 export { SECTION_KINDS } from "./section"

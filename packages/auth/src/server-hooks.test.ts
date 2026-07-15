@@ -139,6 +139,16 @@ describe("resolveAuditAction — path-to-action mapping", () => {
     expect(resolveAuditAction("/user/update-user", true)).toBeNull()
     expect(resolveAuditAction("", true)).toBeNull()
   })
+
+  it("audits email-change requests", async () => {
+    const { resolveAuditAction } = await import("./server")
+    expect(resolveAuditAction("/change-email", true)).toBe(
+      "profile.email_change_requested",
+    )
+    expect(resolveAuditAction("/change-email", false)).toBe(
+      "profile.email_change_failed",
+    )
+  })
 })
 
 // ---------------------------------------------------------------------------

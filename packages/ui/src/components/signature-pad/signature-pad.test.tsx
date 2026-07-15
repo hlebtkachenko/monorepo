@@ -1,5 +1,6 @@
-import { render } from "@testing-library/react"
-import { describe, it, expect } from "vitest"
+import { render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { describe, it, expect, vi } from "vitest"
 import { SignaturePad } from "./signature-pad"
 
 describe("SignaturePad", () => {
@@ -28,5 +29,15 @@ describe("SignaturePad", () => {
     const clear = container.querySelector("[data-slot=signature-pad-clear]")
     expect(clear).toBeInTheDocument()
     expect(clear?.tagName.toLowerCase()).toBe("button")
+  })
+
+  it("notifies the controlled owner when the signature is cleared", async () => {
+    const user = userEvent.setup()
+    const onClear = vi.fn()
+    render(<SignaturePad paths={["M0 0L1 1"]} onClear={onClear} />)
+
+    await user.click(screen.getByRole("button", { name: "Clear signature" }))
+
+    expect(onClear).toHaveBeenCalledTimes(1)
   })
 })

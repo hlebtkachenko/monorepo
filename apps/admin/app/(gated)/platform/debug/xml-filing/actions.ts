@@ -40,8 +40,8 @@ const LABELS: Record<FilingFormat, string> = {
   isdoc: "ISDOC 6.0.1 — faktura",
 }
 
-/** Detect the filing format from the document root element. */
-export async function detectFormat(xml: string): Promise<FilingFormat | null> {
+/** Detect the filing format from the document root element (server-internal). */
+async function detectFormat(xml: string): Promise<FilingFormat | null> {
   if (/<DPPDP9[\s/>]/.test(xml)) return "dppo"
   if (/<DPHDP3[\s/>]/.test(xml)) return "dphdp3"
   if (/<DPHKH1[\s/>]/.test(xml)) return "dphkh1"

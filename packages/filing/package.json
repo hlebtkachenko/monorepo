@@ -7,7 +7,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./isdoc": "./src/cz/isdoc/index.ts",
-    "./dphdp3-compute": "./src/cz/fu/dphdp3/compute.ts"
+    "./dphdp3-compute": "./src/cz/fu/dphdp3/compute.ts",
+    "./dppo-compute": "./src/cz/fu/dppo/compute.ts",
+    "./dppo-checks": "./src/cz/fu/dppo/checks.ts",
+    "./fields": "./src/fields.ts",
+    "./business-validity": "./src/cz/business-validity.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

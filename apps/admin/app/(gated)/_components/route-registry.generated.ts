@@ -107,6 +107,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     "keywords": "platform debug input fields platform debug input fields"
   },
   {
+    "href": "/platform/debug/xml-filing",
+    "label": "XML filing · Debug",
+    "section": "Platform",
+    "keywords": "platform debug xml filing platform debug xml filing"
+  },
+  {
     "href": "/platform/domains",
     "label": "Domains",
     "section": "Platform",

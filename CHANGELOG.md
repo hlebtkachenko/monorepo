@@ -8,6 +8,9 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- admin: XML-filing operator debug page (Platform → Debug → XML filing) — import a DPPO/DPHDP3/DPHKH1/ISDOC XML, round-trip it through @workspace/filing, XSD-validate the regenerated output, and run the DPPO kritické kontroly; prod-live (staff-only), not dev-gated
+- filing: DPPO input + validity layers — field parsers (@workspace/filing/fields: parseKoruna/parseSazba/parseDic/parseEpoDate + fieldTypeFor), offline IČO/DIČ mod-11 checksum (@workspace/filing/business-validity), and warn-only EPO kritické-kontroly (checkDppo, @workspace/filing/dppo-checks) — the demo-independent input contract a real filing UI binds to
+- filing: Tier 3 FÚ EPO DPPO engine (DPPDP9 v05.01.01) — generateDppo/readDppo, validateFiling(…, "dppo", "05.01.01"), buildDppoFromAccounting, computeDppoTotals (@workspace/filing/dppo-compute), vendored official XSD
 - Brain Tier 4 (surfacing): "Created by Agent" (Zdroj) filter + column on the Records/documents and Journal (deník) tables, driven by inbox_id — any agent-proposed, human-approved accounting fact is now filterable system-wide.
 - Brain Tier 4 (provenance): inbox_item table + inbox_id stamped on every agent-landed accounting row (posting, summary/individual/partial record, double-entry + monetary line, accounting_event, open_item), minted at approve from the held write — the spine of the system-wide "Created by Agent" filter. Workspace-scoped with the composite-FK / bare-uuid split that keeps RLS intact.
 - Brain Tier 3: gated register-card creators (createAsset / createDepreciationPlan / createInventoryCount) so the agent can propose asset cards, depreciation plans (odpisy), and inventory counts through the confidence gate (held → human approves).

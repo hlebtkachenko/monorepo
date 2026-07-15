@@ -28,7 +28,10 @@ Czech accounting software.
   finanční správu) `<Pisemnost>` envelope. `generateDphdp3` / `readDphdp3`,
   `generateDphkh1` / `readDphkh1`, `validateFiling(xml, "dphdp3"|"dphkh1", …)`,
   plus `buildDphdp3FromAccounting` / `buildDphkh1FromAccounting` adapters.
-- **Tier 3 — DPPO** (corporate income tax return) — not started.
+- **Tier 3 — DPPO** (Přiznání k dani z příjmů právnických osob, DPPDP9) — done.
+  Same EPO `<Pisemnost>` envelope. `generateDppo` / `readDppo`,
+  `validateFiling(xml, "dppo", "05.01.01")`, plus `buildDppoFromAccounting` from
+  the `@workspace/accounting` DPPO worksheet.
 - Later, out of scope for now: ČSSZ (social security) and health-insurance
   filings.
 
@@ -38,10 +41,10 @@ Czech accounting software.
 src/xml/          generic XML core: ordered-tree build (build.ts) + parse (parse.ts)
 src/validate/      XSD validation (validate.ts) + schema registry (registry.ts)
                    + schemas.generated.ts (inlined XSD text, see "Extending" below)
-src/model/         Zod models (isdoc.ts, dphdp3.ts, dphkh1.ts) — the UI seam
+src/model/         Zod models (isdoc.ts, dphdp3.ts, dphkh1.ts, dppo.ts) — the UI seam
 src/cz/isdoc/      ISDOC 6.0.1 writer (write.ts) + reader (read.ts)
 src/cz/fu/         FÚ EPO: envelope.ts (Pisemnost + attribute-centric věty) +
-                   dphdp3/ + dphkh1/ writers/readers + adapter.ts (accounting→filing)
+                   dphdp3/ + dphkh1/ + dppo/ writers/readers/compute + adapter.ts
 schemas/           vendored official XSDs, version-pinned, never fetched at runtime
 fixtures/isdoc/    10 reference invoices used as test fixtures
 ```
@@ -68,9 +71,12 @@ from the vendored official XSDs (`schemas/fu/`), not from prose.
 
 ```ts
 import {
-  generateDphdp3, readDphdp3,
-  generateDphkh1, readDphkh1,
-  buildDphdp3FromAccounting, buildDphkh1FromAccounting,
+  generateDphdp3,
+  readDphdp3,
+  generateDphkh1,
+  readDphkh1,
+  buildDphdp3FromAccounting,
+  buildDphkh1FromAccounting,
   validateFiling,
 } from "@workspace/filing"
 
@@ -82,6 +88,76 @@ The full attribute dictionary + řádek→attribute map lives in
 `.context/xml-filing-tier2-grounding.md`. The Veta4 (odpočet) column roles and
 the header code values (`dapdph_forma`, `typ_ds`, …) are flagged there for the
 Advisor gate to confirm against the official "Pokyny k vyplnění".
+
+## Tier 3 — DPPO (DPPDP9)
+
+The corporate income tax return is the largest CZ form (53 věty, 626 attributes)
+and uses the same attribute-centric EPO `<Pisemnost>` → `<DPPDP9>` envelope.
+Grounded from the vendored official XSD (`schemas/fu/dppo/05.01.01/`).
+
+- **Envelope**: `<DPPDP9 verzePis="05.01.01">` with `dokument` fixed `DP9` and
+  `k_uladis` fixed `DPP` (injected by the writer). Amounts are whole koruna
+  (`fractionDigits=0`); ř.280 sazba is an integer percent (`"21"`). DIČ
+  digits-only, dates `D.M.YYYY` — the shared `envelope.ts` formatters.
+- **Model** (`Dppo`) types the hlavička (VetaD) + poplatník (VetaP) + the II.
+  oddíl daňová část (VetaO) as per-attribute string records, and keeps every
+  other věta (all přílohy — účetní závěrka, spojené osoby, …) verbatim in
+  `extraVety`, in XSD sequence order. So an uploaded real return round-trips
+  losslessly and re-exports XSD-valid without the ~50 přílohy věty being modeled
+  field-by-field.
+- **Adapter** `buildDppoFromAccounting` maps the `@workspace/accounting` DPPO
+  worksheet (`ucetni_vysledek`, `nedanove_naklady`, `osvobozene_vynosy`,
+  `odpocet_ztraty`, `sazba`, `slevy`) onto the VetaO anchor řádky and lets the
+  form arithmetic (`computeDppoTotals`) fill the mezisoučty + tax chain, so the
+  return foots and ř.290 daň matches the worksheet.
+- **Compute** (`@workspace/filing/dppo-compute`, decimal-only, no validator)
+  reproduces the II. oddíl footing — ř.70/170 mezisoučty, ř.200 základ daně,
+  ř.250 základ po odečtech, ř.270 zaokrouhlení na tisíce dolů (§21), ř.290 daň,
+  ř.310 po slevách, ř.340 celková daň, ř.360 poslední známá daň.
+
+```ts
+import {
+  generateDppo,
+  readDppo,
+  buildDppoFromAccounting,
+  validateFiling,
+} from "@workspace/filing"
+
+const xml = generateDppo(buildDppoFromAccounting(worksheet, meta))
+const { valid, errors } = await validateFiling(xml, "dppo", "05.01.01")
+```
+
+The VetaO řádek→attribute map, the two coarse-lump placements
+(`nedanove_naklady`→ř.40, `osvobozene_vynosy`→ř.110), and the mezisoučet vazby
+are documented + flagged in `.context/xml-filing-tier3-grounding.md` for the
+Advisor gate to confirm against the official "Pokyny k vyplnění přiznání k DPPO".
+
+### Reusable entry points for a real UI (demo-independent)
+
+The package is the product; a filing UI is just a consumer. The in-repo consumer
+is the admin operator tool at **Platform → Debug → XML filing**
+(`apps/admin/.../platform/debug/xml-filing`, prod-live): import any filing XML,
+round-trip it, XSD-validate, run the DPPO kritické kontroly. A full org-side
+editing tester is preserved in `.context/dppo-tier3-demo/`. All of the API below
+is exported and CI-clean with no UI consumer at all (knip honors the `exports`
+map as the API boundary), so a real form binds to it directly:
+
+| Concern              | Import                                | What it gives the UI                                                                                                                                                                   |
+| -------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Field input contract | `@workspace/filing/fields`            | `fieldTypeFor(group, attr)` → `parseField(type, raw)` — normalize (space/comma) + enforce each XSD facet (whole koruna, integer percent, D.M.YYYY, digit DIČ). Bind every input to it. |
+| Form footing         | `@workspace/filing/dppo-compute`      | `computeDppoTotals(model)` — the disabled součtové řádky (client-safe, no validator).                                                                                                  |
+| Soft validity (warn) | `@workspace/filing/dppo-checks`       | `checkDppo(model)` → typed warnings + suggestions (never blocks).                                                                                                                      |
+| Hard validity (gate) | `@workspace/filing`                   | `validateFiling(xml, "dppo", "05.01.01")` → XSD errors.                                                                                                                                |
+| Business validity    | `@workspace/filing/business-validity` | `validateDicLegalEntity` / `isValidIco` (offline mod-11). ARES existence = `@workspace/registries` at the UI layer.                                                                    |
+| Accounting → form    | `@workspace/filing`                   | `buildDppoFromAccounting(worksheet, meta)`.                                                                                                                                            |
+| Serialize / parse    | `@workspace/filing`                   | `generateDppo` / `readDppo`.                                                                                                                                                           |
+
+The client-safe subpaths (`/fields`, `/dppo-compute`, `/dppo-checks`,
+`/business-validity`) pull only `decimal.js-light`, never `xmllint-wasm`, so they
+bundle into a browser form; `validateFiling` (the XSD gate) stays server-side.
+The form↔model glue (read the `<form>`, merge edits, remount) is UI-layer and is
+the only thing a real UI re-implements — every rule/parse/validator above is
+already in the package.
 
 ## API
 

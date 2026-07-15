@@ -90,6 +90,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workspace/filing':
+        specifier: workspace:*
+        version: link:../../packages/filing
       '@workspace/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n

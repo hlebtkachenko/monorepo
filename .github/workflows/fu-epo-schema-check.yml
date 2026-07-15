@@ -41,6 +41,7 @@ jobs:
           }
           check_one dphdp3 "https://adisspr.mfcr.cz/adis/jepo/schema/dphdp3_epo2.xsd"
           check_one dphkh1 "https://adisspr.mfcr.cz/adis/jepo/schema/dphkh1_epo2.xsd"
+          check_one dppo "https://adisspr.mfcr.cz/adis/jepo/schema/dppdp9_epo2.xsd"
           drift=$(echo "$drift" | xargs || true)
           if [ -n "$drift" ]; then
             {

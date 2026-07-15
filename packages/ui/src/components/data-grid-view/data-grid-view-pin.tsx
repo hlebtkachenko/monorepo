@@ -23,19 +23,19 @@ export function pinStyle<TData>(column: Column<TData>): React.CSSProperties {
  * Vertical separator for a cell. Inner dividers are the same faint hairline as
  * the row borders (`/60`); the PIN SEAM — the last left-pinned column's right
  * edge and the first right-pinned column's left edge, where the frozen group
- * meets the scrolling area — gets the full-weight `border-border-subtle`,
- * matching the summary (Total) row's top border so the frozen boundary reads as
- * a real edge.
+ * meets the scrolling area — gets a deliberate 2px full-weight
+ * `border-border-subtle` DOUBLE divider, identical (weight + colour) to the
+ * summary (Total) row's top seam, so both frozen boundaries read the same.
  */
 export function borderClass<TData>(column: Column<TData>): string {
   const pinned = column.getIsPinned()
   if (pinned === "left")
     return column.getIsLastColumn("left")
-      ? "border-e border-border-subtle"
+      ? "border-e-2 border-border-subtle"
       : "border-e border-border-subtle/60"
   if (pinned === "right")
     return column.getIsFirstColumn("right")
-      ? "border-s border-border-subtle"
+      ? "border-s-2 border-border-subtle"
       : "border-s border-border-subtle/60"
   return "border-e border-border-subtle/60"
 }

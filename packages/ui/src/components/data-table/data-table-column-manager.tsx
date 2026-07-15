@@ -1,6 +1,6 @@
 "use client"
 
-import type { Table } from "@tanstack/react-table"
+import type { Column, Table } from "@tanstack/react-table"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -64,6 +64,27 @@ function reorderColumn<TData>(
  * Render it inside any surface — the toolbar "Columns" popover (see
  * `DataTableColumnManager`) or a grid's "+ Add column" trigger.
  */
+/**
+ * Toggle a column's visibility. For a GROUP column (a pivot high-level header
+ * that spans several value columns) TanStack's own `toggleVisibility` does NOT
+ * cascade — hiding the group id leaves the leaves visible. So cascade to the
+ * group's leaf columns; a plain leaf's `getLeafColumns()` is just itself, so the
+ * same call handles both.
+ */
+function setColumnVisibility<TData>(
+  column: Column<TData>,
+  visible: boolean,
+): void {
+  const leaves = column.getLeafColumns()
+  const isGroup = !(leaves.length === 1 && leaves[0]?.id === column.id)
+  if (!isGroup) {
+    column.toggleVisibility(visible)
+    return
+  }
+  for (const leaf of leaves)
+    if (leaf.getCanHide()) leaf.toggleVisibility(visible)
+}
+
 export function ColumnManagerMenuContent<TData>({
   table,
 }: {
@@ -169,11 +190,11 @@ export function ColumnManagerMenuContent<TData>({
           <div
             role="button"
             tabIndex={0}
-            onClick={() => column.toggleVisibility(!visible)}
+            onClick={() => setColumnVisibility(column, !visible)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
                 event.preventDefault()
-                column.toggleVisibility(!visible)
+                setColumnVisibility(column, !visible)
               }
             }}
             aria-label={visible ? `Hide ${label}` : `Show ${label}`}

@@ -48,6 +48,37 @@ function SizeHarness() {
   )
 }
 
+/** A table with a GROUP column (a pivot high-level header spanning two leaves),
+ * exposing each leaf's live visibility so the group-cascade toggle is verifiable. */
+function GroupHarness() {
+  const table = useReactTable<Row>({
+    data: [{ a: "1", b: "2" }],
+    columns: [
+      {
+        id: "channel",
+        header: "Channel",
+        enableHiding: true,
+        columns: [
+          { accessorKey: "a", header: "A", meta: { label: "Alpha" } },
+          { accessorKey: "b", header: "B", meta: { label: "Beta" } },
+        ],
+      },
+    ] as ColumnDef<Row>[],
+    getCoreRowModel: getCoreRowModel(),
+  })
+  return (
+    <div>
+      <span data-testid="a-visible">
+        {String(table.getColumn("a")!.getIsVisible())}
+      </span>
+      <span data-testid="b-visible">
+        {String(table.getColumn("b")!.getIsVisible())}
+      </span>
+      <ColumnManagerMenuContent table={table} />
+    </div>
+  )
+}
+
 interface Row6 {
   a: string
   b: string
@@ -191,5 +222,17 @@ describe("ColumnManagerMenuContent", () => {
       "Zeta",
       "Epsilon",
     ])
+  })
+
+  it("cascades a group (pivot high-level) column's hide toggle to its leaves", () => {
+    // TanStack's own toggleVisibility does NOT cascade from a group to its
+    // leaves, which left the pivot columns manager toggling a no-op. The manager
+    // must hide every leaf under the group.
+    render(<GroupHarness />)
+    expect(screen.getByTestId("a-visible").textContent).toBe("true")
+    expect(screen.getByTestId("b-visible").textContent).toBe("true")
+    fireEvent.click(screen.getByRole("button", { name: "Hide Channel" }))
+    expect(screen.getByTestId("a-visible").textContent).toBe("false")
+    expect(screen.getByTestId("b-visible").textContent).toBe("false")
   })
 })

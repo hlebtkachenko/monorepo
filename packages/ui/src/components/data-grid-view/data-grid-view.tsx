@@ -649,7 +649,11 @@ export function DataGridView<TData>({
           // visible + last. `z-30` sits above the body focus/selection layers.
           // A DIRECT child of role="grid" (a11y aria-required-children) — its one
           // row is separate from the body row model, so no sort/filter reaches it.
-          className="sticky bottom-0 z-30 border-t border-border-subtle bg-grid-header"
+          // `-mt-px` pulls the opaque footer up 1px so it swallows the last body
+          // row's faint `/60` border-b; the footer's own 2px full-weight seam is
+          // then the ONLY divider (no mismatched double line), matching the pin
+          // seam weight + colour.
+          className="sticky bottom-0 z-30 -mt-px border-t-2 border-border-subtle bg-grid-header"
           style={{ width: totalWidth, minWidth: "100%" }}
         >
           <div

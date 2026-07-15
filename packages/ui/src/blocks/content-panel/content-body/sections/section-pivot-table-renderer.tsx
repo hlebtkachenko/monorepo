@@ -286,8 +286,14 @@ export function SectionPivotTableRenderer({
       return {
         id: node.id,
         header: node.label,
+        // A group header is a FIRST-CLASS header cell, not a hardcoded label:
+        // `enableHiding` makes it interactive, so it renders through the same
+        // `DataGridViewColumnHeader` (dropdown + pin + hide + resize handle,
+        // identical design) as any other column. It can't sort (spans several
+        // value columns) or drag (its place in the tier is structural), but
+        // hiding/pinning it cascades to its children.
         enableSorting: false,
-        enableHiding: false,
+        enableHiding: true,
         meta: { label: node.label, align: "center", disableReorder: true },
         columns: (node.children ?? []).map(buildColumnDef),
       }

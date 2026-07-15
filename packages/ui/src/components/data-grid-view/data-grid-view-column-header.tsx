@@ -283,14 +283,25 @@ export function DataGridViewColumnHeader<TData, TValue>({
                 ) : null}
               </>
             ) : null}
-            {onColumnFilter ? (
-              <DropdownMenuItem onSelect={() => onColumnFilter(column.id)}>
+            {/* A value column with an inline numeric filter always renders it
+                inline (its derived id can't route to the toolbar). Any OTHER
+                column routes "Filter" to the toolbar via `onColumnFilter` — a
+                group header passes its `filterColumnId` (the dimension field) so
+                the toolbar opens that dimension's filter. */}
+            {column.getCanFilter() &&
+            column.columnDef.meta?.inlineNumberFilter ? (
+              <NumberFilterFields column={column} label={label} />
+            ) : onColumnFilter ? (
+              <DropdownMenuItem
+                onSelect={() =>
+                  onColumnFilter(
+                    column.columnDef.meta?.filterColumnId ?? column.id,
+                  )
+                }
+              >
                 <FilterIcon />
                 Filter
               </DropdownMenuItem>
-            ) : column.getCanFilter() &&
-              column.columnDef.meta?.inlineNumberFilter ? (
-              <NumberFilterFields column={column} label={label} />
             ) : null}
             {canPin ? (
               <>

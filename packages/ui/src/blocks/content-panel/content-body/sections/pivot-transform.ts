@@ -42,6 +42,10 @@ export interface PivotColumnNode {
   readonly children?: readonly PivotColumnNode[]
   /** Set only on a measure leaf — the `PivotLeafColumn.id`. */
   readonly leafId?: string
+  /** Set only on a GROUP node — the column-dimension FIELD it splits on (e.g.
+   *  "channel"), so a group header's Filter can route to that dimension's
+   *  toolbar filter. */
+  readonly dimField?: string
 }
 
 /** One row node in the pivot hierarchy. */
@@ -241,6 +245,7 @@ export function buildPivot(input: BuildPivotInput): PivotResult {
     return colLevels[dimIdx]!.map((value) => ({
       id: `grp${groupCounter++}`,
       label: value,
+      dimField: columnDimensions[dimIdx]!.field,
       children: buildColumnTree(dimIdx + 1, [...prefix, value]),
     }))
   }

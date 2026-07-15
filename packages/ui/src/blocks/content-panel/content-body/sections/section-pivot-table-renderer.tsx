@@ -347,10 +347,17 @@ export function SectionPivotTableRenderer({
         // `DataGridViewColumnHeader` (dropdown + pin + hide + resize handle,
         // identical design) as any other column. It can't sort (spans several
         // value columns) or drag (its place in the tier is structural), but
-        // hiding/pinning it cascades to its children.
+        // hiding/pinning it cascades to its children. Its "Filter" routes to the
+        // toolbar filter for the group's column DIMENSION (`filterColumnId`), so
+        // a group header filters that whole dimension (e.g. Channel).
         enableSorting: false,
         enableHiding: true,
-        meta: { label: node.label, align: "center", disableReorder: true },
+        meta: {
+          label: node.label,
+          align: "center",
+          disableReorder: true,
+          ...(node.dimField ? { filterColumnId: node.dimField } : {}),
+        },
         columns: (node.children ?? []).map(buildColumnDef),
       }
     }
@@ -471,6 +478,7 @@ export function SectionPivotTableRenderer({
       className="min-h-0 flex-1"
       emptyMessage={emptyText ?? "No rows."}
       summaryRow={summaryRow}
+      onColumnFilter={columnMenu?.onColumnFilter}
       onColumnAnalyze={columnMenu?.onColumnAnalyze}
     />
   )

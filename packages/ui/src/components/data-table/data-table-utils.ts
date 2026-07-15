@@ -52,6 +52,14 @@ export interface DataTableColumnMeta {
    * to `enableColumnFilter` + the table to have `getFilteredRowModel`.
    */
   inlineNumberFilter?: boolean
+  /**
+   * The id the header's "Filter" action should route to instead of the column's
+   * own id — used by pivot GROUP headers (a `grp…` column standing in for a
+   * column-dimension VALUE): the dropdown Filter opens the toolbar filter for the
+   * underlying DIMENSION FIELD (e.g. "channel"), which `resolveHeaderFilterTarget`
+   * can match against the toolbar's filter columns.
+   */
+  filterColumnId?: string
 }
 
 declare module "@tanstack/react-table" {

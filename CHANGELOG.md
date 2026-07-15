@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Pivot value columns are now filterable (the general all-columns-filterable rule): each measure column carries an inline numeric min/max filter in its header dropdown wired to TanStack columnFilters; all pivot headers get the AI-analyze item via the section bridge.
 - Pivot drill-through: clicking any aggregate cell (subtotal, leaf, or grand total) opens the underlying source records behind it, via a new `ArchetypeTable.onPivotDrill` bridge that hands the page a `PivotDrillTarget` (cell coordinates + the filtered source rows); cells are inert when unwired.
 - Table archetype: per-page persistence of column widths/order/pinning across reloads, and a sticky "Reset column sizes" action in the Columns manager
 - Table archetype foundation: column-driven toolbar filters (filter presets) + default toolbar builder, DB→spec mapper, inline-cell write-back bridge with optimistic revert, table-aware bulk selection actions, single-page row virtualization, a Pivot table section, grid surface/checkbox design tokens, and shift-click range selection

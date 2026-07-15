@@ -44,6 +44,14 @@ export interface DataTableColumnMeta {
    * hierarchy (the header layers are structural, not user-reorderable).
    */
   disableReorder?: boolean
+  /**
+   * Render a self-contained numeric min/max filter INSIDE this column's header
+   * dropdown, wired to TanStack's own `columnFilters` (via `setFilterValue`).
+   * Used by pivot value columns: their derived ids (`val…`) can't route to the
+   * bazza toolbar, so filtering lives on the column itself. Requires the column
+   * to `enableColumnFilter` + the table to have `getFilteredRowModel`.
+   */
+  inlineNumberFilter?: boolean
 }
 
 declare module "@tanstack/react-table" {

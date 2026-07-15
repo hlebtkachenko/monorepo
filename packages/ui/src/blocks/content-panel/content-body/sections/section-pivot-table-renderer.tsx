@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   type ColumnDef,
+  type FilterFn,
   type Row,
   getExpandedRowModel,
 } from "@tanstack/react-table"
@@ -13,6 +14,21 @@ import {
 } from "@workspace/ui/components/data-grid-view"
 import { ChevronRight } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
+
+/**
+ * A numeric min/max filter for a pivot value column — the shape the header's
+ * inline `NumberFilterFields` writes (`[min, max]`, each a number or ""). A row
+ * with no aggregate value is excluded from an active filter.
+ */
+const numberRangeFilter: FilterFn<PivotRow> = (row, columnId, value) => {
+  if (!Array.isArray(value)) return true
+  const [min, max] = value as [number | "", number | ""]
+  const v = row.getValue(columnId) as number | undefined
+  if (v == null) return false
+  if (min !== "" && v < min) return false
+  if (max !== "" && v > max) return false
+  return true
+}
 
 import {
   buildPivot,
@@ -30,7 +46,10 @@ import {
   type SectionPivotTablePayload,
 } from "./section-pivot-table"
 import { useSectionGridTable } from "./section-grid-table"
-import { useSectionPivotDrill } from "./section-table-context"
+import {
+  useSectionColumnMenu,
+  useSectionPivotDrill,
+} from "./section-table-context"
 
 /**
  * The row-label cell: an expand/collapse toggle (only when the node has
@@ -200,6 +219,9 @@ export function SectionPivotTableRenderer({
     return map
   }, [measures])
 
+  // Header-menu callbacks from the bridge (AI analyze; Filter is inline for value
+  // columns). Null outside `ArchetypeTable` → the AI item just drops.
+  const columnMenu = useSectionColumnMenu()
   // Drill-through: page handler (null → cells are inert, non-clickable). The
   // target is computed lazily on click, so no per-render row scan.
   const drill = useSectionPivotDrill()
@@ -259,7 +281,16 @@ export function SectionPivotTableRenderer({
         sortUndefined: "last",
         size: valueWidth,
         enableGlobalFilter: false,
-        meta: { label: leaf.label, align: "end", disableReorder: true },
+        // Every value column is filterable (the general Table rule) via an inline
+        // numeric min/max control in its header dropdown, keyed by its own id.
+        enableColumnFilter: true,
+        filterFn: numberRangeFilter,
+        meta: {
+          label: leaf.label,
+          align: "end",
+          disableReorder: true,
+          inlineNumberFilter: true,
+        },
         cell: ({ row }) => (
           <PivotValueCell
             cell={row.original.values[leaf.id]}
@@ -414,6 +445,7 @@ export function SectionPivotTableRenderer({
       className="min-h-0 flex-1"
       emptyMessage={emptyText ?? "No rows."}
       summaryRow={summaryRow}
+      onColumnAnalyze={columnMenu?.onColumnAnalyze}
     />
   )
 }

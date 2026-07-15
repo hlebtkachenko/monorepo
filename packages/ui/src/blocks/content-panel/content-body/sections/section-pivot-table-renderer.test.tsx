@@ -160,6 +160,37 @@ describe("SectionPivotTableRenderer", () => {
     expect(bodyRowLabels()).toEqual(["US", "EU"]) // 7 before 15
   })
 
+  it("filters pivot rows by a value column's numeric min/max filter", () => {
+    const ref: { current: Table<unknown> | null } = { current: null }
+    function Capture() {
+      const reg = useSectionTable()
+      if (reg?.table) ref.current = reg.table
+      return null
+    }
+    const { container } = render(
+      <SectionTableProvider>
+        <div className="flex h-96 flex-col">
+          <SectionPivotTableRenderer props={payload} />
+        </div>
+        <Capture />
+      </SectionTableProvider>,
+    )
+    const bodyRowLabels = () =>
+      Array.from(
+        container.querySelectorAll('[data-slot="grid-row"] [data-col="1"]'),
+      ).map((c) => c.textContent)
+    expect(bodyRowLabels()).toEqual(["EU", "US"]) // Amount 15 / 7
+    // The value column "val0" is filterable via TanStack columnFilters; keep only
+    // rows whose Amount aggregate is ≥ 10 → EU (15) stays, US (7) drops.
+    act(() => ref.current!.getColumn("val0")!.setFilterValue([10, ""]))
+    expect(bodyRowLabels()).toEqual(["EU"])
+    // Column opts into filtering with the inline-number-filter meta flag.
+    expect(ref.current!.getColumn("val0")!.getCanFilter()).toBe(true)
+    expect(
+      ref.current!.getColumn("val0")!.columnDef.meta?.inlineNumberFilter,
+    ).toBe(true)
+  })
+
   it("renders the empty state and no total for an empty pivot", () => {
     const { container } = renderPivot({
       ...payload,

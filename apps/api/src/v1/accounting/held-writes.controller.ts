@@ -31,7 +31,10 @@ import {
 import { tool_call_log } from "@workspace/db/schema"
 import {
   captureAndBookIfInvoice,
+  createAsset,
+  createDepreciationPlan,
   createEvent,
+  createInventoryCount,
   postWithObligation as postPosting,
   type DocumentInput,
   type EventInput,
@@ -41,6 +44,9 @@ import {
   CaptureAccountingDocumentRequestSchema,
   CreateAccountingEventRequestSchema,
   CreateAccountingPostingRequestSchema,
+  CreateAssetRequestSchema,
+  CreateDepreciationPlanRequestSchema,
+  CreateInventoryCountRequestSchema,
   stripGateEnvelope,
   type ListHeldWritesResponse,
   type ResolveHeldWriteResponse,
@@ -396,6 +402,57 @@ export class HeldWritesController {
           obligation: openObligation ?? null,
         } as unknown as PostWithObligationInput)
         return { postingId: posting.postingId, lineIds: posting.lineIds }
+      }
+      case "createAsset": {
+        const parsed = CreateAssetRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        // periodId binds the proposal to a period (audit + close-blocking); not
+        // domain data for the org-scoped card, peeled off before the insert.
+        const { periodId, ...cardFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const asset = await createAsset(db, ctx, {
+          ...cardFields,
+          responsibleUserId: approverUserId,
+        } as unknown as Parameters<typeof createAsset>[2])
+        return {
+          assetId: asset.id,
+          designation: asset.designation,
+          sequenceNumber: asset.sequenceNumber,
+        }
+      }
+      case "createDepreciationPlan": {
+        const parsed = CreateDepreciationPlanRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        const { periodId, ...planFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const planId = await createDepreciationPlan(
+          db,
+          ctx,
+          planFields as unknown as Parameters<typeof createDepreciationPlan>[2],
+        )
+        return { depreciationPlanId: planId }
+      }
+      case "createInventoryCount": {
+        const parsed = CreateInventoryCountRequestSchema.safeParse(input)
+        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
+        const { periodId, ...countFields } = stripGateEnvelope(parsed.data) as {
+          periodId: string
+        } & Record<string, unknown>
+        await lockPeriodInTx(db, ctx.organizationId, periodId)
+        const count = await createInventoryCount(
+          db,
+          ctx,
+          countFields as unknown as Parameters<typeof createInventoryCount>[2],
+        )
+        return {
+          inventoryCountId: count.id,
+          designation: count.designation,
+          sequenceNumber: count.sequenceNumber,
+        }
       }
       default:
         throw new ValidationError(

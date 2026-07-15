@@ -428,6 +428,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/accounting/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a fixed-asset register card
+         * @description Create a karta majetku (pure register insert, no ledger posting). Gated: auto-applies (201) at/above the confidence threshold, otherwise held (202) for human review. Tenant + responsible user injected from the principal.
+         */
+        post: operations["createAsset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/depreciation-plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an účetní odpisový plán
+         * @description Create a depreciation plan (pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time.
+         */
+        post: operations["createDepreciationPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/accounting/inventory-counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an inventurní soupis
+         * @description Create an inventory count (§29-30; pure register insert, no ledger posting). Gated (201 applied / 202 held). Tenant injected from the principal.
+         */
+        post: operations["createInventoryCount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/accounting/held-writes": {
         parameters: {
             query?: never;
@@ -3955,6 +4015,332 @@ export interface components {
             postingId?: string | null;
             lineIds?: string[] | null;
         };
+        /** @description Create a fixed-asset register card (karta majetku). Gated (201 applied / 202 held). Tenant + responsible user injected from the principal. */
+        CreateAssetRequest: {
+            /**
+             * Format: uuid
+             * @description Účetní období the proposal is bound to (audit + close-blocking). The asset register card itself is org-scoped, not period-scoped; this only binds the held write to a period.
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description ASSET number series (see GET number-series).
+             */
+            seriesId: string;
+            /**
+             * @description Asset name (název majetku).
+             * @example Notebook Dell Latitude
+             */
+            name: string;
+            /**
+             * @description Asset category (kategorie majetku).
+             * @enum {string}
+             */
+            category: "INTANGIBLE" | "TANGIBLE_DEPRECIABLE" | "TANGIBLE_NON_DEPRECIABLE";
+            /**
+             * @description Rozvahový účet majetku BY NUMBER (022/013/…).
+             * @example 022
+             */
+            accountNumber: string;
+            /**
+             * Format: date
+             * @description Datum zařazení do užívání — drives the depreciation start.
+             * @example 2026-03-14
+             */
+            commissioningDate: string;
+            /**
+             * @description Pořizovací cena (input price ex depreciation).
+             * @example 45000.00
+             */
+            acquisitionCost: string;
+            /** @description Odpisová skupina / směrnice code (directive_account.code). */
+            directiveCode?: string | null;
+            /**
+             * Format: date
+             * @description Datum pořízení (defaults to commissioning date if absent).
+             * @example 2026-03-14
+             */
+            acquisitionDate?: string | null;
+            /** @description Umístění majetku. */
+            location?: string | null;
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
+        };
+        /** @description Create-asset result (applied or held). */
+        CreateAssetResponse: {
+            /**
+             * @description applied = card created; held = queued for human review.
+             * @enum {string}
+             */
+            status: "applied" | "held";
+            /**
+             * Format: uuid
+             * @description tool_call_log id when held.
+             */
+            reviewId?: string | null;
+            /** Format: uuid */
+            assetId?: string | null;
+            designation?: string | null;
+            sequenceNumber?: number | null;
+        };
+        /** @description Create an účetní odpisový plán. Gated (201 applied / 202 held). Tenant injected from the principal; account numbers resolved to the chart at posting time. */
+        CreateDepreciationPlanRequest: {
+            /**
+             * Format: uuid
+             * @description Účetní období the proposal is bound to (audit + close-blocking).
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description Asset this odpisový plán depreciates.
+             */
+            assetId: string;
+            /**
+             * @description Účetní odpisová metoda.
+             * @enum {string}
+             */
+            method: "STRAIGHT_LINE" | "PERFORMANCE" | "DECLINING";
+            /**
+             * Format: date
+             * @description Datum zahájení odpisování.
+             * @example 2026-03-14
+             */
+            startDate: string;
+            /**
+             * @description Měsíční účetní odpis (drives MD 551 / D 08x).
+             * @example 1250.00
+             */
+            monthlyAmount: string;
+            /**
+             * @description Nákladový účet odpisu BY NUMBER (551).
+             * @example 551
+             */
+            expenseAccountNumber: string;
+            /**
+             * @description Oprávky účet BY NUMBER (082/072/…).
+             * @example 082
+             */
+            accumulatedAccountNumber: string;
+            /** @description Doba použitelnosti v měsících. */
+            usefulLifeMonths?: number | null;
+            /**
+             * @description Zbytková hodnota (defaults to 0).
+             * @example 12100.00
+             */
+            residualValue?: string | null;
+            /**
+             * Format: uuid
+             * @description Předchozí plán, který tento nahrazuje (revize).
+             */
+            supersedesPlanId?: string | null;
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
+        };
+        /** @description Create-depreciation-plan result (applied or held). */
+        CreateDepreciationPlanResponse: {
+            /**
+             * @description applied = plan created; held = queued for human review.
+             * @enum {string}
+             */
+            status: "applied" | "held";
+            /**
+             * Format: uuid
+             * @description tool_call_log id when held.
+             */
+            reviewId?: string | null;
+            /** Format: uuid */
+            depreciationPlanId?: string | null;
+        };
+        /** @description Create an inventurní soupis (§29-30). Gated (201 applied / 202 held). Tenant injected from the principal. */
+        CreateInventoryCountRequest: {
+            /**
+             * Format: uuid
+             * @description Účetní období the proposal is bound to (audit + close-blocking).
+             */
+            periodId: string;
+            /**
+             * Format: uuid
+             * @description INVENTORY_COUNT number series (see GET number-series).
+             */
+            seriesId: string;
+            /**
+             * Format: date
+             * @description Datum inventury (§29-30).
+             * @example 2026-03-14
+             */
+            countDate: string;
+            /** @description Popis inventurního soupisu. */
+            description?: string | null;
+            /**
+             * @description Agent's confidence [0,1]. Writes at/above the server threshold auto-apply; below it are HELD for human review. Required.
+             * @example 0.95
+             */
+            confidence: number;
+            /**
+             * @description Why this write — persisted to the audit trail. Required.
+             * @example Standard domestic service invoice, VAT 21% deductible.
+             */
+            rationale: string;
+            /**
+             * Format: uuid
+             * @description Audit-correlation id of the driving agent conversation.
+             */
+            conversationId?: string;
+            /** @description Optional evidence envelope the server scores through its own confidence engine (fail-closed: unverifiable claims are degraded, cap signals are honored). Not domain data — stripped before the domain mutation runs. */
+            signals?: {
+                /**
+                 * @description Agent's claimed KB-rule confidence base. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example high_active
+                 * @enum {string}
+                 */
+                kbRule?: "constitution_safe" | "high_active" | "medium" | "low_mixed" | "none";
+                /**
+                 * @description Agent's claimed source extraction quality [0,1]. NOT server-verifiable in v1 → degraded to 0 before scoring.
+                 * @example 0.85
+                 */
+                extractionQuality?: number;
+                /**
+                 * @description Agent's claimed reconciliation status. NOT server-verifiable in v1 → degraded to `none` before scoring.
+                 * @example full
+                 * @enum {string}
+                 */
+                reconciliation?: "full" | "partial" | "none";
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                vatBaseMatchesNet?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                rcChecklistPassesOrNA?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                decree500Confirmed?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                periodConsistent?: boolean;
+                /** @description Verify BONUS claim. NOT server-recomputed → no uplift (false). */
+                bankVsKsSsMatch?: boolean;
+                /**
+                 * @description Self-reported Tier-2 CAP signal kinds (e.g. novel_ico, novel_bank_pattern, pdf_low_confidence). These only LOWER trust, so they are honored fail-safe: an asserted cap can hold a write, never release one.
+                 * @example [
+                 *       "novel_ico"
+                 *     ]
+                 */
+                capSignals?: string[];
+            } | null;
+        };
+        /** @description Create-inventory-count result (applied or held). */
+        CreateInventoryCountResponse: {
+            /**
+             * @description applied = count created; held = queued for human review.
+             * @enum {string}
+             */
+            status: "applied" | "held";
+            /**
+             * Format: uuid
+             * @description tool_call_log id when held.
+             */
+            reviewId?: string | null;
+            /** Format: uuid */
+            inventoryCountId?: string | null;
+            designation?: string | null;
+            sequenceNumber?: number | null;
+        };
         /** @description Review queue of gated accounting writes awaiting a human. */
         ListHeldWritesResponse: {
             /** @description The organization's held writes, oldest first. */
@@ -7148,6 +7534,132 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreateAccountingPostingResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createAsset: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateAssetRequest"];
+            };
+        };
+        responses: {
+            /** @description Asset card created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAssetResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateAssetResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createDepreciationPlan: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDepreciationPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Depreciation plan created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateDepreciationPlanResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateDepreciationPlanResponse"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["ValidationError"];
+            429: components["responses"]["RateLimited"];
+        };
+    };
+    createInventoryCount: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Idempotency key (1–255 chars); reuse on retry. */
+                "idempotency-key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInventoryCountRequest"];
+            };
+        };
+        responses: {
+            /** @description Inventory count created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateInventoryCountResponse"];
+                };
+            };
+            /** @description Held for human review. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateInventoryCountResponse"];
                 };
             };
             401: components["responses"]["Unauthorized"];

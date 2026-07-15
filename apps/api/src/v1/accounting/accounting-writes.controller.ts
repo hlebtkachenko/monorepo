@@ -10,7 +10,10 @@ import type { Response } from "express"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import {
   captureDocument,
+  createAsset,
+  createDepreciationPlan,
   createEvent,
+  createInventoryCount,
   postWithObligation,
   type CapturedDocument,
   type CapturedEvent,
@@ -30,10 +33,17 @@ import {
   CreateAccountingEventResponseDto,
   CreateAccountingPostingRequestDto,
   CreateAccountingPostingResponseDto,
+  CreateAssetRequestDto,
+  CreateAssetResponseDto,
+  CreateDepreciationPlanRequestDto,
+  CreateDepreciationPlanResponseDto,
+  CreateInventoryCountRequestDto,
+  CreateInventoryCountResponseDto,
 } from "../dto"
 import {
   deriveCaptureVeto,
   derivePostingVeto,
+  deriveRegisterCardVeto,
   screenTemplateBasis,
 } from "./accounting-veto"
 import {
@@ -283,6 +293,180 @@ export class AccountingWritesController {
           obligation: openObligation ?? null,
         } as unknown as PostWithObligationInput),
       applied: (p) => ({ postingId: p.postingId, lineIds: p.lineIds }),
+    })
+    return this.send(res, result)
+  }
+
+  @Post("assets")
+  @RequireScopes("accounting:write")
+  @ApiOperation({
+    summary: "Create a fixed-asset register card",
+    description: "Applies (201) or holds (202). Tenant + user injected.",
+  })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiResponse({ status: 201, type: CreateAssetResponseDto })
+  @ApiResponse({ status: 202, type: CreateAssetResponseDto })
+  async createAsset(
+    @Body() body: CreateAssetRequestDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Res({ passthrough: true }) res: Response,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ): Promise<Record<string, unknown>> {
+    // periodId binds the held proposal to a period (audit + close-blocking); it
+    // is NOT domain data for the org-scoped asset card, so it is peeled off here
+    // alongside the gate envelope and never reaches `createAsset`.
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      periodId,
+      ...fields
+    } = body as unknown as CreateAssetRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      periodId: string
+    }
+    const result = await runGatedWrite<{
+      id: string
+      designation: string
+      sequenceNumber: number
+    }>({
+      principal,
+      idempotencyKey,
+      operationId: "createAsset",
+      body,
+      periodId,
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      holdAmounts: [(fields as { acquisitionCost: string }).acquisitionCost],
+      deriveVeto: () => Promise.resolve(deriveRegisterCardVeto()),
+      run: (db, ctx) =>
+        createAsset(db, ctx, {
+          ...(fields as Record<string, unknown>),
+          responsibleUserId: principal.userId as string,
+        } as Parameters<typeof createAsset>[2]),
+      applied: (a) => ({
+        assetId: a.id,
+        designation: a.designation,
+        sequenceNumber: a.sequenceNumber,
+      }),
+    })
+    return this.send(res, result)
+  }
+
+  @Post("depreciation-plans")
+  @RequireScopes("accounting:write")
+  @ApiOperation({
+    summary: "Create an účetní odpisový plán",
+    description: "Applies (201) or holds (202). Tenant + user injected.",
+  })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiResponse({ status: 201, type: CreateDepreciationPlanResponseDto })
+  @ApiResponse({ status: 202, type: CreateDepreciationPlanResponseDto })
+  async createDepreciationPlan(
+    @Body() body: CreateDepreciationPlanRequestDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Res({ passthrough: true }) res: Response,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ): Promise<Record<string, unknown>> {
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      periodId,
+      ...fields
+    } = body as unknown as CreateDepreciationPlanRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      periodId: string
+    }
+    const result = await runGatedWrite<string>({
+      principal,
+      idempotencyKey,
+      operationId: "createDepreciationPlan",
+      body,
+      periodId,
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      holdAmounts: [(fields as { monthlyAmount: string }).monthlyAmount],
+      deriveVeto: () => Promise.resolve(deriveRegisterCardVeto()),
+      run: (db, ctx) =>
+        createDepreciationPlan(
+          db,
+          ctx,
+          fields as unknown as Parameters<typeof createDepreciationPlan>[2],
+        ),
+      applied: (id) => ({ depreciationPlanId: id }),
+    })
+    return this.send(res, result)
+  }
+
+  @Post("inventory-counts")
+  @RequireScopes("accounting:write")
+  @ApiOperation({
+    summary: "Create an inventurní soupis",
+    description: "Applies (201) or holds (202). Tenant + user injected.",
+  })
+  @ApiHeader(IDEMPOTENCY_HEADER)
+  @ApiResponse({ status: 201, type: CreateInventoryCountResponseDto })
+  @ApiResponse({ status: 202, type: CreateInventoryCountResponseDto })
+  async createInventoryCount(
+    @Body() body: CreateInventoryCountRequestDto,
+    @CurrentPrincipal() principal: ApiKeyPrincipal,
+    @Res({ passthrough: true }) res: Response,
+    @Headers("idempotency-key") idempotencyKey?: string,
+  ): Promise<Record<string, unknown>> {
+    const {
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      periodId,
+      ...fields
+    } = body as unknown as CreateInventoryCountRequestDto & {
+      confidence: number
+      rationale: string
+      conversationId?: string
+      signals?: EvidenceEnvelope | null
+      periodId: string
+    }
+    const result = await runGatedWrite<{
+      id: string
+      designation: string
+      sequenceNumber: number
+    }>({
+      principal,
+      idempotencyKey,
+      operationId: "createInventoryCount",
+      body,
+      periodId,
+      confidence,
+      rationale,
+      conversationId,
+      signals,
+      holdAmounts: [],
+      deriveVeto: () => Promise.resolve(deriveRegisterCardVeto()),
+      run: (db, ctx) =>
+        createInventoryCount(
+          db,
+          ctx,
+          fields as unknown as Parameters<typeof createInventoryCount>[2],
+        ),
+      applied: (c) => ({
+        inventoryCountId: c.id,
+        designation: c.designation,
+        sequenceNumber: c.sequenceNumber,
+      }),
     })
     return this.send(res, result)
   }

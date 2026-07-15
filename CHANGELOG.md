@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Brain Tier 3: gated register-card creators (createAsset / createDepreciationPlan / createInventoryCount) so the agent can propose asset cards, depreciation plans (odpisy), and inventory counts through the confidence gate (held → human approves).
 - Wire the internal-documents, obligation-vouchers (+ payable/receivable), and trial-balance (obratová předvaha) pages from ModulePage placeholders to real data-backed views, reusing the existing fetchDocuments / saldokonto / general-ledger read models and table components.
 - Brain Tier 2: `createAccountingPosting` gains an optional `openObligation` directive so any double-entry posting (a contract obligation or an internal doklad, not just an invoice) can open its saldokonto pohledávka/závazek. Server-authoritative: counterparty from the posting's event, currency from the period, amount = the exact posted net movement; fail-closed on a null counterparty, opens nothing on net ≤ 0, rejected on a monetary posting.
 - Brain Tier 1.5: `brain event` cross-checks the extracted counterparty IČO against the ARES public register before proposing the event — a name mismatch refuses --execute (override with --allow-register-mismatch), asserts the counterparty_register_mismatch cap so the write holds sub-green, and surfaces the mismatch in the held-event review; fail-open (ARES down never blocks).

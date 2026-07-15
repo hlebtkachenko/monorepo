@@ -23,6 +23,9 @@ import { registerCreateNumberSeries } from "./createNumberSeries"
 import { registerCreateAccountingEvent } from "./createAccountingEvent"
 import { registerCaptureAccountingDocument } from "./captureAccountingDocument"
 import { registerCreateAccountingPosting } from "./createAccountingPosting"
+import { registerCreateAsset } from "./createAsset"
+import { registerCreateDepreciationPlan } from "./createDepreciationPlan"
+import { registerCreateInventoryCount } from "./createInventoryCount"
 import { registerListAccountingHeldWrites } from "./listAccountingHeldWrites"
 import { registerResolveAccountingHeldWrite } from "./resolveAccountingHeldWrite"
 import { registerListInvoices } from "./listInvoices"
@@ -65,6 +68,9 @@ export function registerGeneratedTools(server: McpServer, client: AfframeClient)
   registerCreateAccountingEvent(server, client)
   registerCaptureAccountingDocument(server, client)
   registerCreateAccountingPosting(server, client)
+  registerCreateAsset(server, client)
+  registerCreateDepreciationPlan(server, client)
+  registerCreateInventoryCount(server, client)
   registerListAccountingHeldWrites(server, client)
   registerResolveAccountingHeldWrite(server, client)
   registerListInvoices(server, client)
@@ -108,6 +114,9 @@ export const GENERATED_TOOL_OPERATION_IDS = [
   "createAccountingEvent",
   "captureAccountingDocument",
   "createAccountingPosting",
+  "createAsset",
+  "createDepreciationPlan",
+  "createInventoryCount",
   "listAccountingHeldWrites",
   "resolveAccountingHeldWrite",
   "listInvoices",

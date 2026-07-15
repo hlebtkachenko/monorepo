@@ -42,6 +42,12 @@ import {
   CreateAccountingEventResponseSchema,
   CreateAccountingPostingRequestSchema,
   CreateAccountingPostingResponseSchema,
+  CreateAssetRequestSchema,
+  CreateAssetResponseSchema,
+  CreateDepreciationPlanRequestSchema,
+  CreateDepreciationPlanResponseSchema,
+  CreateInventoryCountRequestSchema,
+  CreateInventoryCountResponseSchema,
   HeldWriteIdParamSchema,
   HeldWriteRowSchema,
   ListHeldWritesResponseSchema,
@@ -277,6 +283,30 @@ const CreateAccountingPostingRequest = registry.register(
 const CreateAccountingPostingResponse = registry.register(
   "CreateAccountingPostingResponse",
   CreateAccountingPostingResponseSchema,
+)
+const CreateAssetRequest = registry.register(
+  "CreateAssetRequest",
+  CreateAssetRequestSchema,
+)
+const CreateAssetResponse = registry.register(
+  "CreateAssetResponse",
+  CreateAssetResponseSchema,
+)
+const CreateDepreciationPlanRequest = registry.register(
+  "CreateDepreciationPlanRequest",
+  CreateDepreciationPlanRequestSchema,
+)
+const CreateDepreciationPlanResponse = registry.register(
+  "CreateDepreciationPlanResponse",
+  CreateDepreciationPlanResponseSchema,
+)
+const CreateInventoryCountRequest = registry.register(
+  "CreateInventoryCountRequest",
+  CreateInventoryCountRequestSchema,
+)
+const CreateInventoryCountResponse = registry.register(
+  "CreateInventoryCountResponse",
+  CreateInventoryCountResponseSchema,
 )
 const ListHeldWritesResponse = registry.register(
   "ListHeldWritesResponse",
@@ -1032,6 +1062,117 @@ registry.registerPath({
       description: "Held for human review.",
       content: {
         "application/json": { schema: CreateAccountingPostingResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/assets",
+  operationId: "createAsset",
+  summary: "Create a fixed-asset register card",
+  description:
+    "Create a karta majetku (pure register insert, no ledger posting). Gated: " +
+    "auto-applies (201) at/above the confidence threshold, otherwise held (202) " +
+    "for human review. Tenant + responsible user injected from the principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateAssetRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Asset card created.",
+      content: {
+        "application/json": { schema: CreateAssetResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateAssetResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/depreciation-plans",
+  operationId: "createDepreciationPlan",
+  summary: "Create an účetní odpisový plán",
+  description:
+    "Create a depreciation plan (pure register insert, no ledger posting). " +
+    "Gated (201 applied / 202 held). Tenant injected from the principal; " +
+    "account numbers resolved to the chart at posting time.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateDepreciationPlanRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Depreciation plan created.",
+      content: {
+        "application/json": { schema: CreateDepreciationPlanResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateDepreciationPlanResponse },
+      },
+    },
+    ...ERROR_RESPONSE_REFS,
+  },
+})
+
+registry.registerPath({
+  method: "post",
+  path: "/v1/accounting/inventory-counts",
+  operationId: "createInventoryCount",
+  summary: "Create an inventurní soupis",
+  description:
+    "Create an inventory count (§29-30; pure register insert, no ledger " +
+    "posting). Gated (201 applied / 202 held). Tenant injected from the " +
+    "principal.",
+  tags: ["Accounting"],
+  security: [{ [bearerAuth.name]: [] }],
+  request: {
+    headers: IdempotencyKeyHeader,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: CreateInventoryCountRequest },
+      },
+    },
+  },
+  responses: {
+    "201": {
+      description: "Inventory count created.",
+      content: {
+        "application/json": { schema: CreateInventoryCountResponse },
+      },
+    },
+    "202": {
+      description: "Held for human review.",
+      content: {
+        "application/json": { schema: CreateInventoryCountResponse },
       },
     },
     ...ERROR_RESPONSE_REFS,

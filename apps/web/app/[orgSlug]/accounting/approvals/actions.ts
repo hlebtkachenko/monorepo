@@ -16,7 +16,10 @@ import {
 import { organization } from "@workspace/db/schema"
 import {
   captureAndBookIfInvoice,
+  createAsset,
+  createDepreciationPlan,
   createEvent,
+  createInventoryCount,
   post,
   type DocumentInput,
   type EventInput,
@@ -281,6 +284,59 @@ export async function resolveHeldWrite(
               },
             } as unknown as PostInput)
             applied = { postingId: posting.postingId, lineIds: posting.lineIds }
+            break
+          }
+          case "createAsset": {
+            // periodId binds the proposal to a period (audit + close-blocking);
+            // it is not domain data for the org-scoped asset card, so peel it off
+            // before the domain insert (same as the API controller).
+            const { periodId, ...cardFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const asset = await createAsset(db, orgCtx, {
+              ...cardFields,
+              responsibleUserId: ctx.userId,
+            } as unknown as Parameters<typeof createAsset>[2])
+            applied = {
+              assetId: asset.id,
+              designation: asset.designation,
+              sequenceNumber: asset.sequenceNumber,
+            }
+            break
+          }
+          case "createDepreciationPlan": {
+            const { periodId, ...planFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const planId = await createDepreciationPlan(
+              db,
+              orgCtx,
+              planFields as unknown as Parameters<
+                typeof createDepreciationPlan
+              >[2],
+            )
+            applied = { depreciationPlanId: planId }
+            break
+          }
+          case "createInventoryCount": {
+            const { periodId, ...countFields } = fields as {
+              periodId: string
+            } & Record<string, unknown>
+            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
+            const count = await createInventoryCount(
+              db,
+              orgCtx,
+              countFields as unknown as Parameters<
+                typeof createInventoryCount
+              >[2],
+            )
+            applied = {
+              inventoryCountId: count.id,
+              designation: count.designation,
+              sequenceNumber: count.sequenceNumber,
+            }
             break
           }
           default:

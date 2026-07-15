@@ -36,6 +36,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Pivot header polish: group double-click auto-fit now sizes every sub-column to its rendered (formatted) cell text; group-tier header cells regain the normal header hover/active states; the top-left corner cells above the pinned select + label are a clean white block with no divider.
 - Pivot header polish: group (high-level) headers now render as real interactive header cells (same dropdown/pin/resize, not a hardcoded label); pin seam + Total-row seam unified to a single 2px full-weight double border; the columns manager cascades a group column's hide toggle to its leaf value columns.
 - Pivot hierarchical column headers: `columnDimensions` now render as banded header tiers (a grouping row per dimension, tinted with the new `--grid-header-group` #f5f7f9 token) over the measure columns; pivot columns keep sort-by-value but are structurally fixed (no reorder via the new `meta.disableReorder`).
 - Filter-side creatable option/multiOption columns: the value editor shows a "Create …" row for a typed value with no match (mirrors the creatable cell editor); the multiOption filter-variant icon is now the real lucide-lab `chevrons-up-down-square` (adds `@lucide/lab`).

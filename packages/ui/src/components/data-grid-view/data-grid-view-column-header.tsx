@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import type {
+  Column,
   ColumnSort,
   Header,
   SortDirection,
@@ -278,7 +279,13 @@ export function DataGridViewColumnHeader<TData, TValue>({
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => column.toggleVisibility(false)}
+                  onSelect={() => {
+                    // Cascade to leaves for a GROUP (pivot high-level) column —
+                    // TanStack's own toggleVisibility doesn't hide the leaves. A
+                    // plain leaf's getLeafColumns() is itself, so this handles both.
+                    for (const leaf of column.getLeafColumns())
+                      if (leaf.getCanHide()) leaf.toggleVisibility(false)
+                  }}
                 >
                   <EyeOff />
                   Hide column
@@ -295,11 +302,63 @@ export function DataGridViewColumnHeader<TData, TValue>({
   )
 }
 
+/** A column's visible label (`meta.label`, a string header, or the id). */
+function getColumnLabelFromColumn<TData>(column: Column<TData>): string {
+  const meta = column.columnDef.meta
+  if (meta?.label) return meta.label
+  const def = column.columnDef.header
+  if (typeof def === "string") return def
+  return column.id
+}
+
+/** Fit ONE leaf column to the widest of its header label and its cell text. */
+function fitLeafSize<TData>(
+  column: Column<TData>,
+  table: Table<TData>,
+  ctx: CanvasRenderingContext2D,
+  scope: ParentNode,
+): number {
+  // The header line needs room for its label PLUS the sort glyph + gap (~20px).
+  let max = ctx.measureText(getColumnLabelFromColumn(column)).width + 20
+  // Measure the RENDERED (formatted) cell text — what the user actually sees, so
+  // a currency/number cell fits its "1 500,00 Kč" display, not the raw accessor
+  // value. Cells carry their visible column index in `data-col`.
+  const colIndex = table
+    .getVisibleLeafColumns()
+    .findIndex((c) => c.id === column.id)
+  if (colIndex >= 0)
+    for (const cell of scope.querySelectorAll<HTMLElement>(
+      `[data-slot="grid-cell"][data-col="${colIndex}"]`,
+    )) {
+      const width = ctx.measureText(cell.textContent ?? "").width
+      if (width > max) max = width
+    }
+  // ALSO measure the raw accessor value across ALL rows so off-screen
+  // (virtualized) rows still widen the fit.
+  for (const row of table.getRowModel().rows) {
+    const value = row.getValue(column.id)
+    const width = ctx.measureText(value == null ? "" : String(value)).width
+    if (width > max) max = width
+  }
+  // + px-3 padding on both sides (24) + reserved trailing (e.g. the identity
+  // column's inspector button) + a few px SLACK (canvas measureText runs a hair
+  // narrow vs the live font, so a zero-slack fit clips the last glyph).
+  const SLACK = 8
+  const trailing = column.columnDef.meta?.trailingWidth ?? 0
+  const size = Math.ceil(max) + 24 + trailing + SLACK
+  return Math.min(
+    column.columnDef.maxSize ?? Number.MAX_SAFE_INTEGER,
+    Math.max(column.columnDef.minSize ?? 0, size),
+  )
+}
+
 /**
- * Auto-fit a column to the widest of its header label and its cell values —
- * Excel's double-click-the-divider behaviour. Text is measured off-DOM with a
- * canvas using the grid's own computed cell font; the result is clamped to the
- * column's min/max. No-op when there is no 2D canvas (e.g. jsdom).
+ * Auto-fit on a double-click of the divider — Excel's behaviour. Fits EVERY leaf
+ * under the double-clicked header: a normal column is its own single leaf; a
+ * GROUP header (a pivot high-level column) fits each of its sub-columns to that
+ * sub-column's own content, exactly as if each divider were double-clicked. Text
+ * is measured off-DOM with a canvas using the grid's computed cell font; no-op
+ * without a 2D canvas (jsdom).
  */
 function autoFitColumn<TData, TValue>(
   header: Header<TData, TValue>,
@@ -318,33 +377,10 @@ function autoFitColumn<TData, TValue>(
     ? getComputedStyle(sampleCell).font
     : "14px system-ui, sans-serif"
 
-  const columnId = header.column.id
-  // The header line needs room for its label PLUS the sort glyph + gap (~20px);
-  // cell values need only their own text. The column fits the widest of the two.
-  let max = ctx.measureText(getColumnLabel(header)).width + 20
-  for (const row of table.getRowModel().rows) {
-    const value = row.getValue(columnId)
-    const width = ctx.measureText(value == null ? "" : String(value)).width
-    if (width > max) max = width
-  }
-
-  // Add the cell's horizontal padding — px-3 on BOTH sides (24) — so the right
-  // gap matches the left one (edge → text), not an inflated trailing gap. Plus
-  // any reserved trailing width (e.g. the identity column's inspector button)
-  // so the fit shows the full text AND the button without overlap. Plus a few px
-  // of SLACK: canvas `measureText` runs a hair narrower than the live font
-  // (hinting / letter-spacing), so a zero-slack fit lands exactly at the
-  // truncation threshold and clips the last glyph (an ellipsis crowding the
-  // trailing button on the identity column). The slack keeps the text fully
-  // visible — Excel leaves the same breathing room on a double-click fit.
-  const SLACK = 8
-  const trailing = header.column.columnDef.meta?.trailingWidth ?? 0
-  const size = Math.ceil(max) + 24 + trailing + SLACK
-  const clamped = Math.min(
-    header.column.columnDef.maxSize ?? Number.MAX_SAFE_INTEGER,
-    Math.max(header.column.columnDef.minSize ?? 0, size),
-  )
-  table.setColumnSizing((prev) => ({ ...prev, [columnId]: clamped }))
+  const sizing: Record<string, number> = {}
+  for (const leaf of header.column.getLeafColumns())
+    sizing[leaf.id] = fitLeafSize(leaf, table, ctx, scope)
+  table.setColumnSizing((prev) => ({ ...prev, ...sizing }))
 }
 
 /** Drag handle on the trailing edge — drag to resize, double-click to auto-fit

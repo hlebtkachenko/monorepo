@@ -78,12 +78,18 @@ export function SortableHeaderCell<TData>({
       data-slot="grid-header-cell"
       className={cn(
         "group/col relative flex h-9 shrink-0 items-center text-muted-foreground",
-        // Upper (grouping) tier cells get the group band tint and no hover; leaf
-        // header cells keep the normal header surface + hover.
-        upper
-          ? "bg-grid-header-group"
-          : "bg-grid-header hover:bg-grid-header-hover",
-        borderClass(column),
+        // The top-left CORNER cells (upper-tier placeholders above the pinned
+        // select + row-label columns) are a clean WHITE block with NO divider
+        // between them. Group-tier cells get the band tint PLUS the normal header
+        // hover; leaf header cells keep the normal header surface + hover. Every
+        // real header cell shares the SAME font/colour/hover/active states (the
+        // active/open state lives on the DataGridViewColumnHeader trigger).
+        header.isPlaceholder && pinned
+          ? "bg-grid-header"
+          : upper
+            ? "bg-grid-header-group hover:bg-grid-header-hover"
+            : "bg-grid-header hover:bg-grid-header-hover",
+        header.isPlaceholder && pinned ? undefined : borderClass(column),
       )}
       style={{
         ...pinStyle(column),

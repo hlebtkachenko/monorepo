@@ -13,7 +13,10 @@ import {
   type DocumentStore,
 } from "@workspace/storage"
 
+import { truncateIp } from "@workspace/auth/tokens"
+
 import type { InboxAttachmentRepo } from "../../../_lib/inbox-attachment-repo"
+import { checkDocumentRateLimit } from "./document-rate-limit"
 
 /**
  * Authenticated document routes (S3 document store, Stage 3). Handlers take an
@@ -57,6 +60,35 @@ interface Workspace {
 
 function jsonError(error: string, status: number): Response {
   return Response.json({ error }, { status })
+}
+
+function clientIp(request: Request): string | null {
+  const rawIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null
+  return truncateIp(rawIp)
+}
+
+/**
+ * Throttles the cost-bearing document routes per user / workspace / IP. Returns
+ * a `429` Response (with `Retry-After`) when a window is exhausted, or `null`
+ * to proceed. Called AFTER the workspace is resolved so the tenant keys exist.
+ */
+function enforceRateLimit(request: Request, ws: Workspace): Response | null {
+  const decision = checkDocumentRateLimit({
+    userId: ws.userId,
+    workspaceId: ws.workspaceId,
+    ip: clientIp(request),
+  })
+  if (!decision.blocked) return null
+  return Response.json(
+    { error: "too many requests" },
+    {
+      status: 429,
+      headers: decision.retryAfterSeconds
+        ? { "Retry-After": String(decision.retryAfterSeconds) }
+        : undefined,
+    },
+  )
 }
 
 async function readJsonObject(
@@ -166,6 +198,9 @@ export function createDocumentHandlers(
       const ws = await resolveWorkspace(dependencies)
       if (ws instanceof Response) return ws
 
+      const limited = enforceRateLimit(request, ws)
+      if (limited) return limited
+
       const rawBody = await readJsonObject(request)
       if (!rawBody) return jsonError("invalid request", 400)
       const body = parsePresignUploadBody(rawBody)
@@ -208,6 +243,9 @@ export function createDocumentHandlers(
     async confirm(request) {
       const ws = await resolveWorkspace(dependencies)
       if (ws instanceof Response) return ws
+
+      const limited = enforceRateLimit(request, ws)
+      if (limited) return limited
 
       const rawBody = await readJsonObject(request)
       const objectKey = rawBody?.["key"]
@@ -299,6 +337,9 @@ export function createDocumentHandlers(
     async getUrl(request, id) {
       const ws = await resolveWorkspace(dependencies)
       if (ws instanceof Response) return ws
+
+      const limited = enforceRateLimit(request, ws)
+      if (limited) return limited
 
       const row = await repo.getById(ws.workspaceId, ws.userId, id)
       if (!row || row.deletedAt) return jsonError("document not found", 404)

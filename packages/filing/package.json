@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./isdoc": "./src/cz/isdoc/index.ts"
+    "./isdoc": "./src/cz/isdoc/index.ts",
+    "./dphdp3-compute": "./src/cz/fu/dphdp3/compute.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

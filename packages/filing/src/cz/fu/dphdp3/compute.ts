@@ -52,9 +52,18 @@ const DEDUCT_REDUCED_ATTRS = [
 
 type VetaRec = Record<string, string> | undefined
 
+// Raw, possibly-partial user input (the debug tester feeds live keystrokes): a field
+// may hold a non-numeric string. Footing must not throw on it — coerce anything
+// decimal.js-light rejects to 0. The XSD validator on export is the real gate for a bad
+// amount (the writer emits the raw value; xmllint flags it), not this footing helper.
 function num(rec: VetaRec, attr: string): Decimal {
   const v = rec?.[attr]
-  return v === undefined || v === "" ? new Decimal(0) : new Decimal(v)
+  if (v === undefined || v === "") return new Decimal(0)
+  try {
+    return new Decimal(v)
+  } catch {
+    return new Decimal(0)
+  }
 }
 
 function sum(rec: VetaRec, attrs: readonly string[]): Decimal {

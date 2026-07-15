@@ -26,7 +26,7 @@ function schema(relPath: string): SchemaFile {
   return { fileName: relPath.split("/").pop() ?? relPath, contents }
 }
 
-export type FilingType = "isdoc" | "dphdp3" | "dphkh1"
+export type FilingType = "isdoc" | "dphdp3" | "dphkh1" | "dppo"
 
 const REGISTRY: Record<string, () => SchemaSet> = {
   // isdoc-invoice includes isdoc-core; both preloaded so the relative include resolves.
@@ -41,6 +41,11 @@ const REGISTRY: Record<string, () => SchemaSet> = {
   }),
   "dphkh1@03.01.14": () => ({
     main: schema("fu/dphkh1/03.01.14/dphkh1_epo2.xsd"),
+    preload: [],
+  }),
+  // DPPO — Přiznání k dani z příjmů právnických osob (za období 2021–2026).
+  "dppo@05.01.01": () => ({
+    main: schema("fu/dppo/05.01.01/dppdp9_epo2.xsd"),
     preload: [],
   }),
 }

@@ -10,3 +10,17 @@ export {
 export { generateDphkh1 } from "./dphkh1/write"
 export { readDphkh1 } from "./dphkh1/read"
 export * from "./adapter"
+export { generateDppo } from "./dppo/write"
+export { readDppo } from "./dppo/read"
+export {
+  computeDppoTotals,
+  applyDppoTotals,
+  DPPO_DERIVED_ATTRS,
+  type DppoDerived,
+} from "./dppo/compute"
+export {
+  buildDppoFromAccounting,
+  type DppoFigures,
+  type DppoFilingMeta,
+} from "./dppo/adapter"
+export { checkDppo, type DppoCheck } from "./dppo/checks"

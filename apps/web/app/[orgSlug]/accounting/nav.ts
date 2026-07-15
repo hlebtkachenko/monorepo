@@ -30,7 +30,6 @@ export function accountingNav(base: string): SidebarNavEntry[] {
           label: "Cash journal",
           href: `${base}/cash-journal`,
           icon: "Banknote",
-          tba: true,
         },
         {
           label: "Journal",

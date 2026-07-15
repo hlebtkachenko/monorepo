@@ -16,6 +16,8 @@ import {
   saldoPerPartner,
   type JournalRow as DomainJournalRow,
   type LedgerAccountRow,
+  type MonetaryDirection,
+  type MonetaryLocation,
 } from "@workspace/accounting"
 
 import { getRequestSession } from "./request-session"
@@ -107,6 +109,76 @@ export async function fetchLedgerRows(
   if (!ctx.periodId) return []
   return withOrganization(ctx.organizationId, ctx.userId, (db) =>
     generalLedger(db, ctx.periodId!),
+  )
+}
+
+/**
+ * One peněžní-deník (cash-book) line, with its kategorie NAME already resolved.
+ *
+ * The domain `monetaryJournal` read carries only a raw `category_id`; this
+ * reader instead runs a raw org-scoped join so the classified name comes back
+ * with the line — the double-entry `journal` reader resolves counterparty/account
+ * names the same way. Money stays a decimal STRING (`amount`, `tax_base`) exactly
+ * as the domain transports it (numeric(19,4)); the running balance is a purely
+ * ORDER-dependent, client-side derivation and is intentionally NOT computed here.
+ */
+export interface CashJournalRow {
+  /** posting_monetary_line.id — the stable per-line id (rowIdKey in the grid). */
+  line_id: string
+  posting_id: string
+  /** Posting (book) date — deník order. ISO "YYYY-MM-DD". */
+  posting_date: string
+  /** Doklad Označení (summary_record.designation). */
+  summary_designation: string
+  category_id: string | null
+  /** Resolved kategorie name (LEFT JOIN category); null for generated/clearing lines. */
+  category_name: string | null
+  /** INCOME | EXPENSE (category.type); null when no category. */
+  category_type: string | null
+  location: MonetaryLocation
+  direction: MonetaryDirection
+  is_tax_relevant: boolean
+  is_clearing: boolean
+  /** Základ daně — decimal string, or null. */
+  tax_base: string | null
+  /** Částka — decimal string (numeric(19,4)). */
+  amount: string
+}
+
+/**
+ * peněžní deník — the period's classified cash-book lines in chronological book
+ * order (§13b / §7b), with the kategorie name joined in. Same shape + ordering as
+ * the domain `monetaryJournal`, plus `category_name` / `category_type` from the
+ * org-scoped `category` table (composite-FK partner, resolvable under this tx's
+ * FORCE-RLS `app.organization_id`). Empty when the org has no active period.
+ */
+export async function fetchCashJournalRows(
+  ctx: OrgAccountingContext,
+): Promise<CashJournalRow[]> {
+  if (!ctx.periodId) return []
+  return withOrganization(ctx.organizationId, ctx.userId, (db) =>
+    executeRows<CashJournalRow>(
+      db,
+      sql`select l.id::text            as line_id,
+                 p.id::text            as posting_id,
+                 p.posting_date::text  as posting_date,
+                 s.designation         as summary_designation,
+                 l.category_id::text   as category_id,
+                 c.name                as category_name,
+                 c.type::text          as category_type,
+                 l.location::text      as location,
+                 l.direction::text     as direction,
+                 l.is_tax_relevant,
+                 l.is_clearing,
+                 l.tax_base::text      as tax_base,
+                 l.amount::text        as amount
+            from posting_monetary_line l
+            join posting        p on p.id = l.posting_id
+            join summary_record s on s.id = p.summary_record_id
+            left join category  c on c.id = l.category_id
+           where p.period_id = ${ctx.periodId}
+           order by p.posting_date, p.id, l.id`,
+    ),
   )
 }
 

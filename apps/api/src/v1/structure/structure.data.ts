@@ -113,7 +113,7 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "label": "Cash journal",
           "route": "accounting/cash-journal",
           "icon": "Banknote",
-          "tba": true,
+          "tba": false,
           "archetype": null,
           "purpose": null,
           "subpages": []

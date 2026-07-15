@@ -13,3 +13,4 @@ export {
   inviteEmail,
   accountDangerOtpEmail,
 } from "./templates"
+export { escapeHtml } from "./html"

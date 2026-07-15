@@ -6,6 +6,15 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- Admin Platform > Debug > Emails preview page rendering every transactional email; compose the From display name (Afframe) in code so prod inboxes stop showing no-reply; move email authoring convention into docs/specs/TRANSACTIONAL-EMAILS.md
+- Document the transactional-email authoring convention (AGENTS.md + packages/email README) and add a guard test that fails if any email builder skips the shared shell or support Reply-To
+- Feedback support notification: set Reply-To to the submitter and share the escapeHtml util from @workspace/email instead of a local copy; document the internal-vs-customer email boundary in docs/specs/TRANSACTIONAL-EMAILS.md
+- Unify all transactional emails (invite, password reset, email verification, magic link) on one cross-client shell: hosted brand mark, fluid mobile layout, Outlook-safe button, footer, and support Reply-To
+- Invitation email now shows the workspace name as the heading, the organization legal name in the body, and the inviter's email alongside their name; the issuer resolves workspace display_name + inviter email
+- Rebuild the invitation email for cross-client rendering: table-based layout, inlined styles, Outlook-safe padded-cell button, and the hosted brand mark PNG in place of inline SVG that Gmail/Outlook strip
+
 ### Changed
 
 - Rebuild the workspace Profile as grouped General, Appearance, Security, Privacy, and Permissions pages with contextual dialogs and history, editable identity, avatar, contact, signature, shared company-structure fields, regional and consent settings, session and API-key visibility, permission grants, workspace departure, and OTP-confirmed account deletion.

@@ -22,6 +22,11 @@ export default function DebugLayout({ children }: { children: ReactNode }) {
             label: "XML filing",
             href: "/platform/debug/xml-filing",
           },
+          {
+            value: "emails",
+            label: "Emails",
+            href: "/platform/debug/emails",
+          },
         ]}
       />
       {children}

@@ -219,9 +219,11 @@ export class AccountingWritesController {
             (fields.lines ?? []) as ReadonlyArray<Record<string, unknown>>,
           ),
         ),
-      // [WS-2 / B1.5 / #554 / #565] Server-derived OCR-template basis screen.
-      // Always wired for the capture path (the gate runs it in-tx only for an
-      // AGENT key). ONE fetch yields both holds: an UNCONFIRMED template forces
+      // [WS-2 / B1.5 / #554 / #565 / S7] Server-derived OCR-template basis screen.
+      // Always wired for the capture path (the gate runs it in-tx for any
+      // ai_on_behalf write — an agent key OR a human driving an AI via
+      // conversationId, never a bare human key). ONE fetch yields both holds: an
+      // UNCONFIRMED template forces
       // the score sub-green (`novel_template`); ANY capture with no confirmed
       // template basis (omitted OR foreign templateId) forces it sub-green
       // (`unverified_template`) UNCONDITIONALLY — [#565] the declared

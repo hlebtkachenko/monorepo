@@ -622,7 +622,8 @@ describe("runGatedWrite", () => {
   // returning {templateNovel, ocrUnverified}. `templateNovel` (found + unconfirmed)
   // forces `novel_template`; `ocrUnverified` (OCR + no confirmed template basis)
   // forces `unverified_template`. Both are Tier-3 DEFER kinds the gate threads INTO
-  // the score → HELD. Server-side (not a client capSignal), agent-scoped, add-only.
+  // the score → HELD. Server-side (not a client capSignal), ai_on_behalf-scoped
+  // (agent key OR human+conversationId — [S7]), add-only.
   // The scorers honor the injected signals so these prove the gate threaded them in.
   const agentPrincipal = { ...principal, actorKind: "agent" as const }
   const novelBasis = () =>
@@ -706,9 +707,11 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("does NOT run the basis leg for a HUMAN key (the veto is agent-scoped)", async () => {
-    // A human-key capture with an UNCONFIRMED template: the leg is skipped, so the
-    // write auto-applies. `screenTemplateBasis` must never be invoked.
+  it("does NOT run the basis leg for a BARE human key (no conversationId → actorKind 'human')", async () => {
+    // A bare human-key capture (no conversationId → not ai_on_behalf) with an
+    // UNCONFIRMED template: the leg is skipped, so the write auto-applies.
+    // `screenTemplateBasis` must never be invoked. (A human key WITH a
+    // conversationId IS ai_on_behalf and DOES run it — see the [S7] test above.)
     const basis = vi.fn(novelBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-h",
@@ -910,7 +913,8 @@ describe("runGatedWrite", () => {
   // [#554] The OCR fail-closed leg of the same seam. An `extraction_method: "ocr"`
   // capture that OMITS (or forges) its templateId is HELD via the server-derived
   // `unverified_template` signal — closing the omitted-templateId novelty BYPASS.
-  // Structured captures are unaffected. Agent-scoped; the hold has no client input.
+  // Structured captures are unaffected. ai_on_behalf-scoped (agent key OR
+  // human+conversationId — [S7]); the hold has no client input.
   it("[#554] HOLDS an AGENT OCR capture with NO templateId even when the score would be green (server-derived, no client signal)", async () => {
     // No `signals` envelope: the hold cannot come from a client capSignal. The
     // scorer is green UNLESS the gate injects `unverified_template`; the veto is clear.
@@ -980,7 +984,7 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("[#554] does NOT run the seam for a HUMAN key (agent-scoped)", async () => {
+  it("[#554] does NOT run the seam for a BARE human key (no conversationId → not ai_on_behalf)", async () => {
     const screen = vi.fn(ocrUnverifiedBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-hu",

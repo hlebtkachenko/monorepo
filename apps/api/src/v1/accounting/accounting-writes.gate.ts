@@ -144,8 +144,10 @@ export interface GatedWriteOptions<T> {
    * calibration. Neither is a client signal (a client-asserted Tier-3 kind is
    * dropped by `buildScoreInputs`) — they compose into the three-way AND as added
    * holds, never a release. Optional: only the capture path wires it, and it is run
-   * ONLY for an AGENT key. NAME is honest about the in-tx `held_count` bump the
-   * screen performs on a novel hold (not a pure read).
+   * for ANY `ai_on_behalf` write (an agent key OR a human driving an AI via
+   * conversationId — the #517 taxonomy), never a bare human key [S7]. NAME is
+   * honest about the in-tx `held_count` bump the screen performs on a novel hold
+   * (not a pure read).
    */
   screenTemplateBasis?: (db: OrgTx) => Promise<{
     templateNovel: boolean
@@ -248,6 +250,11 @@ export async function runGatedWriteWithSeams<T>(
     // [S6] Hold when ANY single amount exceeds the ceiling OR when the amounts
     // SUM past it — a document split into many sub-ceiling partials (e.g. six
     // 90k lines summing to 540k) must not slip under a per-amount-only screen.
+    // Keep BOTH clauses (do NOT collapse to a lone reduce): the per-amount `.some`
+    // is the fail-closed guard when a sibling amount is non-finite. A malformed
+    // amount (`Number("100 000")` → NaN) poisons the sum to NaN and `NaN > cap` is
+    // false, so a sum-only screen would RELEASE a genuine over-ceiling amount
+    // sitting next to the NaN; `.some` still catches it.
     const amountHold =
       opts.holdAmounts.some((a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT) ||
       opts.holdAmounts.reduce((sum, a) => sum + Math.abs(Number(a)), 0) >

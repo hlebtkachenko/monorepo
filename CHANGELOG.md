@@ -14,6 +14,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Bump production dependencies group: react-hook-form 7.81.0, recharts 3.9.2, @nestjs/{common,core,platform-express} 11.1.28, @anthropic-ai/claude-agent-sdk 0.3.205, @fortawesome/react-fontawesome 3.4.0, @openfga/syntax-transformer 0.2.2 (supersedes stale Dependabot #699 and #782)
 - Brain #578: remove the runtime-inert classify-to-capture threading seam (bare allowlisted tools auto-approve before canUseTool runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the updatedInput rewrite never fired) and correct the overstated three-sandbox-layers / harness-threads-classify comments; classify stays a model reasoning + human-reviewer discrepancy step, the write is submitted verbatim and the server gate holds every special regime; real treatment threading is deferred to a follow-up that feeds it a document-grounded supplyKind from the IR (WP2 Task 2.4)
 
 ### Fixed

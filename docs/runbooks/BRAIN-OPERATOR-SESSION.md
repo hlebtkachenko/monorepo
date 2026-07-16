@@ -26,10 +26,14 @@ path the harness scaffold uses; a real document goes through `extract` → `book
  afframe brain extract <pdf>   ── LOCAL vision-OCR, NEVER books     │
      │  emits IR Invoice + provenance + layout fingerprint         │
      ▼  (save the IR as ir.json)                                    │
- afframe brain book <pdf> --extracted ir.json                afframe brain book <folder>
-   extractionMethod = "ocr" (forced)                        extractionMethod = "structured"
-     │                                                              │
-     └──────────────────────────┬───────────────────────────────  ┘
+ afframe brain event --extracted ir.json   ── propose the CASE      │
+     │  carries counterparty IDENTITY (name/IČO/DIČ); GATED → HELD; │
+     ▼  approve, then copy the applied eventId off /approvals       │
+ afframe brain book <pdf> --extracted ir.json               afframe brain book <folder>
+   --after-event <eventId>                                  extractionMethod = "structured"
+   extractionMethod = "ocr" (forced)                              │
+     │                                                            │
+     └──────────────────────────┬─────────────────────────────── ┘
                                  ▼
         capture_accounting_document  (proposed to the deployed MCP endpoint)
                                  ▼
@@ -40,6 +44,24 @@ path the harness scaffold uses; a real document goes through `extract` → `book
         /{orgSlug}/accounting/approvals   ← Hleb reviews / approves / corrects
           (agent key is 403 here — cannot self-approve)
 ```
+
+`afframe brain pipeline <pdf>` runs the whole OCR branch (extract → event → [approve]
+→ book → [approve]) as one instruct-and-exit command: at each review gate it prints
+the held-write reviewId + approval URL + resume command and EXITS (it never polls —
+the agent key is 403 on held-writes). Resume the book stage with
+`--after-event <appliedEventId>`; completed stages skip via an on-disk checkpoint.
+
+The seven `brain` subcommands (`apps/cli/src/brain/command.ts`):
+
+| Subcommand                                                   | What it does                                                                                                                                       |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `extract <pdf> [--out ir.json]`                              | LOCAL vision-OCR → canonical IR Invoice (+ provenance, layout fingerprint). Never books. `--out` writes the machine IR for a later `book`/`event`. |
+| `event --extracted <ir> --context <ctx>`                     | Propose the accounting EVENT (case) with counterparty identity. Deterministic operator-key POST; gated → HELD. `--execute` to submit.              |
+| `book <pdf\|folder> [--extracted <ir>] [--after-event <id>]` | Assemble + propose the capture (`capture_accounting_document`) for one doc or a folder of structured exports. Gated → HELD.                        |
+| `book-batch <folder>`                                        | `book` over a folder, one held write per bookable record.                                                                                          |
+| `pipeline <pdf>`                                             | The OCR branch end-to-end (extract → event → book), instruct-and-exit with checkpoint resume.                                                      |
+| `run`                                                        | Drive a full nested Agent-SDK reasoning session for one already-inspected plan.                                                                    |
+| `onboard`                                                    | Scaffold a workspace/org for a first live session.                                                                                                 |
 
 ---
 

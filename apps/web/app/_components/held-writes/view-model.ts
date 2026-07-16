@@ -39,6 +39,7 @@ import {
   type SupplyKind,
   type VatJurisdiction,
 } from "@workspace/accounting"
+import { stripGateEnvelope } from "@workspace/shared/api"
 
 /** One held write's `input_json` + `output_json`, as read by `fetchHeldWrites`. */
 export interface HeldWriteReviewSource {
@@ -163,11 +164,32 @@ export interface MddPreview {
   caveats: string[]
 }
 
+/**
+ * One labeled key/value row for the reviewer detail panel — the generic
+ * fallback section used by tools that carry no document header / VAT / MD/D
+ * shape of their own (the Tier-3 register-card creators, and any future op that
+ * is otherwise blind). `value` is a pre-humanized display string (Czech enum
+ * labels, decimal-string amounts, ISO dates) — the renderer prints it verbatim.
+ */
+export interface HeldWriteDetailRow {
+  label: string
+  value: string
+}
+
 export interface HeldWriteViewModel {
   id: string
   toolName: string
   conversationId: string | null
   header: HeldWriteHeader
+  /**
+   * A labeled key/value detail section for ops with no VAT/MD-D shape (the
+   * Tier-3 register-card creators + the generic fallback for any unmapped op, so
+   * a future tool is never rendered blind). Empty for the document-centric ops
+   * (event / capture / posting) that render via `header` + `vatSummary` + `mddPreview`.
+   */
+  details: HeldWriteDetailRow[]
+  /** Heading for the `details` section (e.g. "Detaily karty majetku"), or null when there are none. */
+  detailsTitle: string | null
   vatSummary: HeldWriteVatSummaryRow[]
   /** Human-readable reasons the gate HELD this write (server veto + score verdict). */
   holdReasons: string[]
@@ -784,6 +806,123 @@ function headerFromPosting(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Tier-3 register-card creators + generic fallback — a labeled detail section so
+// createAsset / createDepreciationPlan / createInventoryCount (and any future
+// op) render every public field instead of an all-null header (audit docs-P1).
+// ---------------------------------------------------------------------------
+
+const ASSET_CATEGORY_LABELS: Record<string, string> = {
+  INTANGIBLE: "dlouhodobý nehmotný majetek",
+  TANGIBLE_DEPRECIABLE: "hmotný odpisovaný majetek",
+  TANGIBLE_NON_DEPRECIABLE: "hmotný neodpisovaný majetek",
+}
+
+const DEPRECIATION_METHOD_LABELS: Record<string, string> = {
+  STRAIGHT_LINE: "rovnoměrné odpisy",
+  PERFORMANCE: "výkonové odpisy",
+  DECLINING: "zrychlené odpisy",
+}
+
+/** Append a `{label, value}` row only when the payload field is present + non-empty. */
+function pushDetail(
+  rows: HeldWriteDetailRow[],
+  label: string,
+  value: unknown,
+): void {
+  if (value === null || value === undefined || value === "") return
+  rows.push({ label, value: String(value) })
+}
+
+/** A document-less register card's header: a description + date + amount, no counterparty. */
+function headerFromRegisterCard(
+  description: string | null,
+  date: string | null,
+  totalAmount: string | null,
+): HeldWriteHeader {
+  return {
+    counterpartyName: null,
+    counterpartyIco: null,
+    counterpartyDic: null,
+    caseDesignation: null,
+    caseDescription: description,
+    documentNumber: null,
+    obligation: null,
+    date,
+    totalAmount,
+    currency: totalAmount ? "CZK" : null,
+  }
+}
+
+function detailsFromAsset(
+  input: Record<string, unknown>,
+): HeldWriteDetailRow[] {
+  const rows: HeldWriteDetailRow[] = []
+  const category = asString(input["category"])
+  pushDetail(
+    rows,
+    "Kategorie",
+    category ? (ASSET_CATEGORY_LABELS[category] ?? category) : null,
+  )
+  pushDetail(rows, "Účet", asString(input["accountNumber"]))
+  pushDetail(rows, "Datum zařazení", asString(input["commissioningDate"]))
+  pushDetail(rows, "Datum pořízení", asString(input["acquisitionDate"]))
+  pushDetail(rows, "Číselná řada", asString(input["seriesId"]))
+  pushDetail(rows, "Kód směrnice", asString(input["directiveCode"]))
+  pushDetail(rows, "Umístění", asString(input["location"]))
+  return rows
+}
+
+function detailsFromDepreciationPlan(
+  input: Record<string, unknown>,
+): HeldWriteDetailRow[] {
+  const rows: HeldWriteDetailRow[] = []
+  pushDetail(rows, "Majetek", asString(input["assetId"]))
+  pushDetail(rows, "Datum zahájení", asString(input["startDate"]))
+  pushDetail(rows, "Nákladový účet", asString(input["expenseAccountNumber"]))
+  pushDetail(rows, "Účet oprávek", asString(input["accumulatedAccountNumber"]))
+  const life = input["usefulLifeMonths"]
+  pushDetail(
+    rows,
+    "Doba použitelnosti (měsíce)",
+    typeof life === "number" ? life : null,
+  )
+  pushDetail(rows, "Zůstatková hodnota", asString(input["residualValue"]))
+  pushDetail(rows, "Nahrazuje plán", asString(input["supersedesPlanId"]))
+  return rows
+}
+
+function detailsFromInventoryCount(
+  input: Record<string, unknown>,
+): HeldWriteDetailRow[] {
+  const rows: HeldWriteDetailRow[] = []
+  pushDetail(rows, "Číselná řada", asString(input["seriesId"]))
+  pushDetail(rows, "Datum inventury", asString(input["countDate"]))
+  pushDetail(rows, "Popis", asString(input["description"]))
+  return rows
+}
+
+/**
+ * Generic fallback — a read-only key/value dump of the gate-envelope-stripped
+ * payload, so an unmapped future gated op is NEVER rendered blind. Nested values
+ * are JSON-stringified; the gate envelope (confidence/rationale/…) is peeled
+ * first (it is never domain data the reviewer judges).
+ */
+function detailsFromUnknown(
+  input: Record<string, unknown>,
+): HeldWriteDetailRow[] {
+  const stripped = stripGateEnvelope(input)
+  return Object.entries(stripped).map(([label, value]) => ({
+    label,
+    value:
+      value === null || value === undefined
+        ? "—"
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value),
+  }))
+}
+
 /**
  * Shape ONE held-write row into its review view-model: document header,
  * per-rate VAT summary, an MD/D posting preview, why-held reasons, and the
@@ -804,6 +943,8 @@ export function buildHeldWriteViewModel(
   let postingLines: HeldWritePostingLineRow[] = []
   let postingKind: "double" | "monetary" | null = null
   let mddPreview: MddPreview | null = null
+  let details: HeldWriteDetailRow[] = []
+  let detailsTitle: string | null = null
 
   switch (row.tool_name) {
     case "captureAccountingDocument": {
@@ -819,18 +960,61 @@ export function buildHeldWriteViewModel(
       postingKind = input["kind"] === "monetary" ? "monetary" : "double"
       mddPreview = mddPreviewFromPosting(input, chartAccounts)
       break
+    // Tier-3 register-card creators — a document-less header (name/amount/date)
+    // + a labeled detail section listing every remaining public field, so the
+    // reviewer can judge the newest ops instead of an all-null header.
+    case "createAsset":
+      header = headerFromRegisterCard(
+        asString(input["name"]),
+        asString(input["commissioningDate"]),
+        asString(input["acquisitionCost"]),
+      )
+      details = detailsFromAsset(input)
+      detailsTitle = "Detaily karty majetku"
+      break
+    case "createDepreciationPlan": {
+      const method = asString(input["method"])
+      header = headerFromRegisterCard(
+        method
+          ? `Odpisový plán — ${DEPRECIATION_METHOD_LABELS[method] ?? method}`
+          : "Odpisový plán",
+        asString(input["startDate"]),
+        asString(input["monthlyAmount"]),
+      )
+      details = detailsFromDepreciationPlan(input)
+      detailsTitle = "Detaily odpisového plánu"
+      break
+    }
+    case "createInventoryCount":
+      header = headerFromRegisterCard(
+        asString(input["description"]) ?? "Inventurní soupis",
+        asString(input["countDate"]),
+        null,
+      )
+      details = detailsFromInventoryCount(input)
+      detailsTitle = "Detaily inventurního soupisu"
+      break
     case "createAccountingEvent":
-    default:
       header = headerFromEvent(input, row.counterparty_name)
+      break
+    default:
+      // Any unmapped future op renders a read-only key/value dump (envelope
+      // peeled) — never blind.
+      header = headerFromEvent(input, row.counterparty_name)
+      details = detailsFromUnknown(input)
+      detailsTitle = "Nestrukturovaný náhled"
       break
   }
 
   // Server-resolved case/document identity (LEFT JOINs in fetchHeldWrites) — the
   // supplier text and doklad/case Označení a raw payload can't carry pre-apply.
+  // caseDescription falls back to the tool-shaped header value (the register-card
+  // name) when no event row resolves — for event/capture/posting that value is
+  // null, so this stays behavior-preserving for them.
   header = {
     ...header,
     caseDesignation: row.case_designation ?? null,
-    caseDescription: row.case_description ?? null,
+    caseDescription: row.case_description ?? header.caseDescription,
     documentNumber: header.documentNumber ?? row.document_designation ?? null,
   }
 
@@ -839,6 +1023,8 @@ export function buildHeldWriteViewModel(
     toolName: row.tool_name,
     conversationId: row.conversation_id,
     header,
+    details,
+    detailsTitle,
     vatSummary,
     holdReasons: holdReasonsFrom(row.output_json),
     rationale: row.rationale,

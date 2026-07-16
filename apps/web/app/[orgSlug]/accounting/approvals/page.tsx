@@ -72,6 +72,8 @@ export default async function ApprovalsPage({
       posting_lines: review.postingLines,
       posting_kind: review.postingKind,
       mdd_preview: review.mddPreview,
+      details: review.details,
+      details_title: review.detailsTitle,
       template_id: row.template_id,
       template_confirmed: row.template_confirmed,
     }

@@ -3,9 +3,41 @@
 // the side-effect alone doesn't reliably register against Vitest 4.1.x.
 import "@testing-library/jest-dom/vitest"
 import * as matchers from "@testing-library/jest-dom/matchers"
-import { expect } from "vitest"
+import { afterEach, expect } from "vitest"
 
 expect.extend(matchers)
+
+// Stray-timer sweep. input-otp (and libs like it) schedule fire-and-forget
+// `setTimeout`s for caret/selection mirroring that they never clear. Under CI
+// load these fire AFTER Vitest tears down the jsdom environment, so their React
+// setState hits react-dom's `resolveUpdatePriority`, which reads a now-undefined
+// `window` and crashes the whole run with "ReferenceError: window is not defined"
+// (a flaky, unattributable failure). No timer should outlive its own test, so
+// track every timer opened during a test and clear any still pending at the test
+// boundary. This afterEach registers before @testing-library's auto-cleanup
+// (imported later, per test file), and Vitest runs afterEach hooks LIFO — so RTL
+// unmounts first (clearing timers it owns) and this sweep catches the leftovers.
+const pendingTimers = new Set<ReturnType<typeof setTimeout>>()
+const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
+globalThis.setTimeout = ((
+  fn: Parameters<typeof setTimeout>[0],
+  ms?: number,
+  ...args: unknown[]
+) => {
+  const id = realSetTimeout(fn, ms, ...args)
+  pendingTimers.add(id)
+  return id
+}) as typeof setTimeout
+globalThis.clearTimeout = ((id?: ReturnType<typeof setTimeout>) => {
+  if (id !== undefined) pendingTimers.delete(id)
+  return realClearTimeout(id)
+}) as typeof clearTimeout
+
+afterEach(() => {
+  for (const id of pendingTimers) realClearTimeout(id)
+  pendingTimers.clear()
+})
 
 global.ResizeObserver = class ResizeObserver {
   observe() {}

@@ -55,13 +55,17 @@ describe("buildLoginContext — hard-rule preamble", () => {
     expect(pack.system).toContain("vatMode")
     expect(pack.system).toContain("scenario")
     // Rule 4 reaffirms rule 3 (still gated) rather than replacing it.
-    expect(pack.system).toContain("still HELD/gated")
-    // brain-gate #639 (preserved through the M1.2 write-body wiring): rule 4 must NOT let its "sole source of
-    // the treatment" wording override the capture step's verbatim rule — the MODEL never edits/reconciles the
-    // payload; a disagreement is reported, not reconciled. M1.2 completion: the treatment IS applied to the
-    // payload, but by the HARNESS (deterministically, narrow-only), never by the model.
-    expect(pack.system).toContain("applied to the payload by the HARNESS")
-    expect(pack.system).toContain("NARROW-ONLY")
+    expect(pack.system).toContain("HELD/gated by the SERVER")
+    // brain-gate #639 (preserved): rule 4 must NOT let its "sole source of the treatment" wording override the
+    // capture step's verbatim rule — the MODEL never edits/reconciles the payload; a disagreement is reported.
+    // #578: nothing threads classify onto the write — the former harness narrow-only merge was runtime-dead
+    // (bare-allowlisted tools bypass canUseTool) and was removed; the SERVER gate is the sole treatment authority.
+    expect(pack.system).toContain(
+      "Nothing threads classify's answer onto the write",
+    )
+    expect(pack.system).toContain("the SERVER gate is the SOLE treatment")
+    expect(pack.system).not.toContain("applied to the payload by the HARNESS")
+    expect(pack.system).not.toMatch(/NARROW-ONLY/)
     expect(pack.system).toContain("YOU NEVER EDIT THE WRITE PAYLOAD")
     expect(pack.system).toContain("submit the")
     expect(pack.system).toContain("VERBATIM anyway")

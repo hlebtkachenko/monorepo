@@ -444,7 +444,7 @@ describe("constants", () => {
     )
   })
 
-  it("pins the real classify tool name (the server treatment the harness threads onto the write)", () => {
+  it("pins the real classify tool name", () => {
     expect(CLASSIFY_ACCOUNTING_EVENT_TOOL).toBe(
       "mcp__afframe__classify_accounting_event",
     )

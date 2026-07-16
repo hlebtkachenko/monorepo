@@ -81,12 +81,14 @@ import {
   executeEventCreate,
   renderEventProposal,
   renderEventResult,
+  type EventProposal,
 } from "./event"
 import {
   crossCheckCounterparty,
   renderRegisterVerdict,
   verdictBlocksExecute,
   withRegisterCapSignals,
+  type RegisterVerdict,
 } from "./register-check"
 
 /** Fail-open ceiling for the ARES cross-check so a black-hole socket can't hang `brain event` (no POST occurs). */
@@ -551,30 +553,18 @@ export function registerBrainCommand(program: Command): void {
 
         if (!opts.execute) return
 
-        // Fail closed on a missing counterparty: emitting a bare event silently would recreate exactly the
-        // null-counterparty HOLD this command exists to avoid. Require an explicit override.
-        if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
-          output.write(
-            "brain event: refusing --execute — no counterparty identity extracted. Fix the source/IR, or " +
-              "pass --allow-missing-counterparty to propose a bare event anyway.\n",
-          )
+        // The shared fail-closed gate (missing-counterparty + register-mismatch refusals + the register cap) —
+        // single-sourced so `brain event` and `brain pipeline` can never diverge on the event safety posture.
+        const gate = gateEventRequest(proposal, verdict, {
+          allowMissingCounterparty: opts.allowMissingCounterparty,
+          allowRegisterMismatch: opts.allowRegisterMismatch,
+        })
+        if (!gate.ok) {
+          output.write(`brain event: refusing --execute — ${gate.reason}\n`)
           process.exitCode = 1
           return
         }
-
-        // Fail closed on a register mismatch: a mis-OCR'd IČO binds a wrong-but-real partner. Refuse unless
-        // the operator explicitly overrides (having seen the ARES verdict above).
-        if (verdictBlocksExecute(verdict) && !opts.allowRegisterMismatch) {
-          output.write(
-            "brain event: refusing --execute — counterparty does not match the ARES register (see above). " +
-              "Fix the IČO/source, or pass --allow-register-mismatch to propose it anyway (it will still HOLD).\n",
-          )
-          process.exitCode = 1
-          return
-        }
-
-        // Assert the mismatch cap so the server holds the write sub-green and the review shows the reason.
-        const request = withRegisterCapSignals(proposal.request, verdict)
+        const request = gate.request
 
         const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
         if (!apiKey) {
@@ -979,6 +969,42 @@ interface PipelineContext {
   captureContext: Omit<BookContext["captureContext"], "eventId">
 }
 
+/**
+ * The fail-closed EVENT gate decision shared by `brain event --execute` and `brain pipeline` — PURE. Given the
+ * built proposal + the ARES verdict + the caller's override flags, it refuses a missing counterparty / a
+ * register mismatch (unless the matching override is set) and otherwise returns the register-capped request
+ * ready to POST. Single-sources the two fail-closed thresholds + the cap so the two live event-write paths can
+ * never silently diverge; each caller still renders the proposal + verdict and does its own confirm / exit.
+ */
+function gateEventRequest(
+  proposal: EventProposal,
+  verdict: RegisterVerdict,
+  opts: { allowMissingCounterparty?: boolean; allowRegisterMismatch?: boolean },
+):
+  | { ok: true; request: CreateAccountingEventRequest }
+  | { ok: false; reason: string } {
+  if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
+    return {
+      ok: false,
+      reason:
+        "no counterparty identity extracted (the derived invoice will HOLD on a null counterparty when " +
+        "booked). Fix the source/IR, or pass --allow-missing-counterparty to propose a bare event anyway.",
+    }
+  }
+  if (verdictBlocksExecute(verdict) && !opts.allowRegisterMismatch) {
+    return {
+      ok: false,
+      reason:
+        "counterparty does not match the ARES register (see above). Fix the IČO/source, or pass " +
+        "--allow-register-mismatch to propose it anyway (it will still HOLD).",
+    }
+  }
+  return {
+    ok: true,
+    request: withRegisterCapSignals(proposal.request, verdict),
+  }
+}
+
 /** Read + shallow-validate the `brain pipeline` `--context` file (sections + event + capture contexts). */
 function readPipelineContext(path: string): PipelineContext {
   return withAssembledSections(
@@ -1096,13 +1122,6 @@ async function runPipeline(
     output.write("\n[pipeline 2/3] event — propose the accounting case\n")
     const proposal = buildEventProposal(invoice, ctx.eventContext)
     output.write(renderEventProposal(proposal))
-    if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
-      output.write(
-        "brain pipeline: refusing — no counterparty identity extracted (the invoice would HOLD on a null " +
-          "counterparty). Fix the source/IR, or pass --allow-missing-counterparty.\n",
-      )
-      process.exit(1)
-    }
     const verdict = await crossCheckCounterparty(
       proposal.request.counterparty,
       {
@@ -1110,17 +1129,21 @@ async function runPipeline(
       },
     )
     output.write(renderRegisterVerdict(verdict))
-    if (verdictBlocksExecute(verdict)) {
-      // Preserve `brain event`'s fail-closed posture: a mis-OCR'd IČO binds a wrong-but-real partner. The
-      // pipeline has no override flag by design — the operator fixes the source, or runs `brain event
-      // --execute --allow-register-mismatch` + `brain book` standalone for the deliberate-override case.
+    // Same shared fail-closed gate as `brain event`. The pipeline exposes only --allow-missing-counterparty
+    // (no --allow-register-mismatch by design): a register mismatch here refuses and points the operator at
+    // the standalone `brain event`/`brain book` override path.
+    const gate = gateEventRequest(proposal, verdict, {
+      allowMissingCounterparty: opts.allowMissingCounterparty,
+      allowRegisterMismatch: false,
+    })
+    if (!gate.ok) {
       output.write(
-        "brain pipeline: refusing — the extracted IČO does not match the ARES register (see above). Fix the " +
-          "IČO/source, or run `brain event`/`brain book` standalone with --allow-register-mismatch.\n",
+        `brain pipeline: refusing — ${gate.reason} (or run \`brain event\`/\`brain book\` standalone with ` +
+          "--allow-register-mismatch for a deliberate override).\n",
       )
       process.exit(1)
     }
-    const request = withRegisterCapSignals(proposal.request, verdict)
+    const request = gate.request
     const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
     const eventResult = await executeEventCreate(
       request,
@@ -1166,14 +1189,13 @@ async function runPipeline(
       )
       process.exit(1)
     }
-    // Reuse applyAfterEvent's boundary uuid-validation + injection; the placeholder eventId is overwritten.
-    const bookCtx = applyAfterEvent(
-      {
-        sections: ctx.sections,
-        captureContext: { ...ctx.captureContext, eventId: "" },
-      } as BookContext,
-      eventId,
-    )
+    const bookCtx: BookContext = {
+      sections: ctx.sections,
+      captureContext: {
+        ...ctx.captureContext,
+        eventId: assertUuid(eventId, "--after-event"),
+      },
+    }
     output.write("\n[pipeline 3/3] book — propose the capture\n")
     const plan = assembleOcrCapturePlan(invoice, bookCtx)
     output.write(renderOcrCapturePlan(plan, invoice))
@@ -1184,15 +1206,28 @@ async function runPipeline(
       launcher: (await import("./sdk-launcher")).sdkAgentSessionLauncher,
     })
     output.write("\n" + renderLiveResult(bookResult))
-    cp = {
-      ...cp,
-      next: "done",
-      eventId,
-      bookReviewId: bookResult.reviewId,
-    }
-    store.save(cp)
-    if (bookResult.reviewId) {
-      output.write(renderBookGate(bookResult.reviewId).text)
+    // Only a genuine HELD (status "held" + a concrete reviewId) or an APPLIED capture is a terminal success —
+    // mirrors batch-live's MINIMUM SAFETY FLOOR. A lane-off / rate-limited / errored / unparsed result booked
+    // NOTHING, so leave the checkpoint at "book" (a re-invoke retries the book stage — it only re-submits when
+    // the prior attempt produced no write, so no double-book), signal failure, and print no completion gate.
+    if (
+      !bookResult.isError &&
+      bookResult.status === "held" &&
+      bookResult.reviewId
+    ) {
+      const reviewId = bookResult.reviewId
+      cp = { ...cp, next: "done", eventId, bookReviewId: reviewId }
+      store.save(cp)
+      output.write(renderBookGate(reviewId).text)
+    } else if (bookResult.applied && !bookResult.isError) {
+      cp = { ...cp, next: "done", eventId }
+      store.save(cp)
+    } else {
+      output.write(
+        "brain pipeline: the book session produced no held or applied capture (lane-off / rate-limited / " +
+          "error) — nothing booked. Re-invoke the same command to retry the book stage.\n",
+      )
+      process.exitCode = 1
     }
   }
 }

@@ -206,6 +206,24 @@ pre-push:
         if [ "${loc}" -gt 800 ]; then
           echo "[lefthook size-cap] WARN: ${loc} lines added (warn at 800). Justify in PR description."
         fi
+    cache-buster-advisory:
+      # PR-WORKFLOW rule 2: a change to a turbo global-hash input forces a full
+      # 32/32 cold rebuild. Warn (never block) when a PR mixes such a file with
+      # feature code, so the split is a conscious choice — a lockfile bump does
+      # sometimes legitimately ride with a dep-using feature. Sub-second.
+      glob: "*"
+      run: |
+        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+          exit 0
+        fi
+        busters=$(git diff --name-only origin/main...HEAD -- \
+          turbo.json '**/tsconfig*.json' eslint.config.js pnpm-workspace.yaml \
+          .npmrc pnpm-lock.yaml package.json)
+        code=$(git diff --name-only origin/main...HEAD -- 'apps/**' 'packages/**' \
+          | grep -vE '\.(md|snap)$' || true)
+        if [ -n "${busters}" ] && [ -n "${code}" ]; then
+          echo "[lefthook cache-buster] WARN: this PR mixes a cache-buster with feature code — isolate per PR-WORKFLOW rule 2 (advisory)."
+        fi
     osv-scanner:
       # Mirrors `.github/workflows/osv-scanner-pr.yml` (scan-pr / osv-scan).
       # Scans the pnpm lockfile for known CVEs. Only fires when the

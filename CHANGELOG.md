@@ -15,6 +15,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Brain write gate: hold on the SUM of sub-ceiling amounts not just per-amount (S6); run the OCR-template screen for every ai_on_behalf write, not only agent keys (S7); record an honest skipped-veto audit shape (`{skipped:true,reason}`) when a confidence/amount hold pre-empts the veto (S8) (#774)
 - pnpm preflight now runs the CHANGELOG Unreleased gate (catches release-cut merge mis-files that --no-verify merge pushes bypass)
 - PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
 - Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main

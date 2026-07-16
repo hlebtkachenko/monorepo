@@ -622,7 +622,8 @@ describe("runGatedWrite", () => {
   // returning {templateNovel, ocrUnverified}. `templateNovel` (found + unconfirmed)
   // forces `novel_template`; `ocrUnverified` (OCR + no confirmed template basis)
   // forces `unverified_template`. Both are Tier-3 DEFER kinds the gate threads INTO
-  // the score → HELD. Server-side (not a client capSignal), agent-scoped, add-only.
+  // the score → HELD. Server-side (not a client capSignal), ai_on_behalf-scoped
+  // (agent key OR human+conversationId — [S7]), add-only.
   // The scorers honor the injected signals so these prove the gate threaded them in.
   const agentPrincipal = { ...principal, actorKind: "agent" as const }
   const novelBasis = () =>
@@ -706,9 +707,11 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("does NOT run the basis leg for a HUMAN key (the veto is agent-scoped)", async () => {
-    // A human-key capture with an UNCONFIRMED template: the leg is skipped, so the
-    // write auto-applies. `screenTemplateBasis` must never be invoked.
+  it("does NOT run the basis leg for a BARE human key (no conversationId → actorKind 'human')", async () => {
+    // A bare human-key capture (no conversationId → not ai_on_behalf) with an
+    // UNCONFIRMED template: the leg is skipped, so the write auto-applies.
+    // `screenTemplateBasis` must never be invoked. (A human key WITH a
+    // conversationId IS ai_on_behalf and DOES run it — see the [S7] test above.)
     const basis = vi.fn(novelBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-h",
@@ -735,6 +738,135 @@ describe("runGatedWrite", () => {
       expect.objectContaining({
         output: expect.objectContaining({
           serverGate: expect.objectContaining({ templateNovel: false }),
+        }),
+      }),
+    )
+  })
+
+  // ── [S6/S7/S8] Pre-floor-lift gate latents (#774) ──────────────────────────
+
+  it("[S6] HOLDS on the SUM of sub-ceiling partials (six 90k lines = 540k > 100k)", async () => {
+    // Each 90k line is under the 100k ceiling, so the per-amount screen misses it;
+    // the SUM (540k) must still trip the amount hold. Green scorer + clear veto, so
+    // only the amount aggregation can hold this — proving the sum path.
+    const run = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({
+          confidence: 0.99,
+          holdAmounts: ["90000", "90000", "90000", "90000", "90000", "90000"],
+          run,
+        }),
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+      },
+      admitting,
+      greenScorer,
+    )
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+  })
+
+  it("[S6] a SINGLE sub-ceiling amount is NOT tripped by the amount screen", async () => {
+    // One 90k line (< 100k, sum also < 100k) → no amount hold → green scorer +
+    // clear veto auto-applies. Guards the sum path against over-holding.
+    const run = vi.fn().mockResolvedValue({
+      eventId: "ev-s6",
+      designation: "FP-s6",
+      sequenceNumber: 7,
+    })
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, holdAmounts: ["90000"], run }),
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+      },
+      admitting,
+      greenScorer,
+    )
+    expect(res.httpStatus).toBe(201)
+    expect(run).toHaveBeenCalledOnce()
+  })
+
+  it("[S7] runs the template screen for an ai_on_behalf write on a HUMAN key + conversationId", async () => {
+    // A human-key OCR capture routed through an AI (conversationId set) is
+    // `ai_on_behalf` → the template screen now runs and its novel_template hold
+    // fires, exactly as on an agent key. Proves the S7 broadening (the old
+    // agent-key-only gate left this path unscreened).
+    const basis = vi.fn(novelBasis)
+    const run = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      {
+        ...build({ confidence: 0.99, conversationId: "conv-s7", run }),
+        principal, // HUMAN key (no agent capability)
+        templateId: "tpl-unconfirmed",
+        deriveVeto: () => Promise.resolve({ held: false, signals: [] }),
+        screenTemplateBasis: basis,
+      },
+      admitting,
+      templateAwareScorer,
+    )
+    expect(basis).toHaveBeenCalledOnce()
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(run).not.toHaveBeenCalled()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            templateNovel: true,
+            score: expect.objectContaining({
+              firedSignals: expect.arrayContaining(["novel_template"]),
+            }),
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("[S8] records a skipped-veto shape (confidence_below_threshold) when confidence is sub-threshold", async () => {
+    // Sub-threshold confidence holds the write BEFORE the veto is evaluated, so the
+    // audit must say the veto was skipped — not the ambiguous {held:false}. The veto
+    // seam is never called.
+    const deriveVeto = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      { ...build({ confidence: 0.5 }), deriveVeto },
+      admitting,
+      greenScorer, // even a green score cannot lift the sub-threshold hold
+    )
+    expect(res.httpStatus).toBe(202)
+    expect(res.body).toMatchObject({ status: "held" })
+    expect(deriveVeto).not.toHaveBeenCalled()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            veto: { skipped: true, reason: "confidence_below_threshold" },
+          }),
+        }),
+      }),
+    )
+  })
+
+  it("[S8] records skipped-veto reason 'amount_hold' when an amount hold skips the veto", async () => {
+    // An over-ceiling amount holds the write; the veto is skipped with the
+    // amount-specific reason (distinct from the confidence case).
+    const deriveVeto = vi.fn()
+    const res = await runGatedWriteWithSeams(
+      { ...build({ confidence: 0.99, holdAmounts: ["150000"] }), deriveVeto },
+      admitting,
+      greenScorer,
+    )
+    expect(res.httpStatus).toBe(202)
+    expect(deriveVeto).not.toHaveBeenCalled()
+    expect(updateLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        output: expect.objectContaining({
+          serverGate: expect.objectContaining({
+            veto: { skipped: true, reason: "amount_hold" },
+          }),
         }),
       }),
     )
@@ -781,7 +913,8 @@ describe("runGatedWrite", () => {
   // [#554] The OCR fail-closed leg of the same seam. An `extraction_method: "ocr"`
   // capture that OMITS (or forges) its templateId is HELD via the server-derived
   // `unverified_template` signal — closing the omitted-templateId novelty BYPASS.
-  // Structured captures are unaffected. Agent-scoped; the hold has no client input.
+  // Structured captures are unaffected. ai_on_behalf-scoped (agent key OR
+  // human+conversationId — [S7]); the hold has no client input.
   it("[#554] HOLDS an AGENT OCR capture with NO templateId even when the score would be green (server-derived, no client signal)", async () => {
     // No `signals` envelope: the hold cannot come from a client capSignal. The
     // scorer is green UNLESS the gate injects `unverified_template`; the veto is clear.
@@ -851,7 +984,7 @@ describe("runGatedWrite", () => {
     )
   })
 
-  it("[#554] does NOT run the seam for a HUMAN key (agent-scoped)", async () => {
+  it("[#554] does NOT run the seam for a BARE human key (no conversationId → not ai_on_behalf)", async () => {
     const screen = vi.fn(ocrUnverifiedBasis)
     const run = vi.fn().mockResolvedValue({
       eventId: "ev-hu",

@@ -144,8 +144,10 @@ export interface GatedWriteOptions<T> {
    * calibration. Neither is a client signal (a client-asserted Tier-3 kind is
    * dropped by `buildScoreInputs`) — they compose into the three-way AND as added
    * holds, never a release. Optional: only the capture path wires it, and it is run
-   * ONLY for an AGENT key. NAME is honest about the in-tx `held_count` bump the
-   * screen performs on a novel hold (not a pure read).
+   * for ANY `ai_on_behalf` write (an agent key OR a human driving an AI via
+   * conversationId — the #517 taxonomy), never a bare human key [S7]. NAME is
+   * honest about the in-tx `held_count` bump the screen performs on a novel hold
+   * (not a pure read).
    */
   screenTemplateBasis?: (db: OrgTx) => Promise<{
     templateNovel: boolean
@@ -245,9 +247,18 @@ export async function runGatedWriteWithSeams<T>(
     // against the always-hold ceiling (~1e-10 relative error at 100k is
     // immaterial to a hold decision), NEVER a booked amount. Any amount that is
     // actually posted MUST go through the string-math `decimalToMinor` helper.
-    const amountHold = opts.holdAmounts.some(
-      (a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT,
-    )
+    // [S6] Hold when ANY single amount exceeds the ceiling OR when the amounts
+    // SUM past it — a document split into many sub-ceiling partials (e.g. six
+    // 90k lines summing to 540k) must not slip under a per-amount-only screen.
+    // Keep BOTH clauses (do NOT collapse to a lone reduce): the per-amount `.some`
+    // is the fail-closed guard when a sibling amount is non-finite. A malformed
+    // amount (`Number("100 000")` → NaN) poisons the sum to NaN and `NaN > cap` is
+    // false, so a sum-only screen would RELEASE a genuine over-ceiling amount
+    // sitting next to the NaN; `.some` still catches it.
+    const amountHold =
+      opts.holdAmounts.some((a) => Math.abs(Number(a)) > ALWAYS_HOLD_AMOUNT) ||
+      opts.holdAmounts.reduce((sum, a) => sum + Math.abs(Number(a)), 0) >
+        ALWAYS_HOLD_AMOUNT
     // [#517] The actor is AI if EITHER the tamper-proof key capability says so
     // (an `agent` key, authoritative + unspoofable) OR the client-supplied
     // conversationId heuristic does (a human driving an AI assistant). Only a
@@ -371,20 +382,42 @@ export async function runGatedWriteWithSeams<T>(
             confidenceOk && opts.deriveVeto
               ? await opts.deriveVeto(db)
               : { held: false, signals: [] }
-          // [WS-2 / B1.5 / #554] Server-DERIVED OCR-template basis screen. Run ONLY
-          // for an AGENT key (tamper-proof capability, NOT the conversationId-
-          // broadened actorKind). ONE in-tx fetch yields both add-only hold signals:
-          // `templateNovel` (found + unconfirmed → `novel_template`) and
-          // `ocrUnverified` (OCR capture with no confirmed template basis — the
-          // omitted/foreign-templateId bypass #554 closes → `unverified_template`).
-          // The two are DISJOINT (a capture fires at most one). Each fired signal is
-          // injected into the SCORE's firedSignals → forces cRaw=0 → HELD regardless
-          // of calibration. Server-side + fail-closed (a client can neither forge
-          // nor omit past them), so they compose into the AND as ADDED holds, never
-          // a release. Read in-tx even for non-auto-apply candidates so the score is
-          // honest; skipped for a human key (nothing to hold).
+          // [S8] The veto is evaluated ONLY when the write would otherwise
+          // auto-apply (a confidence/amount hold needs neither lookup). When it is
+          // skipped (`!confidenceOk`), the audit must say so honestly: a
+          // not-evaluated veto is NOT a passed one, so persist a `{skipped:true}`
+          // shape instead of the ambiguous `{held:false, signals:[]}`. The enforced
+          // `veto.held` below is still false when skipped, but `autoApply` already
+          // fails on `confidenceOk` so the decision is unchanged — this is an
+          // audit-shape change only (no pre-launch behavior change).
+          const vetoAudit: VetoResult | { skipped: true; reason: string } =
+            confidenceOk
+              ? veto
+              : {
+                  skipped: true,
+                  reason: amountHold
+                    ? "amount_hold"
+                    : "confidence_below_threshold",
+                }
+          // [WS-2 / B1.5 / #554 / S7] Server-DERIVED OCR-template basis screen. Run
+          // for ANY AI-attributed write (`actorKind === "ai_on_behalf"` — the #517
+          // taxonomy: an agent key OR a human driving an AI via conversationId), NOT
+          // only a bare agent key. An OCR capture routed through an AI assistant on a
+          // human key is exactly as much an AI write as one on an agent key, so it
+          // must face the same template scrutiny; the old agent-key-only gate left
+          // that `ai_on_behalf` path unscreened. Broadening is TIGHTENING-only — the
+          // screen only ADDS holds (a client cannot forge or omit past it), so
+          // widening the actor set can never release a write. ONE in-tx fetch yields
+          // both add-only hold signals: `templateNovel` (found + unconfirmed →
+          // `novel_template`) and `ocrUnverified` (OCR capture with no confirmed
+          // template basis — the omitted/foreign-templateId bypass #554 closes →
+          // `unverified_template`). The two are DISJOINT (a capture fires at most
+          // one). Each fired signal is injected into the SCORE's firedSignals →
+          // forces cRaw=0 → HELD regardless of calibration. Read in-tx even for
+          // non-auto-apply candidates so the score is honest; skipped for a bare
+          // human key (nothing to hold).
           const { templateNovel, ocrUnverified } =
-            principal.actorKind === "agent" && opts.screenTemplateBasis
+            actorKind === "ai_on_behalf" && opts.screenTemplateBasis
               ? await opts.screenTemplateBasis(db)
               : { templateNovel: false, ocrUnverified: false }
           const serverDerivedSignals: string[] = [
@@ -416,7 +449,11 @@ export async function runGatedWriteWithSeams<T>(
           // is the `output_json.serverGate` payload — audit-only, stripped from
           // the replay body.
           const serverGate = {
-            veto,
+            // [S8] `vetoAudit` = the real verdict when evaluated, or a
+            // `{skipped:true, reason}` marker when a confidence/amount hold meant
+            // the veto never ran (honest audit; readers treat `skipped` as
+            // "not evaluated").
+            veto: vetoAudit,
             score: {
               cRaw: score.cRaw,
               cFinal: score.cFinal,

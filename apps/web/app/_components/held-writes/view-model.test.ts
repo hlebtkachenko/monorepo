@@ -705,6 +705,21 @@ describe("holdReasonsFrom", () => {
     ])
   })
 
+  it("[S8] treats a skipped veto as not-evaluated (surfaces no veto reason)", () => {
+    // A sub-threshold write records `veto: {skipped:true}` instead of {held:false}.
+    // holdReasonsFrom must not mistake it for a held/evaluated veto — only the
+    // score reasons surface, never a veto line.
+    const reasons = holdReasonsFrom({
+      serverGate: {
+        veto: { skipped: true, reason: "confidence_below_threshold" },
+        score: { reasons: ["below green threshold 0.9", "green"] },
+      },
+    })
+    expect(reasons).toEqual([
+      "Jistota pod prahem pro automatické zaúčtování (0.9)",
+    ])
+  })
+
   it("decodes score reasons and drops the literal 'green'", () => {
     const reasons = holdReasonsFrom({
       serverGate: {

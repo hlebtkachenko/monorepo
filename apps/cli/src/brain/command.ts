@@ -165,7 +165,8 @@ export function registerBrainCommand(program: Command): void {
         "extractionMethod=structured), OR a single PDF/image + --extracted <ir.json> (the IR a `brain extract` " +
         "vision-OCR pre-pass produced → extractionMethod=ocr, the W1.4 extract→book bridge). --dry-run " +
         "assembles + prints only, no creds. NOTE: periodId/seriesId/eventId are OPERATOR-SUPPLIED via " +
-        "--context (like `brain run`), NOT MCP-resolved.",
+        "--context (like `brain run`), NOT MCP-resolved. Once the `brain event` write is approved, pass its " +
+        "applied eventId via --after-event to fill the context's eventId without hand-editing the JSON.",
     )
     .argument(
       "<path>",
@@ -181,6 +182,12 @@ export function registerBrainCommand(program: Command): void {
         "a single PDF/image (the OCR extract→book bridge); ignored for a folder.",
     )
     .option(
+      "--after-event <eventId>",
+      "The APPLIED accounting-event uuid, copied off /approvals after the `brain event` write was approved. " +
+        "Overrides (or supplies) the --context captureContext.eventId, so the operator never hand-edits the " +
+        "JSON post-approval. Operator-supplied verbatim — no server read.",
+    )
+    .option(
       "--dry-run",
       "Assemble + print the capture plan only; contact no endpoint (no creds needed)",
     )
@@ -194,6 +201,7 @@ export function registerBrainCommand(program: Command): void {
         opts: {
           context: string
           extracted?: string
+          afterEvent?: string
           dryRun?: boolean
           yes?: boolean
         },
@@ -205,7 +213,10 @@ export function registerBrainCommand(program: Command): void {
           return
         }
 
-        const ctx = readBookContext(opts.context)
+        const ctx = applyAfterEvent(
+          readBookContext(opts.context),
+          opts.afterEvent,
+        )
         const book = assembleBookPlan(path, ctx, new Date().toISOString())
 
         // Print the assembled plan (the operator-inspects-then-verbatim-embed property), then run the shared
@@ -718,6 +729,47 @@ function readBookContext(path: string): BookContext {
   ) as BookContext
 }
 
+/** RFC-4122 uuid (any version — the DB mints uuidv7, whose version nibble is 7, still a valid uuid). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Validate an operator-pasted uuid flag at the CLI boundary, trimming incidental paste whitespace. A slip
+ * (truncation / trailing space / wrong field) fails HERE with a named flag, not as an opaque server 4xx later.
+ */
+function assertUuid(value: string, flag: string): string {
+  const id = value.trim()
+  if (!UUID_RE.test(id)) {
+    throw new Error(
+      `${flag} must be a uuid (the applied accounting-event id copied from /approvals), got ${JSON.stringify(value)}`,
+    )
+  }
+  return id
+}
+
+/**
+ * Apply the `--after-event <eventId>` override to a book context. The EVENT write (`brain event`) HELDs and
+ * only earns its real `accounting_event` uuid when a human APPROVES it at `/approvals`; the `book` step that
+ * hangs its capture line off that event therefore cannot know the id until then. Rather than hand-edit the
+ * `--context` JSON post-approval, the operator copies the applied eventId off the review screen and passes it
+ * here — it overrides (or supplies) `captureContext.eventId` verbatim. The id is OPERATOR-SUPPLIED, never
+ * resolved from a server read (the agent key is 403 on the entire held-writes surface + `output_json`); the
+ * server still re-checks tenancy + existence at write time. Absent the flag this is the identity.
+ */
+export function applyAfterEvent(
+  ctx: BookContext,
+  afterEvent: string | undefined,
+): BookContext {
+  if (afterEvent === undefined) return ctx
+  return {
+    ...ctx,
+    captureContext: {
+      ...ctx.captureContext,
+      eventId: assertUuid(afterEvent, "--after-event"),
+    },
+  }
+}
+
 /** True when `path` is a single PDF/image FILE (not a directory) — the OCR extract→book bridge (W1.4) path. */
 function isVisionFile(path: string): boolean {
   return !statSync(path).isDirectory() && isVisionMediaPath(path)
@@ -736,6 +788,7 @@ async function runOcrBook(
   opts: {
     context: string
     extracted?: string
+    afterEvent?: string
     dryRun?: boolean
     yes?: boolean
   },
@@ -751,7 +804,10 @@ async function runOcrBook(
   }
 
   const invoice = readExtractedInvoice(opts.extracted)
-  const plan = assembleOcrCapturePlan(invoice, readBookContext(opts.context))
+  const plan = assembleOcrCapturePlan(
+    invoice,
+    applyAfterEvent(readBookContext(opts.context), opts.afterEvent),
+  )
 
   // One-record "entries" so the shared tail below drives the OCR plan through the exact same
   // inspect→confirm→book choreography as a folder — [1/1] invoice — <locator>, then the live loop.

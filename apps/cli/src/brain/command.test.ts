@@ -3,7 +3,12 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { planBrainDryRun, type OnboardingPlan } from "@workspace/intake"
-import { confirmOnboardingExecute, readInputs } from "./command"
+import {
+  applyAfterEvent,
+  confirmOnboardingExecute,
+  readInputs,
+} from "./command"
+import type { BookContext } from "./book"
 
 // [W1.3] `brain run --inputs <file.json>` used to break on the IR money fields: they are `bigint` minor
 // units (haléř) in TypeScript, but `JSON.parse` produces `number`, so the values arrived as the wrong type
@@ -178,6 +183,71 @@ describe("confirmOnboardingExecute fail-closed posture", () => {
     // readline prompt — so a non-interactive run can never hang or auto-approve.
     expect(writeSpy).toHaveBeenCalledWith(
       expect.stringContaining("non-interactive"),
+    )
+  })
+})
+
+describe("applyAfterEvent (brain book --after-event) [WP2 Task 2.3, #578]", () => {
+  // A minimal BookContext — applyAfterEvent only ever reads/writes captureContext.eventId and spreads the
+  // rest, so the sections + other capture fields need only be present, not exercised.
+  const baseCtx = (): BookContext =>
+    ({
+      sections: {
+        constitution: "I1..In (locked)",
+        kb: { id: "kb-1", version: "2026-07-01" },
+        lawSummary: "law digest",
+        confidenceProtocol: "server scores; the model never self-scores",
+        escalationPolicy: "route hard cases to a human",
+      },
+      captureContext: {
+        periodId: "00000000-0000-4000-8000-000000000001",
+        seriesId: "00000000-0000-4000-8000-000000000002",
+        eventId: "00000000-0000-4000-8000-00000000000a",
+        confidence: 0.95,
+        rationale: "Standard domestic service invoice, VAT 21% deductible.",
+      },
+    }) as unknown as BookContext
+
+  const APPLIED = "018f9a1b-2c3d-7e4f-8a5b-6c7d8e9f0a1b" // an applied event uuid (uuidv7 shape)
+
+  it("is the identity when --after-event was not passed", () => {
+    const ctx = baseCtx()
+    expect(applyAfterEvent(ctx, undefined)).toBe(ctx)
+  })
+
+  it("overrides captureContext.eventId with the operator-supplied applied uuid", () => {
+    const out = applyAfterEvent(baseCtx(), APPLIED)
+    expect(out.captureContext.eventId).toBe(APPLIED)
+    // The other capture fields ride through untouched (spread, not rebuilt).
+    expect(out.captureContext.periodId).toBe(
+      "00000000-0000-4000-8000-000000000001",
+    )
+    expect(out.captureContext.seriesId).toBe(
+      "00000000-0000-4000-8000-000000000002",
+    )
+  })
+
+  it("does not mutate the input context (returns a fresh object)", () => {
+    const ctx = baseCtx()
+    const before = ctx.captureContext.eventId
+    applyAfterEvent(ctx, APPLIED)
+    expect(ctx.captureContext.eventId).toBe(before)
+  })
+
+  it("trims incidental paste whitespace off the uuid", () => {
+    const out = applyAfterEvent(baseCtx(), `  ${APPLIED}\n`)
+    expect(out.captureContext.eventId).toBe(APPLIED)
+  })
+
+  it("rejects a non-uuid value at the boundary (paste slip fails here, not as a server 4xx)", () => {
+    expect(() => applyAfterEvent(baseCtx(), "not-a-uuid")).toThrow(
+      /--after-event must be a uuid/,
+    )
+  })
+
+  it("rejects a truncated uuid", () => {
+    expect(() => applyAfterEvent(baseCtx(), APPLIED.slice(0, 20))).toThrow(
+      /--after-event/,
     )
   })
 })

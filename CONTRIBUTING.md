@@ -47,12 +47,19 @@ Before opening a PR:
 
 ## Pull Requests
 
+Small, single-concern PRs, squash-merged. The full convention (sizing,
+cache-buster isolation, preflight, merge method, grouping related PRs) lives in
+[`docs/conventions/PR-WORKFLOW.md`](docs/conventions/PR-WORKFLOW.md).
+
 Use `gh pr create` with a clear title and body that includes:
 
 - Summary (1-3 bullets).
 - Changelog entry under `CHANGELOG.md` `## [Unreleased]` for every non-release PR.
 - Test plan (markdown checklist).
 - Linked issue or ADR if applicable.
+
+Run `pnpm preflight` before pushing. Keep PRs under ~800 added lines (the
+`size-cap` check warns there, hard-fails at 2,000).
 
 ## Local Development
 

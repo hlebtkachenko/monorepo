@@ -6,7 +6,7 @@ Normative repository rules enforced by tooling or review.
 - [`CODE-REVIEW.md`](CODE-REVIEW.md): author and reviewer checklist
 - [`COMMITS.md`](COMMITS.md): commit format
 - [`ENDPOINT-ADDITION.md`](ENDPOINT-ADDITION.md): public endpoint contract rules
-- [`PR-WORKFLOW.md`](PR-WORKFLOW.md): PR sizing, cache-buster isolation, squash-only, merge queue
+- [`PR-WORKFLOW.md`](PR-WORKFLOW.md): PR sizing, cache-buster isolation, preflight, squash-only
 - [`RELEASES.md`](RELEASES.md): versions and release workflow
 - [`SECRETS-AND-VARIABLES.md`](SECRETS-AND-VARIABLES.md): secrets and configuration placement rules
 - [`code-naming.md`](code-naming.md): code naming rules

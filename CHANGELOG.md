@@ -16,6 +16,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
 - Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main
 - Dev bot no longer opens GitHub issues for transient CI failures or runtime app errors — those now alert Telegram only; issues stay reserved for security-scan, blocking accounting-gate, and user-feedback signals
 - Bump production dependencies group: react-hook-form 7.81.0, recharts 3.9.2, @nestjs/{common,core,platform-express} 11.1.28, @anthropic-ai/claude-agent-sdk 0.3.205, @fortawesome/react-fontawesome 3.4.0, @openfga/syntax-transformer 0.2.2 (supersedes stale Dependabot #699 and #782)

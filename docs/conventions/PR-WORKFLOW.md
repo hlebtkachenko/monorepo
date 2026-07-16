@@ -112,6 +112,27 @@ speed.
    rebase. Give each in-flight PR a non-overlapping file/package territory; one
    concern per PR is necessary but not sufficient.
 
+8. **One branch per PR; start each PR from fresh main.** A branch is one PR is one
+   concern. On squash-merge the branch is auto-deleted (remote) and is now behind
+   main — never continue new work on a merged branch. Before starting any new unit
+   of work, check where you are and don't duplicate a branch Conductor or Hleb
+   already made:
+
+   ```bash
+   git branch --show-current           # where am I?
+   git fetch origin main
+   ```
+
+   - If the current branch is the just-merged one (its upstream is gone —
+     `git status` says "gone", or it appears in `git branch -vv | grep ': gone]'`)
+     or is `main` itself: do **not** start committing here.
+   - First check whether Hleb or Conductor already opened a fresh workspace/branch
+     for the next task; if so, work there — do not create a competing branch.
+   - Otherwise cut a new branch off updated main:
+     `git switch main && git pull && git switch -c <type>/<concern>`.
+
+   Never carry unrelated new work onto a branch whose PR already merged.
+
 ## Repo settings this convention assumes
 
 Applied via repo settings / `gh api -X PATCH repos/{owner}/{repo}`:
@@ -147,9 +168,13 @@ PRs, confirm the code jobs actually ran.
 
 ## Grouping related PRs
 
-When one change spans many PRs (a campaign — e.g. the same fix applied across 20
-pages), make the connection visible in three places so releases can be split along
-campaign boundaries:
+Only for a genuine **campaign** — one change that legitimately spans many PRs
+(e.g. the same fix applied across 20 pages). A normal single PR needs **no issue
+and no epic** — it stands on its own. And even for a campaign, the scope +
+changelog grouping below needs no issue at all; the tracking issue is optional,
+added only when you want the timeline view for release-splitting. **Never open an
+issue per PR** — that is noise, not tracking. When you do group a campaign, one
+issue for the whole campaign, and make the connection visible in three places:
 
 - **Tracking issue.** Open one `Type: EPIC` issue for the campaign and put
   `Refs #<epic>` in every PR body. GitHub then shows all of them in the issue

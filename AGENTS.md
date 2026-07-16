@@ -375,16 +375,25 @@ The rules agents must follow:
   and merge bottom-up (no Graphite). A child's required checks run against its
   parent, not main — never merge a child until its parent lands and the child is
   rebased onto main and re-checked green.
+- **One branch per PR; start each PR from fresh main.** A branch is one PR is one
+  concern; on squash-merge it auto-deletes and is now behind main. Never carry new
+  work onto a merged branch. Before starting a new unit of work:
+  `git branch --show-current` + `git fetch origin main`; if you are on the
+  just-merged branch (upstream `gone`) or on `main`, do not commit there — first
+  check whether Hleb/Conductor already opened a fresh workspace/branch for the next
+  task (work there, don't duplicate it), otherwise
+  `git switch main && git pull && git switch -c <type>/<concern>`.
 
-**Grouping related PRs** (a campaign that spans many PRs — e.g. one fix applied
-across 20 pages): open a tracking issue (`Type: EPIC`) and put `Refs #<epic>` in
-every PR body; use one shared conventional-commit scope across the campaign
-(`fix(<scope>): ...`) so `git log --grep '(<scope>)'` and the `(#N)` on each
-squash commit cluster them; and prefix the campaign's `CHANGELOG.md` entries with
-the same `#<epic>` ref. That makes the connection visible in the issue timeline,
-`git log`, and the changelog, so releases can be split along campaign boundaries.
-Optionally add a `epic:<slug>` label (`gh pr list --label epic:<slug>`) and/or a
-GitHub Milestone per release bucket to drag PRs into a planned release.
+**Grouping related PRs** — only for a genuine campaign (one change spanning many
+PRs, e.g. one fix across 20 pages). A normal single PR needs **no issue and no
+epic**; never open an issue per PR (that is noise). When a campaign is worth
+grouping: one `Type: EPIC` tracking issue for the whole campaign with `Refs
+#<epic>` in each PR body, one shared conventional scope (`fix(<scope>): ...`) so
+`git log --grep '(<scope>)'` + the `(#N)` squash commits cluster, and a `#<epic>`
+prefix on the campaign's `CHANGELOG.md` entries. The tracking issue is optional —
+the scope + changelog grouping alone needs no issue; add the issue only for the
+timeline view when splitting releases. Optional extras: `epic:<slug>` label and a
+GitHub Milestone per release bucket.
 
 ## Changelog Requirement
 

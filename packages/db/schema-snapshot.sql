@@ -1840,6 +1840,20 @@ CREATE TABLE public.booking_template (
 ALTER TABLE ONLY public.booking_template FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: brain_admission_slot; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.brain_admission_slot (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    scope text NOT NULL,
+    scope_key text NOT NULL,
+    instance_id text NOT NULL,
+    acquired_at timestamp with time zone DEFAULT now() NOT NULL,
+    heartbeat_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT brain_admission_slot_scope_check CHECK ((scope = ANY (ARRAY['global'::text, 'org'::text])))
+);
+
+--
 -- Name: brain_confident_wrong; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3135,6 +3149,13 @@ ALTER TABLE ONLY public.booking_template
     ADD CONSTRAINT booking_template_pkey PRIMARY KEY (id);
 
 --
+-- Name: brain_admission_slot brain_admission_slot_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.brain_admission_slot
+    ADD CONSTRAINT brain_admission_slot_pkey PRIMARY KEY (id);
+
+--
 -- Name: brain_confident_wrong brain_confident_wrong_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3984,6 +4005,12 @@ CREATE INDEX auth_verification_workspace_idx ON public.auth_verification USING b
 --
 
 CREATE UNIQUE INDEX booking_template_confirmed_signature_unique ON public.booking_template USING btree (workspace_id, counterparty_key, direction, supply_kind, jurisdiction) WHERE (human_confirmed_at IS NOT NULL);
+
+--
+-- Name: brain_admission_slot_scope_key_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX brain_admission_slot_scope_key_idx ON public.brain_admission_slot USING btree (scope, scope_key);
 
 --
 -- Name: counterparty_workspace_ico_unique; Type: INDEX; Schema: public; Owner: -

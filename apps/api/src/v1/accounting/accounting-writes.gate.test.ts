@@ -14,7 +14,8 @@ import { deriveCaptureVeto } from "./accounting-veto"
 
 // Mock the DB I/O the gate performs, plus the marshrutizátor primitives. The
 // admission singleton (imported transitively by the gate) constructs an
-// `AdmissionController` at load, so the mock must expose a usable (permissive)
+// admission controller at load (the in-memory one unless
+// ACCOUNTING_ADMISSION_SHARED=1), so the mock must expose a usable (permissive)
 // one + the `AdmissionRejected` class so the gate's `instanceof` map fires.
 // The admission caps/kill-switch logic itself is covered in packages/db.
 vi.mock("@workspace/db", () => {
@@ -26,9 +27,16 @@ vi.mock("@workspace/db", () => {
       this.reason = reason
     }
   }
-  class AdmissionController {
+  class InMemoryAdmissionController {
     acquire(): { release: () => void } {
       return { release: () => {} }
+    }
+  }
+  // The DB controller is only constructed when ACCOUNTING_ADMISSION_SHARED=1
+  // (unset in tests); a stub keeps the singleton's static import resolvable.
+  class DbAdmissionController {
+    acquire(): Promise<{ release: () => void }> {
+      return Promise.resolve({ release: () => {} })
     }
   }
   return {
@@ -45,7 +53,8 @@ vi.mock("@workspace/db", () => {
     // entry. Default (0) = breaker closed / clean pass; overridden per-test to
     // exercise the >0 (refuse) and unreadable (refuse) fail-closed legs.
     readConfidentWrongCount: vi.fn(),
-    AdmissionController,
+    InMemoryAdmissionController,
+    DbAdmissionController,
     AdmissionRejected,
   }
 })

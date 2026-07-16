@@ -15,6 +15,7 @@ import {
   type LaneHandler,
 } from "./lanes/registry"
 import "./lanes/permissions-drain"
+import "./lanes/admission-reaper"
 
 /**
  * Shared failure-notify hook (OBS-15): every lane handler is bound through
@@ -69,7 +70,19 @@ export async function boot(connectionString: string): Promise<WorkersBoot> {
 
   for (const name of laneNames()) {
     const lane = getLane(name)
+    // pg-boss v12 requires a queue to exist before work()/schedule(). createQueue
+    // is idempotent (ON CONFLICT DO NOTHING), so this is safe on every boot.
+    await boss.createQueue(lane.name)
     await boss.work(lane.name, lane.options ?? {}, withFailureNotify(lane))
+    // Self-triggering lanes (e.g. the admission-slot backstop reaper) declare a
+    // cron; enqueue it on that schedule so no external scheduler is needed.
+    if (lane.schedule) {
+      await boss.schedule(
+        lane.name,
+        lane.schedule.cron,
+        lane.schedule.data ?? null,
+      )
+    }
   }
 
   let stopped = false

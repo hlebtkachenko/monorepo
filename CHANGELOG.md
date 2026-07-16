@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- Brain admission caps: cross-instance concurrent-run enforcement via Postgres `brain_admission_slot` (migration 0063) behind `ACCOUNTING_ADMISSION_SHARED=1`, with an inline dead-holder reap and a pg-boss backstop reaper (#472)
+
 ## [v0.23.1] — 2026-07-16
 
 ### Added

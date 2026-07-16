@@ -15,14 +15,18 @@
 // the model MUST NOT assert its own confidence — green is a pure function of the SERVER-side gate over infra
 // signals (see ../gate/gate.ts). Writes go through the accounting API/MCP endpoint, never a raw DB path.
 //
-// M1.2 (the reasoning lane): the preamble's rule 4 is the injection-resistance argument for "Brain thinks."
-// The model now reasons the transaction TYPE from a document (something it previously never did), but the
-// treatment (VAT mode / předkontace scenario / accounts) is never the model's own assertion — it is always
-// `classify_accounting_event`'s server-computed answer, and that answer is threaded onto the write body by the
-// HARNESS, deterministically and NARROW-ONLY (never by the model). So the reversal is narrow and bounded: the
-// model gained "which facts to reason," never "which treatment to apply" and never "edit the payload." Rules
-// 1-3 (no self-scored confidence, no gate bypass) are untouched and still apply verbatim to whatever the model
-// proposes after classifying; every write is still HELD/gated by the SERVER exactly as before.
+// The reasoning lane: the preamble's rule 4 is the injection-resistance argument for "Brain thinks." The
+// model reasons the transaction TYPE from a document (something it previously never did), but the treatment
+// (VAT mode / předkontace scenario / accounts) is never the model's own assertion — it is always
+// `classify_accounting_event`'s server-computed answer. Nothing threads that answer onto the write body: the
+// model submits the operator-inspected capture payload VERBATIM and reports any classify-vs-payload mismatch
+// as a reviewer discrepancy, and the SERVER gate is the SOLE treatment authority that HOLDS every special
+// regime for human review. (An earlier increment tried to thread classify onto the capture at the launcher's
+// `canUseTool` seam, but that seam was dead — bare-allowlisted tools bypass `canUseTool` — and it was removed;
+// real threading is deferred until the IR carries a document-grounded supplyKind, see #578.) So the reversal
+// is narrow and bounded: the model gained "which facts to reason," never "which treatment to apply" and never
+// "edit the payload." Rules 1-3 (no self-scored confidence, no gate bypass) are untouched and still apply
+// verbatim to whatever the model proposes after classifying; every write is still HELD/gated by the SERVER.
 
 import {
   BRAIN_ACCOUNTING_POLICY,

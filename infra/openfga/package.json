@@ -11,6 +11,6 @@
   "dependencies": {
     "@aws-sdk/client-ssm": "^3.1079.0",
     "@openfga/sdk": "^0.9.6",
-    "@openfga/syntax-transformer": "^0.2.1"
+    "@openfga/syntax-transformer": "^0.2.2"
   }
 }

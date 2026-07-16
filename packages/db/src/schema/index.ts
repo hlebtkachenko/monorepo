@@ -102,3 +102,6 @@ export * from "./booking_template"
 // S3 document store — durable identity of a confirmed upload, workspace-scoped (0057, #518)
 export * from "./inbox_attachment"
 export * from "./inbox_item"
+
+// Brain admission caps — cross-instance concurrent-run slots, admin-plane / NO RLS (0063, #472)
+export * from "./brain_admission_slot"

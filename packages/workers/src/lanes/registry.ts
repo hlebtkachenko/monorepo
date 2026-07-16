@@ -18,6 +18,13 @@ export interface Lane<TData = unknown> {
   readonly name: string
   readonly handler: LaneHandler<TData>
   readonly options?: WorkOptions
+  /**
+   * Optional cron schedule. When set, boot() enqueues a job on this cron via
+   * pg-boss's scheduler, so the lane self-triggers with no external cron (e.g.
+   * a periodic backstop reaper). Lanes without a schedule fire only when a job
+   * is enqueued into their queue by some other path.
+   */
+  readonly schedule?: { readonly cron: string; readonly data?: object | null }
 }
 
 const REGISTRY = new Map<string, Lane>()

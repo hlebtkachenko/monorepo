@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- Brain admission caps: cross-instance concurrent-run enforcement via Postgres `brain_admission_slot` (migration 0063) behind `ACCOUNTING_ADMISSION_SHARED=1`, with an inline dead-holder reap and a pg-boss backstop reaper (#472)
 - pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
 - PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, preflight, squash-only)
 - Document the apps/web/app/_components shared-vs-single-use placement rule + single-use index (README + AGENTS.md)

@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest"
 import {
-  AdmissionController,
+  InMemoryAdmissionController,
   AdmissionRejected,
   isBrainRuntimeActive,
 } from "../src/admission.js"
@@ -34,9 +34,9 @@ describe("isBrainRuntimeActive — kill-switch fails closed", () => {
   })
 })
 
-describe("AdmissionController — kill-switch", () => {
+describe("InMemoryAdmissionController — kill-switch", () => {
   it("rejects every acquire when inactive, even under caps", () => {
-    const ctrl = new AdmissionController(
+    const ctrl = new InMemoryAdmissionController(
       { global: 10, perKey: 10 },
       { isActive: () => false },
     )
@@ -51,9 +51,9 @@ describe("AdmissionController — kill-switch", () => {
   })
 })
 
-describe("AdmissionController — per-key cap", () => {
+describe("InMemoryAdmissionController — per-key cap", () => {
   it("rejects the run over the per-key cap and admits again after release", () => {
-    const ctrl = new AdmissionController(
+    const ctrl = new InMemoryAdmissionController(
       { global: 100, perKey: 2 },
       alwaysActive,
     )
@@ -86,9 +86,9 @@ describe("AdmissionController — per-key cap", () => {
   })
 })
 
-describe("AdmissionController — global cap", () => {
+describe("InMemoryAdmissionController — global cap", () => {
   it("rejects over the global cap across different keys", () => {
-    const ctrl = new AdmissionController(
+    const ctrl = new InMemoryAdmissionController(
       { global: 2, perKey: 10 },
       alwaysActive,
     )
@@ -117,9 +117,9 @@ describe("AdmissionController — global cap", () => {
   })
 })
 
-describe("AdmissionController — release is idempotent", () => {
+describe("InMemoryAdmissionController — release is idempotent", () => {
   it("a double release does not double-free a slot", () => {
-    const ctrl = new AdmissionController({ global: 1, perKey: 1 }, alwaysActive)
+    const ctrl = new InMemoryAdmissionController({ global: 1, perKey: 1 }, alwaysActive)
     const s1 = ctrl.acquire("org-a")
     s1.release()
     s1.release() // no-op
@@ -133,9 +133,9 @@ describe("AdmissionController — release is idempotent", () => {
   })
 })
 
-describe("AdmissionController — construction guards", () => {
+describe("InMemoryAdmissionController — construction guards", () => {
   it("rejects negative or non-integer caps", () => {
-    expect(() => new AdmissionController({ global: -1, perKey: 1 })).toThrow()
-    expect(() => new AdmissionController({ global: 1, perKey: 1.5 })).toThrow()
+    expect(() => new InMemoryAdmissionController({ global: -1, perKey: 1 })).toThrow()
+    expect(() => new InMemoryAdmissionController({ global: 1, perKey: 1.5 })).toThrow()
   })
 })

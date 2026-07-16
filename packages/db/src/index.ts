@@ -72,11 +72,14 @@ export type {
 // stay reusable for a future period-close endpoint.
 export { withPeriodLock, lockPeriodInTx, hashInt } from "./period-lock"
 export {
-  AdmissionController,
+  InMemoryAdmissionController,
+  DbAdmissionController,
   AdmissionRejected,
   isBrainRuntimeActive,
+  reapExpiredAdmissionSlots,
 } from "./admission"
 export type {
+  AdmissionController,
   AdmissionCaps,
   AdmissionSlot,
   AdmissionRejectReason,

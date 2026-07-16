@@ -224,7 +224,10 @@ export async function runGatedWriteWithSeams<T>(
   // documented response for these ops — no contract change).
   let slot: AdmissionSlot
   try {
-    slot = admission.acquire(principal.organizationId)
+    // `await` covers both controllers: a no-op for the synchronous in-memory
+    // form, the DB round-trip for the cross-instance form (#472). A rejection
+    // (kill-switch / cap) rejects the promise → caught below, same as before.
+    slot = await admission.acquire(principal.organizationId)
   } catch (e) {
     if (e instanceof AdmissionRejected) {
       throw new RateLimitedError(

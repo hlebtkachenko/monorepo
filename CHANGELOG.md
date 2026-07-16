@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.23.1] — 2026-07-16
+
 ### Added
 
 - Brain CLI: brain pipeline <pdf> books one document end-to-end (extract vision-OCR IR to event to book) as a single command with two approve clicks; INSTRUCT-AND-EXIT at each human-review gate (prints the held-write reviewId + approval URL + resume command, then exits without polling), resumable via a crash-safe on-disk checkpoint and --after-event <appliedEventId>; composes the existing extract/event/book cores with zero server change (WP2 Task 2.5)

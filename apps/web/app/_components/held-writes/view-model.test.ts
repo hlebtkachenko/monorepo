@@ -878,3 +878,115 @@ describe("groupHeldWritesByCase", () => {
     expect(solo?.writes).toHaveLength(1)
   })
 })
+
+describe("Tier-3 register-card detail sections (buildHeldWriteViewModel.details)", () => {
+  function sourceFor(
+    tool_name: string,
+    input_json: Record<string, unknown>,
+  ): HeldWriteReviewSource {
+    return {
+      id: "write-t3",
+      tool_name,
+      conversation_id: null,
+      rationale: "Tier-3 register-card creator.",
+      counterparty_name: null,
+      input_json,
+      output_json: { status: "held", payloadHash: "hash" },
+    }
+  }
+
+  it("createAsset: name+acquisitionCost in the header, every other field as a labeled detail row", () => {
+    const vm = buildHeldWriteViewModel(
+      sourceFor("createAsset", {
+        periodId: "0196f1de-0000-7000-8000-000000000101",
+        seriesId: "0196f1de-0000-7000-8000-000000000102",
+        name: "Notebook Dell Latitude",
+        category: "TANGIBLE_DEPRECIABLE",
+        accountNumber: "022",
+        commissioningDate: "2025-03-14",
+        acquisitionCost: "45000.00",
+        location: "Praha",
+        // gate envelope — must never surface as a detail row.
+        confidence: 0.6,
+        rationale: "Nová karta majetku",
+      }),
+    )
+    expect(vm.detailsTitle).toBe("Detaily karty majetku")
+    expect(vm.header.caseDescription).toBe("Notebook Dell Latitude")
+    expect(vm.header.totalAmount).toBe("45000.00")
+    expect(vm.header.currency).toBe("CZK")
+    const byLabel = Object.fromEntries(
+      vm.details.map((d) => [d.label, d.value]),
+    )
+    expect(byLabel["Kategorie"]).toBe("hmotný odpisovaný majetek")
+    expect(byLabel["Účet"]).toBe("022")
+    expect(byLabel["Datum zařazení"]).toBe("2025-03-14")
+    expect(byLabel["Umístění"]).toBe("Praha")
+    // The gate envelope is never a detail row.
+    expect(vm.details.some((d) => d.label === "confidence")).toBe(false)
+    expect(vm.details.some((d) => d.label === "rationale")).toBe(false)
+  })
+
+  it("createDepreciationPlan: method label in the header, monthlyAmount as the total", () => {
+    const vm = buildHeldWriteViewModel(
+      sourceFor("createDepreciationPlan", {
+        periodId: "0196f1de-0000-7000-8000-000000000101",
+        assetId: "0196f1de-0000-7000-8000-000000000501",
+        method: "STRAIGHT_LINE",
+        startDate: "2025-03-14",
+        monthlyAmount: "1250.00",
+        expenseAccountNumber: "551",
+        accumulatedAccountNumber: "082",
+      }),
+    )
+    expect(vm.detailsTitle).toBe("Detaily odpisového plánu")
+    expect(vm.header.caseDescription).toBe("Odpisový plán — rovnoměrné odpisy")
+    expect(vm.header.totalAmount).toBe("1250.00")
+    const byLabel = Object.fromEntries(
+      vm.details.map((d) => [d.label, d.value]),
+    )
+    expect(byLabel["Nákladový účet"]).toBe("551")
+    expect(byLabel["Účet oprávek"]).toBe("082")
+  })
+
+  it("createInventoryCount: description as the header, seriesId+countDate as details", () => {
+    const vm = buildHeldWriteViewModel(
+      sourceFor("createInventoryCount", {
+        periodId: "0196f1de-0000-7000-8000-000000000101",
+        seriesId: "0196f1de-0000-7000-8000-000000000102",
+        countDate: "2025-12-31",
+        description: "Roční inventura skladu",
+      }),
+    )
+    expect(vm.detailsTitle).toBe("Detaily inventurního soupisu")
+    expect(vm.header.caseDescription).toBe("Roční inventura skladu")
+    const byLabel = Object.fromEntries(
+      vm.details.map((d) => [d.label, d.value]),
+    )
+    expect(byLabel["Datum inventury"]).toBe("2025-12-31")
+  })
+
+  it("an UNMAPPED future op renders a generic key/value dump (envelope peeled), never blind", () => {
+    const vm = buildHeldWriteViewModel(
+      sourceFor("createSomethingBrandNew", {
+        widgetId: "w-1",
+        quantity: 3,
+        nested: { a: 1 },
+        confidence: 0.6,
+        rationale: "future op",
+        signals: { kbRule: "x" },
+      }),
+    )
+    expect(vm.detailsTitle).toBe("Nestrukturovaný náhled")
+    const byLabel = Object.fromEntries(
+      vm.details.map((d) => [d.label, d.value]),
+    )
+    expect(byLabel["widgetId"]).toBe("w-1")
+    expect(byLabel["quantity"]).toBe("3")
+    expect(byLabel["nested"]).toBe('{"a":1}')
+    // The gate envelope (confidence/rationale/signals) is stripped, not dumped.
+    expect(vm.details.some((d) => d.label === "confidence")).toBe(false)
+    expect(vm.details.some((d) => d.label === "rationale")).toBe(false)
+    expect(vm.details.some((d) => d.label === "signals")).toBe(false)
+  })
+})

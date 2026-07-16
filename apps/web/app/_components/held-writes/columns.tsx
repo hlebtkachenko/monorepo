@@ -36,6 +36,7 @@ import {
   type HeldWriteEditDraft,
 } from "./edit-panel"
 import type {
+  HeldWriteDetailRow,
   HeldWriteHeader,
   HeldWritePostingLineRow,
   HeldWriteVatSummaryRow,
@@ -78,6 +79,10 @@ export interface HeldWriteListRow {
   posting_lines: HeldWritePostingLineRow[]
   /** [M1.7] "double" / "monetary" for a posting, else null. */
   posting_kind: "double" | "monetary" | null
+  /** Labeled key/value detail rows (Tier-3 register cards + generic fallback) — empty for document-centric ops. */
+  details: HeldWriteDetailRow[]
+  /** Heading for the `details` section, or null when there are none. */
+  details_title: string | null
   /**
    * [WS-2] OCR extraction template this write was derived from (audit
    * `serverGate.templateId`), or null for structured-export writes.
@@ -91,6 +96,9 @@ const TOOL_LABELS: Record<string, string> = {
   createAccountingEvent: "Účetní případ",
   captureAccountingDocument: "Doklad",
   createAccountingPosting: "Zápis",
+  createAsset: "Karta majetku",
+  createDepreciationPlan: "Odpisový plán",
+  createInventoryCount: "Inventura",
 }
 
 export function toolLabel(tool: string): string {
@@ -549,6 +557,40 @@ function HeldWriteHeaderCard({ header }: { header: HeldWriteHeader }) {
   )
 }
 
+/**
+ * Labeled key/value detail section — the Tier-3 register-card creators
+ * (createAsset / createDepreciationPlan / createInventoryCount) and the generic
+ * fallback for any unmapped op, so the reviewer sees every payload field instead
+ * of a blank header. Renders nothing when the tool has no details.
+ */
+function DetailsCard({
+  details,
+  title,
+}: {
+  details: HeldWriteDetailRow[]
+  title: string | null
+}) {
+  if (details.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      {title ? (
+        <span className="text-xs font-medium text-muted-foreground">
+          {title}
+        </span>
+      ) : null}
+      <dl className="flex flex-col gap-3 rounded-md border bg-muted/30 p-3">
+        {details.map((d) => (
+          <DetailField
+            key={d.label}
+            label={d.label}
+            value={<span className="break-all tabular-nums">{d.value}</span>}
+          />
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 /** Per-VAT-rate base/VAT rollup — empty for tools with no VAT lines (events, postings). */
 function VatSummaryTable({
   rows,
@@ -769,6 +811,7 @@ export function HeldWriteDetailBody({
       ) : (
         <>
           <HeldWriteHeaderCard header={row.header} />
+          <DetailsCard details={row.details} title={row.details_title} />
           <VatSummaryTable
             rows={row.vat_summary}
             currency={row.header.currency}

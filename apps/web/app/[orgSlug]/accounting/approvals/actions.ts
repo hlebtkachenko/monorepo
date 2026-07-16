@@ -5,7 +5,6 @@ import { z } from "zod"
 import {
   eq,
   executeRows,
-  lockPeriodInTx,
   recordConfidentWrong,
   sql,
   unconfirmTemplateOnReject,
@@ -15,25 +14,11 @@ import {
 } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 import {
-  captureAndBookIfInvoice,
-  createAsset,
-  createDepreciationPlan,
-  createEvent,
-  createInventoryCount,
+  executeHeldWrite,
+  HELD_WRITE_STALE_MESSAGE,
   mintInboxItem,
-  postWithObligation,
-  type AssetInput,
-  type DepreciationPlanInput,
-  type DocumentInput,
-  type EventInput,
-  type InventoryCountInput,
-  type ObligationDirective,
-  type PostWithObligationInput,
 } from "@workspace/accounting"
-import {
-  INBOX_STAMPED_OPERATION_IDS,
-  stripGateEnvelope,
-} from "@workspace/shared/api"
+import { INBOX_STAMPED_OPERATION_IDS } from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
 import {
@@ -77,6 +62,12 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /**
+   * [S1 / G2-R1 rider] The original author — an approver may not approve their
+   * OWN held write (author != approver). Mirrors the API backstop at
+   * `held-writes.controller.ts` so the web door is not weaker than the API one.
+   */
+  user_id: string | null
   /** [Tier 4] Actor that authored the write → inbox_item.created_by provenance. */
   actor_kind: string
   /** [Tier 4] The agent's rationale → inbox_item.reasoning. */
@@ -93,6 +84,13 @@ interface HeldLogRow {
    * full-column replace. `null` for a pre-W1.5 row with no shadow score.
    */
   server_gate: unknown
+  /**
+   * [S3] The gate's `output_json.payloadHash`, forwarded across resolve so a
+   * post-resolve same-key replay returns the recorded outcome instead of a
+   * misleading 409 (the gate replay compares the stored hash). `null` for a row
+   * the gate stored without one.
+   */
+  payload_hash: string | null
 }
 
 /**
@@ -123,6 +121,16 @@ export async function resolveHeldWrite(
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) {
     return { ok: false, error: "Organizace nebyla nalezena." }
+  }
+
+  // [S2] Role gate (D3): only owner/admin/member may vyřídit held writes. A guest
+  // or an agent-role membership must never approve an agent's booking into the
+  // ledger — the public API requires a human, user-bound key; this is the web
+  // mirror of that guard, closing the "any active membership can approve" hole.
+  // ALLOWLIST, not a denylist: any future membership role is denied by default
+  // (fail-closed), matching the API's allowlist backstop — do not invert.
+  if (ctx.role !== "owner" && ctx.role !== "admin" && ctx.role !== "member") {
+    return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 
   // The domain writes need the workspace id (OrgCtx); the page context only
@@ -160,9 +168,11 @@ export async function resolveHeldWrite(
           // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
+                     user_id::text as user_id,
                      actor_kind::text as actor_kind, rationale,
                      (output_json->'serverGate'->>'templateId') as template_id,
-                     (output_json->'serverGate') as server_gate
+                     (output_json->'serverGate') as server_gate,
+                     (output_json->>'payloadHash') as payload_hash
               from tool_call_log
               where id = ${id}::uuid
               for update`,
@@ -174,6 +184,32 @@ export async function resolveHeldWrite(
         if (row.auto_applied || row.approved_by_user_id !== null) {
           return { ok: false, error: "Záznam už byl vyřízen." }
         }
+
+        // [S1 / G2-R1 rider] author != approver: a held write can never be
+        // APPROVED by the same user that authored it — the web mirror of the API
+        // backstop (`held-writes.controller.ts`). If the Brain's user-bound key
+        // leaks and the same identity opens the approvals UI, it still cannot
+        // approve its OWN queued writes. Reject by the author stays allowed
+        // (closing a review is not a bypass), matching the API semantics exactly.
+        if (action === "approve" && row.user_id === ctx.userId) {
+          return {
+            ok: false,
+            error:
+              "Návrh nemůže schválit jeho autor; musí ho posoudit jiný uživatel.",
+          }
+        }
+
+        // [S4] Stamp resolvedAt on BOTH approve and reject so the web and API
+        // surfaces write the identical resolved output_json shape (the API side
+        // does the same via `select now()`).
+        const [nowRow] = await executeRows<{ now: Date | string }>(
+          db,
+          sql`select now() as now`,
+        )
+        const resolvedAt =
+          nowRow?.now instanceof Date
+            ? nowRow.now.toISOString()
+            : String(nowRow?.now)
 
         if (action === "reject") {
           // [WS-2] Reject-reset: a booking derived from an OCR template that a
@@ -192,6 +228,7 @@ export async function resolveHeldWrite(
             output: {
               resolution: "rejected",
               note: note ?? null,
+              resolvedAt,
               // [F1 / M3.2] Forward the audit `serverGate` (incl. `.shadow`)
               // FORWARD across resolve — `updateToolCallLogOutput` fully
               // replaces `output_json`, so without this the shadow score
@@ -200,6 +237,11 @@ export async function resolveHeldWrite(
               // matching API-side fix for the full rationale.
               ...(row.server_gate !== null
                 ? { serverGate: row.server_gate }
+                : {}),
+              // [S3] Forward payloadHash so a post-reject same-key replay returns
+              // the recorded outcome instead of a 409 idempotency conflict.
+              ...(row.payload_hash !== null
+                ? { payloadHash: row.payload_hash }
                 : {}),
             },
             approvedByUserId: ctx.userId,
@@ -226,10 +268,15 @@ export async function resolveHeldWrite(
         // result, so an approved-with-edits write is visibly distinguishable
         // from a plain approve.
         const rawInput = (row.input_json ?? {}) as Record<string, unknown>
-        const mergedInput = edit
+        // The reviewer's edit is applied to the ORIGINAL stored payload and handed
+        // to the shared dispatcher as the payload to EXECUTE. The dispatcher
+        // validates the STORED (pre-edit) payload, never the edit — so a
+        // deliberately-signed červené storno amount (§42 / ČÚS 001), which the
+        // unsigned request schema would reject, still books. `undefined` when the
+        // reviewer made no edit ⇒ the dispatcher executes the validated payload.
+        const editedInput = edit
           ? applyHeldWriteEdit(row.tool_name, rawInput, edit)
-          : rawInput
-        const fields = stripGateEnvelope(mergedInput)
+          : undefined
 
         // [Tier 4] Mint the provenance record for this landed proposal and thread
         // its id onto the ctx, so every row the replay INSERTs carries inbox_id
@@ -256,144 +303,20 @@ export async function resolveHeldWrite(
             : null
         const writeCtx = { ...orgCtx, inboxId }
 
-        let applied: Record<string, unknown>
-        switch (row.tool_name) {
-          case "createAccountingEvent": {
-            await lockPeriodInTx(
-              db,
-              orgCtx.organizationId,
-              (fields as { periodId: string }).periodId,
-            )
-            const ev = await createEvent(db, writeCtx, {
-              ...fields,
-              responsibleUserId: ctx.userId,
-            } as unknown as EventInput)
-            applied = {
-              eventId: ev.eventId,
-              designation: ev.designation,
-              sequenceNumber: ev.sequenceNumber,
-            }
-            break
-          }
-          case "captureAccountingDocument": {
-            const docInput = fields as unknown as DocumentInput
-            await lockPeriodInTx(db, orgCtx.organizationId, docInput.periodId)
-            // Derive mode: a captured INVOICE is booked deterministically in the
-            // SAME tx, so "approve a captured invoice" lands ONE fully-wired
-            // accounting fact (event + doc + posting per event, every line linked
-            // to its source partial_record) instead of an orphaned capture. The
-            // předkontace is derived from each partial's facts — no caller-supplied
-            // account lines — so what the reviewer previewed IS what posts.
-            // Non-invoice vouchers (cash/bank) do not book through předkontace.
-            // captureAndBookIfInvoice is the SAME unit the API held-write resolve
-            // path uses, so the two approve surfaces can never drift on whether
-            // they book (that drift is what this task closes). It fails closed
-            // (throws → the whole approve rolls back, the row stays held).
-            const { doc, postingIds } = await captureAndBookIfInvoice(
-              db,
-              writeCtx,
-              docInput,
-              ctx.userId,
-            )
-            applied = {
-              summaryRecordId: doc.summaryRecordId,
-              designation: doc.designation,
-              sequenceNumber: doc.sequenceNumber,
-              lines: doc.lines,
-              ...(postingIds ? { postingIds } : {}),
-            }
-            break
-          }
-          case "createAccountingPosting": {
-            const { kind, entry, openObligation } = fields as {
-              kind?: unknown
-              entry?: unknown
-              openObligation?: unknown
-            }
-            await lockPeriodInTx(
-              db,
-              orgCtx.organizationId,
-              (entry as { periodId: string }).periodId,
-            )
-            // postWithObligation, NOT bare post — the stored payload's optional
-            // openObligation directive (top-level domain data, survives
-            // stripGateEnvelope) must replay identically to the API held-write
-            // path (held-writes.controller.ts), or approving the SAME held posting
-            // via the web UI vs the public API would book differently (the web
-            // path would silently drop the saldokonto obligation). #740 wired the
-            // live + API paths; this closes the web replay to match.
-            const posting = await postWithObligation(db, writeCtx, {
-              kind,
-              entry: {
-                ...(entry as Record<string, unknown>),
-                responsibleUserId: ctx.userId,
-              },
-              obligation:
-                (openObligation as ObligationDirective | null | undefined) ??
-                null,
-            } as unknown as PostWithObligationInput)
-            applied = { postingId: posting.postingId, lineIds: posting.lineIds }
-            break
-          }
-          case "createAsset": {
-            // periodId binds the proposal to a period (audit + close-blocking);
-            // it is not domain data for the org-scoped asset card, so peel it off
-            // before the domain insert (same as the API controller).
-            const { periodId, ...cardFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const asset = await createAsset(db, writeCtx, {
-              ...cardFields,
-              responsibleUserId: ctx.userId,
-            } as unknown as AssetInput)
-            applied = {
-              assetId: asset.id,
-              designation: asset.designation,
-              sequenceNumber: asset.sequenceNumber,
-            }
-            break
-          }
-          case "createDepreciationPlan": {
-            const { periodId, ...planFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const planId = await createDepreciationPlan(
-              db,
-              writeCtx,
-              planFields as unknown as Parameters<
-                typeof createDepreciationPlan
-              >[2],
-            )
-            applied = { depreciationPlanId: planId }
-            break
-          }
-          case "createInventoryCount": {
-            const { periodId, ...countFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const count = await createInventoryCount(
-              db,
-              writeCtx,
-              countFields as unknown as Parameters<
-                typeof createInventoryCount
-              >[2],
-            )
-            applied = {
-              inventoryCountId: count.id,
-              designation: count.designation,
-              sequenceNumber: count.sequenceNumber,
-            }
-            break
-          }
-          default:
-            return {
-              ok: false,
-              error: `Neznámá operace: ${row.tool_name}`,
-            }
-        }
+        // Replay through the SHARED dispatcher — the single source of truth both
+        // this action and the public API (`held-writes.controller.ts`) call, so
+        // approving the SAME payload on either surface lands IDENTICAL domain
+        // effects. It validates `rawInput` (the stored payload) against the request
+        // schema (closes the web's missing re-validation), then executes the edited
+        // payload (or the validated stored one when there was no edit).
+        const applied = await executeHeldWrite(
+          db,
+          writeCtx,
+          row.tool_name,
+          rawInput,
+          ctx.userId,
+          editedInput,
+        )
 
         await updateToolCallLogOutput(db, {
           toolCallLogId: id,
@@ -402,11 +325,19 @@ export async function resolveHeldWrite(
           // approved-with-edits write carries its own audit trail.
           output: {
             resolution: "approved",
+            // [S4] note + resolvedAt so web and API write the identical shape.
+            note: note ?? null,
+            resolvedAt,
             ...applied,
             // [F1 / M3.2] See the reject branch above — forward `serverGate`
             // so the shadow score survives resolve.
             ...(row.server_gate !== null
               ? { serverGate: row.server_gate }
+              : {}),
+            // [S3] Forward payloadHash so a post-approve same-key replay returns
+            // the recorded outcome instead of a 409 idempotency conflict.
+            ...(row.payload_hash !== null
+              ? { payloadHash: row.payload_hash }
               : {}),
             ...(edit ? { edit } : {}),
           },
@@ -429,6 +360,16 @@ export async function resolveHeldWrite(
       },
     )
   } catch (err) {
+    // The shared dispatcher 422s a stored payload that no longer validates
+    // against the current request schema; its thrown text is English (for
+    // `translateAccountingError` on the API side), so localize it here.
+    if (err instanceof Error && err.message === HELD_WRITE_STALE_MESSAGE) {
+      return {
+        ok: false,
+        error:
+          "Uložený návrh už neodpovídá aktuálnímu schématu a nelze jej schválit.",
+      }
+    }
     // A domain guard rejected the replayed write (period closed, regime
     // mismatch, missing fx rate, …) — surface the message, keep the row held.
     return {
@@ -479,6 +420,13 @@ export async function markConfidentWrong(
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) {
     return { ok: false, error: "Organizace nebyla nalezena." }
+  }
+
+  // [S2] Role gate (D3): flagging an auto-applied write as confidently wrong is a
+  // ledger-trust mutation — same role floor as resolveHeldWrite (deny guest /
+  // agent). Author guard is N/A here (this acts on a landed write, not a proposal).
+  if (ctx.role !== "owner" && ctx.role !== "admin" && ctx.role !== "member") {
+    return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 
   try {

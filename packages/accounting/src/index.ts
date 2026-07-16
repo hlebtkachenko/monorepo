@@ -54,6 +54,13 @@ export { resolveCounterparty } from "./counterparty"
 export type { CounterpartyIdentity } from "./types"
 export { mintInboxItem, type MintInboxItemInput } from "./inbox"
 
+// Held-write replay dispatcher (shared by the API held-writes controller and the
+// web approvals server action — the single source for approve-replay semantics).
+export {
+  executeHeldWrite,
+  HELD_WRITE_STALE_MESSAGE,
+} from "./held-writes/execute"
+
 // Posting (UC-1 step 4 — Zaúčtování)
 export {
   post,

@@ -8,6 +8,7 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { formatDate, formatDecimal } from "../_shared/accounting-format"
+import { buildSourceColumn } from "../_shared/source-column"
 import { useSaldokonto } from "./context"
 import type { OpenItemRow } from "./data"
 
@@ -167,6 +168,7 @@ export const saldokontoColumns: ColumnDef<OpenItemRow>[] = [
     meta: { label: "Due" },
     enableSorting: true,
   },
+  buildSourceColumn<OpenItemRow>((row) => (row.inboxId ? "agent" : "human")),
   {
     id: "inspect",
     size: 44,

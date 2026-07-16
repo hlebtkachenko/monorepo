@@ -102,7 +102,8 @@ const PARSERS: Partial<
 /** A human-readable reason for a format we detect but have no parser for yet (so it is reported, not silent). */
 const UNWIRED_FORMAT_REASON: Record<string, string> = {
   isdoc:
-    "isdoc parsing is not wired in this package yet — no capture plan produced",
+    "isdoc: packages/filing can PARSE it (readIsdoc), but the IsdocInvoice → Brain-IR " +
+    "capture adapter is not written yet — no capture plan produced (tracked follow-up)",
   pdf: "pdf has no structured parser (needs OCR intake) — no capture plan produced",
   pohoda_db: "native Pohoda backup — re-export as dataPack XML before booking",
   zip: "nested zip — unpack it and re-run book on the extracted files",

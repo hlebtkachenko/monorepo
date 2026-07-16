@@ -11,14 +11,9 @@ import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
 export function accountingNav(base: string): SidebarNavEntry[] {
   return [
     { label: "Overview", href: base, icon: "Calculator" },
-    // "Posting approvals" = the queue where the AI Assistant's automatically
-    // prepared postings wait for a human to review + approve them (the AI→human
-    // schvalovací cesta / approval path).
-    {
-      label: "Posting approvals",
-      href: `${base}/approvals`,
-      icon: "ListChecksIcon",
-    },
+    // HELD-write review (the AI→human schvalovací cesta / approval path) folded
+    // into the Records Inbox ("Ke schválení" view at /{orgSlug}/documents/inbox);
+    // no standalone Accounting leaf.
     {
       label: "Books",
       pages: [

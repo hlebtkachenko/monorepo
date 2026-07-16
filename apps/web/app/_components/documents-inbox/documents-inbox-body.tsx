@@ -19,7 +19,7 @@ import {
 import { Input } from "@workspace/ui/components/input"
 import { Search } from "@workspace/ui/lib/icons"
 
-import { actorLabel, toolLabel, TOOL_OPTIONS } from "../held-writes/columns"
+import { actorLabel, toolLabel, TOOL_OPTIONS } from "../_shared/gated-write"
 import { normalizeSearch } from "../_shared/accounting-format"
 import {
   buildInboxColumns,
@@ -49,7 +49,7 @@ function applySearch(rows: InboxListRow[], query: string): InboxListRow[] {
  * Ingestion inbox body — a READ-ONLY Table archetype over `fetchIngestionInbox`
  * rows (the org's gated writes from `tool_call_log`, every outcome). The
  * inspector shows the row detail; there are no resolution actions here. The
- * approvals page owns approve/reject.
+ * Inbox's "Ke schválení" view (the HELD-write resolve queue) owns approve/reject.
  */
 export function DocumentsInboxBody({ rows }: { rows: InboxListRow[] }) {
   const [search, setSearch] = React.useState("")

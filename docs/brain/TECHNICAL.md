@@ -50,7 +50,7 @@ operator Claude Code
                                      ├─ buildShadowScore (audit-only)           (§3.6 / §4)
                                      └─ updateToolCallLogOutput status=held      (§3.7)
                       ← 202 { status:"held", reviewId }
-  ← operator approves at /{orgSlug}/accounting/approvals   (human-only, agent key 403)   (§2.2)
+  ← operator approves at /{orgSlug}/documents/inbox   (human-only, agent key 403)   (§2.2)
 ```
 
 Everything below expands each hop.

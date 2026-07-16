@@ -8,7 +8,7 @@
 
 The whole point of a cold-start session: **every write is HELD.** The Brain (an `actor_kind='agent'` API key)
 can only _propose_ a capture. The server gate holds it, and you approve/correct it by hand in
-[`/{orgSlug}/accounting/approvals`](#6-review-the-held-writes). The agent key is **denied** the review surface,
+[`/{orgSlug}/documents/inbox`](#6-review-the-held-writes). The agent key is **denied** the review surface,
 so it can never approve its own work.
 
 Everything below is accurate to the merged code. The two entry commands are `afframe brain extract` and
@@ -37,7 +37,7 @@ path the harness scaffold uses; a real document goes through `extract` → `book
           cold start ⇒ extraction_failed floor ⇒ HELD (202)
           shadow score recorded at serverGate.shadow (audit-only)
                                  ▼
-        /{orgSlug}/accounting/approvals   ← Hleb reviews / approves / corrects
+        /{orgSlug}/documents/inbox   ← Hleb reviews / approves / corrects
           (agent key is 403 here — cannot self-approve)
 ```
 
@@ -303,10 +303,10 @@ Held writes are the **human master gate**, and only a human (a member with the o
 them. Open the org web app:
 
 ```
-https://app.afframe.com/{orgSlug}/accounting/approvals
+https://app.afframe.com/{orgSlug}/documents/inbox
 ```
 
-(route: `apps/web/app/[orgSlug]/accounting/approvals/page.tsx`, "Ke schválení"). Each row exposes the full
+(route: `apps/web/app/[orgSlug]/documents/inbox/page.tsx`, "Ke schválení"). Each row exposes the full
 original payload; you **approve, reject, or correct** it via the `resolveHeldWrite` Server Action (a web
 session, not the API).
 

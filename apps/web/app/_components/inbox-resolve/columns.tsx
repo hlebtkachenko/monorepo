@@ -23,7 +23,13 @@ import {
   formatDate,
   formatDecimal,
 } from "../_shared/accounting-format"
-import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
+import {
+  actorLabel,
+  ConfidenceBadge,
+  formatCreatedAt,
+  toolLabel,
+} from "../_shared/gated-write"
+import { resolveHeldWrite } from "./actions"
 
 /** The `resolveHeldWrite` server-action signature — injectable for previews/tests. */
 export type ResolveHeldWriteFn = typeof resolveHeldWrite
@@ -85,61 +91,6 @@ export interface HeldWriteListRow {
   template_id: string | null
   /** Whether that template has been human-confirmed (only meaningful when `template_id` is set). */
   template_confirmed: boolean
-}
-
-const TOOL_LABELS: Record<string, string> = {
-  createAccountingEvent: "Účetní případ",
-  captureAccountingDocument: "Doklad",
-  createAccountingPosting: "Zápis",
-}
-
-export function toolLabel(tool: string): string {
-  return TOOL_LABELS[tool] ?? tool
-}
-
-export const TOOL_OPTIONS = Object.entries(TOOL_LABELS).map(
-  ([value, label]) => ({ label, value }),
-)
-
-const ACTOR_LABELS: Record<string, string> = {
-  agent: "Agent",
-  user: "Uživatel",
-  api_key: "API klíč",
-}
-
-export function actorLabel(actor: string): string {
-  return ACTOR_LABELS[actor] ?? actor
-}
-
-/** "YYYY-MM-DD HH:MM" → "D. M. YYYY HH:MM" (display only, no Date parsing). */
-export function formatCreatedAt(value: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})$/.exec(value)
-  if (!match) return value
-  const [, year, month, day, time] = match
-  return `${Number(day)}. ${Number(month)}. ${year} ${time}`
-}
-
-/** Confidence decimal string ("0.6300") → integer percent (display only). */
-function confidencePercent(confidence: string): number {
-  const n = Number(confidence)
-  return Number.isFinite(n) ? Math.round(n * 100) : 0
-}
-
-/** Badge tinted by the gate outcome band: below 70 % reads as risky. */
-export function ConfidenceBadge({ confidence }: { confidence: string }) {
-  const percent = confidencePercent(confidence)
-  return (
-    <Badge
-      variant="secondary"
-      className={
-        percent < 70
-          ? "bg-destructive/10 text-destructive dark:bg-destructive/20"
-          : undefined
-      }
-    >
-      {percent} %
-    </Badge>
-  )
 }
 
 /**

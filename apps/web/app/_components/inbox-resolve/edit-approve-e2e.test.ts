@@ -29,7 +29,7 @@ import {
   applyHeldWriteEdit,
   HeldWriteEditSchema,
   type HeldWriteEdit,
-} from "../../../_components/held-writes/edit-model"
+} from "./edit-model"
 import { stripGateEnvelope } from "@workspace/shared/api"
 import type {
   AccountNature,

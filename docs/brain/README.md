@@ -56,7 +56,7 @@ worker design still described in the stale `packages/brain/README.md`).
   SERVER WRITE GATE  (runGatedWrite — three-way AND)
         │  cold start ⇒ extraction_failed floor ⇒ 202 HELD  +  a shadow score recorded
         ▼
-  /{orgSlug}/accounting/approvals   ← a human reviews / approves / corrects (the master gate)
+  /{orgSlug}/documents/inbox   ← a human reviews / approves / corrects (the master gate)
 ```
 
 Key consequences of "client, not server":
@@ -197,7 +197,7 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
 4. Follow `docs/runbooks/BRAIN-OPERATOR-SESSION.md`, or paste the bootstrap prompt in
    `docs/runbooks/M2-OPERATOR-BOOTSTRAP-PROMPT.md` into a fresh session.
 5. Book documents (extract → book); each returns `202 HELD`. Review + approve every one at
-   `https://app.afframe.com/{orgSlug}/accounting/approvals`.
+   `https://app.afframe.com/{orgSlug}/documents/inbox`.
 
 ---
 

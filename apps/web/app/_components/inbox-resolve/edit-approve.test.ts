@@ -1,6 +1,6 @@
 /**
  * [M1.7] Integration test for the edit-before-approve flow (A-Z 2.6) inside
- * `resolveHeldWrite`'s approve branch (app/[orgSlug]/accounting/approvals/
+ * `resolveHeldWrite`'s approve branch (app/_components/inbox-resolve/
  * actions.ts): a reviewer-supplied `edit` is merged onto the ORIGINAL
  * `input_json` via `applyHeldWriteEdit` BEFORE `stripGateEnvelope` runs, so
  * the domain call below receives the CORRECTED fields — while `input_json`
@@ -19,10 +19,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 import postgres from "postgres"
 
-import {
-  applyHeldWriteEdit,
-  type HeldWriteEdit,
-} from "../../../_components/held-writes/edit-model"
+import { applyHeldWriteEdit, type HeldWriteEdit } from "./edit-model"
 import { stripGateEnvelope } from "@workspace/shared/api"
 
 process.env["BETTER_AUTH_SECRET"] =

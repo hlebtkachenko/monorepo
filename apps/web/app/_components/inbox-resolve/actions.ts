@@ -35,11 +35,8 @@ import {
   stripGateEnvelope,
 } from "@workspace/shared/api"
 
-import { getOrgAccountingContext } from "../../_lib/accounting-data"
-import {
-  applyHeldWriteEdit,
-  HeldWriteEditSchema,
-} from "../../../_components/held-writes/edit-model"
+import { getOrgAccountingContext } from "../../[orgSlug]/_lib/accounting-data"
+import { applyHeldWriteEdit, HeldWriteEditSchema } from "./edit-model"
 
 const ResolveSchema = z.object({
   orgSlug: z.string().min(1).max(100),
@@ -77,6 +74,13 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /**
+   * [G3 SAFETY — author != approver] The user that AUTHORED this held write.
+   * Selected so approve can refuse when the reviewer is the author, mirroring
+   * the public API's backstop (held-writes.controller.ts). Text-cast for a
+   * plain-string compare against the session `ctx.userId`.
+   */
+  user_id: string | null
   /** [Tier 4] Actor that authored the write → inbox_item.created_by provenance. */
   actor_kind: string
   /** [Tier 4] The agent's rationale → inbox_item.reasoning. */
@@ -160,6 +164,7 @@ export async function resolveHeldWrite(
           // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
+                     user_id::text as user_id,
                      actor_kind::text as actor_kind, rationale,
                      (output_json->'serverGate'->>'templateId') as template_id,
                      (output_json->'serverGate') as server_gate
@@ -173,6 +178,19 @@ export async function resolveHeldWrite(
         }
         if (row.auto_applied || row.approved_by_user_id !== null) {
           return { ok: false, error: "Záznam už byl vyřízen." }
+        }
+
+        // [G3 SAFETY — author != approver] A held write can never be APPROVED by
+        // the same user that authored it — the only server-side backstop against
+        // an agent self-approving through a leaked user-bound key. Mirrors the
+        // public API (held-writes.controller.ts:234-238). Reject is safe (closing
+        // a review is not a bypass), so this gates on `approve` only.
+        if (action === "approve" && row.user_id === ctx.userId) {
+          return {
+            ok: false,
+            error:
+              "Held write cannot be approved by its author; a different user must review it",
+          }
         }
 
         if (action === "reject") {
@@ -438,7 +456,7 @@ export async function resolveHeldWrite(
   }
 
   if (result.ok) {
-    revalidatePath(`/${orgSlug}/accounting/approvals`)
+    revalidatePath(`/${orgSlug}/documents/inbox`)
   }
   return result
 }
@@ -497,6 +515,6 @@ export async function markConfidentWrong(
     }
   }
 
-  revalidatePath(`/${orgSlug}/accounting/approvals`)
+  revalidatePath(`/${orgSlug}/documents/inbox`)
   return { ok: true }
 }

@@ -147,7 +147,7 @@ export async function fetchChartAccounts(
   )
 }
 
-/** "YYYY-MM-DD HH:MM:SS+TZ" (Postgres text) -> "YYYY-MM-DD HH:MM". Shared by the held-writes + inbox pages. */
+/** "YYYY-MM-DD HH:MM:SS+TZ" (Postgres text) -> "YYYY-MM-DD HH:MM". Shared across the inbox held + feed reads. */
 export function trimGatedTimestamp(value: string): string {
   const match = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/.exec(value)
   return match ? `${match[1]} ${match[2]}` : value

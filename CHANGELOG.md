@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Folded the standalone Accounting 'Posting approvals' page into the Records Inbox: HELD-write resolution (approve/reject/edit) now lives in the Inbox 'Ke schválení' view alongside the read-only ingestion feed, and the web resolve action gained the author≠approver guard the API already enforces.
+
 ## [v0.23.0] — 2026-07-16
 
 ### Added

@@ -13,14 +13,14 @@ import {
   formatCreatedAt,
   TOOL_OPTIONS,
   toolLabel,
-} from "../held-writes/columns"
+} from "../_shared/gated-write"
 
 /**
  * One gated write from `fetchIngestionInbox`, prepared by the inbox page for a
  * READ-ONLY overview. Every field is a plain serializable string derived on the
  * server; `status` is the ingestion outcome, `confidence` may be null for rows
- * the gate never scored. Nothing here resolves a write — the approvals page
- * owns approve/reject.
+ * the gate never scored. Nothing here resolves a write — the Inbox's
+ * "Ke schválení" view (`inbox-resolve/*`) owns approve/reject.
  */
 export interface InboxListRow {
   id: string

@@ -28,13 +28,12 @@ import { useIcons } from "@workspace/ui/icon-packs"
 import { Search } from "@workspace/ui/lib/icons"
 
 import { normalizeSearch } from "../_shared/accounting-format"
-import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
+import { actorLabel, toolLabel } from "../_shared/gated-write"
+import { resolveHeldWrite } from "./actions"
 import {
-  actorLabel,
   buildHeldWriteColumns,
   HeldWriteDetailBody,
   HeldWriteDetailFooter,
-  toolLabel,
   type AccountOption,
   type HeldWriteListRow,
   type ResolveHeldWriteFn,

@@ -5,7 +5,7 @@
 // DETERMINISTIC, no agent session: a plain operator-key `client.POST /v1/accounting/events`, exactly like
 // `brain onboard`'s create calls. `invoiceToEvent` (@workspace/intake) is a pure mapping — there is nothing
 // for a model to reason about, so no sandbox is involved. The write is GATED: at cold start it HOLDS
-// (202 → reviewId); a human approves it at /approvals (verifying the extracted {name, ico, dic}), then
+// (202 → reviewId); a human approves it at /documents/inbox (verifying the extracted {name, ico, dic}), then
 // passes the applied eventId to `brain book`. This command emits the identity; the human still reviews it.
 
 import type { AfframeClient } from "@afframe/sdk"
@@ -139,7 +139,7 @@ export function renderEventResult(result: EventExecuteResult): string {
     )
     lines.push("")
     lines.push(
-      "Next: approve it at /{org}/accounting/approvals (a human verifies the extracted counterparty), then",
+      "Next: approve it at /{org}/documents/inbox (a human verifies the extracted counterparty), then",
     )
     lines.push("book the invoice against the APPROVED event:")
     lines.push(

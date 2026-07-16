@@ -116,7 +116,7 @@ STEP 3 — Ensure a bookable accounting EVENT exists, and get its eventId.
     `python3 -c "import uuid;print(uuid.uuid4())"`) — a non-UUID value is rejected 400 by the server. A user-bound
     agent key logs as `ai_on_behalf` and REQUIRES a conversationId; reuse the SAME UUID for every write this
     session (audit correlation). Report the 202 + reviewId.
-  - Then tell me to approve that held event at:  https://app.afframe.com/{orgSlug}/accounting/approvals
+  - Then tell me to approve that held event at:  https://app.afframe.com/{orgSlug}/documents/inbox
     After I approve, read back the now-existing eventId (via the server, using the key) and carry it forward.
   - A cold-start event-create MUST return 202 HELD. The server injects an unconditional `extraction_failed`
     floor on every write at cold start, so green is structurally unreachable — a **201 applied is impossible**.
@@ -146,7 +146,7 @@ STEP 5 — Run the HELD write loop, per document.
   (dry-run then --yes); extractionMethod is stamped "structured"; non-bookable records are skipped.
 
 STEP 6 — Hand the queue back to me.
-  - Tell me to review every held write at:  https://app.afframe.com/{orgSlug}/accounting/approvals
+  - Tell me to review every held write at:  https://app.afframe.com/{orgSlug}/documents/inbox
   - I approve / reject / correct each. You do not touch that queue.
 
 STEP 7 — Report.

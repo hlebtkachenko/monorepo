@@ -99,16 +99,6 @@ export const APP_STRUCTURE: GetStructureResponse = {
           "subpages": []
         },
         {
-          "group": null,
-          "label": "Posting approvals",
-          "route": "accounting/approvals",
-          "icon": "ListChecksIcon",
-          "tba": false,
-          "archetype": null,
-          "purpose": null,
-          "subpages": []
-        },
-        {
           "group": "Books",
           "label": "Cash journal",
           "route": "accounting/cash-journal",
@@ -2169,6 +2159,27 @@ export const APP_STRUCTURE: GetStructureResponse = {
             {
               "label": "Archetype Details",
               "route": "settings/debug/archetype-details",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table",
+              "route": "settings/debug/archetype-table",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table (DB)",
+              "route": "settings/debug/archetype-table-db",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table (Pivot)",
+              "route": "settings/debug/archetype-table-pivot",
               "tba": false,
               "archetype": null,
               "purpose": null

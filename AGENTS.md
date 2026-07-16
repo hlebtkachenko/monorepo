@@ -358,7 +358,11 @@ The rules agents must follow:
   32/32 cold rebuild. Land it as its own tiny PR first, then rebase in-flight
   branches. Blast radius tracks which package you touch, not diff size.
 - **`pnpm preflight` before every push** (affected typecheck + lint + boundaries
-  + docs check, base-pinned to `origin/main`). `pnpm preflight:full` (adds
+  + docs check + CHANGELOG `## [Unreleased]` gate, base-pinned to `origin/main`).
+  Re-run it after merging/rebasing `main`: a release cut relocates your Unreleased
+  bullets and the changelog gate then fails in CI — and a merge-commit push needs
+  `--no-verify` (skips the pre-push hooks), so preflight is the only guard left.
+  `pnpm preflight:full` (adds
   `test --affected`) when Docker is up and for any DB/accounting/filing/RLS/Money
   change — wait for the advisory correctness tail (`e2e`, `db-migration-*`,
   `db-schema-drift`) to report green before merging those; migrations are

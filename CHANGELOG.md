@@ -14,6 +14,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Bump react-hook-form to 7.81.0 and recharts to 3.9.2 (supersedes stale Dependabot #699)
 - Brain #578: remove the runtime-inert classify-to-capture threading seam (bare allowlisted tools auto-approve before canUseTool runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the updatedInput rewrite never fired) and correct the overstated three-sandbox-layers / harness-threads-classify comments; classify stays a model reasoning + human-reviewer discrepancy step, the write is submitted verbatim and the server gate holds every special regime; real treatment threading is deferred to a follow-up that feeds it a document-grounded supplyKind from the IR (WP2 Task 2.4)
 
 ### Fixed

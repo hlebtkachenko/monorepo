@@ -117,9 +117,8 @@ speed.
 Applied via repo settings / `gh api -X PATCH repos/{owner}/{repo}`:
 
 - `allow_squash_merge = true`, `allow_merge_commit = false`,
-  `allow_rebase_merge = false` — one merge method, uniform history.
-  **Pending:** the merge/rebase disable is not yet applied; until it is,
-  "squash-merge only" is convention, not enforcement.
+  `allow_rebase_merge = false` — one merge method, uniform history. (Applied
+  2026-07-16.)
 - `squash_merge_commit_title = PR_TITLE`, `squash_merge_commit_message =
 COMMIT_MESSAGES` — conv-title-gated subject, internal commits archived in the
   body. (Applied.)

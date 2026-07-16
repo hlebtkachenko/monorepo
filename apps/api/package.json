@@ -13,9 +13,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@nestjs/common": "^11.1.25",
-    "@nestjs/core": "^11.1.25",
-    "@nestjs/platform-express": "^11.1.25",
+    "@nestjs/common": "^11.1.28",
+    "@nestjs/core": "^11.1.28",
+    "@nestjs/platform-express": "^11.1.28",
     "@nestjs/swagger": "^11.4.5",
     "@nestjs/throttler": "^6.5.0",
     "@scalar/nestjs-api-reference": "^1.2.8",

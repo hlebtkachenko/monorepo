@@ -10,6 +10,7 @@ import {
   type AllowlistResult,
 } from "@/app/(gated)/check-allowlist"
 
+import { safeNextPath } from "./safe-next-path"
 import { getStaffRole, type StaffRole } from "./staff-role"
 
 /**
@@ -40,9 +41,17 @@ export interface AdminSessionContext {
  *      error.
  */
 export async function requireAdminSession(): Promise<AdminSessionContext> {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const h = await headers()
+  const session = await auth.api.getSession({ headers: h })
   if (!session) {
-    redirect("/auth/login")
+    // Bounce back to the exact admin deep link after login (`x-pathname` is
+    // forwarded by the edge proxy; falls back to "/" when absent/unsafe).
+    const next = safeNextPath(h.get("x-pathname"))
+    redirect(
+      next === "/"
+        ? "/auth/login"
+        : "/auth/login?next=" + encodeURIComponent(next),
+    )
   }
 
   const result: AllowlistResult = await checkAllowlist(session.user.id)

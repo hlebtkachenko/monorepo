@@ -83,7 +83,13 @@ export function proxy(request: NextRequest): NextResponse {
     }
     return NextResponse.redirect(loginUrl)
   }
-  return NextResponse.next()
+  // Forward the requested path to Node-runtime layouts. The optimistic gate
+  // above only checks cookie presence; a layout that runs the real session
+  // check (e.g. `app/[orgSlug]/layout.tsx`) needs the full pathname to bounce
+  // a stale-cookie visitor back to the exact deep link after re-login.
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set("x-pathname", pathname)
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 /**

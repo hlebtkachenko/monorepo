@@ -61,9 +61,12 @@ export const ArchetypeSchema = z
       .nullable()
       .openapi({
         description:
-          "Route segment of the dev-only demo page for this archetype (404 in " +
-          "production), or null if none.",
-        example: "demo-table",
+          "Route segment of the dev-only demo page for this archetype, or " +
+          "null if none. The standalone /[orgSlug]/demo-* demos were retired; " +
+          "Table and Blank now live as settings/debug archetype pages, and " +
+          "Launchpad/Dashboard/Single are pending rebuild (see issue #787), " +
+          "so this is currently null for every archetype.",
+        example: null,
       }),
   })
   .openapi({ description: "One content-panel layout archetype." })
@@ -204,8 +207,10 @@ export type GetStructureResponse = z.infer<typeof GetStructureResponseSchema>
 
 /**
  * The archetype catalog. Static, authored from the archetype table in
- * `docs/runbooks/APP-SHELL-PANELS.md`. `demoRoute` points at the dev-only
- * `/[orgSlug]/demo-*` reference route (404 in production).
+ * `docs/runbooks/APP-SHELL-PANELS.md`. The standalone `/[orgSlug]/demo-*`
+ * reference routes were retired: Table and Blank live as `settings/debug`
+ * archetype pages, and Launchpad/Dashboard/Single are pending rebuild
+ * (issue #787), so `demoRoute` is null for every archetype for now.
  */
 export const ARCHETYPES: Archetype[] = [
   {
@@ -214,7 +219,7 @@ export const ARCHETYPES: Archetype[] = [
     slots: "toolbar + body + statusBar (+ inspector, footer)",
     useWhen:
       "Dense list pages (invoices, transactions). The wired gold standard.",
-    demoRoute: "demo-table",
+    demoRoute: null,
   },
   {
     key: "Blank",
@@ -228,7 +233,7 @@ export const ARCHETYPES: Archetype[] = [
     label: "Launchpad",
     slots: "body only (LaunchpadGrid)",
     useWhen: "Folder / overview pages — a grid of cards to subpages.",
-    demoRoute: "demo-launchpad",
+    demoRoute: null,
   },
   {
     key: "Dashboard",
@@ -236,7 +241,7 @@ export const ARCHETYPES: Archetype[] = [
     slots: "body only (DashboardGrid + chart cards)",
     useWhen:
       "Analytics — KPI tiles, chart cards, period control, a selectable matrix.",
-    demoRoute: "demo-dashboard",
+    demoRoute: null,
   },
   {
     key: "Single",
@@ -244,7 +249,7 @@ export const ARCHETYPES: Archetype[] = [
     slots: "body only (RecordWorkspace)",
     useWhen:
       "One record on show — side-by-side form panels + an editable line-items grid + live totals.",
-    demoRoute: "demo-single",
+    demoRoute: null,
   },
 ]
 

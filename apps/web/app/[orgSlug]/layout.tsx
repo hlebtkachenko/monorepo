@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { cookies } from "next/headers"
+import { cookies, headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { eq, and } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
@@ -11,6 +11,8 @@ import {
 import { RESERVED_SLUGS } from "@workspace/org-provisioning"
 import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
+
+import { safeNext } from "@/lib/safe-next"
 
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
 import { OrgHeaderActions } from "../_components/org-header-actions"
@@ -80,8 +82,12 @@ export default async function OrgLayout({
 
   const session = await getRequestSession()
   if (!session) {
-    // Pass the requested path forward so login can bounce back here.
-    redirect("/auth/login?next=" + encodeURIComponent("/" + orgSlug))
+    // Pass the full requested path forward (forwarded by the proxy as
+    // `x-pathname`) so login bounces back to the exact deep link, not just the
+    // org root. Falls back to the org root when the header is absent.
+    const requested = (await headers()).get("x-pathname")
+    const next = safeNext(requested, "/" + orgSlug)
+    redirect("/auth/login?next=" + encodeURIComponent(next))
   }
   let membership: ResolvedMembership | null
   try {

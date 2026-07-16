@@ -2174,6 +2174,13 @@ export const APP_STRUCTURE: GetStructureResponse = {
               "purpose": null
             },
             {
+              "label": "Archetype Table",
+              "route": "settings/debug/archetype-table",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
               "label": "Section Details Form",
               "route": "settings/debug/section-form",
               "tba": false,

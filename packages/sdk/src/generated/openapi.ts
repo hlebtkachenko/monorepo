@@ -1422,8 +1422,8 @@ export interface components {
                  */
                 useWhen: string;
                 /**
-                 * @description Route segment of the dev-only demo page for this archetype (404 in production), or null if none.
-                 * @example demo-table
+                 * @description Route segment of the dev-only demo page for this archetype, or null if none. The standalone /[orgSlug]/demo-* demos were retired; Table and Blank now live as settings/debug archetype pages, and Launchpad/Dashboard/Single are pending rebuild (see issue #787), so this is currently null for every archetype.
+                 * @example null
                  */
                 demoRoute: string | null;
             }[];
@@ -1452,8 +1452,8 @@ export interface components {
              */
             useWhen: string;
             /**
-             * @description Route segment of the dev-only demo page for this archetype (404 in production), or null if none.
-             * @example demo-table
+             * @description Route segment of the dev-only demo page for this archetype, or null if none. The standalone /[orgSlug]/demo-* demos were retired; Table and Blank now live as settings/debug archetype pages, and Launchpad/Dashboard/Single are pending rebuild (see issue #787), so this is currently null for every archetype.
+             * @example null
              */
             demoRoute: string | null;
         };

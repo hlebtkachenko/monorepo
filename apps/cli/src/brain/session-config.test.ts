@@ -478,8 +478,12 @@ describe("constants", () => {
     expect(kickoff).toContain("YOU never edit the payload")
     expect(kickoff).toContain("submit the payload VERBATIM in step 4 anyway")
     expect(kickoff).toContain("never reconcile it yourself")
-    // M1.2 completion: the HARNESS (not the model) applies classify's treatment, narrow-only.
-    expect(kickoff).toContain("The HARNESS applies classify's")
+    // #578: NOTHING threads classify's treatment onto the write — the former "harness applies classify …
+    // narrow-only" seam was dead (bare-allowlisted tools bypass canUseTool) and was removed. The kickoff must
+    // no longer promise a harness merge; the SERVER gate is the sole treatment authority.
+    expect(kickoff).not.toContain("The HARNESS applies classify's")
+    expect(kickoff).not.toMatch(/narrow-only/i)
+    expect(kickoff).toContain("The SERVER gate is the treatment authority")
   })
 
   it("the kickoff embeds the inspected captureRequest verbatim (no re-planning)", () => {

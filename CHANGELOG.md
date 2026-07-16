@@ -25,6 +25,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 - Delete the empty apps/web/components and apps/web/hooks scaffold directories
 - Delete the redundant web-side dev mail outbox viewer page (/dev/outbox); the /api/dev/outbox endpoint + admin ops-debug viewer remain the single dev-mail inspection path
 
+### Fixed
+
+- Remove two dead settings/debug sidebar links (archetype-table-db / -pivot routes never existed) and add the Archetype Table + Section Details Form debug pages to the sitemap
+
 ## [v0.23.1] — 2026-07-16
 
 ### Added

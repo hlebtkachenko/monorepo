@@ -6,6 +6,17 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
+- PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, preflight, squash-only)
+
+### Changed
+
+- pnpm preflight now runs the CHANGELOG Unreleased gate (catches release-cut merge mis-files that --no-verify merge pushes bypass)
+- PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
+- Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main
+
 ## [v0.23.1] — 2026-07-16
 
 ### Added

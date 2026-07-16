@@ -341,6 +341,64 @@ When importing from upstream, rewrite anything that violates these rules. The up
 - Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (the `guard` job requires `vars.AWS_BOOTSTRAPPED=true`, now set — staging deploys run; production stays gated by the `production` GitHub environment).
 - Composite bootstrap: `./.github/actions/setup` (pnpm + Node 24 + frozen install).
 
+## Pull Request Workflow
+
+Small, single-concern PRs, squash-merged. Full convention with the measured
+rationale: [`docs/conventions/PR-WORKFLOW.md`](docs/conventions/PR-WORKFLOW.md).
+The rules agents must follow:
+
+- **One concern per PR, plan for ≤800 added lines.** The required `size-cap`
+  check warns over 800 and hard-fails over 2,000. `size-cap-override` is for
+  genuinely-atomic exceptions (codegen, a mechanical rename), never routine.
+  Split the moment a PR mixes a refactor with a feature or touches more than one
+  package's public surface.
+- **Isolate cache-busters.** A change to any turbo `globalDependencies` file
+  (`tsconfig.json`, `eslint.config.js`, `pnpm-workspace.yaml`, `.npmrc`), to
+  `turbo.json` or the root `package.json`, or to `pnpm-lock.yaml`, forces a full
+  32/32 cold rebuild. Land it as its own tiny PR first, then rebase in-flight
+  branches. Blast radius tracks which package you touch, not diff size.
+- **`pnpm preflight` before every push** (affected typecheck + lint + boundaries
+  + docs check + CHANGELOG `## [Unreleased]` gate, base-pinned to `origin/main`).
+  Re-run it after merging/rebasing `main`: a release cut relocates your Unreleased
+  bullets and the changelog gate then fails in CI — and a merge-commit push needs
+  `--no-verify` (skips the pre-push hooks), so preflight is the only guard left.
+  `pnpm preflight:full` (adds
+  `test --affected`) when Docker is up and for any DB/accounting/filing/RLS/Money
+  change — wait for the advisory correctness tail (`e2e`, `db-migration-*`,
+  `db-schema-drift`) to report green before merging those; migrations are
+  forward-fix only.
+- **Squash-merge only.** Every PR = one revertable commit on `main`; the
+  `conv-title`-gated PR title becomes the commit subject with `(#N)`. Branch is
+  auto-deleted on merge.
+- **Serialize parallel-worktree collisions.** Two agents in separate worktrees
+  can edit the same file. `git fetch origin main` + rebase before push; never
+  merge-clobber. `CHANGELOG.md` (Unreleased) and any `*.generated.*` /
+  `openapi/v1.json` are conflict magnets — regenerate, never hand-merge, after a
+  rebase. Give each in-flight PR non-overlapping file territory.
+- **Chains:** for genuinely dependent work, `gh pr create --base <prev-branch>`
+  and merge bottom-up (no Graphite). A child's required checks run against its
+  parent, not main — never merge a child until its parent lands and the child is
+  rebased onto main and re-checked green.
+- **One branch per PR; start each PR from fresh main.** A branch is one PR is one
+  concern; on squash-merge it auto-deletes and is now behind main. Never carry new
+  work onto a merged branch. Before starting a new unit of work:
+  `git branch --show-current` + `git fetch origin main`; if you are on the
+  just-merged branch (upstream `gone`) or on `main`, do not commit there — first
+  check whether Hleb/Conductor already opened a fresh workspace/branch for the next
+  task (work there, don't duplicate it), otherwise
+  `git switch main && git pull && git switch -c <type>/<concern>`.
+
+**Grouping related PRs** — only for a genuine campaign (one change spanning many
+PRs, e.g. one fix across 20 pages). A normal single PR needs **no issue and no
+epic**; never open an issue per PR (that is noise). When a campaign is worth
+grouping: one `Type: EPIC` tracking issue for the whole campaign with `Refs
+#<epic>` in each PR body, one shared conventional scope (`fix(<scope>): ...`) so
+`git log --grep '(<scope>)'` + the `(#N)` squash commits cluster, and a `#<epic>`
+prefix on the campaign's `CHANGELOG.md` entries. The tracking issue is optional —
+the scope + changelog grouping alone needs no issue; add the issue only for the
+timeline view when splitting releases. Optional extras: `epic:<slug>` label and a
+GitHub Milestone per release bucket.
+
 ## Changelog Requirement
 
 Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the changelog gate is skipped on those PRs, and the resulting dependency bumps are recorded at release-cut as a synthesized `### Dependencies` bullet (and `### Security` for CVE-flagged bumps) instead of a per-PR entry.

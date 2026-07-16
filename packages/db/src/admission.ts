@@ -246,13 +246,15 @@ export class DbAdmissionController implements AdmissionController {
         DELETE FROM brain_admission_slot
         WHERE heartbeat_at < now() - make_interval(secs => ${INLINE_REAP_SECONDS})
       `
-      const counts = (await tx`
+      const counts = await tx<
+        Array<{ global_count: number; key_count: number }>
+      >`
         SELECT
           count(*) FILTER (WHERE scope = 'global')::int AS global_count,
           count(*) FILTER (WHERE scope = 'org' AND scope_key = ${key})::int
             AS key_count
         FROM brain_admission_slot
-      `) as unknown as Array<{ global_count: number; key_count: number }>
+      `
       const globalCount = counts[0]?.global_count ?? 0
       const keyCount = counts[0]?.key_count ?? 0
       // Same ordering as in-memory: global then per-key.
@@ -262,12 +264,12 @@ export class DbAdmissionController implements AdmissionController {
       if (keyCount >= this.caps.perKey) {
         throw new AdmissionRejected("per_key_cap_exceeded")
       }
-      const inserted = (await tx`
+      const inserted = await tx<Array<{ id: string }>>`
         INSERT INTO brain_admission_slot (scope, scope_key, instance_id)
         VALUES ('global', ${GLOBAL_SCOPE_KEY}, ${this.instanceId}),
                ('org', ${key}, ${this.instanceId})
         RETURNING id
-      `) as unknown as Array<{ id: string }>
+      `
       return inserted.map((r) => r.id)
     })) as string[]
 

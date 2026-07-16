@@ -8,6 +8,14 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { boot } from "../boot"
+
+// Importing ../boot pulls heavy transitive deps (@workspace/db, @openfga/sdk via
+// the self-registering lanes); their cold load on a CI runner can exceed the 5s
+// default per-test budget. The pg-boss client itself is mocked below, so boot()
+// does no real I/O — this headroom only covers module load.
+vi.setConfig({ testTimeout: 20_000 })
+
 type WorkCall = { name: string }
 type QueueCall = { name: string }
 type ScheduleCall = { name: string; cron: string }
@@ -52,7 +60,6 @@ afterEach(() => {
 
 describe("boot()", () => {
   it("creates a queue + binds a worker for every registered lane", async () => {
-    const { boot } = await import("../boot")
     const b = await boot("postgres://direct/db")
 
     expect(calls.started).toBe(1)
@@ -69,7 +76,6 @@ describe("boot()", () => {
   })
 
   it("schedules only lanes that declare a cron", async () => {
-    const { boot } = await import("../boot")
     await boot("postgres://direct/db")
 
     const scheduled = calls.schedules.map((s) => s.name)

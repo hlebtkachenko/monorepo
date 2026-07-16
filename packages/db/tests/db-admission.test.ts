@@ -25,6 +25,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 import {
+  type AdmissionSlot,
   AdmissionRejected,
   DbAdmissionController,
   reapExpiredAdmissionSlots,
@@ -69,6 +70,18 @@ const countRows = async (): Promise<number> => {
   return rows[0]?.n ?? 0
 }
 
+// release() deletes its rows fire-and-forget (synchronous by contract), so a
+// dependent acquire / terminal assertion must wait for the row count to
+// converge rather than guess a fixed sleep. Polls up to ~2s; throws on timeout
+// so a genuine leak still fails the test.
+const waitForRows = async (n: number): Promise<void> => {
+  for (let i = 0; i < 200; i++) {
+    if ((await countRows()) === n) return
+    await sleep(10)
+  }
+  throw new Error(`slot count never reached ${n} (last: ${await countRows()})`)
+}
+
 describe("DbAdmissionController — kill-switch", () => {
   it("fails closed WITHOUT touching the DB", async () => {
     const ctrl = new DbAdmissionController(
@@ -105,15 +118,15 @@ describe("DbAdmissionController — cross-instance caps", () => {
       reason: "global_cap_exceeded",
     })
 
-    // Freeing one slot admits the next.
+    // Freeing one slot admits the next. Wait until s1's two rows are gone
+    // (s2 still holds its two) before the dependent acquire.
     s1.release()
-    await sleep(50) // let the fire-and-forget delete land
+    await waitForRows(2)
     const s3 = await a.acquire(ORG_B)
 
     s2.release()
     s3.release()
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
   })
 
   it("enforces the PER-KEY cap across two instances", async () => {
@@ -139,8 +152,7 @@ describe("DbAdmissionController — cross-instance caps", () => {
 
     s1.release()
     s2.release()
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
   })
 })
 
@@ -170,8 +182,7 @@ describe("DbAdmissionController — crash-leak reap", () => {
     expect(await countRows()).toBe(2)
 
     slot.release()
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
   })
 })
 
@@ -186,14 +197,12 @@ describe("DbAdmissionController — release idempotency", () => {
     const slot = await ctrl.acquire(ORG_A)
     slot.release()
     slot.release() // no-op, must not throw
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
 
     // Capacity is exactly 1 again — a fresh acquire succeeds.
     const slot2 = await ctrl.acquire(ORG_A)
     slot2.release()
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
   })
 })
 
@@ -228,8 +237,97 @@ describe("DbAdmissionController — heartbeat", () => {
     }
 
     slot.release()
-    await sleep(50)
-    expect(await countRows()).toBe(0)
+    await waitForRows(0)
+  })
+})
+
+// The whole point of the advisory-locked transaction: without
+// pg_advisory_xact_lock serializing count-then-insert, two racing acquires
+// across instances could both read count < cap and both insert (TOCTOU
+// over-admit). These fire the acquires with Promise.all so the lock is the ONLY
+// thing keeping the fleet at exactly the cap — deleting the lock line makes
+// these fail.
+const slotsOf = (
+  results: PromiseSettledResult<AdmissionSlot>[],
+): AdmissionSlot[] =>
+  results
+    .filter(
+      (r): r is PromiseFulfilledResult<AdmissionSlot> =>
+        r.status === "fulfilled",
+    )
+    .map((r) => r.value)
+
+describe("DbAdmissionController — concurrent acquire (advisory-lock serialization)", () => {
+  it("admits exactly the global cap when N+1 acquires race across two instances", async () => {
+    const N = 3
+    // perKey high so the GLOBAL cap is the binding constraint.
+    const caps = { global: N, perKey: N + 1 }
+    const a = new DbAdmissionController(caps, {
+      ...alwaysActive,
+      sql,
+      instanceId: "i-a",
+    })
+    const b = new DbAdmissionController(caps, {
+      ...alwaysActive,
+      sql,
+      instanceId: "i-b",
+    })
+
+    // N+1 racers across both instances and both orgs (so per-key never binds).
+    const racers = [
+      a.acquire(ORG_A),
+      b.acquire(ORG_B),
+      a.acquire(ORG_A),
+      b.acquire(ORG_B),
+    ]
+    const results = await Promise.allSettled(racers)
+    const admitted = slotsOf(results)
+    const rejected = results.filter((r) => r.status === "rejected")
+
+    expect(admitted).toHaveLength(N)
+    expect(rejected).toHaveLength(1)
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({
+      reason: "global_cap_exceeded",
+    })
+    // Exactly N runs admitted → 2*N rows (a global + an org row each).
+    expect(await countRows()).toBe(2 * N)
+
+    for (const s of admitted) s.release()
+    await waitForRows(0)
+  })
+
+  it("serializes same-org concurrent acquires down to the per-key cap", async () => {
+    const caps = { global: 100, perKey: 1 }
+    const a = new DbAdmissionController(caps, {
+      ...alwaysActive,
+      sql,
+      instanceId: "i-a",
+    })
+    const b = new DbAdmissionController(caps, {
+      ...alwaysActive,
+      sql,
+      instanceId: "i-b",
+    })
+
+    // Three racers, same org, perKey=1 → exactly one wins, two hit the per-key cap.
+    const results = await Promise.allSettled([
+      a.acquire(ORG_A),
+      b.acquire(ORG_A),
+      a.acquire(ORG_A),
+    ])
+    const admitted = slotsOf(results)
+    const rejected = results.filter((r) => r.status === "rejected")
+
+    expect(admitted).toHaveLength(1)
+    expect(rejected).toHaveLength(2)
+    for (const r of rejected) {
+      expect((r as PromiseRejectedResult).reason).toMatchObject({
+        reason: "per_key_cap_exceeded",
+      })
+    }
+
+    for (const s of admitted) s.release()
+    await waitForRows(0)
   })
 })
 

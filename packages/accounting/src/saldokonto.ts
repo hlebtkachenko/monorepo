@@ -188,7 +188,7 @@ export function openItemsForCounterparty(
     db,
     sql`SELECT id, counterparty_id, account_number, direction, variable_symbol,
                original_amount, settled_amount, remaining_amount, is_settled,
-               currency_code, issue_date, due_date
+               currency_code, issue_date, due_date, inbox_id
           FROM open_item
          WHERE counterparty_id = ${counterpartyId}::uuid
          ORDER BY issue_date, id`,

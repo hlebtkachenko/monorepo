@@ -368,20 +368,6 @@ export interface AgentSessionLaunchOptions {
    * (the model then supplies its own key), so this change is additive + backward-compatible.
    */
   idempotencyKey?: string
-  /**
-   * OPTIONAL M2.1 model-routing signal: whether a workspace-CONFIRMED
-   * `booking_template` matched this case's signature (server-verified via
-   * `match_booking_template`, never client-claimed). `true` routes the
-   * session to the cheap model (`@workspace/brain`'s `selectBrainModel`);
-   * `false` or absent leaves the session's model UNSET — the launcher then
-   * behaves EXACTLY as it does today (the Agent-SDK's own default), so a
-   * caller that has not yet performed a template-match check (every caller
-   * today) sees zero behavior change. Populating this is the M2.1
-   * match-integration follow-up (the pre-session call to
-   * `POST /v1/booking-templates/match`); this field only carries the signal
-   * once that lands.
-   */
-  bookingTemplateMatched?: boolean
 }
 
 /**
@@ -424,8 +410,6 @@ export interface LiveBrainSessionInputs {
    * `Idempotency-Key`. Absent for a single-doc run.
    */
   idempotencyKey?: string
-  /** OPTIONAL M2.1 model-routing signal, forwarded verbatim (see `AgentSessionLaunchOptions`). */
-  bookingTemplateMatched?: boolean
 }
 
 /**
@@ -545,6 +529,5 @@ export async function runLiveBrainSession(
     apiKey,
     agentSdkAuth,
     idempotencyKey: inputs.idempotencyKey,
-    bookingTemplateMatched: inputs.bookingTemplateMatched,
   })
 }

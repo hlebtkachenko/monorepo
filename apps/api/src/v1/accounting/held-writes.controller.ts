@@ -213,21 +213,31 @@ export class HeldWritesController {
             )
           }
 
-          // [F1 / M3.2] The gate's audit `serverGate` (incl. `.shadow` — the M3
-          // calibration x-axis, see shadow-score.ts) read ONCE here so it can be
-          // (a) used for the reject-branch templateId lookup below and (b)
-          // FORWARDED into the resolved `output_json`. `updateToolCallLogOutput`
-          // fully REPLACES `output_json`, so without (b) the shadow score
-          // persisted at HOLD time is silently wiped the instant a human
-          // resolves the write — exactly when `ingestReviewedRunLog` (M3.3)
-          // needs BOTH `resolution` and `serverGate.shadow` on the SAME row.
-          // Forwarding ONLY this field (never the whole prior body) keeps the
-          // change additive-only: `status`/`reviewId`/`payloadHash` are
-          // untouched, so nothing about the resolve decision, replay behavior,
-          // or any other persisted field changes.
-          const priorServerGate = (
-            row.output_json as { serverGate?: unknown } | null
-          )?.serverGate
+          // [F1 / M3.2 / S3] The gate's audit `serverGate` (incl. `.shadow` — the
+          // M3 calibration x-axis, see shadow-score.ts) AND the `payloadHash` are
+          // read ONCE here so both survive `updateToolCallLogOutput`'s full-column
+          // REPLACE of `output_json`. Forwarding `serverGate` keeps the shadow
+          // score for `ingestReviewedRunLog` (M3.3); forwarding `payloadHash` (S3)
+          // keeps a post-resolve same-key replay returning the recorded outcome
+          // instead of a misleading 409 — the gate replay compares the stored hash
+          // (`accounting-writes.gate.ts`), so dropping it makes the recomputed hash
+          // mismatch. Both are additive; the resolve decision is unchanged.
+          const priorOutput = row.output_json as {
+            serverGate?: unknown
+            payloadHash?: unknown
+          } | null
+          const priorServerGate = priorOutput?.serverGate
+          const priorPayloadHash = priorOutput?.payloadHash
+          // [S4] Stamp resolvedAt on BOTH approve and reject so the web and API
+          // surfaces write the identical resolved output_json shape.
+          const [nowRow] = await executeRows<{ now: Date | string }>(
+            db,
+            sql`select now() as now`,
+          )
+          const resolvedAt =
+            nowRow?.now instanceof Date
+              ? nowRow.now.toISOString()
+              : String(nowRow?.now)
 
           if (action === "reject") {
             // [WS-2] Reject-reset: a booking derived from an OCR template that a
@@ -242,14 +252,6 @@ export class HeldWritesController {
               priorServerGate as { templateId?: unknown } | undefined
             )?.templateId ?? null) as string | null
             await unconfirmTemplateOnReject(db, templateId)
-            const [nowRow] = await executeRows<{ now: Date | string }>(
-              db,
-              sql`select now() as now`,
-            )
-            const resolvedAt =
-              nowRow?.now instanceof Date
-                ? nowRow.now.toISOString()
-                : String(nowRow?.now)
             await updateToolCallLogOutput(db, {
               toolCallLogId: id,
               output: {
@@ -258,6 +260,9 @@ export class HeldWritesController {
                 resolvedAt,
                 ...(priorServerGate !== undefined
                   ? { serverGate: priorServerGate }
+                  : {}),
+                ...(priorPayloadHash !== undefined
+                  ? { payloadHash: priorPayloadHash }
                   : {}),
               },
               approvedByUserId: userId,
@@ -310,9 +315,13 @@ export class HeldWritesController {
             output: {
               resolution: "approved",
               note: note ?? null,
+              resolvedAt,
               ...result,
               ...(priorServerGate !== undefined
                 ? { serverGate: priorServerGate }
+                : {}),
+              ...(priorPayloadHash !== undefined
+                ? { payloadHash: priorPayloadHash }
                 : {}),
             },
             approvedByUserId: userId,

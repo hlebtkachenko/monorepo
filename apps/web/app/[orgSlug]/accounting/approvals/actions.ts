@@ -62,6 +62,12 @@ interface HeldLogRow {
   input_json: unknown
   auto_applied: boolean
   approved_by_user_id: string | null
+  /**
+   * [S1 / G2-R1 rider] The original author — an approver may not approve their
+   * OWN held write (author != approver). Mirrors the API backstop at
+   * `held-writes.controller.ts` so the web door is not weaker than the API one.
+   */
+  user_id: string | null
   /** [Tier 4] Actor that authored the write → inbox_item.created_by provenance. */
   actor_kind: string
   /** [Tier 4] The agent's rationale → inbox_item.reasoning. */
@@ -78,6 +84,13 @@ interface HeldLogRow {
    * full-column replace. `null` for a pre-W1.5 row with no shadow score.
    */
   server_gate: unknown
+  /**
+   * [S3] The gate's `output_json.payloadHash`, forwarded across resolve so a
+   * post-resolve same-key replay returns the recorded outcome instead of a
+   * misleading 409 (the gate replay compares the stored hash). `null` for a row
+   * the gate stored without one.
+   */
+  payload_hash: string | null
 }
 
 /**
@@ -108,6 +121,14 @@ export async function resolveHeldWrite(
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) {
     return { ok: false, error: "Organizace nebyla nalezena." }
+  }
+
+  // [S2] Role gate (D3): only owner/admin/member may vyřídit held writes. A guest
+  // or an agent-role membership must never approve an agent's booking into the
+  // ledger — the public API requires a human, user-bound key; this is the web
+  // mirror of that guard, closing the "any active membership can approve" hole.
+  if (ctx.role === "guest" || ctx.role === "agent") {
+    return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 
   // The domain writes need the workspace id (OrgCtx); the page context only
@@ -145,9 +166,11 @@ export async function resolveHeldWrite(
           // posting. The row lock makes held-row resolution single-shot.
           sql`select tool_name, input_json, auto_applied,
                      approved_by_user_id::text as approved_by_user_id,
+                     user_id::text as user_id,
                      actor_kind::text as actor_kind, rationale,
                      (output_json->'serverGate'->>'templateId') as template_id,
-                     (output_json->'serverGate') as server_gate
+                     (output_json->'serverGate') as server_gate,
+                     (output_json->>'payloadHash') as payload_hash
               from tool_call_log
               where id = ${id}::uuid
               for update`,
@@ -159,6 +182,32 @@ export async function resolveHeldWrite(
         if (row.auto_applied || row.approved_by_user_id !== null) {
           return { ok: false, error: "Záznam už byl vyřízen." }
         }
+
+        // [S1 / G2-R1 rider] author != approver: a held write can never be
+        // APPROVED by the same user that authored it — the web mirror of the API
+        // backstop (`held-writes.controller.ts`). If the Brain's user-bound key
+        // leaks and the same identity opens the approvals UI, it still cannot
+        // approve its OWN queued writes. Reject by the author stays allowed
+        // (closing a review is not a bypass), matching the API semantics exactly.
+        if (action === "approve" && row.user_id === ctx.userId) {
+          return {
+            ok: false,
+            error:
+              "Návrh nemůže schválit jeho autor; musí ho posoudit jiný uživatel.",
+          }
+        }
+
+        // [S4] Stamp resolvedAt on BOTH approve and reject so the web and API
+        // surfaces write the identical resolved output_json shape (the API side
+        // does the same via `select now()`).
+        const [nowRow] = await executeRows<{ now: Date | string }>(
+          db,
+          sql`select now() as now`,
+        )
+        const resolvedAt =
+          nowRow?.now instanceof Date
+            ? nowRow.now.toISOString()
+            : String(nowRow?.now)
 
         if (action === "reject") {
           // [WS-2] Reject-reset: a booking derived from an OCR template that a
@@ -177,6 +226,7 @@ export async function resolveHeldWrite(
             output: {
               resolution: "rejected",
               note: note ?? null,
+              resolvedAt,
               // [F1 / M3.2] Forward the audit `serverGate` (incl. `.shadow`)
               // FORWARD across resolve — `updateToolCallLogOutput` fully
               // replaces `output_json`, so without this the shadow score
@@ -185,6 +235,11 @@ export async function resolveHeldWrite(
               // matching API-side fix for the full rationale.
               ...(row.server_gate !== null
                 ? { serverGate: row.server_gate }
+                : {}),
+              // [S3] Forward payloadHash so a post-reject same-key replay returns
+              // the recorded outcome instead of a 409 idempotency conflict.
+              ...(row.payload_hash !== null
+                ? { payloadHash: row.payload_hash }
                 : {}),
             },
             approvedByUserId: ctx.userId,
@@ -268,11 +323,19 @@ export async function resolveHeldWrite(
           // approved-with-edits write carries its own audit trail.
           output: {
             resolution: "approved",
+            // [S4] note + resolvedAt so web and API write the identical shape.
+            note: note ?? null,
+            resolvedAt,
             ...applied,
             // [F1 / M3.2] See the reject branch above — forward `serverGate`
             // so the shadow score survives resolve.
             ...(row.server_gate !== null
               ? { serverGate: row.server_gate }
+              : {}),
+            // [S3] Forward payloadHash so a post-approve same-key replay returns
+            // the recorded outcome instead of a 409 idempotency conflict.
+            ...(row.payload_hash !== null
+              ? { payloadHash: row.payload_hash }
               : {}),
             ...(edit ? { edit } : {}),
           },
@@ -355,6 +418,13 @@ export async function markConfidentWrong(
   const ctx = await getOrgAccountingContext(orgSlug)
   if (!ctx) {
     return { ok: false, error: "Organizace nebyla nalezena." }
+  }
+
+  // [S2] Role gate (D3): flagging an auto-applied write as confidently wrong is a
+  // ledger-trust mutation — same role floor as resolveHeldWrite (deny guest /
+  // agent). Author guard is N/A here (this acts on a landed write, not a proposal).
+  if (ctx.role === "guest" || ctx.role === "agent") {
+    return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 
   try {

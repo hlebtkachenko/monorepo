@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Brain web approvals: add author!=approver + role gate (deny guest/agent), re-validate the stored payload, and write the same resolved output_json shape as the API (note + resolvedAt + payloadHash forwarded, so a post-resolve replay returns the recorded outcome not a 409) — WP1 Tasks 1.2-1.3, closes audit S1-S4
 - Brain held-write approvals: extract a shared executeHeldWrite dispatcher so the web and API resolve paths land identical domain effects, and the web path now re-validates the stored payload (WP1 Task 1.1, closes audit S5)
 
 ## [v0.23.0] — 2026-07-16

@@ -56,6 +56,12 @@ import {
 import { liveBookOne } from "./batch-live"
 import { FileCheckpointStore } from "./checkpoint-store"
 import {
+  PipelineCheckpointStore,
+  renderBookGate,
+  renderEventGate,
+  resumeFrom,
+} from "./pipeline"
+import {
   assembleExtractPlan,
   isVisionMediaPath,
   renderExtractPlan,
@@ -592,6 +598,66 @@ export function registerBrainCommand(program: Command): void {
         if (result.status === "failed") process.exitCode = 1
       },
     )
+
+  brain
+    .command("pipeline")
+    .description(
+      "Book ONE PDF/image end-to-end with a single command + two approve clicks: extract (vision-OCR → machine " +
+        "IR) → event (propose the accounting case) → [approve] → book (propose the capture) → [approve]. " +
+        "INSTRUCT-AND-EXIT: at each human-review gate it prints the held-write reviewId + the approval URL + " +
+        "the resume command, then EXITS (it never polls — the agent key is 403 on held-writes). Re-invoke with " +
+        "--after-event <appliedEventId> to resume into the book stage; completed stages skip via the on-disk " +
+        "checkpoint. Needs BRAIN_API_KEY.",
+    )
+    .argument("<pdf>", "The local PDF/image to book end-to-end")
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { sections, eventContext, captureContext }. sections = the login-pack safety spine; " +
+        "eventContext = { periodId, eventSeriesId, confidence, rationale } (the EVENT write); captureContext = " +
+        "{ periodId, seriesId, confidence, rationale } (the capture — its eventId is filled from --after-event).",
+    )
+    .option(
+      "--after-event <eventId>",
+      "The APPLIED accounting-event uuid, copied off /approvals after approving the event — resumes the " +
+        "pipeline into the book stage.",
+    )
+    .option(
+      "--supplier <key>",
+      "Optional supplier hint (IČO or normalized name) to narrow the OCR-template lookup in the extract stage",
+    )
+    .option(
+      "--out <path>",
+      "Where to write the extracted machine IR Invoice (default <pdf>.ir.json); the event/book stages consume it",
+    )
+    .option(
+      "--checkpoint <path>",
+      "Checkpoint file for crash-safe resume (default <pdf>.afframe-pipeline.json)",
+    )
+    .option(
+      "--allow-missing-counterparty",
+      "Proceed past the event stage even when no counterparty identity was extracted (the invoice will HOLD on " +
+        "a null counterparty when booked).",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt before the live stages (non-interactive operators).",
+    )
+    .action(
+      async (
+        pdf: string,
+        opts: {
+          context: string
+          afterEvent?: string
+          supplier?: string
+          out?: string
+          checkpoint?: string
+          allowMissingCounterparty?: boolean
+          yes?: boolean
+        },
+      ) => {
+        await runPipeline(pdf, opts)
+      },
+    )
 }
 
 /**
@@ -899,6 +965,236 @@ async function runBookBatch(
   // Non-zero exit iff any document failed, so an operator's script can detect an incomplete batch (rerun the
   // exact command to resume — completed documents are skipped, so nothing double-books).
   if (summary.failed > 0) process.exitCode = 1
+}
+
+/**
+ * The `brain pipeline` combined operator context: the login-pack `sections` (shared by the extract + book
+ * stages), the `eventContext` (the EVENT write's period/series + gate envelope), and the `captureContext` (the
+ * capture's period/series + gate envelope, MINUS `eventId` — that is filled from `--after-event` once the event
+ * is approved). NO tenancy keys — the org is server-resolved from the API-key principal.
+ */
+interface PipelineContext {
+  sections: LoginContextSections
+  eventContext: IrToEventContext
+  captureContext: Omit<BookContext["captureContext"], "eventId">
+}
+
+/** Read + shallow-validate the `brain pipeline` `--context` file (sections + event + capture contexts). */
+function readPipelineContext(path: string): PipelineContext {
+  return withAssembledSections(
+    readContextFile(path, "--context", [
+      "sections",
+      "eventContext",
+      "captureContext",
+    ]),
+  ) as unknown as PipelineContext
+}
+
+/**
+ * `brain pipeline <pdf>` (WP2 Task 2.5) — the single-command autonomy glue that books ONE document through
+ * extract → event → book. INSTRUCT-AND-EXIT: at each human-review gate it prints the held-write reviewId + the
+ * approval URL + the exact resume command, saves a checkpoint, and EXITS (it never polls — push-not-poll; the
+ * agent key is 403 on the held-writes surface, and a pending row carries no applied eventId). A resume
+ * (`--after-event <appliedEventId>`) skips completed stages via the on-disk checkpoint. It only COMPOSES the
+ * existing extract/event/book cores — no server change; every write is still HELD by the server gate.
+ */
+async function runPipeline(
+  pdf: string,
+  opts: {
+    context: string
+    afterEvent?: string
+    supplier?: string
+    out?: string
+    checkpoint?: string
+    allowMissingCounterparty?: boolean
+    yes?: boolean
+  },
+): Promise<void> {
+  const ctx = readPipelineContext(opts.context)
+  const checkpointPath = opts.checkpoint ?? `${pdf}.afframe-pipeline.json`
+  const store = new PipelineCheckpointStore(checkpointPath)
+  let cp = resumeFrom(store.load(), pdf)
+
+  const brainEnv = resolveBrainEnv(process.env)
+  const { mcpEndpoint, apiKey, agentSdkAuth } = brainEnv
+  if (!apiKey) {
+    output.write("brain pipeline blocked: missing BRAIN_API_KEY.\n")
+    process.exit(1)
+  }
+
+  if (cp?.next === "done") {
+    output.write(
+      `brain pipeline: already complete for ${pdf} — event review ${cp.eventReviewId ?? "?"}, capture ` +
+        `review ${cp.bookReviewId ?? "?"}. Delete ${checkpointPath} to re-run.\n`,
+    )
+    return
+  }
+
+  // A single upfront confirmation gates the live sessions on a FRESH run; a resume (`--after-event`) is already
+  // an explicit operator act, so it proceeds without re-confirming.
+  if (cp === null) {
+    const ok = opts.yes || (await confirmLiveRun(1))
+    if (!ok) {
+      output.write("brain pipeline: aborted, no live run.\n")
+      if (!input.isTTY) process.exitCode = 1
+      return
+    }
+  }
+
+  // ── Stage 1/3: extract (fresh run only; a resume reads the IR the extract already wrote) ──
+  let invoice: Invoice
+  if (cp === null) {
+    output.write(`\n[pipeline 1/3] extract — ${pdf}\n`)
+    const document = toDocumentBlock(pdf, new Uint8Array(readFileSync(pdf)))
+    const rawTextLayer =
+      document.kind === "document" ? await tryExtractTextLayer(pdf) : null
+    const textLayer =
+      classifyExtractionEngine(rawTextLayer) === "digital-text-layer"
+        ? rawTextLayer
+        : null
+    const { sdkExtractSession } = await import("./sdk-launcher")
+    const extractResult = await sdkExtractSession({
+      session: {
+        sections: ctx.sections,
+        supplierHint: opts.supplier,
+        textLayer,
+      },
+      mcpEndpoint,
+      apiKey,
+      agentSdkAuth,
+      document,
+    })
+    const rawIr = extractIrJson(extractResult.report)
+    if (rawIr === null) {
+      output.write(
+        "brain pipeline: the extract session emitted no machine IR block — nothing booked.\n",
+      )
+      process.exit(1)
+    }
+    try {
+      invoice = parseExtractedInvoice(rawIr, "brain pipeline")
+    } catch (err) {
+      output.write(
+        `brain pipeline: extracted IR invalid — ${err instanceof Error ? err.message : "invalid IR"} — nothing booked.\n`,
+      )
+      process.exit(1)
+    }
+    const irPath = opts.out ?? `${pdf}.ir.json`
+    writeFileSync(
+      irPath,
+      JSON.stringify(invoice, bigintToDecimalString, 2) + "\n",
+    )
+    cp = { version: 1, pdf, next: "event", irPath }
+    store.save(cp)
+    output.write(`[pipeline 1/3] machine IR → ${irPath}\n`)
+  } else {
+    invoice = readExtractedInvoice(cp.irPath)
+  }
+
+  // ── Stage 2/3: event (propose the accounting case; HELD → gate 1) ──
+  if (cp.next === "event") {
+    output.write("\n[pipeline 2/3] event — propose the accounting case\n")
+    const proposal = buildEventProposal(invoice, ctx.eventContext)
+    output.write(renderEventProposal(proposal))
+    if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
+      output.write(
+        "brain pipeline: refusing — no counterparty identity extracted (the invoice would HOLD on a null " +
+          "counterparty). Fix the source/IR, or pass --allow-missing-counterparty.\n",
+      )
+      process.exit(1)
+    }
+    const verdict = await crossCheckCounterparty(
+      proposal.request.counterparty,
+      {
+        signal: AbortSignal.timeout(ARES_CHECK_TIMEOUT_MS),
+      },
+    )
+    output.write(renderRegisterVerdict(verdict))
+    if (verdictBlocksExecute(verdict)) {
+      // Preserve `brain event`'s fail-closed posture: a mis-OCR'd IČO binds a wrong-but-real partner. The
+      // pipeline has no override flag by design — the operator fixes the source, or runs `brain event
+      // --execute --allow-register-mismatch` + `brain book` standalone for the deliberate-override case.
+      output.write(
+        "brain pipeline: refusing — the extracted IČO does not match the ARES register (see above). Fix the " +
+          "IČO/source, or run `brain event`/`brain book` standalone with --allow-register-mismatch.\n",
+      )
+      process.exit(1)
+    }
+    const request = withRegisterCapSignals(proposal.request, verdict)
+    const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
+    const eventResult = await executeEventCreate(
+      request,
+      client,
+      eventIdempotencyKey(request),
+    )
+    output.write("\n" + renderEventResult(eventResult))
+    if (eventResult.status === "failed") {
+      process.exitCode = 1
+      return
+    }
+    if (eventResult.status === "applied") {
+      // Unexpected pre-launch (the event auto-applied instead of holding): no human gate — carry the applied
+      // eventId straight to the book stage.
+      cp = { ...cp, next: "book", eventId: eventResult.eventId }
+      store.save(cp)
+    } else {
+      // HELD (the cold-start norm) — instruct-and-exit at gate 1.
+      cp = { ...cp, next: "book", eventReviewId: eventResult.reviewId }
+      store.save(cp)
+      const resume = [
+        `brain pipeline ${pdf}`,
+        `--context ${opts.context}`,
+        opts.supplier ? `--supplier ${opts.supplier}` : "",
+        opts.out ? `--out ${opts.out}` : "",
+        opts.checkpoint ? `--checkpoint ${opts.checkpoint}` : "",
+        "--after-event <APPLIED_EVENT_ID>",
+      ]
+        .filter(Boolean)
+        .join(" ")
+      output.write(renderEventGate(eventResult.reviewId, resume).text)
+      return
+    }
+  }
+
+  // ── Stage 3/3: book (propose the capture; HELD → gate 2) ──
+  if (cp.next === "book") {
+    const eventId = opts.afterEvent ?? cp.eventId
+    if (eventId === undefined) {
+      output.write(
+        "brain pipeline: the event is pending approval — resume with --after-event <appliedEventId> (copy it " +
+          "off /approvals after approving the event).\n",
+      )
+      process.exit(1)
+    }
+    // Reuse applyAfterEvent's boundary uuid-validation + injection; the placeholder eventId is overwritten.
+    const bookCtx = applyAfterEvent(
+      {
+        sections: ctx.sections,
+        captureContext: { ...ctx.captureContext, eventId: "" },
+      } as BookContext,
+      eventId,
+    )
+    output.write("\n[pipeline 3/3] book — propose the capture\n")
+    const plan = assembleOcrCapturePlan(invoice, bookCtx)
+    output.write(renderOcrCapturePlan(plan, invoice))
+    const bookResult = await runLiveBrainSession({
+      plan,
+      mcpEndpoint,
+      readEnv: (name) => readHarnessEnv(name, brainEnv),
+      launcher: (await import("./sdk-launcher")).sdkAgentSessionLauncher,
+    })
+    output.write("\n" + renderLiveResult(bookResult))
+    cp = {
+      ...cp,
+      next: "done",
+      eventId,
+      bookReviewId: bookResult.reviewId,
+    }
+    store.save(cp)
+    if (bookResult.reviewId) {
+      output.write(renderBookGate(bookResult.reviewId).text)
+    }
+  }
 }
 
 /** Parse a positive-integer CLI option, failing LOUD on a non-integer / non-positive value. */

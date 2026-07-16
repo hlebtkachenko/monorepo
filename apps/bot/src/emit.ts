@@ -1,6 +1,6 @@
 import type { Bot } from "grammy"
 import type { Env } from "./env.js"
-import { buildIssueKeyboard, escapeHtml } from "./format.js"
+import { buildAlertKeyboard, buildIssueKeyboard, escapeHtml } from "./format.js"
 import { createStore } from "./state/store.js"
 import { createGitHubIssueClient } from "./issues/github.js"
 import { processEvent } from "./issues/engine.js"
@@ -14,6 +14,18 @@ export interface EmitResult {
 }
 
 /**
+ * Issue-noise policy: transient CI failures and runtime application errors alert Telegram but
+ * never open a GitHub issue — they recur constantly and drown the tracker. GitHub issues stay
+ * reserved for deliberate, when-idle signals: security-scan findings, blocking accounting-gate
+ * integrity ("agent"), and explicit user feedback ("customer-request"). To make a source open
+ * issues again, drop it from this set.
+ */
+const ALERT_ONLY_SOURCES = new Set<IssueEvent["source"]>([
+  "ci-failure",
+  "error",
+])
+
+/**
  * Shared path: normalized event -> deduped GitHub issue (create or comment+bump) -> Telegram
  * echo with Open / Rerun / Snooze / Ack controls. Used by explicit issue routes and
  * the /issue command. Delivery rule (DEV-63): if the incident's identifier is snoozed or
@@ -25,6 +37,21 @@ export async function emitIssue(
   bot: Bot,
 ): Promise<EmitResult> {
   const target = Number(env.TELEGRAM_USER_ID)
+
+  if (ALERT_ONLY_SOURCES.has(event.source)) {
+    await bot.api.sendMessage(
+      target,
+      `⚠️ ${escapeHtml(event.title)}\n<i>[${escapeHtml(event.source)}]</i>`,
+      {
+        parse_mode: "HTML",
+        reply_markup: buildAlertKeyboard({
+          runId: event.runId,
+          runUrl: event.runUrl,
+        }),
+      },
+    )
+    return { status: 200, payload: { ok: true, issue: null, alertOnly: true } }
+  }
 
   const token = env.GITHUB_ISSUES_TOKEN ?? env.GITHUB_DISPATCH_TOKEN
   const repo = repoOf(env)

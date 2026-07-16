@@ -46,6 +46,21 @@ export function buildIssueKeyboard(
   return kb
 }
 
+/**
+ * Keyboard for an alert-only event (Telegram ping with no GitHub issue). Just the run
+ * controls (Open run / ⟳ Rerun) when the event carried a GitHub run; undefined otherwise
+ * so no empty keyboard is attached.
+ */
+export function buildAlertKeyboard(
+  opts: { runId?: number; runUrl?: string } = {},
+): InlineKeyboard | undefined {
+  if (!opts.runUrl && !opts.runId) return undefined
+  const kb = new InlineKeyboard()
+  if (opts.runUrl) kb.url("Open run", opts.runUrl)
+  if (opts.runId) kb.text("⟳ Rerun", `rrn:${opts.runId}`)
+  return kb
+}
+
 /** Confirm/cancel keyboard for a gated write command, keyed by its dispatch token. */
 export function buildConfirmKeyboard(token: string): InlineKeyboard {
   return new InlineKeyboard()

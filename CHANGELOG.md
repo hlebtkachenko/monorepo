@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.23.1] — 2026-07-16
+
 ### Added
 
 - pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate

@@ -9,6 +9,11 @@
       "type": "stdio",
       "command": "pnpm",
       "args": ["-w", "exec", "shadcn", "mcp", "-c", "packages/ui"]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
     }
   }
 }

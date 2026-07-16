@@ -220,13 +220,13 @@ so a "variant" is just which slots a page fills — not a different component. F
 named archetypes cover every page; pick one when scaffolding. Live examples:
 `packages/ui/src/blocks/content-panel/content-panel.stories.tsx` (one story each).
 
-| Variant       | Slots filled                                                | Use for                                                                                                          |
-| ------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). The wired demo today.                                                 |
-| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                       |
-| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. Demo: `/demo-launchpad`.                                  |
-| **Dashboard** | body only (`DashboardGrid` + `DashboardChartCard`)          | Analytics — KPI tiles, chart cards, period control, a selectable matrix. Demo: `/demo-dashboard`.                |
-| **Single**    | body only (`RecordWorkspace`)                               | One record on show — side-by-side form panels + an editable line-items grid + live totals. Demo: `/demo-single`. |
+| Variant       | Slots filled                                                | Use for                                                                                                            |
+| ------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Table**     | `toolbar` + body + `statusBar` (+ `inspector`, `actionBar`) | Dense list pages (invoices, transactions). Reference: `settings/debug/archetype-table`.                            |
+| **Blank**     | body only (no chrome)                                       | A one-off body straight on the layout. The zero-slot case.                                                         |
+| **Launchpad** | body only (`LaunchpadGrid`)                                 | Folder / overview pages — a grid of cards to subpages. Rebuild pending (#787).                                     |
+| **Dashboard** | body only (`DashboardGrid` + `DashboardChartCard`)          | Analytics — KPI tiles, chart cards, period control, a selectable matrix. Rebuild pending (#787).                   |
+| **Single**    | body only (`RecordWorkspace`)                               | One record on show — side-by-side form panels + an editable line-items grid + live totals. Rebuild pending (#787). |
 
 **Scaffolding a Table page** (the common case): mount `ContentPanel` with a
 `ContentToolbar` in `toolbar`, the body in `children` (`bodyClassName="p-0"` so a
@@ -296,8 +296,8 @@ it **portals**. Render `<OrgPageHeader>` (from
 in the shell's header while staying in your page's React tree (so it keeps your
 state/context). When the header and body share state (active tab, filter
 visibility), wrap **your page subtree** — not `AppShell` — in a small context
-provider; the Faktury demo does this in
-`apps/web/app/_components/table-demo/context.tsx`. Full steps:
+provider; the deník page does this in
+`apps/web/app/_components/denik/context.tsx`. Full steps:
 [recipe C](#c-custom-content-header-tabs).
 
 ---
@@ -371,8 +371,8 @@ Default: **skip this** — the nav-derived title is your header. When a page nee
 its own tabs or actions in the content-panel header, render `<OrgPageHeader>` in
 the page body; it portals into the shell's header slot (and stays in your page's
 tree, so it keeps your state). If tabs drive the body, wrap **your page subtree**
-— not `AppShell` — in a small context provider. Copy the live example:
-`apps/web/app/[orgSlug]/demo-table/page.tsx` + `apps/web/app/_components/table-demo/`.
+— not `AppShell` — in a small context provider. Copy the live reference:
+`apps/web/app/[orgSlug]/settings/debug/archetype-table/`.
 
 ### Verify
 
@@ -392,10 +392,9 @@ Tracked in GitHub issue
 - **Sidebar**: reminders + insight are "on-call" (self-hide until a server source
   feeds them) — wire the real sources; swap nav `<a>` → Next `<Link>` when the
   blocks move to real navigation.
-- **Content panel**: the `/demo-table` route
-  (`apps/web/app/_components/table-demo`) is a saved, dev-only preview of the
-  Table archetype — a reference to copy, not a shipped page. Tab reorder in the
-  manage-tabs menu is not built (show/hide + add only).
+- **Content panel**: `settings/debug/archetype-table` is the dev-only reference
+  for the Table archetype — a page to copy, not a shipped page. Tab reorder in
+  the manage-tabs menu is not built (show/hide + add only).
 - **Header switchers** (`org-switcher.tsx` / `period-switcher.tsx`): org
   identity (name/role from `resolveMembership`, a member-count query), recent
   orgs (`listWorkspacesForUser` + a `last_accessed_at` column for true

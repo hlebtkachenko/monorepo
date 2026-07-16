@@ -16,17 +16,22 @@ from `packages/ui/src/blocks/content-panel` plus thin data demos under
 `apps/web/app/_components/<name>-demo`. `Blank` is the intentional zero-slot
 case: page content renders directly in `ContentPanel` without archetype chrome.
 
-Issue #425 is the origin. The four demo routes are dev-only reference pages
-(404 in production, hidden from nav via `scripts/check-nav.ts`). Copy their
-patterns; do not import demo code into production pages.
+Issue #425 is the origin. The standalone `/[orgSlug]/demo-*` demo routes have
+been retired. **Table** and **Blank** now live as `settings/debug/archetype-*`
+reference pages (dev-only, 404 in production, hidden from nav via
+`scripts/check-nav.ts`); **Launchpad / Dashboard / Single** are pending rebuild
+as `settings/debug` pages, tracked in
+[issue #787](https://github.com/hlebtkachenko/monorepo/issues/787) which carries
+their full structure/logic/caveats. Copy the reference page; do not resurrect
+the deleted `_components/*-demo` folders.
 
-| Archetype     | Route                   | Demo source                   | Block(s)                                       |
-| ------------- | ----------------------- | ----------------------------- | ---------------------------------------------- |
-| **Table**     | `/<org>/demo-table`     | `_components/table-demo/`     | `DataGridView` + `useDataTable` + `filter-bar` |
-| **Blank**     | None                    | None                          | `ContentPanel` body only                       |
-| **Launchpad** | `/<org>/demo-launchpad` | `_components/launchpad-demo/` | `LaunchpadGrid`                                |
-| **Dashboard** | `/<org>/demo-dashboard` | `_components/dashboard-demo/` | `DashboardGrid` + `DashboardChartCard`         |
-| **Single**    | `/<org>/demo-single`    | `_components/single-demo/`    | `RecordWorkspace` (`formLayout="panels"`)      |
+| Archetype     | Reference                         | Block(s)                                      |
+| ------------- | --------------------------------- | --------------------------------------------- |
+| **Table**     | `settings/debug/archetype-table/` | `ArchetypeTable` (`sectionTable` + inspector) |
+| **Blank**     | `settings/debug/archetype-blank/` | `ContentPanel` body only                      |
+| **Launchpad** | pending rebuild (#787)            | `LaunchpadGrid`                               |
+| **Dashboard** | pending rebuild (#787)            | `DashboardGrid` + `DashboardChartCard`        |
+| **Single**    | pending rebuild (#787)            | `RecordWorkspace` (`formLayout="panels"`)     |
 
 ## Which one?
 
@@ -39,7 +44,8 @@ patterns; do not import demo code into production pages.
 The admin app carries a static reference catalog of these archetypes at
 `/platform/archetypes` (`apps/admin/app/(gated)/platform/archetypes`) — each
 archetype's label, one-line description, and slot recipe. It documents the set;
-the buildable demos live in the web routes above.
+the buildable references live in the web routes above (`settings/debug` for
+Table/Blank; Launchpad/Dashboard/Single pending rebuild per #787).
 
 ## The shared foundation (every archetype uses this)
 
@@ -116,12 +122,11 @@ the **`filter-bar`** (bazza) per-column filters (`FilterSelector` +
 `_shared/apply-filter-bar.ts`). A row opens the `ContentPanel` `inspector`
 (panel or dialog). Bulk selection surfaces an `ActionBar`.
 
-**Build it:** copy `table-demo/` — `columns.tsx` (column defs incl. the leading
-select-checkbox column + `DataTableColumnHeader`), `table-demo-body.tsx`
-(`useDataTable` + `DataGridView`), `table-demo-toolbar.tsx` (filters + search +
-`DataTableColumnManager` + a split "Add" button + the inspector-mode switch),
-`table-demo-header.tsx`, `data.ts`, and `context.tsx` (links the portaled header
-to the body). Swap `data.ts` for query results.
+**Build it:** copy
+`apps/web/app/[orgSlug]/settings/debug/archetype-table/` — `archetype-table-view.tsx`
+composes `ArchetypeTable` (ContentHeader view tabs + ContentToolbar + a
+`sectionTable` pure-data column spec + the inspector rail), and `fixture.ts`
+holds the sample rows. Swap `fixture.ts` for query results.
 
 ## Blank
 
@@ -152,10 +157,12 @@ group first. Props: `sections`, `view` (`"all" | "followed" | "unread"`),
 `onToggleFollow`, `linkComponent` (pass Next's `Link`). `getLaunchpadCounts()`
 gives the tab badges.
 
-**Build it:** copy `launchpad-demo/` — `data.ts` is your nav structure,
-`launchpad-demo.tsx` holds the `followed` set + `view` tab state and wires
-`LaunchpadGrid` into a `ContentPanel`. The block is presentational; you own the
-data + the follow toggle.
+**Build it:** no reference page exists yet — the demo was retired. Rebuild it as
+`settings/debug/archetype-launchpad` per
+[issue #787](https://github.com/hlebtkachenko/monorepo/issues/787), which carries
+the full structure + caveats. The `LaunchpadGrid` block is presentational; you
+own the data + the follow toggle (`view` state + a `followed` set +
+`getLaunchpadCounts()` for the tab badges).
 
 ## Dashboard
 
@@ -171,10 +178,12 @@ cards), `mode`, `matrix`, `showTiles`. Period / filter controls belong in the
 recharts is a `packages/ui`-only dependency, so **all chart UI stays in the
 block** (`dashboard-grid.tsx`); the demo only supplies data.
 
-**Build it:** copy `dashboard-demo/` — `data.ts` holds a transaction ledger and
-`aggregate()` that the toolbar filters + the body reads (so a filter or the
-timeframe re-buckets every tile, chart, and matrix row). `dashboard-demo.tsx`
-carries the FilterBar, the timeframe Select, the Widgets show/hide manager (the
+**Build it:** no reference page exists yet — the demo was retired. Rebuild it as
+`settings/debug/archetype-dashboard` per
+[issue #787](https://github.com/hlebtkachenko/monorepo/issues/787). The pattern: a
+transaction ledger + an `aggregate()` the toolbar filters and the body reads (so
+a filter or the timeframe re-buckets every tile, chart, and matrix row), plus a
+FilterBar, a timeframe Select, a Widgets show/hide manager (the
 `ColumnManagerMenuContent` grip+eye pattern), the Add-widget split button, and
 the chart/table format toggle.
 
@@ -199,14 +208,16 @@ Props: `children` (the panels / form), `aside`, `lineItems`, `footer`,
 `bodyClassName="flex min-h-0 flex-col p-0"` so the workspace owns its own scroll
 and footer.
 
-**Build it:** copy `single-demo/` — `single-demo.tsx` (the three panels + local
-tab state + chrome), `line-items.tsx` (editable-grid columns), `data.ts`
-(`recomputeLine`, `ledgerTotals`, `vatRecap`, option lists).
+**Build it:** no reference page exists yet — the demo was retired. Rebuild it as
+`settings/debug/archetype-single` per
+[issue #787](https://github.com/hlebtkachenko/monorepo/issues/787): the three
+panels + local tab state + chrome, an editable line-items grid, and the
+`recomputeLine` / `ledgerTotals` / `vatRecap` helpers + option lists.
 
 ## Add a new archetype page — checklist
 
 1. `apps/web/app/[orgSlug]/<name>/page.tsx` — render `<OrgPageHeader><ContentHeader …/></OrgPageHeader>` + `<ContentPanel>…</ContentPanel>`. Gate dev-only demos on `process.env.NODE_ENV === "production" && notFound()`.
-2. Put the data + client state in `apps/web/app/_components/<name>/` (never in `packages/ui` — the `ui-location` lefthook hook enforces reusable UI lives in `packages/ui/src/blocks`).
+2. Put the data + client state in `_components/` (never in `packages/ui` — the `ui-location` lefthook hook enforces reusable UI lives in `packages/ui/src/blocks`). Shared across ≥2 routes → `apps/web/app/_components/<name>/`; single-use → the page's own `_components/` folder + register it in [`apps/web/app/_components/README.md`](../../apps/web/app/_components/README.md).
 3. Feed the body as branded Sections via `ContentPanel sections={[sectionEmpty({…})]}` (an Archetype is the component that composes the whole page — ContentHeader + this ContentPanel). `children` remains only as the deprecated grandfather hatch.
 4. If a demo/dev route, add its folder name to `HIDDEN_ROUTES` in `scripts/check-nav.ts`.
 5. Verify: `pnpm --filter web typecheck`, `pnpm --filter @workspace/ui test`, `pnpm --filter web lint`, `pnpm check:nav`.

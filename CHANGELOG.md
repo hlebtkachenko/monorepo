@@ -10,12 +10,24 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
 - PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, preflight, squash-only)
+- Document the apps/web/app/_components shared-vs-single-use placement rule + single-use index (README + AGENTS.md)
 
 ### Changed
 
 - pnpm preflight now runs the CHANGELOG Unreleased gate (catches release-cut merge mis-files that --no-verify merge pushes bypass)
 - PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
 - Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main
+- Wire the Playwright MCP server into the repo .mcp.json
+
+### Removed
+
+- Retire the dev-only content-panel demo routes + components (Table/Launchpad/Dashboard/Single + table-demo); Table & Blank references now point at the settings/debug archetype pages, Launchpad/Dashboard/Single rebuild tracked in #787
+- Delete the empty apps/web/components and apps/web/hooks scaffold directories
+- Delete the redundant web-side dev mail outbox viewer page (/dev/outbox); the /api/dev/outbox endpoint + admin ops-debug viewer remain the single dev-mail inspection path
+
+### Fixed
+
+- Remove two dead settings/debug sidebar links (archetype-table-db / -pivot routes never existed) and add the Archetype Table + Section Details Form debug pages to the sitemap
 
 ### Fixed
 

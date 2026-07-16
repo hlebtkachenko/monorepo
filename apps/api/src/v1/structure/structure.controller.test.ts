@@ -73,6 +73,6 @@ describe("StructureController", () => {
       "Single",
     ])
     const table = archetypes.find((a) => a.key === "Table")
-    expect(table?.demoRoute).toBe("demo-table")
+    expect(table?.demoRoute).toBe(null)
   })
 })

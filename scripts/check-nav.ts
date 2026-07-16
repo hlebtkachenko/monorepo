@@ -103,16 +103,9 @@ const tiers: Tier[] = [
     dir: join(APP_DIR, "[orgSlug]"),
     prefix: `/${SLUG}`,
     navPaths: navPathsFrom(orgHrefs, `/${SLUG}`),
-    // Saved dev-only content-panel demos: exist without a nav entry. Plus the
-    // doklad editor — a detail workspace in the Records (documents) module,
-    // not a sidebar list page, so it has no nav.ts slot.
-    hidden: new Set([
-      "demo-table",
-      "demo-launchpad",
-      "demo-dashboard",
-      "demo-single",
-      "documents/doklad",
-    ]),
+    // The doklad editor — a detail workspace in the Records (documents)
+    // module, not a sidebar list page, so it has no nav.ts slot.
+    hidden: new Set(["documents/doklad"]),
   },
   {
     label: "workspace",

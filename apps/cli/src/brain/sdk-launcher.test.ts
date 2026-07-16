@@ -151,11 +151,7 @@ describe("makeCanUseTool (RUN/BOOK lane live gate)", () => {
       lines: [{ partials: [{ vatMode: "STANDARD" }] }],
     }
     const result = mustResult(
-      await gate(
-        "mcp__afframe__capture_accounting_document",
-        input,
-        STUB_TOOL_OPTIONS,
-      ),
+      await gate(CAPTURE_ACCOUNTING_DOCUMENT_TOOL, input, STUB_TOOL_OPTIONS),
     )
     expect(result.behavior).toBe("allow")
     // #578: the gate must NOT rewrite a model-authored capture body — the removed classify-threading seam

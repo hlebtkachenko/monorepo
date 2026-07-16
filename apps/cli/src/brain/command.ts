@@ -13,7 +13,7 @@
 // The SDK-backed launcher (`./sdk-launcher`, the only `@anthropic-ai/claude-agent-sdk` import) is loaded
 // LAZILY, inside the live branch, so `--dry-run` and every non-Brain command start without pulling in the SDK.
 
-import { readFileSync, statSync } from "node:fs"
+import { readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
@@ -62,6 +62,7 @@ import {
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { IR_BEGIN, IR_END } from "./extract-config"
 import {
   executeOnboardingPlan,
   fetchOnboardingPlan,
@@ -302,6 +303,11 @@ export function registerBrainCommand(program: Command): void {
       "--live",
       "Actually run the extract session against the deployed REST API via a local stdio MCP bridge (needs creds)",
     )
+    .option(
+      "--out <path>",
+      "Write the extracted machine IR Invoice (JSON) to <path> so `brain event`/`book --extracted` consume it " +
+        "with NO hand edits. Fail-closed: an absent or invalid IR exits non-zero and writes no file.",
+    )
     .action(
       async (
         path: string,
@@ -310,6 +316,7 @@ export function registerBrainCommand(program: Command): void {
           supplier?: string
           dryRun?: boolean
           live?: boolean
+          out?: string
         },
       ) => {
         const ctx = readExtractContext(opts.context)
@@ -373,6 +380,36 @@ export function registerBrainCommand(program: Command): void {
         output.write(
           `\n[extract session ${result.sessionId}]\n${result.report}\n`,
         )
+
+        // [#570] Machine IR contract: capture the structured IR the session emitted between the sentinels,
+        // validate it through the SAME reader `--extracted` uses, and write the canonical form — so the
+        // event/book steps consume it with no hand-transcription. Fail-closed: no block or an invalid IR
+        // exits non-zero and writes NO file (never a partial IR a later `--extracted` would trust).
+        if (opts.out) {
+          const rawIr = extractIrJson(result.report)
+          if (rawIr === null) {
+            output.write(
+              "brain extract --out: the session emitted no machine IR block — nothing written.\n",
+            )
+            process.exit(1)
+          }
+          let invoice: Invoice
+          try {
+            invoice = parseExtractedInvoice(rawIr, "--out")
+          } catch (err) {
+            output.write(
+              `brain extract --out: ${err instanceof Error ? err.message : "invalid IR"} — nothing written.\n`,
+            )
+            process.exit(1)
+          }
+          writeFileSync(
+            opts.out,
+            JSON.stringify(invoice, bigintToDecimalString, 2) + "\n",
+          )
+          output.write(
+            `brain extract --out: wrote machine IR Invoice to ${opts.out}\n`,
+          )
+        }
       },
     )
 
@@ -924,22 +961,83 @@ async function runPlanLive(
  * IR Invoice the OCR bridge maps to a capture. It does NOT deep-validate every field — the capture schema
  * (`CaptureAccountingDocumentRequestSchema`) is the strict boundary the request is parsed against downstream.
  */
-function readExtractedInvoice(path: string): Invoice {
-  const parsed: unknown = JSON.parse(
-    readFileSync(path, "utf8"),
-    reviveMinorBigints("--extracted"),
-  )
+/**
+ * The REQUIRED top-level fields of an IR `Invoice` (`packages/brain/src/ir/records.ts`). Presence is asserted
+ * explicitly because `reviveMinorBigints` only fires on PRESENT keys — a missing `total_minor` would otherwise
+ * pass a shallow `record_type` check and be trusted downstream until the strict capture schema rejects it.
+ */
+const REQUIRED_INVOICE_KEYS = [
+  "record_type",
+  "direction",
+  "doc_type",
+  "number",
+  "issue_date",
+  "currency",
+  "lines",
+  "vat_summary",
+  "total_minor",
+] as const
+
+/**
+ * Parse + validate a machine IR Invoice from raw JSON — the SINGLE validator shared by `brain extract --out`
+ * (emit) and `--extracted` (read), so the emitted file and the consumed file can never drift on the contract.
+ * Revives `*_minor` bigints (throws on a non-integer money field — an unsafe JSON number fails here) AND
+ * asserts every required field is present. Deep field validation stays downstream at the strict capture
+ * schema (`CaptureAccountingDocumentRequestSchema`); this is the shallow-but-honest boundary floor.
+ */
+export function parseExtractedInvoice(rawJson: string, flag: string): Invoice {
+  const parsed: unknown = JSON.parse(rawJson, reviveMinorBigints(flag))
   if (
     typeof parsed !== "object" ||
     parsed === null ||
     (parsed as { record_type?: unknown }).record_type !== "invoice"
   ) {
     throw new Error(
-      `--extracted file ${path} must be a JSON IR Invoice ` +
-        `(an object with "record_type": "invoice", as 'brain extract' reports).`,
+      `${flag}: expected a JSON IR Invoice (an object with "record_type": "invoice", as 'brain extract' reports).`,
+    )
+  }
+  const obj = parsed as Record<string, unknown>
+  const missing = REQUIRED_INVOICE_KEYS.filter(
+    (key) => obj[key] === undefined || obj[key] === null,
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `${flag}: IR Invoice is missing required field(s): ${missing.join(", ")}.`,
     )
   }
   return parsed as Invoice
+}
+
+/** JSON.stringify replacer that serializes `*_minor` bigints back to the canonical integer STRING form. */
+function bigintToDecimalString(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value
+}
+
+/**
+ * Extract the machine IR JSON the extract session emits between the sentinel lines — the STRUCTURED final step
+ * `brain extract --out` consumes, NOT a scrape of the free-text report. Returns the LAST sentinel block's inner
+ * text (the kickoff pins the IR as the final output), or `null` when no complete block is present — so `--out`
+ * fails closed on a session that emitted no machine IR.
+ */
+export function extractIrJson(report: string): string | null {
+  let last: string | null = null
+  let cursor = 0
+  for (;;) {
+    const begin = report.indexOf(IR_BEGIN, cursor)
+    if (begin === -1) break
+    const end = report.indexOf(IR_END, begin + IR_BEGIN.length)
+    if (end === -1) break
+    last = report.slice(begin + IR_BEGIN.length, end).trim()
+    cursor = end + IR_END.length
+  }
+  return last
+}
+
+function readExtractedInvoice(path: string): Invoice {
+  return parseExtractedInvoice(
+    readFileSync(path, "utf8"),
+    `--extracted file ${path}`,
+  )
 }
 
 /**

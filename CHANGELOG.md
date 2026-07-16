@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- Brain CLI: brain extract --out <file> writes the validated machine IR Invoice (emitted by the extract session between sentinels) so brain event/book --extracted consume it with no hand-transcription; a shared parseExtractedInvoice validator asserts required fields + revives *_minor bigints, fail-closed on an absent/invalid IR (WP2 Task 2.2, #570)
+
 ### Fixed
 
 - Brain approvals: add resolve-parity.test.ts (PG18) — drives the shared executeHeldWrite dispatcher for every GATED_WRITE_OPERATION_IDS op (exhaustiveness guard + real-DB landing), the červené storno negative-amount edit path, the stale-payload 422, and the S1/S2 web guards (WP1 Task 1.5, closes audit S9)

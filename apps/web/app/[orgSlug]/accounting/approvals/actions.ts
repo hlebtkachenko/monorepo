@@ -5,7 +5,6 @@ import { z } from "zod"
 import {
   eq,
   executeRows,
-  lockPeriodInTx,
   recordConfidentWrong,
   sql,
   unconfirmTemplateOnReject,
@@ -15,25 +14,11 @@ import {
 } from "@workspace/db"
 import { organization } from "@workspace/db/schema"
 import {
-  captureAndBookIfInvoice,
-  createAsset,
-  createDepreciationPlan,
-  createEvent,
-  createInventoryCount,
+  executeHeldWrite,
+  HELD_WRITE_STALE_MESSAGE,
   mintInboxItem,
-  postWithObligation,
-  type AssetInput,
-  type DepreciationPlanInput,
-  type DocumentInput,
-  type EventInput,
-  type InventoryCountInput,
-  type ObligationDirective,
-  type PostWithObligationInput,
 } from "@workspace/accounting"
-import {
-  INBOX_STAMPED_OPERATION_IDS,
-  stripGateEnvelope,
-} from "@workspace/shared/api"
+import { INBOX_STAMPED_OPERATION_IDS } from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "../../_lib/accounting-data"
 import {
@@ -226,10 +211,15 @@ export async function resolveHeldWrite(
         // result, so an approved-with-edits write is visibly distinguishable
         // from a plain approve.
         const rawInput = (row.input_json ?? {}) as Record<string, unknown>
-        const mergedInput = edit
+        // The reviewer's edit is applied to the ORIGINAL stored payload and handed
+        // to the shared dispatcher as the payload to EXECUTE. The dispatcher
+        // validates the STORED (pre-edit) payload, never the edit — so a
+        // deliberately-signed červené storno amount (§42 / ČÚS 001), which the
+        // unsigned request schema would reject, still books. `undefined` when the
+        // reviewer made no edit ⇒ the dispatcher executes the validated payload.
+        const editedInput = edit
           ? applyHeldWriteEdit(row.tool_name, rawInput, edit)
-          : rawInput
-        const fields = stripGateEnvelope(mergedInput)
+          : undefined
 
         // [Tier 4] Mint the provenance record for this landed proposal and thread
         // its id onto the ctx, so every row the replay INSERTs carries inbox_id
@@ -256,144 +246,20 @@ export async function resolveHeldWrite(
             : null
         const writeCtx = { ...orgCtx, inboxId }
 
-        let applied: Record<string, unknown>
-        switch (row.tool_name) {
-          case "createAccountingEvent": {
-            await lockPeriodInTx(
-              db,
-              orgCtx.organizationId,
-              (fields as { periodId: string }).periodId,
-            )
-            const ev = await createEvent(db, writeCtx, {
-              ...fields,
-              responsibleUserId: ctx.userId,
-            } as unknown as EventInput)
-            applied = {
-              eventId: ev.eventId,
-              designation: ev.designation,
-              sequenceNumber: ev.sequenceNumber,
-            }
-            break
-          }
-          case "captureAccountingDocument": {
-            const docInput = fields as unknown as DocumentInput
-            await lockPeriodInTx(db, orgCtx.organizationId, docInput.periodId)
-            // Derive mode: a captured INVOICE is booked deterministically in the
-            // SAME tx, so "approve a captured invoice" lands ONE fully-wired
-            // accounting fact (event + doc + posting per event, every line linked
-            // to its source partial_record) instead of an orphaned capture. The
-            // předkontace is derived from each partial's facts — no caller-supplied
-            // account lines — so what the reviewer previewed IS what posts.
-            // Non-invoice vouchers (cash/bank) do not book through předkontace.
-            // captureAndBookIfInvoice is the SAME unit the API held-write resolve
-            // path uses, so the two approve surfaces can never drift on whether
-            // they book (that drift is what this task closes). It fails closed
-            // (throws → the whole approve rolls back, the row stays held).
-            const { doc, postingIds } = await captureAndBookIfInvoice(
-              db,
-              writeCtx,
-              docInput,
-              ctx.userId,
-            )
-            applied = {
-              summaryRecordId: doc.summaryRecordId,
-              designation: doc.designation,
-              sequenceNumber: doc.sequenceNumber,
-              lines: doc.lines,
-              ...(postingIds ? { postingIds } : {}),
-            }
-            break
-          }
-          case "createAccountingPosting": {
-            const { kind, entry, openObligation } = fields as {
-              kind?: unknown
-              entry?: unknown
-              openObligation?: unknown
-            }
-            await lockPeriodInTx(
-              db,
-              orgCtx.organizationId,
-              (entry as { periodId: string }).periodId,
-            )
-            // postWithObligation, NOT bare post — the stored payload's optional
-            // openObligation directive (top-level domain data, survives
-            // stripGateEnvelope) must replay identically to the API held-write
-            // path (held-writes.controller.ts), or approving the SAME held posting
-            // via the web UI vs the public API would book differently (the web
-            // path would silently drop the saldokonto obligation). #740 wired the
-            // live + API paths; this closes the web replay to match.
-            const posting = await postWithObligation(db, writeCtx, {
-              kind,
-              entry: {
-                ...(entry as Record<string, unknown>),
-                responsibleUserId: ctx.userId,
-              },
-              obligation:
-                (openObligation as ObligationDirective | null | undefined) ??
-                null,
-            } as unknown as PostWithObligationInput)
-            applied = { postingId: posting.postingId, lineIds: posting.lineIds }
-            break
-          }
-          case "createAsset": {
-            // periodId binds the proposal to a period (audit + close-blocking);
-            // it is not domain data for the org-scoped asset card, so peel it off
-            // before the domain insert (same as the API controller).
-            const { periodId, ...cardFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const asset = await createAsset(db, writeCtx, {
-              ...cardFields,
-              responsibleUserId: ctx.userId,
-            } as unknown as AssetInput)
-            applied = {
-              assetId: asset.id,
-              designation: asset.designation,
-              sequenceNumber: asset.sequenceNumber,
-            }
-            break
-          }
-          case "createDepreciationPlan": {
-            const { periodId, ...planFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const planId = await createDepreciationPlan(
-              db,
-              writeCtx,
-              planFields as unknown as Parameters<
-                typeof createDepreciationPlan
-              >[2],
-            )
-            applied = { depreciationPlanId: planId }
-            break
-          }
-          case "createInventoryCount": {
-            const { periodId, ...countFields } = fields as {
-              periodId: string
-            } & Record<string, unknown>
-            await lockPeriodInTx(db, orgCtx.organizationId, periodId)
-            const count = await createInventoryCount(
-              db,
-              writeCtx,
-              countFields as unknown as Parameters<
-                typeof createInventoryCount
-              >[2],
-            )
-            applied = {
-              inventoryCountId: count.id,
-              designation: count.designation,
-              sequenceNumber: count.sequenceNumber,
-            }
-            break
-          }
-          default:
-            return {
-              ok: false,
-              error: `Neznámá operace: ${row.tool_name}`,
-            }
-        }
+        // Replay through the SHARED dispatcher — the single source of truth both
+        // this action and the public API (`held-writes.controller.ts`) call, so
+        // approving the SAME payload on either surface lands IDENTICAL domain
+        // effects. It validates `rawInput` (the stored payload) against the request
+        // schema (closes the web's missing re-validation), then executes the edited
+        // payload (or the validated stored one when there was no edit).
+        const applied = await executeHeldWrite(
+          db,
+          writeCtx,
+          row.tool_name,
+          rawInput,
+          ctx.userId,
+          editedInput,
+        )
 
         await updateToolCallLogOutput(db, {
           toolCallLogId: id,
@@ -429,6 +295,16 @@ export async function resolveHeldWrite(
       },
     )
   } catch (err) {
+    // The shared dispatcher 422s a stored payload that no longer validates
+    // against the current request schema; its thrown text is English (for
+    // `translateAccountingError` on the API side), so localize it here.
+    if (err instanceof Error && err.message === HELD_WRITE_STALE_MESSAGE) {
+      return {
+        ok: false,
+        error:
+          "Uložený návrh už neodpovídá aktuálnímu schématu a nelze jej schválit.",
+      }
+    }
     // A domain guard rejected the replayed write (period closed, regime
     // mismatch, missing fx rate, …) — surface the message, keep the row held.
     return {

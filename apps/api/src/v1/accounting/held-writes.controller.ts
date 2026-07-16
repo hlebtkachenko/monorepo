@@ -21,38 +21,15 @@ import {
   eq,
   executeRows,
   isNull,
-  lockPeriodInTx,
   sql,
   unconfirmTemplateOnReject,
   updateToolCallLogOutput,
   withOrganization,
-  type OrganizationBoundDb,
 } from "@workspace/db"
 import { tool_call_log } from "@workspace/db/schema"
+import { executeHeldWrite, mintInboxItem } from "@workspace/accounting"
 import {
-  captureAndBookIfInvoice,
-  createAsset,
-  createDepreciationPlan,
-  createEvent,
-  createInventoryCount,
-  mintInboxItem,
-  postWithObligation as postPosting,
-  type AssetInput,
-  type DepreciationPlanInput,
-  type DocumentInput,
-  type EventInput,
-  type InventoryCountInput,
-  type PostWithObligationInput,
-} from "@workspace/accounting"
-import {
-  CaptureAccountingDocumentRequestSchema,
-  CreateAccountingEventRequestSchema,
-  CreateAccountingPostingRequestSchema,
-  CreateAssetRequestSchema,
-  CreateDepreciationPlanRequestSchema,
-  CreateInventoryCountRequestSchema,
   INBOX_STAMPED_OPERATION_IDS,
-  stripGateEnvelope,
   type ListHeldWritesResponse,
   type ResolveHeldWriteResponse,
 } from "@workspace/shared/api"
@@ -60,7 +37,6 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  ValidationError,
 } from "@workspace/shared/errors"
 
 import { ApiKeyGuard } from "../../auth/api-key.guard"
@@ -318,7 +294,7 @@ export class HeldWritesController {
                   },
                 )
               : null
-          const result = await this.executeStored(
+          const result = await executeHeldWrite(
             db,
             {
               organizationId: principal.organizationId,
@@ -346,160 +322,6 @@ export class HeldWritesController {
       )
     } catch (e) {
       translateAccountingError(e)
-    }
-  }
-
-  /**
-   * Execute the stored held payload through the SAME domain path the original
-   * endpoint would have used. The payload is re-validated against the original
-   * request schema first — a stale row (schema moved on, or a redacted field)
-   * must fail as 422, not crash the domain. `responsibleUserId` is the
-   * APPROVER, not the original author.
-   */
-  private async executeStored(
-    db: OrganizationBoundDb,
-    ctx: {
-      organizationId: string
-      workspaceId: string
-      inboxId?: string | null
-    },
-    toolName: string,
-    input: unknown,
-    approverUserId: string,
-  ): Promise<Record<string, unknown>> {
-    const STALE_MESSAGE =
-      "The stored payload no longer validates against the current request schema"
-    switch (toolName) {
-      case "createAccountingEvent": {
-        const parsed = CreateAccountingEventRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        // Strip the gate envelope (confidence/rationale/conversationId) AND the
-        // [WP-D] evidence `signals` — neither is domain data. `signals` must NOT
-        // reach `EventInput` (the cast is `as unknown`, so TS would not catch a
-        // leak — this strip is load-bearing).
-        const {
-          confidence: _c,
-          rationale: _r,
-          conversationId: _cv,
-          signals: _sig,
-          ...fields
-        } = parsed.data
-        await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
-        const ev = await createEvent(db, ctx, {
-          ...fields,
-          responsibleUserId: approverUserId,
-        } as unknown as EventInput)
-        return {
-          eventId: ev.eventId,
-          designation: ev.designation,
-          sequenceNumber: ev.sequenceNumber,
-        }
-      }
-      case "captureAccountingDocument": {
-        const parsed = CaptureAccountingDocumentRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        // Peel the gate envelope (confidence / rationale / conversationId /
-        // [WP-D] signals / [WS-2] templateId / [#554] extractionMethod) — none is
-        // domain data. `stripGateEnvelope` is the single source of truth shared
-        // with the API capture controller and the web replay path, so all three
-        // re-run paths hand `captureDocument` the exact same field set. The strip
-        // is load-bearing: the cast to DocumentInput is `as unknown`, so TS cannot
-        // catch a leaked gate field.
-        const fields = stripGateEnvelope(parsed.data)
-        await lockPeriodInTx(db, ctx.organizationId, parsed.data.periodId)
-        // Capture, then book iff invoice type — the SAME capture-approve unit the
-        // web approvals path uses (PR #712 / #715). Approving a captured invoice
-        // via the API now lands the posting per event + its saldokonto obligation
-        // instead of an orphaned capture, closing the drift where the web approve
-        // booked and the API approve did not. Non-invoice vouchers capture only.
-        const { doc, postingIds } = await captureAndBookIfInvoice(
-          db,
-          ctx,
-          fields as unknown as DocumentInput,
-          approverUserId,
-        )
-        return {
-          summaryRecordId: doc.summaryRecordId,
-          designation: doc.designation,
-          sequenceNumber: doc.sequenceNumber,
-          lines: doc.lines,
-          ...(postingIds ? { postingIds } : {}),
-        }
-      }
-      case "createAccountingPosting": {
-        const parsed = CreateAccountingPostingRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        const { kind, entry, openObligation } = parsed.data
-        await lockPeriodInTx(
-          db,
-          ctx.organizationId,
-          (entry as { periodId: string }).periodId,
-        )
-        const posting = await postPosting(db, ctx, {
-          kind,
-          entry: {
-            ...(entry as Record<string, unknown>),
-            responsibleUserId: approverUserId,
-          },
-          obligation: openObligation ?? null,
-        } as unknown as PostWithObligationInput)
-        return { postingId: posting.postingId, lineIds: posting.lineIds }
-      }
-      case "createAsset": {
-        const parsed = CreateAssetRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        // periodId binds the proposal to a period (audit + close-blocking); not
-        // domain data for the org-scoped card, peeled off before the insert.
-        const { periodId, ...cardFields } = stripGateEnvelope(parsed.data) as {
-          periodId: string
-        } & Record<string, unknown>
-        await lockPeriodInTx(db, ctx.organizationId, periodId)
-        const asset = await createAsset(db, ctx, {
-          ...cardFields,
-          responsibleUserId: approverUserId,
-        } as unknown as AssetInput)
-        return {
-          assetId: asset.id,
-          designation: asset.designation,
-          sequenceNumber: asset.sequenceNumber,
-        }
-      }
-      case "createDepreciationPlan": {
-        const parsed = CreateDepreciationPlanRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        const { periodId, ...planFields } = stripGateEnvelope(parsed.data) as {
-          periodId: string
-        } & Record<string, unknown>
-        await lockPeriodInTx(db, ctx.organizationId, periodId)
-        const planId = await createDepreciationPlan(
-          db,
-          ctx,
-          planFields as unknown as DepreciationPlanInput,
-        )
-        return { depreciationPlanId: planId }
-      }
-      case "createInventoryCount": {
-        const parsed = CreateInventoryCountRequestSchema.safeParse(input)
-        if (!parsed.success) throw new ValidationError(STALE_MESSAGE)
-        const { periodId, ...countFields } = stripGateEnvelope(parsed.data) as {
-          periodId: string
-        } & Record<string, unknown>
-        await lockPeriodInTx(db, ctx.organizationId, periodId)
-        const count = await createInventoryCount(
-          db,
-          ctx,
-          countFields as unknown as InventoryCountInput,
-        )
-        return {
-          inventoryCountId: count.id,
-          designation: count.designation,
-          sequenceNumber: count.sequenceNumber,
-        }
-      }
-      default:
-        throw new ValidationError(
-          `Held write targets an unknown operation "${toolName}" and cannot be approved`,
-        )
     }
   }
 }

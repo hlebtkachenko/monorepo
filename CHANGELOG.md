@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Fixed
+
+- Brain held-write approvals: extract a shared executeHeldWrite dispatcher so the web and API resolve paths land identical domain effects, and the web path now re-validates the stored payload (WP1 Task 1.1, closes audit S5)
+
 ## [v0.23.0] — 2026-07-16
 
 ### Added

@@ -2174,6 +2174,27 @@ export const APP_STRUCTURE: GetStructureResponse = {
               "purpose": null
             },
             {
+              "label": "Archetype Table",
+              "route": "settings/debug/archetype-table",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table (DB)",
+              "route": "settings/debug/archetype-table-db",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
+              "label": "Archetype Table (Pivot)",
+              "route": "settings/debug/archetype-table-pivot",
+              "tba": false,
+              "archetype": null,
+              "purpose": null
+            },
+            {
               "label": "Section Details Form",
               "route": "settings/debug/section-form",
               "tba": false,

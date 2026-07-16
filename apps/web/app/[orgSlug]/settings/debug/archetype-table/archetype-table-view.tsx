@@ -50,11 +50,7 @@ import {
   ListIcon,
 } from "@workspace/ui/lib/icons"
 
-import {
-  INVOICE_ROWS,
-  INVOICE_STATUS_OPTIONS,
-  INVOICE_TABS,
-} from "../../../../_components/table-demo/data"
+import { INVOICE_ROWS, INVOICE_STATUS_OPTIONS, INVOICE_TABS } from "./fixture"
 
 // A small tag pool so the multiOption filter has data; tags live on each row as
 // a comma-joined string (TableCellValue is scalar) and are split back into an

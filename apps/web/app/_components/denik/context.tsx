@@ -8,8 +8,8 @@ import type { JournalRow } from "./data"
 
 /**
  * Shared UI state linking the deník page's two app-shell slots — the content
- * header (tabs) and the body (toolbar + table + inspector). Mirrors
- * the table-demo pattern; the inspector shows a single journal line's detail.
+ * header (tabs) and the body (toolbar + table + inspector). The inspector
+ * shows a single journal line's detail.
  */
 interface DenikState {
   activeTab: string

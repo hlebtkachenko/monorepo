@@ -115,6 +115,25 @@ index.ts            # re-exports (export * from "./{name}")
 - Brand surface: `import { Logo, BrandName, BRAND_SUPPORT_EMAIL } from "@workspace/ui/brand-assets"` (+ `getBrandText` from `@workspace/ui/brand-assets/server`)
 - Never use `@/components/ui/` (wrong path for monorepo)
 
+## Web App Component Placement (`apps/web/app/_components`)
+
+`packages/ui` holds the app-agnostic design system. Web-app compositions bound
+to routes + server data live under `apps/web/app`, and where they go depends on
+how many routes use them:
+
+- **Shared** (consumed by ≥2 routes, or app-shell / nav chrome for a whole
+  tier) → `apps/web/app/_components/<name>/`.
+- **Single-use** (exactly one route) → **that page's own `_components/` folder**,
+  and register a row in the index in
+  [`apps/web/app/_components/README.md`](apps/web/app/_components/README.md).
+
+When a single-use component gains a second consumer, **promote** it to
+`apps/web/app/_components/` and drop its index row. Before writing a new
+single-use component, check the index — if a near-identical one exists, prefer
+promoting it to shared over duplicating. The `README.md` is the source of truth
+for the rule + the running index (including the legacy single-use bodies still
+awaiting relocation).
+
 ## Releases
 
 Versions follow `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`) for stable releases and `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` (e.g. `v0.2.1-rc.1`) for release candidates. Tagging is manual and gated to Hleb until v1. Full conventions, bump rules, and the cut workflow live in [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
@@ -168,7 +187,7 @@ READ the source file first. Never guess exports. The export list is at the botto
 Agent-specific runbooks live in `docs/runbooks/`:
 
 - `CONDUCTOR.md`: how Conductor workspaces are wired — committed `.conductor/settings.toml` + `scripts/conductor/*` as the source of truth, full per-workspace isolation (own `$CONDUCTOR_PORT` range + own seeded `ws_p<port>` Postgres database, shared demo login `owner@example.com`), the setup/archive/run scripts, and cloud-workspace GitHub + secrets setup
-- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the five-archetype catalog (Table / Blank / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the four dev-only `/demo-*` routes as living examples
+- `APP-SHELL-PANELS.md`: how the persistent org app-shell + structure-driven nav + content panels fit together, and the recipes for adding a page / module / tabs. Its companion `docs/specs/CONTENT-ARCHETYPES.md` is the five-archetype catalog (Table / Blank / Launchpad / Dashboard / Single) — data contracts, layouts, and a "pick one and build a page" recipe, with the `settings/debug/archetype-*` reference pages as living examples (Launchpad/Dashboard/Single rebuild tracked in #787)
 - `CODEGRAPH.md`: how the repo-local CodeGraph MCP/index setup works, how to initialize/sync per Conductor worktree, and when agents should use it before grep/read exploration
 - `DB-ACCESS.md`: operator DB access — `scripts/db-query.sh` (fast ~2s reads via ECS Exec) vs the EC2 bastion (`staging-bastion-migrate.sh`) for raw write SQL
 - `BRAIN-OPERATOR-SESSION.md`: how Hleb starts a live Brain session and pushes a real org's docs through the HELD write loop — issue the `actor_kind='agent'` key, the exact env vars (`mlive.example.sh` template), the `brain extract` → `brain book` command sequence, and the `/{orgSlug}/accounting/approvals` review gate

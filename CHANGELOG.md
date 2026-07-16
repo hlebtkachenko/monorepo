@@ -6,20 +6,26 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
+- PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, preflight, squash-only)
+
+### Changed
+
+- PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
+- Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main
+
 ## [v0.23.1] — 2026-07-16
 
 ### Added
 
-- pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
-- PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, squash-only, merge queue)
 - Brain CLI: brain pipeline <pdf> books one document end-to-end (extract vision-OCR IR to event to book) as a single command with two approve clicks; INSTRUCT-AND-EXIT at each human-review gate (prints the held-write reviewId + approval URL + resume command, then exits without polling), resumable via a crash-safe on-disk checkpoint and --after-event <appliedEventId>; composes the existing extract/event/book cores with zero server change (WP2 Task 2.5)
 - Brain CLI: brain book --after-event <eventId> overrides (or supplies) the --context captureContext.eventId with the applied accounting-event uuid the operator copies off /approvals after the event write is approved, validated as a uuid at the boundary, so no post-approval hand-edit of the context JSON is needed and no server read is performed (WP2 Task 2.3, #578)
 - Brain CLI: brain extract --out <file> writes the validated machine IR Invoice (emitted by the extract session between sentinels) so brain event/book --extracted consume it with no hand-transcription; a shared parseExtractedInvoice validator asserts required fields + revives *_minor bigints, fail-closed on an absent/invalid IR (WP2 Task 2.2, #570)
 
 ### Changed
 
-- PR-WORKFLOW: add branch-per-PR lifecycle rule (check branch before new work) and clarify grouping is per-campaign, never per-PR
-- Wire small-PR workflow into AGENTS.md, CONTRIBUTING.md, and an advisory cache-buster lefthook hook; base-pin pnpm preflight to origin/main
 - Dev bot no longer opens GitHub issues for transient CI failures or runtime app errors — those now alert Telegram only; issues stay reserved for security-scan, blocking accounting-gate, and user-feedback signals
 - Bump production dependencies group: react-hook-form 7.81.0, recharts 3.9.2, @nestjs/{common,core,platform-express} 11.1.28, @anthropic-ai/claude-agent-sdk 0.3.205, @fortawesome/react-fontawesome 3.4.0, @openfga/syntax-transformer 0.2.2 (supersedes stale Dependabot #699 and #782)
 - Brain #578: remove the runtime-inert classify-to-capture threading seam (bare allowlisted tools auto-approve before canUseTool runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the updatedInput rewrite never fired) and correct the overstated three-sandbox-layers / harness-threads-classify comments; classify stays a model reasoning + human-reviewer discrepancy step, the write is submitted verbatim and the server gate holds every special regime; real treatment threading is deferred to a follow-up that feeds it a document-grounded supplyKind from the IR (WP2 Task 2.4)

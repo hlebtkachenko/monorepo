@@ -6,6 +6,16 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Added
+
+- Brain CLI: brain pipeline <pdf> books one document end-to-end (extract vision-OCR IR to event to book) as a single command with two approve clicks; INSTRUCT-AND-EXIT at each human-review gate (prints the held-write reviewId + approval URL + resume command, then exits without polling), resumable via a crash-safe on-disk checkpoint and --after-event <appliedEventId>; composes the existing extract/event/book cores with zero server change (WP2 Task 2.5)
+- Brain CLI: brain book --after-event <eventId> overrides (or supplies) the --context captureContext.eventId with the applied accounting-event uuid the operator copies off /approvals after the event write is approved, validated as a uuid at the boundary, so no post-approval hand-edit of the context JSON is needed and no server read is performed (WP2 Task 2.3, #578)
+- Brain CLI: brain extract --out <file> writes the validated machine IR Invoice (emitted by the extract session between sentinels) so brain event/book --extracted consume it with no hand-transcription; a shared parseExtractedInvoice validator asserts required fields + revives *_minor bigints, fail-closed on an absent/invalid IR (WP2 Task 2.2, #570)
+
+### Changed
+
+- Brain #578: remove the runtime-inert classify-to-capture threading seam (bare allowlisted tools auto-approve before canUseTool runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the updatedInput rewrite never fired) and correct the overstated three-sandbox-layers / harness-threads-classify comments; classify stays a model reasoning + human-reviewer discrepancy step, the write is submitted verbatim and the server gate holds every special regime; real treatment threading is deferred to a follow-up that feeds it a document-grounded supplyKind from the IR (WP2 Task 2.4)
+
 ### Fixed
 
 - Brain approvals: add resolve-parity.test.ts (PG18) — drives the shared executeHeldWrite dispatcher for every GATED_WRITE_OPERATION_IDS op (exhaustiveness guard + real-DB landing), the červené storno negative-amount edit path, the stale-payload 422, and the S1/S2 web guards (WP1 Task 1.5, closes audit S9)

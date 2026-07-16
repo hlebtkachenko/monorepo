@@ -10,17 +10,16 @@
 //     (`invoiceToCapture`), and returns the EXACT tool-call plan + the sandbox policy the live session would
 //     use. This is the creds-free half of the E2E: a caller can inspect precisely what a live run would do.
 //
-//   - M1.2 (the reasoning lane): the plan now schedules `classify_accounting_event` BETWEEN the discovery
-//     reads and the capture write — reason the facts, then classify, then propose (see `planForCapture`).
-//     Its planned input here is an ILLUSTRATIVE placeholder (the same pattern the two read calls already
-//     use): a live session supplies the facts it actually reasoned from the document, which this creds-free
-//     dry-run cannot fabricate without a real model. The dry-run `captureRequest` remains the exact,
-//     source-verified WP-A adapter output (pre-classify). The M1.2-completion loop-close happens on the LIVE
-//     path only: the launcher (`apps/cli` sdk-launcher.ts) records the server's classify result and threads
-//     its treatment onto the submitted capture body deterministically at the `canUseTool` `updatedInput` seam
-//     (`applyClassifyToCapture`), NARROW-ONLY and below the model — the model never edits the payload, and
-//     every write is still HELD/gated by the server (a threaded special regime is held via
-//     `unverified_vat_regime`). This creds-free dry-run has no classify result to thread, so it is unchanged.
+//   - The reasoning lane: the plan schedules `classify_accounting_event` BETWEEN the discovery reads and the
+//     capture write — reason the facts, then classify, then propose (see `planForCapture`). Its planned input
+//     here is an ILLUSTRATIVE placeholder (the same pattern the two read calls already use): a live session
+//     supplies the facts it actually reasoned from the document, which this creds-free dry-run cannot
+//     fabricate without a real model. On the LIVE path the model calls classify and REPORTS any treatment
+//     mismatch as a discrepancy for the human reviewer, but the capture body is submitted VERBATIM and the
+//     SERVER gate is the treatment authority — the harness threads NOTHING onto the write. (An earlier
+//     increment tried to thread classify onto the capture at the launcher's `canUseTool` `updatedInput` seam,
+//     but that seam is dead — bare-allowlisted tools bypass `canUseTool` — and it was removed. Real threading
+//     is deferred until the IR carries a document-grounded `supplyKind`; see #578.)
 //
 //   - `runLiveBrainSession` — CREDS-GATED. It launches a real Claude Code session (Agent-SDK), which spawns a
 //     LOCAL stdio MCP bridge pointed at the deployed REST API, and drives the session against the real tools +

@@ -166,6 +166,14 @@ const MAX_TEXT_LAYER_CHARS = 4000
  * `./extraction-engine`'s `resolveExtractionMethod`, always `"ocr"`) and forced again at the extract→book
  * bridge (`./book.ts`), regardless of whether this auxiliary text was present.
  */
+/**
+ * [#570] Sentinel lines the extract session wraps its canonical machine IR Invoice in, so `brain extract --out`
+ * captures it as a STRUCTURED final step (not a scrape of the free-text report). Shared with the CLI's IR
+ * extractor (`command.ts` `extractIrJson`) — the emit instruction and the reader must key off the same markers.
+ */
+export const IR_BEGIN = "<<<AFFRAME_IR_BEGIN>>>"
+export const IR_END = "<<<AFFRAME_IR_END>>>"
+
 export function buildExtractKickoff(
   supplierHint?: string,
   textLayer?: TextLayerSignal | null,
@@ -212,7 +220,13 @@ export function buildExtractKickoff(
     "",
     "Use no other tool. You cannot book: mcp__afframe__capture_accounting_document and every accounting write",
     "are denied to this session. Report the extracted IR Invoice, the field-level provenance, the layout",
-    "fingerprint, and whether the extraction was template-matched or NOVEL, then stop.",
+    "fingerprint, and whether the extraction was template-matched or NOVEL.",
+    "",
+    `Then, as the FINAL output, emit the canonical IR Invoice as ONE JSON object between the exact sentinel`,
+    `lines ${IR_BEGIN} and ${IR_END} (each on its own line, nothing after ${IR_END}). This machine block is`,
+    "consumed verbatim by `brain extract --out`. Money is INTEGER minor-unit values in the `*_minor` fields,",
+    'written as strings (e.g. "150000"). Include every required field: record_type, direction, doc_type,',
+    "number, issue_date, currency, lines, vat_summary, total_minor.",
     ...textLayerBlock,
   ].join("\n")
 }

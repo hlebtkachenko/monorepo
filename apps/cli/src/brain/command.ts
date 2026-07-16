@@ -13,7 +13,7 @@
 // The SDK-backed launcher (`./sdk-launcher`, the only `@anthropic-ai/claude-agent-sdk` import) is loaded
 // LAZILY, inside the live branch, so `--dry-run` and every non-Brain command start without pulling in the SDK.
 
-import { readFileSync, statSync } from "node:fs"
+import { readFileSync, statSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
@@ -56,12 +56,19 @@ import {
 import { liveBookOne } from "./batch-live"
 import { FileCheckpointStore } from "./checkpoint-store"
 import {
+  PipelineCheckpointStore,
+  renderBookGate,
+  renderEventGate,
+  resumeFrom,
+} from "./pipeline"
+import {
   assembleExtractPlan,
   isVisionMediaPath,
   renderExtractPlan,
   toDocumentBlock,
   type ExtractContext,
 } from "./extract"
+import { IR_BEGIN, IR_END } from "./extract-config"
 import {
   executeOnboardingPlan,
   fetchOnboardingPlan,
@@ -74,12 +81,14 @@ import {
   executeEventCreate,
   renderEventProposal,
   renderEventResult,
+  type EventProposal,
 } from "./event"
 import {
   crossCheckCounterparty,
   renderRegisterVerdict,
   verdictBlocksExecute,
   withRegisterCapSignals,
+  type RegisterVerdict,
 } from "./register-check"
 
 /** Fail-open ceiling for the ARES cross-check so a black-hole socket can't hang `brain event` (no POST occurs). */
@@ -164,7 +173,8 @@ export function registerBrainCommand(program: Command): void {
         "extractionMethod=structured), OR a single PDF/image + --extracted <ir.json> (the IR a `brain extract` " +
         "vision-OCR pre-pass produced → extractionMethod=ocr, the W1.4 extract→book bridge). --dry-run " +
         "assembles + prints only, no creds. NOTE: periodId/seriesId/eventId are OPERATOR-SUPPLIED via " +
-        "--context (like `brain run`), NOT MCP-resolved.",
+        "--context (like `brain run`), NOT MCP-resolved. Once the `brain event` write is approved, pass its " +
+        "applied eventId via --after-event to fill the context's eventId without hand-editing the JSON.",
     )
     .argument(
       "<path>",
@@ -180,6 +190,12 @@ export function registerBrainCommand(program: Command): void {
         "a single PDF/image (the OCR extract→book bridge); ignored for a folder.",
     )
     .option(
+      "--after-event <eventId>",
+      "The APPLIED accounting-event uuid, copied off /approvals after the `brain event` write was approved. " +
+        "Overrides (or supplies) the --context captureContext.eventId, so the operator never hand-edits the " +
+        "JSON post-approval. Operator-supplied verbatim — no server read.",
+    )
+    .option(
       "--dry-run",
       "Assemble + print the capture plan only; contact no endpoint (no creds needed)",
     )
@@ -193,6 +209,7 @@ export function registerBrainCommand(program: Command): void {
         opts: {
           context: string
           extracted?: string
+          afterEvent?: string
           dryRun?: boolean
           yes?: boolean
         },
@@ -204,7 +221,10 @@ export function registerBrainCommand(program: Command): void {
           return
         }
 
-        const ctx = readBookContext(opts.context)
+        const ctx = applyAfterEvent(
+          readBookContext(opts.context),
+          opts.afterEvent,
+        )
         const book = assembleBookPlan(path, ctx, new Date().toISOString())
 
         // Print the assembled plan (the operator-inspects-then-verbatim-embed property), then run the shared
@@ -302,6 +322,11 @@ export function registerBrainCommand(program: Command): void {
       "--live",
       "Actually run the extract session against the deployed REST API via a local stdio MCP bridge (needs creds)",
     )
+    .option(
+      "--out <path>",
+      "Write the extracted machine IR Invoice (JSON) to <path> so `brain event`/`book --extracted` consume it " +
+        "with NO hand edits. Fail-closed: an absent or invalid IR exits non-zero and writes no file.",
+    )
     .action(
       async (
         path: string,
@@ -310,6 +335,7 @@ export function registerBrainCommand(program: Command): void {
           supplier?: string
           dryRun?: boolean
           live?: boolean
+          out?: string
         },
       ) => {
         const ctx = readExtractContext(opts.context)
@@ -373,6 +399,36 @@ export function registerBrainCommand(program: Command): void {
         output.write(
           `\n[extract session ${result.sessionId}]\n${result.report}\n`,
         )
+
+        // [#570] Machine IR contract: capture the structured IR the session emitted between the sentinels,
+        // validate it through the SAME reader `--extracted` uses, and write the canonical form — so the
+        // event/book steps consume it with no hand-transcription. Fail-closed: no block or an invalid IR
+        // exits non-zero and writes NO file (never a partial IR a later `--extracted` would trust).
+        if (opts.out) {
+          const rawIr = extractIrJson(result.report)
+          if (rawIr === null) {
+            output.write(
+              "brain extract --out: the session emitted no machine IR block — nothing written.\n",
+            )
+            process.exit(1)
+          }
+          let invoice: Invoice
+          try {
+            invoice = parseExtractedInvoice(rawIr, "--out")
+          } catch (err) {
+            output.write(
+              `brain extract --out: ${err instanceof Error ? err.message : "invalid IR"} — nothing written.\n`,
+            )
+            process.exit(1)
+          }
+          writeFileSync(
+            opts.out,
+            JSON.stringify(invoice, bigintToDecimalString, 2) + "\n",
+          )
+          output.write(
+            `brain extract --out: wrote machine IR Invoice to ${opts.out}\n`,
+          )
+        }
       },
     )
 
@@ -497,30 +553,18 @@ export function registerBrainCommand(program: Command): void {
 
         if (!opts.execute) return
 
-        // Fail closed on a missing counterparty: emitting a bare event silently would recreate exactly the
-        // null-counterparty HOLD this command exists to avoid. Require an explicit override.
-        if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
-          output.write(
-            "brain event: refusing --execute — no counterparty identity extracted. Fix the source/IR, or " +
-              "pass --allow-missing-counterparty to propose a bare event anyway.\n",
-          )
+        // The shared fail-closed gate (missing-counterparty + register-mismatch refusals + the register cap) —
+        // single-sourced so `brain event` and `brain pipeline` can never diverge on the event safety posture.
+        const gate = gateEventRequest(proposal, verdict, {
+          allowMissingCounterparty: opts.allowMissingCounterparty,
+          allowRegisterMismatch: opts.allowRegisterMismatch,
+        })
+        if (!gate.ok) {
+          output.write(`brain event: refusing --execute — ${gate.reason}\n`)
           process.exitCode = 1
           return
         }
-
-        // Fail closed on a register mismatch: a mis-OCR'd IČO binds a wrong-but-real partner. Refuse unless
-        // the operator explicitly overrides (having seen the ARES verdict above).
-        if (verdictBlocksExecute(verdict) && !opts.allowRegisterMismatch) {
-          output.write(
-            "brain event: refusing --execute — counterparty does not match the ARES register (see above). " +
-              "Fix the IČO/source, or pass --allow-register-mismatch to propose it anyway (it will still HOLD).\n",
-          )
-          process.exitCode = 1
-          return
-        }
-
-        // Assert the mismatch cap so the server holds the write sub-green and the review shows the reason.
-        const request = withRegisterCapSignals(proposal.request, verdict)
+        const request = gate.request
 
         const { mcpEndpoint, apiKey } = resolveBrainEnv(process.env)
         if (!apiKey) {
@@ -542,6 +586,66 @@ export function registerBrainCommand(program: Command): void {
         const result = await executeEventCreate(request, client, key)
         output.write("\n" + renderEventResult(result))
         if (result.status === "failed") process.exitCode = 1
+      },
+    )
+
+  brain
+    .command("pipeline")
+    .description(
+      "Book ONE PDF/image end-to-end with a single command + two approve clicks: extract (vision-OCR → machine " +
+        "IR) → event (propose the accounting case) → [approve] → book (propose the capture) → [approve]. " +
+        "INSTRUCT-AND-EXIT: at each human-review gate it prints the held-write reviewId + the approval URL + " +
+        "the resume command, then EXITS (it never polls — the agent key is 403 on held-writes). Re-invoke with " +
+        "--after-event <appliedEventId> to resume into the book stage; completed stages skip via the on-disk " +
+        "checkpoint. Needs BRAIN_API_KEY.",
+    )
+    .argument("<pdf>", "The local PDF/image to book end-to-end")
+    .requiredOption(
+      "--context <path>",
+      "Path to a JSON file: { sections, eventContext, captureContext }. sections = the login-pack safety spine; " +
+        "eventContext = { periodId, eventSeriesId, confidence, rationale } (the EVENT write); captureContext = " +
+        "{ periodId, seriesId, confidence, rationale } (the capture — its eventId is filled from --after-event).",
+    )
+    .option(
+      "--after-event <eventId>",
+      "The APPLIED accounting-event uuid, copied off /approvals after approving the event — resumes the " +
+        "pipeline into the book stage.",
+    )
+    .option(
+      "--supplier <key>",
+      "Optional supplier hint (IČO or normalized name) to narrow the OCR-template lookup in the extract stage",
+    )
+    .option(
+      "--out <path>",
+      "Where to write the extracted machine IR Invoice (default <pdf>.ir.json); the event/book stages consume it",
+    )
+    .option(
+      "--checkpoint <path>",
+      "Checkpoint file for crash-safe resume (default <pdf>.afframe-pipeline.json)",
+    )
+    .option(
+      "--allow-missing-counterparty",
+      "Proceed past the event stage even when no counterparty identity was extracted (the invoice will HOLD on " +
+        "a null counterparty when booked).",
+    )
+    .option(
+      "--yes",
+      "Skip the interactive confirmation prompt before the live stages (non-interactive operators).",
+    )
+    .action(
+      async (
+        pdf: string,
+        opts: {
+          context: string
+          afterEvent?: string
+          supplier?: string
+          out?: string
+          checkpoint?: string
+          allowMissingCounterparty?: boolean
+          yes?: boolean
+        },
+      ) => {
+        await runPipeline(pdf, opts)
       },
     )
 }
@@ -681,6 +785,47 @@ function readBookContext(path: string): BookContext {
   ) as BookContext
 }
 
+/** RFC-4122 uuid (any version — the DB mints uuidv7, whose version nibble is 7, still a valid uuid). */
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Validate an operator-pasted uuid flag at the CLI boundary, trimming incidental paste whitespace. A slip
+ * (truncation / trailing space / wrong field) fails HERE with a named flag, not as an opaque server 4xx later.
+ */
+function assertUuid(value: string, flag: string): string {
+  const id = value.trim()
+  if (!UUID_RE.test(id)) {
+    throw new Error(
+      `${flag} must be a uuid (the applied accounting-event id copied from /approvals), got ${JSON.stringify(value)}`,
+    )
+  }
+  return id
+}
+
+/**
+ * Apply the `--after-event <eventId>` override to a book context. The EVENT write (`brain event`) HELDs and
+ * only earns its real `accounting_event` uuid when a human APPROVES it at `/approvals`; the `book` step that
+ * hangs its capture line off that event therefore cannot know the id until then. Rather than hand-edit the
+ * `--context` JSON post-approval, the operator copies the applied eventId off the review screen and passes it
+ * here — it overrides (or supplies) `captureContext.eventId` verbatim. The id is OPERATOR-SUPPLIED, never
+ * resolved from a server read (the agent key is 403 on the entire held-writes surface + `output_json`); the
+ * server still re-checks tenancy + existence at write time. Absent the flag this is the identity.
+ */
+export function applyAfterEvent(
+  ctx: BookContext,
+  afterEvent: string | undefined,
+): BookContext {
+  if (afterEvent === undefined) return ctx
+  return {
+    ...ctx,
+    captureContext: {
+      ...ctx.captureContext,
+      eventId: assertUuid(afterEvent, "--after-event"),
+    },
+  }
+}
+
 /** True when `path` is a single PDF/image FILE (not a directory) — the OCR extract→book bridge (W1.4) path. */
 function isVisionFile(path: string): boolean {
   return !statSync(path).isDirectory() && isVisionMediaPath(path)
@@ -699,6 +844,7 @@ async function runOcrBook(
   opts: {
     context: string
     extracted?: string
+    afterEvent?: string
     dryRun?: boolean
     yes?: boolean
   },
@@ -714,7 +860,10 @@ async function runOcrBook(
   }
 
   const invoice = readExtractedInvoice(opts.extracted)
-  const plan = assembleOcrCapturePlan(invoice, readBookContext(opts.context))
+  const plan = assembleOcrCapturePlan(
+    invoice,
+    applyAfterEvent(readBookContext(opts.context), opts.afterEvent),
+  )
 
   // One-record "entries" so the shared tail below drives the OCR plan through the exact same
   // inspect→confirm→book choreography as a folder — [1/1] invoice — <locator>, then the live loop.
@@ -806,6 +955,281 @@ async function runBookBatch(
   // Non-zero exit iff any document failed, so an operator's script can detect an incomplete batch (rerun the
   // exact command to resume — completed documents are skipped, so nothing double-books).
   if (summary.failed > 0) process.exitCode = 1
+}
+
+/**
+ * The `brain pipeline` combined operator context: the login-pack `sections` (shared by the extract + book
+ * stages), the `eventContext` (the EVENT write's period/series + gate envelope), and the `captureContext` (the
+ * capture's period/series + gate envelope, MINUS `eventId` — that is filled from `--after-event` once the event
+ * is approved). NO tenancy keys — the org is server-resolved from the API-key principal.
+ */
+interface PipelineContext {
+  sections: LoginContextSections
+  eventContext: IrToEventContext
+  captureContext: Omit<BookContext["captureContext"], "eventId">
+}
+
+/**
+ * The fail-closed EVENT gate decision shared by `brain event --execute` and `brain pipeline` — PURE. Given the
+ * built proposal + the ARES verdict + the caller's override flags, it refuses a missing counterparty / a
+ * register mismatch (unless the matching override is set) and otherwise returns the register-capped request
+ * ready to POST. Single-sources the two fail-closed thresholds + the cap so the two live event-write paths can
+ * never silently diverge; each caller still renders the proposal + verdict and does its own confirm / exit.
+ */
+function gateEventRequest(
+  proposal: EventProposal,
+  verdict: RegisterVerdict,
+  opts: { allowMissingCounterparty?: boolean; allowRegisterMismatch?: boolean },
+):
+  | { ok: true; request: CreateAccountingEventRequest }
+  | { ok: false; reason: string } {
+  if (!proposal.hasCounterparty && !opts.allowMissingCounterparty) {
+    return {
+      ok: false,
+      reason:
+        "no counterparty identity extracted (the derived invoice will HOLD on a null counterparty when " +
+        "booked). Fix the source/IR, or pass --allow-missing-counterparty to propose a bare event anyway.",
+    }
+  }
+  if (verdictBlocksExecute(verdict) && !opts.allowRegisterMismatch) {
+    return {
+      ok: false,
+      reason:
+        "counterparty does not match the ARES register (see above). Fix the IČO/source, or pass " +
+        "--allow-register-mismatch to propose it anyway (it will still HOLD).",
+    }
+  }
+  return {
+    ok: true,
+    request: withRegisterCapSignals(proposal.request, verdict),
+  }
+}
+
+/** Read + shallow-validate the `brain pipeline` `--context` file (sections + event + capture contexts). */
+function readPipelineContext(path: string): PipelineContext {
+  return withAssembledSections(
+    readContextFile(path, "--context", [
+      "sections",
+      "eventContext",
+      "captureContext",
+    ]),
+  ) as unknown as PipelineContext
+}
+
+/**
+ * `brain pipeline <pdf>` (WP2 Task 2.5) — the single-command autonomy glue that books ONE document through
+ * extract → event → book. INSTRUCT-AND-EXIT: at each human-review gate it prints the held-write reviewId + the
+ * approval URL + the exact resume command, saves a checkpoint, and EXITS (it never polls — push-not-poll; the
+ * agent key is 403 on the held-writes surface, and a pending row carries no applied eventId). A resume
+ * (`--after-event <appliedEventId>`) skips completed stages via the on-disk checkpoint. It only COMPOSES the
+ * existing extract/event/book cores — no server change; every write is still HELD by the server gate.
+ */
+async function runPipeline(
+  pdf: string,
+  opts: {
+    context: string
+    afterEvent?: string
+    supplier?: string
+    out?: string
+    checkpoint?: string
+    allowMissingCounterparty?: boolean
+    yes?: boolean
+  },
+): Promise<void> {
+  const ctx = readPipelineContext(opts.context)
+  const checkpointPath = opts.checkpoint ?? `${pdf}.afframe-pipeline.json`
+  const store = new PipelineCheckpointStore(checkpointPath)
+  let cp = resumeFrom(store.load(), pdf)
+
+  const brainEnv = resolveBrainEnv(process.env)
+  const { mcpEndpoint, apiKey, agentSdkAuth } = brainEnv
+  if (!apiKey) {
+    output.write("brain pipeline blocked: missing BRAIN_API_KEY.\n")
+    process.exit(1)
+  }
+
+  if (cp?.next === "done") {
+    output.write(
+      `brain pipeline: already complete for ${pdf} — event review ${cp.eventReviewId ?? "?"}, capture ` +
+        `review ${cp.bookReviewId ?? "?"}. Delete ${checkpointPath} to re-run.\n`,
+    )
+    return
+  }
+
+  // A single upfront confirmation gates the live sessions on a FRESH run; a resume (`--after-event`) is already
+  // an explicit operator act, so it proceeds without re-confirming.
+  if (cp === null) {
+    const ok = opts.yes || (await confirmLiveRun(1))
+    if (!ok) {
+      output.write("brain pipeline: aborted, no live run.\n")
+      if (!input.isTTY) process.exitCode = 1
+      return
+    }
+  }
+
+  // ── Stage 1/3: extract (fresh run only; a resume reads the IR the extract already wrote) ──
+  let invoice: Invoice
+  if (cp === null) {
+    output.write(`\n[pipeline 1/3] extract — ${pdf}\n`)
+    const document = toDocumentBlock(pdf, new Uint8Array(readFileSync(pdf)))
+    const rawTextLayer =
+      document.kind === "document" ? await tryExtractTextLayer(pdf) : null
+    const textLayer =
+      classifyExtractionEngine(rawTextLayer) === "digital-text-layer"
+        ? rawTextLayer
+        : null
+    const { sdkExtractSession } = await import("./sdk-launcher")
+    const extractResult = await sdkExtractSession({
+      session: {
+        sections: ctx.sections,
+        supplierHint: opts.supplier,
+        textLayer,
+      },
+      mcpEndpoint,
+      apiKey,
+      agentSdkAuth,
+      document,
+    })
+    const rawIr = extractIrJson(extractResult.report)
+    if (rawIr === null) {
+      output.write(
+        "brain pipeline: the extract session emitted no machine IR block — nothing booked.\n",
+      )
+      process.exit(1)
+    }
+    try {
+      invoice = parseExtractedInvoice(rawIr, "brain pipeline")
+    } catch (err) {
+      output.write(
+        `brain pipeline: extracted IR invalid — ${err instanceof Error ? err.message : "invalid IR"} — nothing booked.\n`,
+      )
+      process.exit(1)
+    }
+    const irPath = opts.out ?? `${pdf}.ir.json`
+    writeFileSync(
+      irPath,
+      JSON.stringify(invoice, bigintToDecimalString, 2) + "\n",
+    )
+    cp = { version: 1, pdf, next: "event", irPath }
+    store.save(cp)
+    output.write(`[pipeline 1/3] machine IR → ${irPath}\n`)
+  } else {
+    invoice = readExtractedInvoice(cp.irPath)
+  }
+
+  // ── Stage 2/3: event (propose the accounting case; HELD → gate 1) ──
+  if (cp.next === "event") {
+    output.write("\n[pipeline 2/3] event — propose the accounting case\n")
+    const proposal = buildEventProposal(invoice, ctx.eventContext)
+    output.write(renderEventProposal(proposal))
+    const verdict = await crossCheckCounterparty(
+      proposal.request.counterparty,
+      {
+        signal: AbortSignal.timeout(ARES_CHECK_TIMEOUT_MS),
+      },
+    )
+    output.write(renderRegisterVerdict(verdict))
+    // Same shared fail-closed gate as `brain event`. The pipeline exposes only --allow-missing-counterparty
+    // (no --allow-register-mismatch by design): a register mismatch here refuses and points the operator at
+    // the standalone `brain event`/`brain book` override path.
+    const gate = gateEventRequest(proposal, verdict, {
+      allowMissingCounterparty: opts.allowMissingCounterparty,
+      allowRegisterMismatch: false,
+    })
+    if (!gate.ok) {
+      output.write(
+        `brain pipeline: refusing — ${gate.reason} (or run \`brain event\`/\`brain book\` standalone with ` +
+          "--allow-register-mismatch for a deliberate override).\n",
+      )
+      process.exit(1)
+    }
+    const request = gate.request
+    const client = createAfframeClient({ apiKey, baseUrl: mcpEndpoint })
+    const eventResult = await executeEventCreate(
+      request,
+      client,
+      eventIdempotencyKey(request),
+    )
+    output.write("\n" + renderEventResult(eventResult))
+    if (eventResult.status === "failed") {
+      process.exitCode = 1
+      return
+    }
+    if (eventResult.status === "applied") {
+      // Unexpected pre-launch (the event auto-applied instead of holding): no human gate — carry the applied
+      // eventId straight to the book stage.
+      cp = { ...cp, next: "book", eventId: eventResult.eventId }
+      store.save(cp)
+    } else {
+      // HELD (the cold-start norm) — instruct-and-exit at gate 1.
+      cp = { ...cp, next: "book", eventReviewId: eventResult.reviewId }
+      store.save(cp)
+      const resume = [
+        `brain pipeline ${pdf}`,
+        `--context ${opts.context}`,
+        opts.supplier ? `--supplier ${opts.supplier}` : "",
+        opts.out ? `--out ${opts.out}` : "",
+        opts.checkpoint ? `--checkpoint ${opts.checkpoint}` : "",
+        "--after-event <APPLIED_EVENT_ID>",
+      ]
+        .filter(Boolean)
+        .join(" ")
+      output.write(renderEventGate(eventResult.reviewId, resume).text)
+      return
+    }
+  }
+
+  // ── Stage 3/3: book (propose the capture; HELD → gate 2) ──
+  if (cp.next === "book") {
+    const eventId = opts.afterEvent ?? cp.eventId
+    if (eventId === undefined) {
+      output.write(
+        "brain pipeline: the event is pending approval — resume with --after-event <appliedEventId> (copy it " +
+          "off /approvals after approving the event).\n",
+      )
+      process.exit(1)
+    }
+    const bookCtx: BookContext = {
+      sections: ctx.sections,
+      captureContext: {
+        ...ctx.captureContext,
+        eventId: assertUuid(eventId, "--after-event"),
+      },
+    }
+    output.write("\n[pipeline 3/3] book — propose the capture\n")
+    const plan = assembleOcrCapturePlan(invoice, bookCtx)
+    output.write(renderOcrCapturePlan(plan, invoice))
+    const bookResult = await runLiveBrainSession({
+      plan,
+      mcpEndpoint,
+      readEnv: (name) => readHarnessEnv(name, brainEnv),
+      launcher: (await import("./sdk-launcher")).sdkAgentSessionLauncher,
+    })
+    output.write("\n" + renderLiveResult(bookResult))
+    // Only a genuine HELD (status "held" + a concrete reviewId) or an APPLIED capture is a terminal success —
+    // mirrors batch-live's MINIMUM SAFETY FLOOR. A lane-off / rate-limited / errored / unparsed result booked
+    // NOTHING, so leave the checkpoint at "book" (a re-invoke retries the book stage — it only re-submits when
+    // the prior attempt produced no write, so no double-book), signal failure, and print no completion gate.
+    if (
+      !bookResult.isError &&
+      bookResult.status === "held" &&
+      bookResult.reviewId
+    ) {
+      const reviewId = bookResult.reviewId
+      cp = { ...cp, next: "done", eventId, bookReviewId: reviewId }
+      store.save(cp)
+      output.write(renderBookGate(reviewId).text)
+    } else if (bookResult.applied && !bookResult.isError) {
+      cp = { ...cp, next: "done", eventId }
+      store.save(cp)
+    } else {
+      output.write(
+        "brain pipeline: the book session produced no held or applied capture (lane-off / rate-limited / " +
+          "error) — nothing booked. Re-invoke the same command to retry the book stage.\n",
+      )
+      process.exitCode = 1
+    }
+  }
 }
 
 /** Parse a positive-integer CLI option, failing LOUD on a non-integer / non-positive value. */
@@ -924,22 +1348,83 @@ async function runPlanLive(
  * IR Invoice the OCR bridge maps to a capture. It does NOT deep-validate every field — the capture schema
  * (`CaptureAccountingDocumentRequestSchema`) is the strict boundary the request is parsed against downstream.
  */
-function readExtractedInvoice(path: string): Invoice {
-  const parsed: unknown = JSON.parse(
-    readFileSync(path, "utf8"),
-    reviveMinorBigints("--extracted"),
-  )
+/**
+ * The REQUIRED top-level fields of an IR `Invoice` (`packages/brain/src/ir/records.ts`). Presence is asserted
+ * explicitly because `reviveMinorBigints` only fires on PRESENT keys — a missing `total_minor` would otherwise
+ * pass a shallow `record_type` check and be trusted downstream until the strict capture schema rejects it.
+ */
+const REQUIRED_INVOICE_KEYS = [
+  "record_type",
+  "direction",
+  "doc_type",
+  "number",
+  "issue_date",
+  "currency",
+  "lines",
+  "vat_summary",
+  "total_minor",
+] as const
+
+/**
+ * Parse + validate a machine IR Invoice from raw JSON — the SINGLE validator shared by `brain extract --out`
+ * (emit) and `--extracted` (read), so the emitted file and the consumed file can never drift on the contract.
+ * Revives `*_minor` bigints (throws on a non-integer money field — an unsafe JSON number fails here) AND
+ * asserts every required field is present. Deep field validation stays downstream at the strict capture
+ * schema (`CaptureAccountingDocumentRequestSchema`); this is the shallow-but-honest boundary floor.
+ */
+export function parseExtractedInvoice(rawJson: string, flag: string): Invoice {
+  const parsed: unknown = JSON.parse(rawJson, reviveMinorBigints(flag))
   if (
     typeof parsed !== "object" ||
     parsed === null ||
     (parsed as { record_type?: unknown }).record_type !== "invoice"
   ) {
     throw new Error(
-      `--extracted file ${path} must be a JSON IR Invoice ` +
-        `(an object with "record_type": "invoice", as 'brain extract' reports).`,
+      `${flag}: expected a JSON IR Invoice (an object with "record_type": "invoice", as 'brain extract' reports).`,
+    )
+  }
+  const obj = parsed as Record<string, unknown>
+  const missing = REQUIRED_INVOICE_KEYS.filter(
+    (key) => obj[key] === undefined || obj[key] === null,
+  )
+  if (missing.length > 0) {
+    throw new Error(
+      `${flag}: IR Invoice is missing required field(s): ${missing.join(", ")}.`,
     )
   }
   return parsed as Invoice
+}
+
+/** JSON.stringify replacer that serializes `*_minor` bigints back to the canonical integer STRING form. */
+function bigintToDecimalString(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value
+}
+
+/**
+ * Extract the machine IR JSON the extract session emits between the sentinel lines — the STRUCTURED final step
+ * `brain extract --out` consumes, NOT a scrape of the free-text report. Returns the LAST sentinel block's inner
+ * text (the kickoff pins the IR as the final output), or `null` when no complete block is present — so `--out`
+ * fails closed on a session that emitted no machine IR.
+ */
+export function extractIrJson(report: string): string | null {
+  let last: string | null = null
+  let cursor = 0
+  for (;;) {
+    const begin = report.indexOf(IR_BEGIN, cursor)
+    if (begin === -1) break
+    const end = report.indexOf(IR_END, begin + IR_BEGIN.length)
+    if (end === -1) break
+    last = report.slice(begin + IR_BEGIN.length, end).trim()
+    cursor = end + IR_END.length
+  }
+  return last
+}
+
+function readExtractedInvoice(path: string): Invoice {
+  return parseExtractedInvoice(
+    readFileSync(path, "utf8"),
+    `--extracted file ${path}`,
+  )
 }
 
 /**

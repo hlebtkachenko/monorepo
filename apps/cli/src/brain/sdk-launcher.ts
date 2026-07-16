@@ -23,19 +23,15 @@ import {
   type SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk"
 import {
-  applyClassifyToCapture,
   isPostingPlan,
-  parseClassifyThreading,
   type AgentSessionLaunchOptions,
   type AgentSessionLauncher,
   type BrainDryRunPlan,
   type BrainPostingPlan,
-  type ClassifyThreading,
   type LiveBrainSessionResult,
 } from "@workspace/intake"
 import {
   CAPTURE_ACCOUNTING_DOCUMENT_TOOL,
-  CLASSIFY_ACCOUNTING_EVENT_TOOL,
   CREATE_ACCOUNTING_POSTING_TOOL,
   buildBrainKickoff,
   buildBrainQueryOptions,
@@ -62,11 +58,13 @@ import type { TextLayerSignal } from "./extraction-engine"
  * when the lane's own `allows(toolName)` predicate (a pinned `isToolAllowed` against that lane's policy) says
  * so, and denies everything else with the lane's own `denyMessage(toolName)`.
  *
- * This is one of THREE independent sandbox layers (the other two are the login pack's `disallowedTools`,
- * which strips the denied built-ins from context entirely, and its exact-name `allowedTools`, which only
- * auto-allows the pinned set). The SDK consults `canUseTool` only for permission-REQUIRING calls — an
- * already-allowlisted or no-permission tool bypasses it — so this is the belt-and-braces layer, not the sole
- * guard: any tool that DOES reach it is allowed only when the lane's per-TOOL policy says so.
+ * IMPORTANT (#578): this is a belt-and-braces layer, NOT one of three co-equal guards. The two ENFORCED
+ * client-side layers are the login pack's `disallowedTools` (strips denied built-ins from context entirely)
+ * and its exact-name `allowedTools` (auto-allows the pinned set). The SDK AUTO-APPROVES a bare `allowedTools`
+ * entry BEFORE `canUseTool` is consulted — it emits `CLAUDE_SDK_CAN_USE_TOOL_SHADOWED` — so for the pinned
+ * afframe tools this gate is SHADOWED; it only actually fires for a tool that is NOT auto-allowed (an off-list
+ * `afframe` op, a foreign server, an empty name), which it denies. The primary write boundary is the SERVER
+ * gate, never this client sandbox.
  */
 /**
  * Resolve the LOCAL stdio MCP bridge: the absolute path to the `tsx` runner + the `@afframe/mcp` server
@@ -103,19 +101,16 @@ export function resolveMcpBridge(): McpBridgeSpawn {
 export function makeSandboxGate(
   allows: (toolName: string) => boolean,
   denyMessage: (toolName: string) => string,
-  rewriteInput?: (
-    toolName: string,
-    input: Parameters<CanUseTool>[1],
-  ) => Parameters<CanUseTool>[1],
 ): CanUseTool {
   return (toolName, input): Promise<PermissionResult> => {
     if (allows(toolName)) {
-      // The `updatedInput` seam is the ONE deterministic place the HARNESS may rewrite an allowed tool's input
-      // before it runs (the model never sees or authors this rewrite). Absent a rewriter it is the identity
-      // (input echoed back verbatim, unchanged legacy behavior). The RUN lane uses it to thread the server's
-      // classify treatment onto the capture write, narrow-only (see `makeCanUseTool`).
-      const updatedInput = rewriteInput ? rewriteInput(toolName, input) : input
-      return Promise.resolve({ behavior: "allow", updatedInput })
+      // Allow the tool with its input ECHOED BACK VERBATIM — the harness never rewrites a model-authored tool
+      // call. (An earlier increment threaded the server's classify treatment onto the capture write through an
+      // `updatedInput` rewriter here, but that seam was DEAD: bare `allowedTools` entries auto-approve the
+      // afframe tools BEFORE `canUseTool` runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the rewrite never fired
+      // for the capture write. It was removed rather than left as a loaded gun; real classify threading is
+      // deferred until the IR carries a document-grounded supplyKind. See #578.)
+      return Promise.resolve({ behavior: "allow", updatedInput: input })
     }
     return Promise.resolve({ behavior: "deny", message: denyMessage(toolName) })
   }
@@ -124,26 +119,14 @@ export function makeSandboxGate(
 /**
  * The RUN lane's default-deny gate: allowed only when the pinned per-TOOL `isToolAllowed` against the plan's
  * accounting policy says so; everything else (`resolve_accounting_held_write`, `list_accounting_held_writes`,
- * an off-list `afframe` tool, a foreign server, an empty name) is denied.
- *
- * `getClassifyThreading` (optional) supplies the server's recorded `classify_accounting_event` treatment. When
- * present, the gate THREADS it onto the `capture_accounting_document` input via the deterministic `updatedInput`
- * seam — HARNESS-applied, NARROW-ONLY (`applyClassifyToCapture` may only move a partial toward held; it never
- * widens an adapter-held row into STANDARD, and never touches the amounts). The MODEL never edits the payload;
- * a missing/undefined threading is the identity (the capture keeps the adapter's conservative treatment).
+ * an off-list `afframe` tool, a foreign server, an empty name) is denied. Identical shape to the posting lane's
+ * gate — neither lane rewrites a model-authored write body (the SERVER gate is the write boundary).
  */
-export function makeCanUseTool(
-  plan: BrainDryRunPlan,
-  getClassifyThreading?: () => ClassifyThreading | undefined,
-): CanUseTool {
+export function makeCanUseTool(plan: BrainDryRunPlan): CanUseTool {
   return makeSandboxGate(
     (toolName) => sandboxAllows(toolName, plan),
     (toolName) =>
       `Brain sandbox denies ${toolName}: default-deny, not in the pinned accounting allowlist.`,
-    (toolName, input) =>
-      toolName === CAPTURE_ACCOUNTING_DOCUMENT_TOOL && getClassifyThreading
-        ? applyClassifyToCapture(input, getClassifyThreading())
-        : input,
   )
 }
 
@@ -157,9 +140,9 @@ export function makeCanUseTool(
  * correlation (session_id ↔ conversation_id/brain_run_id) is established at wire time.
  */
 /**
- * The POSTING lane's default-deny gate: identical per-TOOL `isToolAllowed` decision as the capture lane, but
- * with NO `updatedInput` rewriter — the posting lane never threads classify onto the write (the model authors
- * the whole body, gated server-side). Everything off the pinned allowlist is denied.
+ * The POSTING lane's default-deny gate: identical to the capture lane's `makeCanUseTool`. Neither lane rewrites
+ * or threads anything onto the write — the model authors the body and the SERVER gate holds/applies it.
+ * Everything off the pinned allowlist is denied.
  */
 function makePostingCanUseTool(plan: BrainPostingPlan): CanUseTool {
   return makeSandboxGate(
@@ -253,31 +236,27 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
     // status, and discarding it here is exactly what would let a dropped document be mis-recorded as HELD.
     let captureResultText: string | undefined
     let captureIsError = false
-    // The SERVER's classify_accounting_event result, recorded from its tool_result so the capture gate can
-    // thread its treatment onto the write body (narrow-only). classify is an ORDERED step BEFORE the capture
-    // (see buildBrainKickoff): under the SDK's message-stream semantics its tool_result is consumed by this
-    // loop before the capture tool_use requests permission, so `classifyThreading` is populated by the time the
-    // capture `canUseTool` runs. It stays undefined if classify never ran / errored / was unparseable — then
-    // the merge is the identity and the capture keeps the adapter's already-conservative treatment (fail-safe).
-    let classifyToolUseId: string | undefined
-    let classifyThreading: ClassifyThreading | undefined
+    // The kickoff still has the model call classify_accounting_event as a reasoning step and REPORT any
+    // treatment mismatch as a discrepancy for the human reviewer, but the launcher no longer records or threads
+    // its result: the write body is submitted verbatim and the SERVER gate is the treatment authority. (The
+    // former "thread classify onto the capture at the canUseTool seam" path was dead — bare-allowlisted tools
+    // bypass canUseTool — and was removed; real threading is deferred to the IR-fact foundation, see #578.)
 
     for await (const message of query({
       prompt: buildBrainKickoff(options.plan, options.idempotencyKey),
       options: {
         ...queryOptions,
-        canUseTool: makeCanUseTool(options.plan, () => classifyThreading),
+        canUseTool: makeCanUseTool(options.plan),
         env: buildBrainSessionEnv(process.env, options.agentSdkAuth),
       },
     })) {
       if (message.type === "assistant") {
         for (const block of message.message.content) {
-          if (block.type === "tool_use") {
-            if (block.name === CAPTURE_ACCOUNTING_DOCUMENT_TOOL) {
-              captureToolUseId = block.id
-            } else if (block.name === CLASSIFY_ACCOUNTING_EVENT_TOOL) {
-              classifyToolUseId = block.id
-            }
+          if (
+            block.type === "tool_use" &&
+            block.name === CAPTURE_ACCOUNTING_DOCUMENT_TOOL
+          ) {
+            captureToolUseId = block.id
           }
         }
       } else if (message.type === "user") {
@@ -288,11 +267,6 @@ export const sdkAgentSessionLauncher: AgentSessionLauncher = {
             if (block.tool_use_id === captureToolUseId) {
               captureResultText = readToolResultText(block.content)
               captureIsError = block.is_error === true
-            } else if (block.tool_use_id === classifyToolUseId) {
-              // Server-authoritative treatment. A malformed/errored body parses to undefined → identity merge.
-              classifyThreading = parseClassifyThreading(
-                readToolResultText(block.content),
-              )
             }
           }
         }

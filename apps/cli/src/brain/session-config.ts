@@ -33,8 +33,9 @@ export const CAPTURE_ACCOUNTING_DOCUMENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__cap
 
 /**
  * The real classify decision MCP tool name (`mcp__afframe__classify_accounting_event`). SERVER-authoritative
- * (a pure decision, no mutation, no tenant read), so its result is threaded onto the capture write body by the
- * HARNESS (never by the model) at the launcher's `canUseTool` `updatedInput` seam — see `sdk-launcher.ts`.
+ * (a pure decision, no mutation, no tenant read). The RUN-lane model calls it as a reasoning step and REPORTS
+ * any mismatch with the submitted payload as a discrepancy for the human reviewer; nothing threads its result
+ * onto the capture write body (the write is submitted verbatim and the server gate holds every special regime).
  */
 export const CLASSIFY_ACCOUNTING_EVENT_TOOL = `mcp__${AFFRAME_MCP_SERVER}__classify_accounting_event`
 
@@ -177,17 +178,16 @@ export function buildBrainQueryOptions(
  * session cannot re-plan or fabricate a different booking body (no document-read tool is allowed, so nothing
  * else could supply one). Deterministic in the plan.
  *
- * M1.2 (the reasoning lane) inserts step 3: the session must reason the transaction facts from the already-inspected payload
- * and call `mcp__afframe__classify_accounting_event` — a PURE decision (no mutation, no tenant read) — BEFORE
- * proposing the write. The MODEL still submits the embedded `captureRequest` VERBATIM (step 4 keeps its
- * unchanged "verbatim — do not invent, add, drop, or edit any field" instruction): it never edits the payload.
- * The M1.2 completion closes the loop WITHOUT touching the model's contract — the HARNESS threads classify's
- * server-authoritative treatment onto the submitted body deterministically at the `canUseTool` `updatedInput`
- * seam (see `sdk-launcher.ts` + `applyClassifyToCapture` in @workspace/intake). That merge is NARROW-ONLY: it
- * may only move a partial toward held/more-conservative (a special regime the harness stamps is HELD by the
- * server's `unverified_vat_regime` veto), never widen an adapter-held row into an auto-appliable STANDARD one,
- * and it never touches the amounts. So the kickoff text is unchanged: from the model's view the payload is
- * still submitted verbatim; the harness (not the model) applies classify's answer below it, still server-gated.
+ * The reasoning lane inserts step 3: the session must reason the transaction facts from the already-inspected
+ * payload and call `mcp__afframe__classify_accounting_event` — a PURE decision (no mutation, no tenant read) —
+ * BEFORE proposing the write, then submit the embedded `captureRequest` VERBATIM (step 4 keeps its unchanged
+ * "verbatim — do not invent, add, drop, or edit any field" instruction): the model never edits the payload. Its
+ * ONLY job with classify's answer is to REPORT a mismatch as a discrepancy for the human reviewer — nothing
+ * threads classify's treatment onto the submitted body. (An earlier increment merged classify onto the capture
+ * at the launcher's `canUseTool` `updatedInput` seam, but that seam is dead — bare-allowlisted tools bypass
+ * `canUseTool` (CLAUDE_SDK_CAN_USE_TOOL_SHADOWED) — so it was removed; the SERVER gate is the sole treatment
+ * authority, holding every special regime via `unverified_vat_regime`. Real threading is deferred until the IR
+ * carries a document-grounded `supplyKind`; see #578.)
  *
  * When `idempotencyKey` is supplied (the bulk orchestrator M0.6 derives a STABLE per-document content hash),
  * the kickoff PINS the exact `idempotency-key` the `capture_accounting_document` call must carry — so the same
@@ -221,11 +221,10 @@ export function buildBrainKickoff(
     "   payload IS your fact source. Then call mcp__afframe__classify_accounting_event with those facts. This",
     "   is a PURE decision — no mutation, no tenant read. You do not invent the accounting treatment yourself;",
     "   its returned vatMode/vatJurisdiction/vatRate/scenario is the only source of the treatment (hard rule 4).",
-    "   In this increment YOU never edit the payload: if classify disagrees with the payload's",
-    "   vatMode/vatJurisdiction/vatRate, submit the payload VERBATIM in step 4 anyway and report the mismatch",
-    "   as a discrepancy for the human reviewer — never reconcile it yourself. The HARNESS applies classify's",
-    "   server treatment onto the payload deterministically and narrow-only (below you); the server still holds",
-    "   every special regime.",
+    "   YOU never edit the payload: if classify disagrees with the payload's vatMode/vatJurisdiction/vatRate,",
+    "   submit the payload VERBATIM in step 4 anyway and report the mismatch as a discrepancy for the human",
+    "   reviewer — never reconcile it yourself. The SERVER gate is the treatment authority: it holds every",
+    "   special regime for human review, so nothing you or the harness does can force a special supply green.",
     ...captureStep,
     "",
     JSON.stringify(plan.captureRequest, null, 2),

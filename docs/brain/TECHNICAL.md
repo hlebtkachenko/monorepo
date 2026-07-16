@@ -63,8 +63,12 @@ _(transport, CLI, sandbox)_
 
 ### 1.1 The process chain
 
-Three commander subcommands are registered by `registerBrainCommand` (`apps/cli/src/brain/command.ts:38-216`):
-`brain run`, `brain book`, `brain extract`.
+Seven commander subcommands are registered by `registerBrainCommand`
+(`apps/cli/src/brain/command.ts`): `brain run`, `brain book`, `brain book-batch`,
+`brain extract`, `brain event`, `brain pipeline`, `brain onboard`. The write path
+for one OCR document is `extract` → `event` → `book` (each held write approved on
+`/{orgSlug}/accounting/approvals`); `pipeline` chains all three instruct-and-exit.
+See `docs/runbooks/BRAIN-OPERATOR-SESSION.md` §0 for the full picture.
 
 For **run/book** the live path funnels through `runPlanLive` (`command.ts:388-409`), which lazy-imports the
 SDK launcher and calls `runLiveBrainSession` (`packages/intake/src/harness/brain-cc-harness.ts:300-348`),
@@ -672,27 +676,27 @@ leg) to auto-apply:
 
 _(quick orientation — follow the section link for the full trace of each row)_
 
-| Concern                                                                      | Path                                                                                                            | Section        |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | -------------- |
-| CLI entry / subcommands (`brain run\|book\|extract`)                         | `apps/cli/src/brain/command.ts`                                                                                 | §1.1, §1.5     |
-| SDK launcher (spawns the nested Agent-SDK session + resolves the MCP bridge) | `apps/cli/src/brain/sdk-launcher.ts`                                                                            | §1.1           |
-| Pure session/query-options config (env, kickoff, capture-outcome parsing)    | `apps/cli/src/brain/session-config.ts`                                                                          | §1.1–1.3       |
-| Extract-lane policy + config                                                 | `apps/cli/src/brain/extract-config.ts`                                                                          | §1.3           |
-| Live-session creds gate (`runLiveBrainSession`)                              | `packages/intake/src/harness/brain-cc-harness.ts`                                                               | §1.1, §1.2     |
-| Local stdio MCP bridge (server + client)                                     | `apps/mcp/src/server.ts`, `apps/mcp/src/client.ts`                                                              | §1.1           |
-| MCP tool codegen (source schema → generated tool files)                      | `apps/mcp/scripts/gen-tools.ts` → `apps/mcp/src/tools/generated/`                                               | §1.5, §8       |
-| Sandbox policy (allowlists, `canUseTool` gate)                               | `packages/brain/src/agent/sandbox.ts`                                                                           | §1.3, §1.4     |
-| API-key auth + actor_kind                                                    | `apps/api/src/auth/api-key.guard.ts`, `packages/auth/src/api-key-verifier.ts`                                   | §2.1–2.2       |
-| The write gate (`runGatedWrite`, three-way AND)                              | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                          | §3             |
-| Evidence envelope degrade-fail-closed                                        | `apps/api/src/v1/accounting/evidence-gate.ts`                                                                   | §3.3, §4.3     |
-| Confidence scoring (`scoreProposal`, cap/block signals)                      | `packages/brain/src/confidence/score.ts`, `signals.ts`                                                          | §4             |
-| Calibration (PAV fit, Brier — built, not wired)                              | `packages/brain/src/confidence/calibration.ts`                                                                  | §4.4, §4.6     |
-| Shadow score (audit-only, never decides)                                     | `apps/api/src/v1/accounting/shadow-score.ts`                                                                    | §3.6           |
-| OCR template trust lifecycle                                                 | `apps/api/src/v1/ocr-templates/ocr-templates.controller.ts`, `packages/db/src/accounting/ocr-template-trust.ts` | §6.1–6.2       |
-| Admission / kill-switch / concurrency caps                                   | `packages/db/src/admission.ts`, `apps/api/src/v1/accounting/admission.singleton.ts`                             | §3.5           |
-| Tenant isolation (RLS, GUCs, composite FKs)                                  | `packages/db/src/tenancy.ts`, `packages/db/src/policies/rls.ts`                                                 | §2.4, §5.1–5.2 |
-| The constitution (I1–I10, locked, human-authorship-only)                     | `packages/brain/.brain/constitution.md`                                                                         | §6.4           |
-| Executable constitution checks (I2/I3/I5)                                    | `scripts/brain-build/constitution-checks/check.sh`                                                              | §6.4           |
+| Concern                                                                                    | Path                                                                                                            | Section        |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- |
+| CLI entry / subcommands (`brain run\|book\|book-batch\|extract\|event\|pipeline\|onboard`) | `apps/cli/src/brain/command.ts`                                                                                 | §1.1, §1.5     |
+| SDK launcher (spawns the nested Agent-SDK session + resolves the MCP bridge)               | `apps/cli/src/brain/sdk-launcher.ts`                                                                            | §1.1           |
+| Pure session/query-options config (env, kickoff, capture-outcome parsing)                  | `apps/cli/src/brain/session-config.ts`                                                                          | §1.1–1.3       |
+| Extract-lane policy + config                                                               | `apps/cli/src/brain/extract-config.ts`                                                                          | §1.3           |
+| Live-session creds gate (`runLiveBrainSession`)                                            | `packages/intake/src/harness/brain-cc-harness.ts`                                                               | §1.1, §1.2     |
+| Local stdio MCP bridge (server + client)                                                   | `apps/mcp/src/server.ts`, `apps/mcp/src/client.ts`                                                              | §1.1           |
+| MCP tool codegen (source schema → generated tool files)                                    | `apps/mcp/scripts/gen-tools.ts` → `apps/mcp/src/tools/generated/`                                               | §1.5, §8       |
+| Sandbox policy (allowlists, `canUseTool` gate)                                             | `packages/brain/src/agent/sandbox.ts`                                                                           | §1.3, §1.4     |
+| API-key auth + actor_kind                                                                  | `apps/api/src/auth/api-key.guard.ts`, `packages/auth/src/api-key-verifier.ts`                                   | §2.1–2.2       |
+| The write gate (`runGatedWrite`, three-way AND)                                            | `apps/api/src/v1/accounting/accounting-writes.gate.ts`                                                          | §3             |
+| Evidence envelope degrade-fail-closed                                                      | `apps/api/src/v1/accounting/evidence-gate.ts`                                                                   | §3.3, §4.3     |
+| Confidence scoring (`scoreProposal`, cap/block signals)                                    | `packages/brain/src/confidence/score.ts`, `signals.ts`                                                          | §4             |
+| Calibration (PAV fit, Brier — built, not wired)                                            | `packages/brain/src/confidence/calibration.ts`                                                                  | §4.4, §4.6     |
+| Shadow score (audit-only, never decides)                                                   | `apps/api/src/v1/accounting/shadow-score.ts`                                                                    | §3.6           |
+| OCR template trust lifecycle                                                               | `apps/api/src/v1/ocr-templates/ocr-templates.controller.ts`, `packages/db/src/accounting/ocr-template-trust.ts` | §6.1–6.2       |
+| Admission / kill-switch / concurrency caps                                                 | `packages/db/src/admission.ts`, `apps/api/src/v1/accounting/admission.singleton.ts`                             | §3.5           |
+| Tenant isolation (RLS, GUCs, composite FKs)                                                | `packages/db/src/tenancy.ts`, `packages/db/src/policies/rls.ts`                                                 | §2.4, §5.1–5.2 |
+| The constitution (I1–I10, locked, human-authorship-only)                                   | `packages/brain/.brain/constitution.md`                                                                         | §6.4           |
+| Executable constitution checks (I2/I3/I5)                                                  | `scripts/brain-build/constitution-checks/check.sh`                                                              | §6.4           |
 
 ---
 

@@ -35,40 +35,13 @@ import { describe, expect, it } from "vitest"
  * fires when "template" is paired with a write-side word in the SAME
  * identifier, so "OcrTemplate" / "ocrTemplate" never matches.
  *
- * ── M2.1 amendment — the `BookingTemplateMatch` carve-out ──────────────────
+ * ── §I9 — NO carve-out: every write-template identifier trips ──────────────
  *
- * `packages/brain/src/routing/model-routing.ts` declares a real identifier,
- * `BookingTemplateMatch`, that DOES pair "book(ing)" with "template" — the
- * literal pattern (b) above exists to catch. This is a DELIBERATE, narrow,
- * human-reviewed exception, not a loosening of the detector:
- *
- * - `BookingTemplateMatch` is a client-side ROUTING INPUT (`{ matched:
- *   boolean }`) consumed only by `selectBrainModel` to pick which model
- *   `query()` boots with. It carries no write payload, renders no XML/JSON,
- *   and is never passed to a write tool. It is the mirror of `OcrTemplate`
- *   one layer removed: `OcrTemplate` names a read-side EXTRACTION template;
- *   `BookingTemplateMatch` names the OUTCOME of matching against a
- *   workspace-confirmed `booking_template` row (a REVIEWABLE DB record
- *   created only from a human-confirmed booking, migration 0055) — never a
- *   template that RENDERS a booking itself.
- * - The exception is scoped to an EXACT, hand-enumerated allowlist of
- *   identifiers (`M2_1_BOOKING_TEMPLATE_ALLOWLIST` below), not a regex
- *   loosening. Adding a new exception requires a code change to THIS file,
- *   so it stays a reviewed, auditable list — never a backdoor a future
- *   write-template could silently ride through.
- * - The allowlist is checked against the FULL enclosing identifier (see
- *   `expandToIdentifier`), so a name that merely CONTAINS an allowed
- *   substring does not slip through: `bookingTemplateXmlRenderer` or
- *   `renderBookingTemplateWrite` are NOT `BookingTemplateMatch` and still
- *   trip the tripwire (asserted below) — the exception is exact-match, not
- *   prefix/substring.
- * - The write side is UNCHANGED: a template match still only supplies input
- *   facts to the SAME `create_accounting_event` / `create_accounting_posting`
- *   typed calls the Brain already makes after full reasoning, still through
- *   the unchanged `runGatedWrite`, still HELD at cold start. See
- *   `packages/db/migrations/0055_booking_template.sql` and
- *   `apps/api/src/v1/booking-templates/booking-templates.controller.ts` for
- *   the server-side half of this argument.
+ * There is no allowlist / bless path. An exact-match §I9 allowlist once blessed
+ * the M2.1 `BookingTemplateMatch` routing input; that inert model-routing path —
+ * and its allowance — were deleted in WP5 (#775), so the tripwire is now a
+ * straight match → dedup → report with no way to exempt an identifier short of a
+ * reviewed change to `WRITE_TEMPLATE_NAME_RE` itself.
  */
 
 const BRAIN_SRC = resolve(__dirname) // packages/brain/src
@@ -77,25 +50,13 @@ const TEMPLATE_ENGINE_RE = /\b(?:handlebars|mustache|nunjucks|ejs|pug)\b/i
 const WRITE_TEMPLATE_NAME_RE =
   /(?:post(?:ing)?|writ(?:e|ing)|book(?:ing)?|xml)[a-z]*template|template[a-z]*(?:post(?:ing)?|writ(?:e|ing)|book(?:ing)?|xml)/gi
 
-/**
- * The M2.1 exact-identifier allowlist (§I9 amendment). Every entry here is a
- * real, human-reviewed identifier from the controlled booking-template-match
- * surface — NOT a pattern. Matched case-insensitively against the FULL
- * enclosing identifier (never a substring), so this can only ever narrow, not
- * widen, what counts as a violation. Add an entry only alongside the PR that
- * introduces it, and only for a genuinely read-side / routing-only concept —
- * never for anything that renders or transforms a write payload.
- */
-const M2_1_BOOKING_TEMPLATE_ALLOWLIST = new Set(["bookingtemplatematch"])
-
 const IDENTIFIER_CHAR_RE = /[A-Za-z0-9_$]/
 
 /**
  * Expand a regex match span to its full enclosing identifier by walking left/
- * right over identifier characters. So a match on the substring "kingTemplate"
- * inside "ConfirmedBookingTemplate" resolves to the whole identifier before
- * it is checked against the allowlist — the exception can never accidentally
- * cover a DIFFERENT, unreviewed identifier that happens to share a substring.
+ * right over identifier characters, so a substring match (e.g. "kingTemplate"
+ * inside "ConfirmedBookingTemplate") is reported as the whole identifier — a
+ * message-quality helper so the reported hit names the real symbol.
  */
 function expandToIdentifier(
   text: string,
@@ -188,13 +149,10 @@ function stripCommentsAndStrings(source: string, dropStrings: boolean): string {
  * drops string contents, so a benign string like `"postingTemplate"` is not
  * mistaken for a real identifier.
  *
- * The name detector scans for ALL matches (not just the first) and expands
- * each to its full enclosing identifier before deciding whether it is a
- * violation — an identifier exactly on the M2.1 allowlist is skipped; every
- * other identifier (or the same identifier found again in a DIFFERENT file
- * outside the reviewed surface) still trips. This means a file can carry the
- * one blessed identifier AND a real violation simultaneously without the
- * blessing masking the violation.
+ * The name detector scans for ALL matches (not just the first) and expands each
+ * to its full enclosing identifier before reporting it, deduped per identifier —
+ * so a substring match surfaces as the whole symbol and one file can report
+ * several distinct violations. There is no bless path: every match trips.
  */
 function findViolations(source: string): string[] {
   const hits: string[] = []
@@ -219,7 +177,6 @@ function findViolations(source: string): string[] {
       m.index,
       m.index + m[0].length,
     )
-    if (M2_1_BOOKING_TEMPLATE_ALLOWLIST.has(identifier.toLowerCase())) continue
     if (!seen.has(identifier)) {
       seen.add(identifier)
       hits.push(`write-template identifier: ${identifier}`)
@@ -304,21 +261,11 @@ describe("[I9] no write-side templates (packages/brain/src)", () => {
     ).not.toEqual([])
   })
 
-  // ── M2.1 §I9 amendment — the exact-match, non-widening carve-out ─────────
-  it("blesses ONLY the exact M2.1 `BookingTemplateMatch` identifier (best-effort tripwire, narrow carve-out)", () => {
-    expect(
-      findViolations(
-        `export interface BookingTemplateMatch { matched: boolean }`,
-      ),
-    ).toEqual([])
-    expect(
-      findViolations(
-        `function selectBrainModel(match: BookingTemplateMatch): BrainModelAlias { return match.matched ? "haiku" : "sonnet" }`,
-      ),
-    ).toEqual([])
-  })
-
-  it("still trips on a DIFFERENT identifier that merely contains the blessed substring (exact-match, never prefix/substring)", () => {
+  // ── §I9 — book(ing)+template names are violations, no exceptions ───────────
+  // There is no bless path (the M2.1 `BookingTemplateMatch` carve-out was removed
+  // in WP5 #775 with its dead routing path), so every `book(ing)`+`template`
+  // identifier trips — including the exact name that was once blessed.
+  it("trips on every `book(ing)`+`template` identifier (no carve-out)", () => {
     expect(
       findViolations(`function bookingTemplateXmlRenderer(p: Posting) {}`),
     ).not.toEqual([])
@@ -328,16 +275,6 @@ describe("[I9] no write-side templates (packages/brain/src)", () => {
     expect(findViolations(`class BookingTemplateMatchRenderer {}`)).not.toEqual(
       [],
     )
-  })
-
-  it("still trips on an opaque write-template ALONGSIDE the blessed identifier in the same file (the carve-out never masks a real violation)", () => {
-    const hits = findViolations(
-      `export interface BookingTemplateMatch { matched: boolean }\n` +
-        `const postingTemplate = "<Doklad>{{amount}}</Doklad>"`,
-    )
-    expect(hits).not.toEqual([])
-    expect(hits.join(" ")).toContain("postingTemplate")
-    expect(hits.join(" ")).not.toContain("BookingTemplateMatch")
   })
 
   it("no production source under packages/brain/src declares a write-side template", () => {

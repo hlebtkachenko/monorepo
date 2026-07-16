@@ -175,6 +175,8 @@ export interface OpenItemRow {
   currency_code: string
   issue_date: string
   due_date: string | null
+  /** Provenance: the inbox_item an approved agent write landed this open item from (NULL = human/legacy). */
+  inbox_id: string | null
 }
 
 /** All open items for one counterparty (one indexed read). */
@@ -186,7 +188,7 @@ export function openItemsForCounterparty(
     db,
     sql`SELECT id, counterparty_id, account_number, direction, variable_symbol,
                original_amount, settled_amount, remaining_amount, is_settled,
-               currency_code, issue_date, due_date
+               currency_code, issue_date, due_date, inbox_id
           FROM open_item
          WHERE counterparty_id = ${counterpartyId}::uuid
          ORDER BY issue_date, id`,
@@ -208,7 +210,7 @@ export function unsettledOpenItems(
     db,
     sql`SELECT id, counterparty_id, account_number, direction, variable_symbol,
                original_amount, settled_amount, remaining_amount, is_settled,
-               currency_code, issue_date, due_date
+               currency_code, issue_date, due_date, inbox_id
           FROM open_item
          WHERE is_settled = false ${dueFilter} ${dirFilter}
          ORDER BY due_date NULLS LAST, id`,

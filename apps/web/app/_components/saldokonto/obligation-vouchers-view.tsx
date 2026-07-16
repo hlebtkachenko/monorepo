@@ -44,6 +44,7 @@ export async function ObligationVouchersView({
       currencyCode: r.currency_code,
       issueDate: r.issue_date,
       dueDate: r.due_date,
+      inboxId: r.inbox_id,
     }))
 
   const partners: SaldoPartnerRow[] = saldo

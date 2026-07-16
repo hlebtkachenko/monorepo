@@ -42,7 +42,7 @@ worker design still described in the stale `packages/brain/README.md`).
   Operator's Mac                                    AWS (the SERVER, unchanged)
   ─────────────                                     ───────────────────────────
   Claude Code session  (the operator harness)
-        │  runs `afframe brain extract | book | run`
+        │  runs `afframe brain extract | event | book | pipeline | run | …` (7 subcommands)
         ▼
   nested Claude Agent-SDK session  (sandboxed: default-deny tools, no Read/Bash)
         │  calls the MCP tool  mcp__afframe__capture_accounting_document
@@ -144,8 +144,10 @@ The operator drives it from a Claude Code session inside the monorepo. Two shape
 `docs/runbooks/BRAIN-OPERATOR-SESSION.md`):
 
 - **PDF / image** → `afframe brain extract <file>` (local vision-OCR, **never books**, emits a canonical
-  IR + provenance + a layout fingerprint) → `afframe brain book <file> --extracted <ir.json>`
-  (`extractionMethod=ocr`).
+  IR + provenance + a layout fingerprint) → `afframe brain event --extracted <ir.json>` (propose the
+  accounting case with counterparty identity; approve) → `afframe brain book <file> --extracted <ir.json>
+--after-event <eventId>` (`extractionMethod=ocr`). `afframe brain pipeline <file>` chains all three
+  instruct-and-exit with checkpoint resume.
 - **Folder of structured exports** (Pohoda XML / xlsx / csv) → `afframe brain book <folder>`
   (`extractionMethod=structured`).
 

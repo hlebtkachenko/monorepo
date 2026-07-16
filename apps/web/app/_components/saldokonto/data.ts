@@ -22,6 +22,8 @@ export interface OpenItemRow {
   currencyCode: string
   issueDate: string
   dueDate: string | null
+  /** Provenance for the "Zdroj" column: the inbox_item an approved agent write landed this from (null = human/legacy). */
+  inboxId: string | null
 }
 
 /** Per-partner open balance (saldokonto gross view). */

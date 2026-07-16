@@ -403,7 +403,6 @@ today and follow the auth shell, not the org app shell.
 | Page               | Path              | Status | Purpose                                                                                         |
 | ------------------ | ----------------- | ------ | ----------------------------------------------------------------------------------------------- |
 | Content panel demo | `/[orgSlug]/demo` | 🧪     | Saved `Table` archetype reference (invoices). 404 in production. Copy-from, not a shipped page. |
-| Outbox             | `/dev/outbox`     | 🧪     | Dev mail outbox viewer                                                                          |
 
 ---
 

@@ -11,9 +11,9 @@ can only _propose_ a capture. The server gate holds it, and you approve/correct 
 [`/{orgSlug}/accounting/approvals`](#6-review-the-held-writes). The agent key is **denied** the review surface,
 so it can never approve its own work.
 
-Everything below is accurate to the merged code. The two entry commands are `afframe brain extract` and
-`afframe brain book` (the `afframe` bin is `apps/cli`). `afframe brain run` is the single-invoice, JSON-inputs
-path the harness scaffold uses; a real document goes through `extract` → `book`.
+Everything below is accurate to the merged code. The `afframe` bin is `apps/cli`; a real OCR document goes
+through `extract` → `event` → `book` (or `pipeline`, which chains all three). `afframe brain run` is the
+single-invoice, JSON-inputs path the harness scaffold uses. See §0 for the full subcommand table.
 
 ---
 

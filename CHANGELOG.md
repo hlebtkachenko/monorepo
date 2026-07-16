@@ -29,6 +29,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 - Remove two dead settings/debug sidebar links (archetype-table-db / -pivot routes never existed) and add the Archetype Table + Section Details Form debug pages to the sitemap
 
+### Fixed
+
+- Preserve the full deep-link path through the login redirect across web (`/[orgSlug]/*`, `/workspace/*`) and admin (`/(gated)/*`) so a signed-out visitor lands back on the exact page instead of the section root — layouts now read an `x-pathname` header forwarded by the edge proxy (added to admin, which previously had none)
+
 ## [v0.23.1] — 2026-07-16
 
 ### Added

@@ -9,6 +9,7 @@ import { Heading } from "@workspace/ui/components/heading"
 import { Text } from "@workspace/ui/components/text"
 
 import { getActiveImpersonation } from "@/lib/admin-impersonation"
+import { safeNextPath } from "@/lib/safe-next-path"
 import { getStaffRole } from "@/lib/staff-role"
 
 import { AdminHeader } from "./_components/admin-header"
@@ -45,9 +46,18 @@ export default async function GatedLayout({
 }: {
   children: ReactNode
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const h = await headers()
+  const session = await auth.api.getSession({ headers: h })
   if (!session) {
-    redirect("/auth/login")
+    // Bounce back to the exact admin deep link after login. The path is
+    // forwarded by the edge proxy as `x-pathname`; `safeNextPath` falls back
+    // to "/" when it is absent or unsafe.
+    const next = safeNextPath(h.get("x-pathname"))
+    redirect(
+      next === "/"
+        ? "/auth/login"
+        : "/auth/login?next=" + encodeURIComponent(next),
+    )
   }
 
   const { allowed, workspaceId } = await checkAllowlist(session.user.id)

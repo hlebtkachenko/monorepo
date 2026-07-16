@@ -12,6 +12,8 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
+import { safeNext } from "@/lib/safe-next"
+
 import { AppContextMenuClient } from "../_components/app-context-menu-client"
 import { OrgHeaderActions } from "../_components/org-header-actions"
 import { WorkspaceShell } from "../_components/workspace-shell"
@@ -45,9 +47,18 @@ export default async function WorkspaceLayout({
 }: {
   children: ReactNode
 }) {
-  const session = await auth.api.getSession({ headers: await headers() })
+  const h = await headers()
+  const session = await auth.api.getSession({ headers: h })
   if (!session) {
-    redirect("/auth/login")
+    // Preserve the full requested path (forwarded by the proxy as
+    // `x-pathname`) so login bounces back to the exact `/workspace/*` deep
+    // link instead of the workspace root.
+    const next = safeNext(h.get("x-pathname"), "/")
+    redirect(
+      next === "/"
+        ? "/auth/login"
+        : "/auth/login?next=" + encodeURIComponent(next),
+    )
   }
 
   const ctx = await getWorkspaceContext(session.user.id)

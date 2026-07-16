@@ -127,7 +127,9 @@ export async function resolveHeldWrite(
   // or an agent-role membership must never approve an agent's booking into the
   // ledger — the public API requires a human, user-bound key; this is the web
   // mirror of that guard, closing the "any active membership can approve" hole.
-  if (ctx.role === "guest" || ctx.role === "agent") {
+  // ALLOWLIST, not a denylist: any future membership role is denied by default
+  // (fail-closed), matching the API's allowlist backstop — do not invert.
+  if (ctx.role !== "owner" && ctx.role !== "admin" && ctx.role !== "member") {
     return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 
@@ -423,7 +425,7 @@ export async function markConfidentWrong(
   // [S2] Role gate (D3): flagging an auto-applied write as confidently wrong is a
   // ledger-trust mutation — same role floor as resolveHeldWrite (deny guest /
   // agent). Author guard is N/A here (this acts on a landed write, not a proposal).
-  if (ctx.role === "guest" || ctx.role === "agent") {
+  if (ctx.role !== "owner" && ctx.role !== "admin" && ctx.role !== "member") {
     return { ok: false, error: "Nemáte oprávnění vyřizovat návrhy." }
   }
 

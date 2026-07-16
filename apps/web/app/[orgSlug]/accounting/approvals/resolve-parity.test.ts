@@ -517,7 +517,7 @@ async function resolveGuards(
   toolCallLogId: string,
   action: "approve" | "reject",
 ): Promise<{ ok: boolean; error?: string }> {
-  if (ctx.role === "guest" || ctx.role === "agent") {
+  if (ctx.role !== "owner" && ctx.role !== "admin" && ctx.role !== "member") {
     return { ok: false, error: ROLE_DENY_ERROR }
   }
   return withOrganization(s.organizationId, ctx.userId, async (db) => {

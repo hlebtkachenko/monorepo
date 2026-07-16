@@ -20,6 +20,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Stabilize the @workspace/ui Vitest suite: sweep stray fire-and-forget timers (input-otp caret sync) at each test boundary so they no longer fire after jsdom teardown and crash CI with 'ReferenceError: window is not defined'
 - Brain approvals: add resolve-parity.test.ts (PG18) — drives the shared executeHeldWrite dispatcher for every GATED_WRITE_OPERATION_IDS op (exhaustiveness guard + real-DB landing), the červené storno negative-amount edit path, the stale-payload 422, and the S1/S2 web guards (WP1 Task 1.5, closes audit S9)
 - Brain approvals reviewer UI: render the Tier-3 register-card creators (createAsset / createDepreciationPlan / createInventoryCount) with a real header + a labeled detail section, plus a generic key/value fallback for any unmapped future op, so the human gate is never blind (WP1 Task 1.4)
 - Brain web approvals: add author!=approver + role gate (deny guest/agent), re-validate the stored payload, and write the same resolved output_json shape as the API (note + resolvedAt + payloadHash forwarded, so a post-resolve replay returns the recorded outcome not a 409) — WP1 Tasks 1.2-1.3, closes audit S1-S4

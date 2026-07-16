@@ -14,6 +14,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Dev bot no longer opens GitHub issues for transient CI failures or runtime app errors — those now alert Telegram only; issues stay reserved for security-scan, blocking accounting-gate, and user-feedback signals
 - Bump production dependencies group: react-hook-form 7.81.0, recharts 3.9.2, @nestjs/{common,core,platform-express} 11.1.28, @anthropic-ai/claude-agent-sdk 0.3.205, @fortawesome/react-fontawesome 3.4.0, @openfga/syntax-transformer 0.2.2 (supersedes stale Dependabot #699 and #782)
 - Brain #578: remove the runtime-inert classify-to-capture threading seam (bare allowlisted tools auto-approve before canUseTool runs — CLAUDE_SDK_CAN_USE_TOOL_SHADOWED — so the updatedInput rewrite never fired) and correct the overstated three-sandbox-layers / harness-threads-classify comments; classify stays a model reasoning + human-reviewer discrepancy step, the write is submitted verbatim and the server gate holds every special regime; real treatment threading is deferred to a follow-up that feeds it a document-grounded supplyKind from the IR (WP2 Task 2.4)
 
@@ -26,6 +27,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Security
 
+- Bump better-auth to 1.6.13 (pinned) to patch GHSA-86j7-9j95-vpqj stored XSS via javascript: redirect_uri in oidc-provider/mcp
 - Brain web approvals: make the resolve/confident-wrong role gate a fail-closed allowlist (owner/admin/member) so a future membership role is denied by default (WP1 security-review hardening)
 
 ## [v0.23.0] — 2026-07-16

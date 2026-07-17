@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.23.3] — 2026-07-17
+
 ### Added
 
 - ESLint guard (ADR-0008) flagging redirect bases built from `request.url` instead of `publicOrigin(request)` — the class that slipped through in #794; warns on every lint run + pre-commit, excludes single-arg reads and `import.meta.url`

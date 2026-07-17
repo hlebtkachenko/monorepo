@@ -169,11 +169,27 @@ which prefers `x-forwarded-host` + `x-forwarded-proto` (Cloudflare Tunnel
 sets both on every request), falls back to `BETTER_AUTH_URL`, then to
 `request.url` for local dev. Every route handler and middleware that builds
 a redirect (`proxy.ts`, `/auth/signup/start`, `/auth/invite/start`,
-`/api/dev/preview`) routes through this helper.
+`/api/dev/preview`) routes through this helper. `apps/admin` carries its own
+app-local mirror `apps/admin/lib/request-origin.ts` (the admin container
+listens on `:3100`, not `:3000`).
 
 Pattern: `new URL("/auth/login", publicOrigin(request))` — never
-`new URL("/auth/login", request.url)` inside the tunneled containers. The
-ESLint config does not enforce this; reviewers do.
+`new URL("/auth/login", request.url)` inside the tunneled containers.
+
+**Amendment 2026-07-17 — now lint-flagged.** This was reviewer-only, and it
+slipped: the admin "Stop impersonating" handler shipped with
+`new URL("/", request.url)` and had no admin `publicOrigin` helper at all
+(fixed in #794). The base ESLint config (`packages/eslint-config/base.js`) now
+carries a `no-restricted-syntax` selector that flags `new URL(<x>, request.url)`
+in every linted `.ts`/`.tsx` file, so a redirect base built from `request.url`
+surfaces on every `pnpm lint` run and in the pre-commit ESLint hook (the rule
+is syntactic — no type info needed). Single-arg reads
+(`new URL(request.url).searchParams`) and `import.meta.url` module-path
+construction are intentionally not matched. Note: like every rule in this
+config it reports at **warning** severity (the repo-wide `onlyWarn` plugin, and
+there is no `--max-warnings 0`), so it is a loud automated signal rather than a
+hard CI gate — a hard gate would need a repo-wide `--max-warnings 0` policy,
+which is out of scope here.
 
 ## References
 

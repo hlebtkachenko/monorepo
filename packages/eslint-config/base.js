@@ -195,6 +195,23 @@ export const config = [
           message:
             "Relative TS barrel re-exports must omit the .js extension (ADR-0015 — Bundler resolution).",
         },
+        // ADR-0008 (amendment "redirect base URLs"): behind Cloudflare Tunnel
+        // `request.url` is the container's internal listener, so a redirect
+        // built with `new URL(path, request.url)` emits an unreachable
+        // `Location`. Redirect bases MUST come from `publicOrigin(request)`.
+        // Reviewer-only until it slipped through in #794 (admin
+        // impersonation-stop); now flagged on every lint run + pre-commit (warn
+        // severity, per the repo onlyWarn plugin). Matches `new URL(<x>, <ident>.url)`
+        // only — NOT single-arg `new URL(request.url)` (a read) nor
+        // `new URL(path, import.meta.url)` (object is `import.meta`, not an
+        // Identifier). Lives in this same declaration because flat-config
+        // replaces (not merges) a repeated rule key.
+        {
+          selector:
+            "NewExpression[callee.name='URL'][arguments.1.type='MemberExpression'][arguments.1.object.type='Identifier'][arguments.1.property.name='url']",
+          message:
+            "Redirect base URLs must come from publicOrigin(request), not request.url — behind Cloudflare Tunnel request.url is the container listener. See ADR-0008.",
+        },
       ],
     },
   },

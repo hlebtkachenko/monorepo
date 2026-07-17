@@ -30,6 +30,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Fixed
 
+- Admin "Stop impersonating" redirect now builds its base URL via publicOrigin (x-forwarded-host) instead of request.url, so it no longer emits an unreachable Location behind Cloudflare Tunnel (ADR-0008)
 - Remove two dead settings/debug sidebar links (archetype-table-db / -pivot routes never existed) and add the Archetype Table + Section Details Form debug pages to the sitemap
 
 ### Fixed

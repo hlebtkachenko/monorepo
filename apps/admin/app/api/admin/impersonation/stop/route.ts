@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { stopImpersonation } from "@/lib/admin-impersonation"
+import { publicOrigin } from "@/lib/request-origin"
 
 /**
  * Closes the current staff user's active impersonation window.
@@ -28,5 +29,5 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("/api/admin/impersonation/stop: stopImpersonation threw", err)
   }
-  return NextResponse.redirect(new URL("/", request.url), 303)
+  return NextResponse.redirect(new URL("/", publicOrigin(request)), 303)
 }

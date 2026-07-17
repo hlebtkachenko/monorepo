@@ -13,6 +13,13 @@ import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 import { AppBody } from "./app-body"
 import { DeploymentUpdatePrompt } from "./deployment-update-prompt"
 
+/**
+ * Feature flag: the post-deploy "Update ready / Reload now" prompt is switched
+ * off. Flip to `true` to re-enable the poll-and-prompt behaviour; the component
+ * and its wiring stay intact.
+ */
+const DEPLOYMENT_UPDATE_PROMPT_ENABLED = false
+
 interface AppShellProps {
   header?: React.ReactNode
   rail?: React.ReactNode
@@ -450,7 +457,7 @@ export function AppShell({
           </div>
         )}
 
-        {deployment ? (
+        {deployment && DEPLOYMENT_UPDATE_PROMPT_ENABLED ? (
           <DeploymentUpdatePrompt
             initialDeployment={deployment}
             endpoint={deploymentVersionEndpoint}

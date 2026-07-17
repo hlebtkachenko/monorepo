@@ -29,14 +29,14 @@ export function AdminHeader({ actions }: { actions: ReactNode }) {
         searchPlaceholder="Search… (⌘K)"
         // Separator + wordmark sit flush to the header's left edge — same
         // lockup as the workspace shell. Admin has no colored chrome, so the
-        // divider uses the shell app-chrome token (`bg-border-subtle`) and the
-        // wordmark uses the adaptive `admin` tone; both are theme-aware.
+        // divider uses the `icon-active-bg` token (#cdcece light / #3a3d40 dark)
+        // and the wordmark uses the adaptive `admin` tone; both are theme-aware.
         leftContent={
           <>
             <Separator
               orientation="vertical"
               inset
-              className="h-5 bg-border-subtle"
+              className="h-5 bg-icon-active-bg"
             />
             <Logo
               variant="wordmark"

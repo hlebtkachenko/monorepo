@@ -6,6 +6,11 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Disable the post-deploy "Update ready / Reload now" prompt via an AppShell feature flag (component + wiring kept intact)
+- Admin brand-lockup separator now uses the `icon-active-bg` token (#cdcece) instead of `border-subtle` for a more visible divider
+
 ## [v0.23.3] — 2026-07-17
 
 ### Added

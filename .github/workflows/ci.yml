@@ -238,9 +238,15 @@ jobs:
         continue-on-error: true
         run: pnpm --filter @workspace/ui audit:stories
 
+      # Key the browser cache on the INSTALLED playwright-core version (what
+      # actually determines the bundled chromium revision), not the declared
+      # range string — see the note in e2e.yml. Busts the cache on every real
+      # version change so a stale browser can never survive a bump.
       - name: Resolve Playwright version
         id: pw-version
-        run: echo "version=$(node -p "require('./packages/ui/package.json').devDependencies.playwright")" >> "$GITHUB_OUTPUT"
+        run: |
+          v=$(pnpm --filter @workspace/ui exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: pw-cache

@@ -98,7 +98,7 @@
     "axe-playwright": "^2.2.2",
     "eslint": "^9.39.2",
     "jsdom": "^29.1.1",
-    "playwright": "^1.61.1",
+    "playwright": "1.61.1",
     "postcss-load-config": "^6.0.1",
     "storybook": "^10.4.2",
     "tailwindcss": "^4.3.2",

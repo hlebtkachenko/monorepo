@@ -100,9 +100,16 @@ jobs:
       - name: Build web app
         run: pnpm turbo build --filter=web...
 
+      # Key the browser cache on the INSTALLED playwright-core version (what
+      # actually determines the bundled chromium revision), not the declared
+      # range string. A range string barely moves on a bump, so keying on it
+      # let a stale chromium survive a version change and fail the run. The
+      # installed version changes on every bump -> cache busts -> fresh browser.
       - name: Resolve Playwright version
         id: pw-version
-        run: echo "version=$(node -p "require('./apps/web/package.json').devDependencies['@playwright/test']")" >> "$GITHUB_OUTPUT"
+        run: |
+          v=$(pnpm --filter web exec playwright --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+          echo "version=$v" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: pw-cache

@@ -6,6 +6,10 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+### Changed
+
+- Document the 2 agent-native intercompany workflows: payment on behalf and paired issued/received invoices with reciprocal open balances.
+
 ## [v0.23.3] — 2026-07-17
 
 ### Added

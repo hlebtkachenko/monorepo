@@ -6,6 +6,8 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ## [Unreleased]
 
+## [v0.23.4] — 2026-07-18
+
 ### Changed
 
 - Disable the post-deploy "Update ready / Reload now" prompt via an AppShell feature flag (component + wiring kept intact)

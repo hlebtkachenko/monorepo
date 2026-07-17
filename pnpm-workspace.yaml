@@ -77,19 +77,20 @@ overrides:
   # needs, crashing openapi-typescript / gen:all).
   "js-yaml@>=3.0.0 <4.0.0": "3.15.0"
   "js-yaml@>=4.0.0 <5.0.0": ">=4.2.0 <5.0.0"
-  # Pin to 1.60.0 (main's version): the from-scratch lockfile regen floats Playwright to
-  # 1.61.1, whose bundled chromium revision (1228) mismatches the e2e browser cache and
-  # fails the advisory e2e job. Not a security target — keep it stable so this stays a
-  # security-only change.
-  "@playwright/test": "1.60.0"
-  playwright: "1.60.0"
-  playwright-core: "1.60.0"
   # Pin 11.1.1 for vulnerable majors only (buf bounds check in v3/v5/v6 — none of our
   # consumers hit that path). Range selector leaves @cerbos/core's already-safe uuid@14
   # untouched. NOT an open ">=" range on purpose: uuid@12+ drops CommonJS, which would
   # break the 8.x/10.x require() consumers (exceljs, dockerode, storybook tooling); 11.1.1
   # is the last CJS-capable release and still exports the v1/v4 those consumers use.
   "uuid@<11.1.1": "11.1.1"
+  # playwright-core floor. @storybook/test-runner declares an open `>=1.2.0`, so pnpm
+  # keeps whatever's already resolved — after the 1.60.0 override was dropped it left a
+  # stale playwright-core@1.60.0 alongside the app's 1.61.1, giving the storybook browser
+  # cache two revisions to disagree over. This floor forces that transitive up to the
+  # installed line so the tree stays single-version. Floor, NOT a pin (the old 1.60.0 pin
+  # is exactly what went stale): a future @playwright/test bump pulls a higher core, which
+  # still satisfies `>=`, so it dedupes forward with no manual edit.
+  playwright-core: ">=1.61.1"
 allowBuilds:
   "@nestjs/core": true
   # @parcel/watcher pulled in transitively by next-intl message loader.

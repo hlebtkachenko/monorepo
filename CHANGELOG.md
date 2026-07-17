@@ -31,6 +31,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 ### Fixed
 
 - Admin "Stop impersonating" redirect now builds its base URL via publicOrigin (x-forwarded-host) instead of request.url, so it no longer emits an unreachable Location behind Cloudflare Tunnel (ADR-0008)
+- Login-session-expiry on the password/MFA steps (web + admin) now preserves the in-flight `?next=` deep link, so a stalled sign-in returns the user to the page they were signing in to reach instead of the default landing
 - Remove two dead settings/debug sidebar links (archetype-table-db / -pivot routes never existed) and add the Archetype Table + Section Details Form debug pages to the sitemap
 
 ### Fixed

@@ -8,6 +8,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Added
 
+- ESLint guard (ADR-0008) flagging redirect bases built from `request.url` instead of `publicOrigin(request)` — the class that slipped through in #794; warns on every lint run + pre-commit, excludes single-arg reads and `import.meta.url`
 - Brain admission caps: cross-instance concurrent-run enforcement via Postgres `brain_admission_slot` (migration 0063) behind `ACCOUNTING_ADMISSION_SHARED=1`, with an inline dead-holder reap and a pg-boss backstop reaper (#472)
 - pnpm preflight script (affected typecheck+lint+docs check) for local pre-push gate
 - PR-WORKFLOW.md convention (PR sizing, cache-buster isolation, preflight, squash-only)

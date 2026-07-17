@@ -81,6 +81,14 @@ interface AppShellProps {
    */
   logoOverflow?: boolean
   /**
+   * Nudge the logomark SVG down 4px inside the rail-header zone — an
+   * optical-centering fudge baked in when the rail only ever held the square
+   * logomark. Default `true` (org/default shell). Pass `false` (workspace,
+   * admin) to align the logomark to the same baseline as a header-side
+   * wordmark instead.
+   */
+  logoNudge?: boolean
+  /**
    * Build identity rendered into the initial server response. When present,
    * the shell polls the version endpoint and asks the user to reload after a
    * newer deployment becomes available.
@@ -185,6 +193,7 @@ export function AppShell({
   logo = DEFAULT_LOGO,
   logoHref,
   logoOverflow = false,
+  logoNudge = true,
   deployment,
   deploymentVersionEndpoint,
 }: AppShellProps) {
@@ -318,7 +327,8 @@ export function AppShell({
             <div
               data-slot="app-shell-logomark"
               className={cn(
-                "relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden [&>svg]:translate-y-[4px]",
+                "relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden",
+                logoNudge && "[&>svg]:translate-y-[4px]",
                 logoOverflow && "invisible",
               )}
             >
@@ -354,7 +364,10 @@ export function AppShell({
         {rail !== undefined && logoOverflow && (
           <div
             data-slot="app-shell-logo-overlay"
-            className="pointer-events-none absolute top-0 left-0 z-10 flex h-[var(--shell-header-height)] items-center overflow-visible max-md:hidden [&>svg]:translate-y-[4px]"
+            className={cn(
+              "pointer-events-none absolute top-0 left-0 z-10 flex h-[var(--shell-header-height)] items-center overflow-visible max-md:hidden",
+              logoNudge && "[&>svg]:translate-y-[4px]",
+            )}
           >
             {/* `relative` + `inset-0` (not a hardcoded box like the default
                 path's 26×32) so the click target always matches whatever

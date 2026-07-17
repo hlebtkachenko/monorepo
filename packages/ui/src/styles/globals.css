@@ -143,6 +143,8 @@
   --shell-bottom-inset: 8px;
   --shell-right-inset: 8px;
   --shell-handle-width: 10px;
+  /* App-header brand wordmark height (2px taller than the 40px header band). */
+  --wordmark-height: 42px;
   /* Icon-box tokens (shared: rail, header, IconButton). */
   --icon: #808689;
   --icon-active: #1e1f20;

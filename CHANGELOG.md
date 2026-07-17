@@ -16,6 +16,7 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 
 ### Changed
 
+- Rebuild the workspace + admin brand lockup: the app logomark stays in the rail and a vertical separator + wordmark SVG move into the header's left zone (pinned to the App Body's left border), replacing the single horizontal logo asset — mono-light on the green workspace chrome, `tone="admin"` + chrome-token divider on admin. Adds an AppShell `logoNudge` prop (default true; workspace + admin opt out so the rail logomark baseline aligns with the wordmark) and a shared `--wordmark-height` token
 - Brain hygiene (#775): delete the inert M2.1 model-routing dead path, add the Zdroj "Created by Agent" source column to saldokonto (open_item inbox_id), document all seven brain subcommands + the extract→event→book path, make the ISDOC unwired-reason honest (parser exists; adapter tracked in #792), and refresh epic #524
 - Brain write gate: hold on the SUM of sub-ceiling amounts not just per-amount (S6); run the OCR-template screen for every ai_on_behalf write, not only agent keys (S7); record an honest skipped-veto audit shape (`{skipped:true,reason}`) when a confidence/amount hold pre-empts the veto (S8) (#774)
 - pnpm preflight now runs the CHANGELOG Unreleased gate (catches release-cut merge mis-files that --no-verify merge pushes bypass)

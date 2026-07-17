@@ -3,7 +3,9 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
 import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
+import { Logo } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
+import { Separator } from "@workspace/ui/components/separator"
 import {
   Card,
   CardContent,
@@ -99,6 +101,21 @@ export default async function WorkspaceLayout({
 
   const header = (
     <AppHeader
+      // Separator + wordmark sit in the header's left zone, flush to its
+      // left edge — the same X as the App Body's left border (both start at
+      // `--shell-rail-width`). Heights stay inside the 40px header safe zone:
+      // an inset 20px divider, and the wordmark box at the full header height
+      // (its SVG padding centres the glyphs, so they never touch the edges).
+      leftContent={
+        <>
+          <Separator orientation="vertical" inset className="h-5 bg-white/40" />
+          <Logo
+            variant="wordmark"
+            tone="mono-light"
+            className="h-[var(--wordmark-height)] w-auto"
+          />
+        </>
+      }
       actions={
         <OrgHeaderActions
           userName={userName}

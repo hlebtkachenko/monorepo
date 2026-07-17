@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react"
 
+import { Logo } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
+import { Separator } from "@workspace/ui/components/separator"
 
 /**
  * AppHeader for the admin surface. The block ships a centered, presentational
@@ -23,7 +25,28 @@ export function AdminHeader({ actions }: { actions: ReactNode }) {
       }}
       className="size-full"
     >
-      <AppHeader searchPlaceholder="Search… (⌘K)" actions={actions} />
+      <AppHeader
+        searchPlaceholder="Search… (⌘K)"
+        // Separator + wordmark sit flush to the header's left edge — same
+        // lockup as the workspace shell. Admin has no colored chrome, so the
+        // divider uses the shell app-chrome token (`bg-border-subtle`) and the
+        // wordmark uses the adaptive `admin` tone; both are theme-aware.
+        leftContent={
+          <>
+            <Separator
+              orientation="vertical"
+              inset
+              className="h-5 bg-border-subtle"
+            />
+            <Logo
+              variant="wordmark"
+              tone="admin"
+              className="h-[var(--wordmark-height)] w-auto"
+            />
+          </>
+        }
+        actions={actions}
+      />
     </div>
   )
 }

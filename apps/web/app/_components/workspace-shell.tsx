@@ -65,19 +65,19 @@ export function WorkspaceShell({
       <div className="workspace-chrome">
         <AppShell
           header={header}
-          // Combined logomark+wordmark lockup (one asset, matches the auth
-          // shell) — white on the green rail. `logoOverflow` lets it bleed
-          // past the 70×40 rail-header zone instead of being clipped to a
-          // square; the mark itself stays pinned at the zone's usual
-          // top-left, only the wordmark trails further right.
+          // Logomark copied verbatim from AppShell's DEFAULT_LOGO (the app
+          // rail render), only the tone flipped to mono-light for the green
+          // rail. The separator + wordmark live in the header's left zone
+          // (see `workspace/layout.tsx`), pinned to the App Body's left
+          // border, not bled out of the rail.
           logo={
             <Logo
-              variant="horizontal"
+              variant="logomark"
               tone="mono-light"
-              className="h-[54px] w-auto"
+              className="h-[var(--shell-header-height)] w-[var(--shell-rail-width)]"
             />
           }
-          logoOverflow
+          logoNudge={false}
           rail={<AppRailNav items={railNav} />}
           bottomNav={<AppBottomNav items={workspaceBottomNav()} />}
           sidebar={<WorkspaceSidebar nav={nav} />}

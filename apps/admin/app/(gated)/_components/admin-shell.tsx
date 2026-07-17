@@ -76,6 +76,7 @@ export function AdminShell({
             className="h-[var(--shell-header-height)] w-[var(--shell-rail-width)]"
           />
         }
+        logoNudge={false}
         logoHref="/"
         rail={<AdminRailNav items={railItems} activeHref={activeHref} />}
         bottomNav={

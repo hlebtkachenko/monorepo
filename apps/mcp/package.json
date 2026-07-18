@@ -1,12 +1,26 @@
 {
   "name": "@afframe/mcp",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.1.0",
   "description": "Official MCP server for the Afframe public API.",
   "license": "MIT",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hlebtkachenko/monorepo.git",
+    "directory": "apps/mcp"
+  },
   "bin": {
     "afframe-mcp": "./bin/afframe-mcp.js"
+  },
+  "files": [
+    "bin",
+    "dist/server.js"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "tsx src/server.ts",
@@ -18,15 +32,13 @@
     "test:watch": "vitest",
     "gen": "tsx scripts/gen-tools.ts",
     "deploy:staging": "wrangler deploy --env staging",
-    "deploy:production": "wrangler deploy --env production"
-  },
-  "dependencies": {
-    "@afframe/sdk": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^4.4.3"
+    "deploy:production": "wrangler deploy --env production",
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
+    "@afframe/sdk": "workspace:*",
     "@cloudflare/workers-types": "^5.20260706.1",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^26.0.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
@@ -35,6 +47,7 @@
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
-    "wrangler": "^4.105.0"
+    "wrangler": "^4.105.0",
+    "zod": "^4.4.3"
   }
 }

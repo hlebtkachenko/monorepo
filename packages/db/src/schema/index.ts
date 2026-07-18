@@ -108,3 +108,12 @@ export * from "./brain_admission_slot"
 
 // Org favorites — per-user, per-org starred pages, org-scoped FORCE RLS (0064)
 export * from "./favorite_page"
+
+// OAuth 2.1 authorization server — Better Auth jwt() + oauthProvider() plugins,
+// global-tier / NO RLS (BA-owned), plus our own tenant-binding pending table (0066)
+export * from "./jwks"
+export * from "./oauth_client"
+export * from "./oauth_refresh_token"
+export * from "./oauth_access_token"
+export * from "./oauth_consent"
+export * from "./oauth_pending_reference"

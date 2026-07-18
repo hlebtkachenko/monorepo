@@ -29,6 +29,13 @@ overrides:
   # 0.29.2 (no such export) and breaks the Turbopack build. Bump deliberately + retest, never
   # via a group bump.
   better-auth: "1.6.13"
+  # Pin EXACT 1.6.13 to lockstep with the better-auth core pin above. The
+  # OAuth 2.1 authorization-server plugin's peers must be byte-identical to what
+  # better-auth@1.6.13 installs (better-auth@^1.6.13, @better-auth/core@1.6.13,
+  # better-call@1.3.5). A float pulls 1.6.14, which drags @better-auth/kysely-adapter
+  # 1.6.14 back in and re-triggers the Turbopack break documented above. Bump
+  # deliberately + retest, always in lockstep with better-auth, never via a group bump.
+  "@better-auth/oauth-provider": "1.6.13"
   # Force >=4.12.21: 4 GHSAs in transitive 4.12.18 via @modelcontextprotocol/sdk
   # (Set-Cookie injection, IPv6 deny bypass, JWT scheme accept-any, mount-prefix
   # routing). SDK's own range is ^4.11.4, so dedupes onto our direct 4.12.25.

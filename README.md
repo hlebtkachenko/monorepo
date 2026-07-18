@@ -52,17 +52,21 @@ Root manifests and dotfiles remain at repository root because Git, Docker,
 pnpm, Turborepo, editors, and agent tools discover them there. Cursor and VS
 Code collapse related root files through [`.vscode/settings.json`](.vscode/settings.json).
 
-## Component Structure
+## Working in a Domain
 
-Each component follows the folder-per-component pattern:
+One row per domain: where to start, where the full picture lives, and the one
+rule that bites. Full rules: [`AGENTS.md`](AGENTS.md). Task router:
+[`docs/README.md`](docs/README.md).
 
-```
-packages/ui/src/components/button/
-  button.tsx          # component source
-  index.ts            # re-exports
-  button.stories.tsx  # Storybook story
-  button.test.tsx     # Vitest test
-```
+| Domain             | Start here                                                                                                                 | Full picture                                                                                                                                                   | Don't start without                                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| UI / design system | [`packages/ui/README.md`](packages/ui/README.md)                                                                           | [`docs/runbooks/COMPONENT-MIGRATION.md`](docs/runbooks/COMPONENT-MIGRATION.md)                                                                                 | Registering the component in `packages/ui/src/lib/registry.ts`; tokens only, never hardcoded colors                   |
+| Web app            | [`docs/runbooks/APP-SHELL-PANELS.md`](docs/runbooks/APP-SHELL-PANELS.md)                                                   | [`docs/specs/CONTENT-ARCHETYPES.md`](docs/specs/CONTENT-ARCHETYPES.md)                                                                                         | Checking the single-use component index in [`apps/web/app/_components/README.md`](apps/web/app/_components/README.md) |
+| Public API         | [`docs/api/README.md`](docs/api/README.md)                                                                                 | [`docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md`](docs/runbooks/ENDPOINT-ADDITION-RUNBOOK.md), [`apps/mcp`](apps/mcp/README.md), [`apps/cli`](apps/cli/README.md) | Never hand-edit `generated/**` — schema first, then `pnpm gen:all`                                                    |
+| Accounting + Brain | [`packages/accounting/README.md`](packages/accounting/README.md), [`packages/filing/README.md`](packages/filing/README.md) | [`docs/brain/README.md`](docs/brain/README.md), [`docs/brain/TECHNICAL.md`](docs/brain/TECHNICAL.md)                                                           | Money is `Money<Currency>`, never `number`; booking writes go through the gate                                        |
+| Data + tenancy     | [`packages/db/README.md`](packages/db/README.md)                                                                           | [`ARCHITECTURE.md`](ARCHITECTURE.md)                                                                                                                           | All tenant reads and writes via `withWorkspace` / `withOrganization` — no raw queries                                 |
+| Email + bot        | [`packages/email/README.md`](packages/email/README.md)                                                                     | [`docs/specs/TRANSACTIONAL-EMAILS.md`](docs/specs/TRANSACTIONAL-EMAILS.md), [`apps/bot`](apps/bot/README.md)                                                   | `renderShell` only for emails; all Telegram I/O through `apps/bot`                                                    |
+| Infra + deploy     | [`infra/cdk/README.md`](infra/cdk/README.md)                                                                               | [`docs/adr/`](docs/adr/)                                                                                                                                       | `cdk diff` before any Budget change — a bad action can lock the account                                               |
 
 ## Commands
 
@@ -76,20 +80,6 @@ packages/ui/src/components/button/
 | `pnpm format`                            | Format all files with Prettier |
 | `pnpm --filter @workspace/ui storybook`  | Start Storybook on port 6006   |
 | `pnpm --filter @workspace/ui test:watch` | Watch mode for UI tests        |
-
-## Adding Components
-
-```bash
-pnpm dlx shadcn@latest add button -c apps/web
-```
-
-Components are placed in `packages/ui/src/components/`. After adding, create the folder structure with `index.ts`, stories, and tests.
-
-## Using Components
-
-```tsx
-import { Button } from "@workspace/ui/components/button"
-```
 
 ## Full Stack Quick Start
 
@@ -132,16 +122,17 @@ Tags are strict semver with a `v` prefix:
 | Release candidate | `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` | `v0.9.1-rc.1` |
 
 Bump rules, the cut workflow, and the tag → deploy order live in
-[`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
+[`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md). Release
+history: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Documentation
 
-- [`AGENTS.md`](AGENTS.md): project rules for AI agents and contributors
+- [`AGENTS.md`](AGENTS.md): mandatory rules for agents and contributors
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): system architecture overview
-- [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md): workflow and contribution rules
-- [`.github/SECURITY.md`](.github/SECURITY.md): vulnerability reporting and security posture
-- [`.github/CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md): community standards
-- [`CHANGELOG.md`](CHANGELOG.md): release notes
-- [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md): version tag format + release cut workflow
-- [`docs/adr/`](docs/adr/): architecture decision records
-- [`docs/brain/README.md`](docs/brain/README.md): Afframe Brain overview and safety model; see [`docs/brain/TECHNICAL.md`](docs/brain/TECHNICAL.md) for internals and GitHub epic [#524](https://github.com/hlebtkachenko/monorepo/issues/524) for delivery status
+- [`docs/README.md`](docs/README.md): full documentation index — task router, taxonomy, canonical sources
+- [`docs/runbooks/CODEGRAPH.md`](docs/runbooks/CODEGRAPH.md): CodeGraph structural search — `pnpm codegraph:ready` before exploring code
+- [`docs/runbooks/CONDUCTOR.md`](docs/runbooks/CONDUCTOR.md): Conductor workspace wiring, isolation, and cloud limits
+- [`changelog.d/README.md`](changelog.d/README.md): changelog fragments — one per commit, required in every PR
+
+Domain entry points (package and app READMEs) live in
+[Working in a Domain](#working-in-a-domain) — one row per domain.

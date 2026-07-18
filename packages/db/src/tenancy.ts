@@ -183,8 +183,8 @@ async function withTenantGuc<T, Bound extends AnyTx>(
     // issued here before the prior-GUC snapshot's `current_setting` reads and
     // before `bindGucs`. `set_config`/`SET` and plain SELECTs are permitted in
     // a read-only transaction; only writes to persistent tables are blocked.
-    // Only the non-composed path can guarantee this is the first statement — see
-    // the composition caveat on `withOrgReadonly`.
+    // Only the non-composed path can guarantee this is the first statement,
+    // which is why `withOrgReadonly` never composes (always top-level).
     if (readonly) {
       await tx.execute(sql`SET TRANSACTION READ ONLY`)
     }
@@ -306,21 +306,19 @@ export async function withOrganization<T>(
  * accidental INSERT/UPDATE/DELETE into a hard Postgres error instead of a
  * silent write.
  *
- * Same signature + throw-on-missing-org contract as `withOrganization`.
- *
- * Composition caveat: `SET TRANSACTION READ ONLY` is only valid as the first
- * statement of a transaction. Passing `outerTx` (SAVEPOINT nesting) after the
- * outer transaction has run a query will make Postgres reject the read-only
- * mode; the known call sites are all top-level (no `outerTx`).
+ * Same throw-on-missing-org contract as `withOrganization`. Deliberately does
+ * NOT accept an `outerTx`: `SET TRANSACTION READ ONLY` is only valid as the
+ * first statement of a transaction, so read-only always opens a fresh top-level
+ * transaction — making "the callback cannot write" a guarantee rather than a
+ * caveat the caller could break by composing.
  */
 export async function withOrgReadonly<T>(
   organizationId: string,
   userId: string | null,
   fn: (db: OrganizationReadonlyDb) => Promise<T>,
-  outerTx?: AnyTx,
 ): Promise<T> {
   return await withTenantGuc<T, OrganizationReadonlyDb>(
-    outerTx,
+    undefined,
     bindOrganizationGucs("withOrgReadonly", organizationId, userId),
     fn,
     true,

@@ -2,7 +2,7 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
-import { getBuildIdentity } from "@workspace/ui/brand-assets"
+import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 
 import { safeNext } from "@/lib/safe-next"
@@ -16,7 +16,7 @@ import {
 } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
-import { HeaderUser } from "./_shell/header-user"
+import { OrgHeaderActions } from "./_shell/header-actions"
 import { OrgShell } from "./_shell/org-shell"
 import { OrgSwitcherClient } from "./_shell/org-switcher"
 import { PeriodSwitcherClient } from "./_shell/period-switcher"
@@ -92,6 +92,7 @@ export default async function OrgLayout({
 
   const header = (
     <AppHeader
+      search={false}
       leftContent={
         <>
           <OrgSwitcherClient
@@ -116,7 +117,14 @@ export default async function OrgLayout({
           />
         </>
       }
-      actions={<HeaderUser userName={userName} userImage={userImage} />}
+      actions={
+        <OrgHeaderActions
+          userName={userName}
+          userImage={userImage}
+          slug={orgSlug}
+          version={getBuildVersion()}
+        />
+      }
     />
   )
 

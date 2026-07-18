@@ -1,7 +1,7 @@
 "use server"
 
-import { and, eq } from "drizzle-orm"
-import { withOrganization } from "@workspace/db"
+import { and, asc, eq } from "drizzle-orm"
+import { withOrganization, withOrgReadonly } from "@workspace/db"
 import { favorite_page } from "@workspace/db/schema"
 
 import { resolveMembership } from "@/lib/org/resolve"
@@ -88,4 +88,98 @@ export async function toggleFavorite(
   )
 
   return { ok: true, favorited }
+}
+
+/** One favorited page, projected for the module-overview cards. */
+export interface FavoritePageRow {
+  id: string
+  /** Org-relative orgHref path, e.g. 'company/periods'. */
+  route: string
+  /** Rail module the page belongs to. */
+  module: string
+  /** ContentHeader title snapshot. */
+  label: string
+}
+
+/**
+ * List the signed-in user's favorited pages for one org, optionally narrowed to
+ * a single rail module (the module-overview card read).
+ *
+ * Tenancy is derived server-side exactly like `toggleFavorite`: `userId` from
+ * the session, `organizationId` from `resolveMembership({ slug, userId })` — so
+ * only an org the caller belongs to resolves. The read runs under
+ * `withOrgReadonly`, which binds `app.organization_id` (+ `app.user_id`) so the
+ * `favorite_page` FORCE-RLS `organization_isolation` policy is the tenant
+ * boundary AND issues `SET TRANSACTION READ ONLY` so the query provably cannot
+ * mutate. The explicit `organization_id`/`user_id` filters are defense-in-depth.
+ */
+export async function listFavorites(input: {
+  slug: string
+  module?: string
+}): Promise<FavoritePageRow[]> {
+  const session = await getRequestSession()
+  const userId = session?.user?.id
+  if (!userId) return []
+
+  const membership = await resolveMembership({ slug: input.slug, userId })
+  if (!membership) return []
+
+  const { organizationId } = membership
+  const moduleKey = input.module?.trim()
+
+  return withOrgReadonly(organizationId, userId, async (db) =>
+    db
+      .select({
+        id: favorite_page.id,
+        route: favorite_page.page_route,
+        module: favorite_page.module_key,
+        label: favorite_page.label,
+      })
+      .from(favorite_page)
+      .where(
+        and(
+          eq(favorite_page.organization_id, organizationId),
+          eq(favorite_page.user_id, userId),
+          moduleKey ? eq(favorite_page.module_key, moduleKey) : undefined,
+        ),
+      )
+      .orderBy(asc(favorite_page.sort_order), asc(favorite_page.created_at)),
+  )
+}
+
+/**
+ * Whether one org page is currently favorited by the signed-in user — the
+ * initial state for a page's controlled favorite star. Same server-side
+ * principal derivation + `withOrgReadonly` tenancy as `listFavorites`.
+ */
+export async function isFavorited(input: {
+  slug: string
+  route: string
+}): Promise<boolean> {
+  const route = input.route.trim()
+  if (!route) return false
+
+  const session = await getRequestSession()
+  const userId = session?.user?.id
+  if (!userId) return false
+
+  const membership = await resolveMembership({ slug: input.slug, userId })
+  if (!membership) return false
+
+  const { organizationId } = membership
+
+  return withOrgReadonly(organizationId, userId, async (db) => {
+    const [row] = await db
+      .select({ id: favorite_page.id })
+      .from(favorite_page)
+      .where(
+        and(
+          eq(favorite_page.organization_id, organizationId),
+          eq(favorite_page.user_id, userId),
+          eq(favorite_page.page_route, route),
+        ),
+      )
+      .limit(1)
+    return Boolean(row)
+  })
 }

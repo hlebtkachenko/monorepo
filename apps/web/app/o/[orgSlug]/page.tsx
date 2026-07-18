@@ -1,12 +1,21 @@
+import { listFavorites } from "@/lib/org/favorite-actions"
+
+import { FavoritesOverview } from "./_components/favorites-overview"
+
 /**
- * Company home for the rebuilt tree.
+ * Company home for the rebuilt tree — the Company module's Overview.
  *
- * Intentionally EMPTY. The foundation wires the shell + the real data plumbing,
- * but no Company-home content is designed yet — and this tree allows NO demo /
- * placeholder content: a page body is either wired to real org data or empty.
- * Real content lands in the execution phase (archetype-driven, wired to org
- * data). Until then the shell renders around an empty content panel.
+ * Renders the current user's favorited Company-module pages as cards (read
+ * server-side under `withOrgReadonly`), or an i18n empty state when there are
+ * none. No demo content: the cards are REAL favorites the user starred via the
+ * content-header star, never mock rows.
  */
-export default function OrgHomePage() {
-  return null
+export default async function OrgHomePage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>
+}) {
+  const { orgSlug } = await params
+  const favorites = await listFavorites({ slug: orgSlug, module: "company" })
+  return <FavoritesOverview slug={orgSlug} favorites={favorites} />
 }

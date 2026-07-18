@@ -878,6 +878,16 @@
       "settings": "Nastavení",
       "debug": "Ladění"
     },
+    "favorite": {
+      "tooltip": "Oblíbené",
+      "add": "Přidat do oblíbených",
+      "remove": "Odebrat z oblíbených"
+    },
+    "favorites": {
+      "heading": "Oblíbené",
+      "emptyTitle": "Zatím žádné oblíbené",
+      "emptyHint": "Označte stránku hvězdičkou a připne se do tohoto přehledu."
+    },
     "roles": {
       "owner": "Vlastník",
       "admin": "Správce",

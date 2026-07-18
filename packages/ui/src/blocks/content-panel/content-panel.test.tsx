@@ -68,14 +68,37 @@ describe("ContentHeader", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders the favorite action and no configure button", () => {
+  it("omits the favorite action when no favorite prop is passed", () => {
     wrap(<ContentHeader title="Faktury" />)
     expect(
-      screen.getByRole("button", { name: /favorite/i }),
-    ).toBeInTheDocument()
+      screen.queryByRole("button", { name: /favorite/i }),
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: /configure/i }),
     ).not.toBeInTheDocument()
+  })
+
+  it("renders a controlled inactive favorite star and toggles on click", () => {
+    const onToggle = vi.fn()
+    wrap(
+      <ContentHeader title="Faktury" favorite={{ active: false, onToggle }} />,
+    )
+    const star = screen.getByRole("button", { name: /add to favorites/i })
+    expect(star).toHaveAttribute("aria-pressed", "false")
+    fireEvent.click(star)
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders the active favorite star with the remove label", () => {
+    wrap(
+      <ContentHeader
+        title="Faktury"
+        favorite={{ active: true, onToggle: () => {} }}
+      />,
+    )
+    expect(
+      screen.getByRole("button", { name: /remove from favorites/i }),
+    ).toHaveAttribute("aria-pressed", "true")
   })
 
   it("renders a back link when backTo is provided", () => {

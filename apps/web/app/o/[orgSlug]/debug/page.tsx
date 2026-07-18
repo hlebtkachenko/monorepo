@@ -3,9 +3,12 @@ import { notFound } from "next/navigation"
 
 import { getTranslations } from "@workspace/i18n/server"
 
+import { isFavorited, listFavorites } from "@/lib/org/favorite-actions"
 import { resolveMembership } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
+import { FavoritePageHeader } from "../_components/favorite-page-header"
+import { FavoritesOverview } from "../_components/favorites-overview"
 import { hasDebugModuleAccess } from "./access"
 
 /**
@@ -16,9 +19,9 @@ import { hasDebugModuleAccess } from "./access"
  * production user who deep-links here fails closed to a 404 — the same decision
  * the rail uses to hide the module.
  *
- * Intentionally EMPTY body. Like every page in the rebuilt tree it carries no
- * demo / placeholder content: the shell renders around an empty content panel
- * until a real Debug surface is designed.
+ * Body carries no demo content: it renders the Debug module's favorited pages
+ * as cards (REAL favorites, read under `withOrgReadonly`) or an empty state. The
+ * content header carries a favorite star for this overview (`module_key='debug'`).
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("org.titles")
@@ -42,5 +45,22 @@ export default async function DebugOverviewPage({
     notFound()
   }
 
-  return null
+  const t = await getTranslations("org.titles")
+  const [active, favorites] = await Promise.all([
+    isFavorited({ slug: orgSlug, route: "debug" }),
+    listFavorites({ slug: orgSlug, module: "debug" }),
+  ])
+
+  return (
+    <>
+      <FavoritePageHeader
+        slug={orgSlug}
+        title={t("debug")}
+        route="debug"
+        module="debug"
+        initialActive={active}
+      />
+      <FavoritesOverview slug={orgSlug} favorites={favorites} />
+    </>
+  )
 }

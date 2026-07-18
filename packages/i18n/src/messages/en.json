@@ -869,7 +869,12 @@
   "org": {
     "nav": {
       "company": "Company",
-      "overview": "Overview"
+      "overview": "Overview",
+      "periods": "Periods"
+    },
+    "titles": {
+      "periods": "Periods",
+      "settings": "Settings"
     },
     "roles": {
       "owner": "Owner",

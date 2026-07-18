@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { buildClient } from "./client"
 import { registerGeneratedTools } from "./tools/generated"
 
-const VERSION = "0.0.1"
+const VERSION = process.env.MCP_BUILD_VERSION ?? "0.0.0-dev"
 
 /**
  * `@afframe/mcp` — MCP server exposing the Afframe public API to LLM clients

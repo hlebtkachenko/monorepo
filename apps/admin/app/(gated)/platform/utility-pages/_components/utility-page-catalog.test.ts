@@ -80,16 +80,21 @@ describe("UtilityPageCatalog", () => {
       }),
     )
 
-    await waitFor(() =>
-      expect(
-        container.querySelector("[data-slot='utility-page']"),
-      ).toHaveAttribute("data-state", "service_unavailable"),
+    await waitFor(
+      () =>
+        expect(
+          container.querySelector("[data-slot='utility-page']"),
+        ).toHaveAttribute("data-state", "service_unavailable"),
+      { timeout: 5000 },
     )
-    // The feedback lazy() payload is warmed (see beforeAll), so this render's
-    // Suspense boundary resolves synchronously — the default findBy wait is enough.
-    expect(await screen.findByText("Report this problem")).toBeInTheDocument()
-    expect(
-      await screen.findByRole("button", { name: "Send report" }),
-    ).toHaveAttribute("data-variant", "link")
+    // data-state flips in the same commit that mounts the pre-warmed (see
+    // beforeAll) feedback subtree, so the section title and the Send-report
+    // button are already in the DOM — query synchronously, no extra poll. This
+    // makes the assertion deterministic and fails loudly if the warm-up regresses.
+    expect(screen.getByText("Report this problem")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Send report" })).toHaveAttribute(
+      "data-variant",
+      "link",
+    )
   }, 20_000)
 })

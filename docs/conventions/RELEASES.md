@@ -43,9 +43,16 @@ The release workflow auto-flags `-rc.*` tags as pre-release; stable tags become 
 
 ## Who tags
 
-For now: **Hleb only**. Tagging is a manual, human-gated act. No automation pushes tags.
+Tagging is **human-gated**, not human-executed. A release tag is cut only on
+Hleb's explicit authorization — never autonomously, never by scheduled
+automation. That authorization is **delegable**: when Hleb tells an agent to
+"cut a release" (with no narrower scope), the agent runs the workflow end to
+end **including creating and pushing the annotated tag** — that instruction _is_
+the human gate. Absent such an instruction, no agent and no automation pushes a
+tag.
 
-This keeps the release cadence tight and predictable while the product surface is still fluid.
+This keeps the release cadence human-decided while letting a delegated cut
+finish in one shot instead of stalling half-done at the release PR.
 
 ## Changelog discipline (fragment files)
 
@@ -180,9 +187,62 @@ The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 6. Attaches the tarball + provenance + SBOM as release assets.
 7. Marks the release as **Pre-release** if the tag matches `-rc.<N>`, otherwise **Latest**.
 
+After publishing, `release.yml` enters the `release-hold` GitHub Environment.
+Its 60-minute wait timer delays the job before GitHub assigns a runner, so the
+hold uses no runner minutes. The workflow then rechecks release and deployment
+state, deploys release candidates to staging, and deploys stable releases to
+staging followed by production.
+
 ## Tag → deploy order (the operational rule)
 
-`release.yml` (tag push) and `_deploy-aws.yml` (manual) are independent workflows. The tag itself only produces the GitHub Release artifact + SLSA provenance + SBOM. **Tagging never touches AWS.** A manual deploy after the tag is what moves staging / production to the new version.
+`release.yml` publishes the immutable GitHub Release artifact, provenance, and
+SBOM. `release.yml` then waits on the `release-hold` Environment's 60-minute
+timer. At the end of the hold,
+it deploys only when all of these remain true:
+
+- the release body does not contain `<!-- cd:skip -->`;
+- no newer release, including a draft, exists;
+- no staging or production deployment started after the release was published.
+
+The gate runs again inside `_deploy-aws.yml` after the per-environment
+concurrency lock is acquired. A manual deploy that wins the lock therefore
+suppresses the automatic deploy instead of being followed by a duplicate.
+
+### One-shot and runner-cost guarantees
+
+- `release.yml` has one trigger only: a push of a `v*` tag. It has no schedule,
+  `release`, `workflow_run`, or self-dispatch trigger.
+- Publishing the GitHub Release does not trigger another run. One pushed tag
+  creates one release workflow run.
+- The one-hour delay is a GitHub Environment wait timer. Wait time is applied
+  before runner assignment and is not billable runner time.
+- Release concurrency is keyed by the immutable tag ref and never cancels an
+  active run. A manual rerun cannot create a redeploy loop: the deployment gate
+  rejects a release once a staging or production deployment already started.
+- A newer release, a manual deployment, or `<!-- cd:skip -->` suppresses the
+  pending automatic deployment. Suppression is terminal for that run.
+
+Release candidates deploy to staging only. Stable releases deploy to staging,
+pass the existing smoke and rollback gates, then deploy to production. Plain
+pushes to `main` remain non-deploying. `_deploy-aws.yml` remains available for
+manual deploys and recovery.
+
+Deployment notifications go through `bot.afframe.com/ingest`:
+
+- successful staging deploys stay quiet;
+- every successful production deploy sends its automatic/manual mode, release
+  or base-release-plus-commits target, deployed commit, change summary, stack,
+  and workflow link;
+- a failed staging or production deploy sends the same target context plus a
+  TLDR with the failed phase, failed step, and a sanitized error excerpt;
+- expected automatic suppression is not reported as a failure.
+
+To publish without automatic CD, add this exact hidden marker to the GitHub
+Release body before the one-hour hold ends:
+
+```markdown
+<!-- cd:skip -->
+```
 
 The deploy pipeline does its own Docker image build (it does NOT call `_build-image.yml`). It resolves `BUILD_VERSION` in this order:
 
@@ -190,9 +250,11 @@ The deploy pipeline does its own Docker image build (it does NOT call `_build-im
 2. `git describe --exact-match` — if a git tag points at HEAD, that tag becomes the value
 3. Fallback: `sha-<short-7-char>`
 
-So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
+The controller passes the release tag explicitly as `build_version` and forces
+all deployable service images to rebuild, keeping web, API, and admin on one
+release version.
 
-### Production: tag, then deploy
+### Stable release: tag, then automatic staging and production
 
 ```bash
 # 1. Collect fragments + synthesized Dependabot bumps into a new CHANGELOG.md
@@ -211,24 +273,17 @@ git tag v0.2.0
 git push origin v0.2.0
 #    → release.yml builds the tarball + SLSA + SBOM, creates the GitHub Release
 
-# 4. Deploy the same commit to production. The build-images job runs
-#    `git describe --exact-match HEAD`, picks up v0.2.0, and bakes
-#    BUILD_VERSION=0.2.0 into the image.
-gh workflow run _deploy-aws.yml \
-  -f environment=production \
-  -f stack=all
-#    → footer renders "© 2026 Afframe. v0.2.0"
-#    → /api/version returns 0.2.0
-#    → Sentry release tag = 0.2.0
+# 4. release.yml publishes the release. Auto CD waits one hour, then runs
+#    staging → smoke → production → smoke when the release remains eligible.
 ```
 
-### Staging: same flow for RCs
+### Release candidate: automatic staging only
 
 ```bash
 git tag v0.2.0-rc.1
 git push origin v0.2.0-rc.1
-gh workflow run _deploy-aws.yml -f environment=staging
-#    → footer reads "© 2026 Afframe. v0.2.0-rc.1"
+# → release.yml publishes the pre-release
+# → Auto CD waits one hour, then deploys staging only
 ```
 
 ### Already deployed, want to align the footer
@@ -281,14 +336,14 @@ gh workflow run _deploy-aws.yml \
 
 ### What happens if you do it out of order
 
-| Order                    | Image `BUILD_VERSION` | Footer        | GitHub Release                                    |
-| ------------------------ | --------------------- | ------------- | ------------------------------------------------- |
-| **tag, then deploy**     | `0.2.0`               | `v0.2.0`      | exists ✓                                          |
-| **deploy, then tag**     | `sha-<short>`         | `sha-<short>` | exists, but AWS is out of sync until you redeploy |
-| **only deploy (no tag)** | `sha-<short>`         | `sha-<short>` | no release ever                                   |
-| **only tag (no deploy)** | unchanged             | unchanged     | exists, but no AWS environment runs it            |
+| Order                     | Image `BUILD_VERSION` | Footer        | GitHub Release                                    |
+| ------------------------- | --------------------- | ------------- | ------------------------------------------------- |
+| **tag, auto CD eligible** | `0.2.0`               | `v0.2.0`      | exists ✓                                          |
+| **deploy, then tag**      | `sha-<short>`         | `sha-<short>` | exists, but AWS is out of sync until you redeploy |
+| **only deploy (no tag)**  | `sha-<short>`         | `sha-<short>` | no release ever                                   |
+| **tag with `cd:skip`**    | unchanged             | unchanged     | exists; automatic AWS deployment is skipped       |
 
-The prod-truthful default is **tag → deploy**.
+The prod-truthful default is **tag → one-hour hold → staging → production**.
 
 ## Version visibility at runtime
 

@@ -27,10 +27,27 @@ canonical `/[orgSlug]` and the `/o` prefix disappears.
 
 ## What lives where
 
-- **Shell**: `_shell/org-shell.tsx` composes `@workspace/ui` `AppShell`
-  **directly** (not the old `app/_components/org-shell.tsx`). Header wrappers
-  (`org-switcher`, `period-switcher`, `header-user`) are this tree's own thin
-  clients over the `@workspace/ui` primitives.
+- **Shell** (`_shell/`): this tree's own thin clients over the `@workspace/ui`
+  `AppShell` primitives — composed **directly**, not via the old flat
+  `app/_components/org-shell.tsx`. The folder is organized to **mirror the
+  AppShell anatomy** so every piece has an obvious home (no flat chaos):
+
+  ```
+  _shell/
+    org-shell.tsx        root composer — mounts AppShell, wires the slots
+    app-header/          header slot: org-switcher, period-switcher, header-actions
+    app-rail/            rail slot                                   (add when built)
+    app-body/            mirrors AppShell's AppBody region
+      app-sidebar/       sidebar slot                               (add when built)
+      app-content/       content-panel: content-header/, content-body/  (add when built)
+      app-assistant/     assistant slot                             (add when built)
+    app-bottom-nav/      mobile bottom nav                          (add when built)
+  ```
+
+  Only `_shell` needs the `_` prefix (Next-private folder); nested subfolders
+  inherit it. Create a panel folder when its first file lands — don't commit
+  empty folders. A new chrome piece goes under the panel it belongs to.
+
 - **Nav**: `_nav/org-nav.ts` — this tree's own nav, starts minimal and grows one
   module at a time as pages are rebuilt. It does **not** feed the `/v1/structure`
   codegen during coexistence (that stays on the old nav until the flip).

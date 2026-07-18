@@ -16,10 +16,10 @@ import {
 } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
-import { OrgHeaderActions } from "./_shell/header-actions"
 import { OrgShell } from "./_shell/org-shell"
-import { OrgSwitcherClient } from "./_shell/org-switcher"
-import { PeriodSwitcherClient } from "./_shell/period-switcher"
+import { OrgHeaderActions } from "./_shell/app-header/header-actions"
+import { OrgSwitcherClient } from "./_shell/app-header/org-switcher"
+import { PeriodSwitcherClient } from "./_shell/app-header/period-switcher"
 
 // DB role enum → human-readable label rendered verbatim in the org switcher.
 const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {

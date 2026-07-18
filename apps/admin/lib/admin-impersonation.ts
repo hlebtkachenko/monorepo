@@ -6,7 +6,12 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { app_user, impersonation, organization } from "@workspace/db/schema"
+import {
+  app_user,
+  impersonation,
+  organization,
+  organization_membership,
+} from "@workspace/db/schema"
 
 import { auditAdminAction } from "./admin-audit"
 import { requireAdminCapability } from "./admin-capability"
@@ -76,9 +81,11 @@ export async function getActiveImpersonation(): Promise<ImpersonationState | nul
  *   2. Validate reason (>= 8 chars after trim).
  *   3. Validate the target user exists.
  *   3b. When `organizationId` is set (the "Sign in to this org" flow): require
- *       the org to have an ACTIVE support-access grant
- *       (`support_access_expires_at > now()`); refuse otherwise. The grant is
- *       the org's own consent gate — no grant, no sign-in.
+ *       (a) the org to have an ACTIVE support-access grant
+ *       (`support_access_expires_at > now()`) — the org's own consent gate —
+ *       AND (b) the target user to be an ACTIVE member of that org. Without
+ *       (b), org X's grant could stamp an impersonation of a non-member,
+ *       producing a false org↔user audit association. Both refuse otherwise.
  *   4. INSERT `impersonation` row with `expected_end_at = now() + 30min`,
  *      stamping `organization_id` when org-scoped.
  *   5. Best-effort call into Better Auth's admin plugin
@@ -115,7 +122,8 @@ export async function startImpersonation(
         throw new Error("target user not found")
       }
 
-      // Org-scoped sign-in precondition: the org must currently consent.
+      // Org-scoped sign-in precondition: the org must currently consent AND
+      // the target must be an active member of that org.
       if (input.organizationId) {
         const [org] = await db
           .select({
@@ -127,6 +135,23 @@ export async function startImpersonation(
         if (!org || org.granted !== true) {
           throw new Error(
             "organization has not granted support access (no active consent window)",
+          )
+        }
+
+        const membership = await db
+          .select({ id: organization_membership.id })
+          .from(organization_membership)
+          .where(
+            and(
+              eq(organization_membership.organization_id, input.organizationId),
+              eq(organization_membership.user_id, input.targetUserId),
+              eq(organization_membership.active, true),
+            ),
+          )
+          .limit(1)
+        if (membership.length === 0) {
+          throw new Error(
+            "target user is not an active member of this organization",
           )
         }
       }

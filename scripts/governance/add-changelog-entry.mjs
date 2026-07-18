@@ -97,6 +97,17 @@ function slugify(value) {
     .slice(0, 48)
 }
 
+// Unbiased index in [0, count) from the CSPRNG via rejection sampling. Plain
+// `randomBytes(2) % count` biases low values whenever 65536 is not a multiple of
+// count (js/biased-cryptographic-random); discarding the final partial bucket
+// removes the bias.
+function randomIndex(count) {
+  const limit = Math.floor(0x10000 / count) * count
+  let value = randomBytes(2).readUInt16BE(0)
+  while (value >= limit) value = randomBytes(2).readUInt16BE(0)
+  return value % count
+}
+
 function pickName() {
   try {
     const names = readFileSync(NAMES_FILE, "utf8")
@@ -104,8 +115,7 @@ function pickName() {
       .map((line) => line.trim())
       .filter(Boolean)
     if (names.length > 0) {
-      const index = randomBytes(2).readUInt16BE(0) % names.length
-      return names[index]
+      return names[randomIndex(names.length)]
     }
   } catch {
     // Fall through to the generic slug if the list is unreadable.

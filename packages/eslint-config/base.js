@@ -9,6 +9,7 @@ import singleAuditWriter from "./rules/single-audit-writer.js"
 import noBareRoleIdentifier from "./rules/no-bare-role-identifier.js"
 import noLeakedAfkey from "./rules/no-leaked-afkey.js"
 import noCrossOrgTreeImport from "./rules/no-cross-org-tree-import.js"
+import noAdminBypassInLibOrg from "./rules/no-admin-bypass-in-lib-org.js"
 
 /**
  * workspace-rls flat-config plugin.
@@ -29,6 +30,7 @@ const workspaceRlsPlugin = {
     "single-audit-writer": singleAuditWriter,
     "no-bare-role-identifier": noBareRoleIdentifier,
     "no-leaked-afkey": noLeakedAfkey,
+    "no-admin-bypass-in-lib-org": noAdminBypassInLibOrg,
   },
 }
 
@@ -269,6 +271,21 @@ export const config = [
     },
     rules: {
       "org-tree/no-cross-org-tree-import": "error",
+    },
+  },
+  // Bounds the withAdminBypass surface in the rebuilt org lib. Rides the same
+  // cwd-relative glob as the org-tree rule so it fires under `turbo lint` /
+  // `pnpm --filter web lint` (the workspace-rls block above is scoped to
+  // `apps/**` / `packages/**`, which does not match when web lints from its own
+  // cwd — a file resolves to `lib/org/header.ts`, not `apps/web/lib/org/...`).
+  // The rule itself no-ops on any file outside apps/web/lib/org/.
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "workspace-rls": workspaceRlsPlugin,
+    },
+    rules: {
+      "workspace-rls/no-admin-bypass-in-lib-org": "error",
     },
   },
   // Type-checked promise-correctness rules. Excluded under lefthook to keep

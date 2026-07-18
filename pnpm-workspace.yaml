@@ -56,16 +56,6 @@ overrides:
   # vite: server.fs.deny bypass + launch-editor NTLM disclosure on Windows (DB#56,57).
   # Floor only; the unaffected vite@10 tree already satisfies it (8.0.11 -> 8.0.16).
   vite: ">=8.0.16"
-  # rolldown: the `vite: ">=8.0.16"` floor above floated vite 8.0.11 -> 8.1.0
-  # (not the expected 8.0.16), and vite 8.1.0 bundles rolldown 1.1.2, which
-  # mis-splits the Storybook production bundle — 4 stories (autocomplete,
-  # combobox, creatable-combobox, pdf-viewer) crash at runtime with
-  # `createSelectorCreator is not defined` (a lazy reselect init it fails to hoist
-  # into its chunk). rc.18 is the last version that built clean (storybook green
-  # at #400); it landed via deps-only PRs where the storybook job is path-skipped,
-  # so it was never validated -> reddened `ci` -> `storybook` for every UI PR.
-  # Retest `pnpm --filter @workspace/ui test-storybook` before raising.
-  rolldown: "1.0.0-rc.18"
   # js-yaml: quadratic-complexity DoS in merge-key handling (GHSA-h67p-54hq-rp68, DB#55).
   # Two range-scoped selectors (a bare `@3`/`@4` reads as exact). The 3.14.2 transitive
   # arrives dev/test-only via @storybook/test-runner -> jest-runner -> babel-plugin-istanbul

@@ -9,27 +9,27 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts")
 // image build).
 const isDev = process.env.NODE_ENV === "development"
 
-// img-src includes https://*.amazonaws.com: avatars + document previews render
-// from short-lived presigned S3 GET URLs (apps/web/app/_lib/avatar-storage.ts,
-// document store). connect-src allows Sentry for the (currently DSN-less) client
-// SDK wiring.
-//
-// In dev, presigned document/avatar URLs point at the minio endpoint
-// (S3_ENDPOINT, e.g. http://localhost:9000) instead of *.amazonaws.com. Inline
-// preview renders images via <img> (img-src) and fetches PDF bytes via
-// react-pdf's XHR (connect-src), so both need the dev origin allowlisted.
+// Avatars + document previews render from short-lived presigned S3 GET URLs
+// (apps/web/app/_lib/avatar-storage.ts, document store). BOTH CSP fetch axes
+// must allow the S3 origin: img-src for <img> image previews, connect-src for
+// react-pdf/pdf.js XHR that fetches PDF bytes. Keep the origin in ONE const so
+// the two directives never drift — a connect-src that lagged img-src silently
+// blocked prod PDF preview. In dev the presigned URLs point at the minio
+// endpoint (S3_ENDPOINT, e.g. http://localhost:9000) instead of *.amazonaws.com.
+// connect-src additionally allows Sentry for the (currently DSN-less) client SDK.
 const devS3Origin =
   isDev && process.env.S3_ENDPOINT
     ? ` ${new URL(process.env.S3_ENDPOINT).origin}`
     : ""
+const s3Origins = `https://*.amazonaws.com${devS3Origin}`
 
 const contentSecurityPolicy = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' blob: data: https://*.amazonaws.com${devS3Origin}`,
+  `img-src 'self' blob: data: ${s3Origins}`,
   "font-src 'self'",
-  `connect-src 'self' https://*.sentry.io${isDev ? " ws:" : ""}${devS3Origin}`,
+  `connect-src 'self' ${s3Origins} https://*.sentry.io${isDev ? " ws:" : ""}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

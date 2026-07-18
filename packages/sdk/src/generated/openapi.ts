@@ -537,7 +537,7 @@ export interface paths {
         };
         /**
          * List invoices
-         * @description Returns the organization's invoices — `summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — with rolled-up accounting-currency totals. Organization-scoped (FORCE RLS). Optionally filter by `direction` and `periodId`. An invoice is a voucher header, not a posting; use `GET /v1/accounting/periods/{id}/journal` for the journal bookings.
+         * @description Returns a cursor-paginated page of the organization's invoices — `summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — newest first, with rolled-up accounting-currency totals, the resolved counterparty, and transaction-currency roll-ups. Organization-scoped (FORCE RLS). Page with `limit` (1–100, default 25) + the opaque `cursor` from the previous page's `next_cursor`; optionally filter by `direction` and `periodId`. An invoice is a voucher header, not a posting; use `GET /v1/accounting/periods/{id}/journal` for the journal bookings.
          */
         get: operations["listInvoices"];
         put?: never;
@@ -4587,6 +4587,38 @@ export interface components {
                 unitPrice: string | null;
             }[];
         };
+        /** @description The invoice's counterparty (protistrana). */
+        InvoiceCounterparty: {
+            /**
+             * Format: uuid
+             * @description Counterparty id (workspace-shared protistrana).
+             * @example 0196f1de-0000-7000-8000-0000000000c1
+             */
+            id: string;
+            /**
+             * @description Counterparty display name (obchodní jméno), or null when unnamed.
+             * @example ACME s.r.o.
+             */
+            name: string | null;
+        };
+        /** @description A transaction-currency roll-up (one per distinct partial currency). */
+        InvoiceCurrencyTotal: {
+            /**
+             * @description Transaction currency (ISO 4217).
+             * @example EUR
+             */
+            currencyCode: string;
+            /**
+             * @description Sum of line bases in this transaction currency, decimal string.
+             * @example 500.00
+             */
+            totalBase: string;
+            /**
+             * @description Sum of line VAT in this transaction currency, decimal string.
+             * @example 105.00
+             */
+            totalVat: string;
+        };
         /** @description An invoice (invoice-typed summary record) header. */
         Invoice: {
             /**
@@ -4659,6 +4691,38 @@ export interface components {
              * @example 1
              */
             lineCount: number;
+            /** @description The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties). */
+            counterparty: {
+                /**
+                 * Format: uuid
+                 * @description Counterparty id (workspace-shared protistrana).
+                 * @example 0196f1de-0000-7000-8000-0000000000c1
+                 */
+                id: string;
+                /**
+                 * @description Counterparty display name (obchodní jméno), or null when unnamed.
+                 * @example ACME s.r.o.
+                 */
+                name: string | null;
+            } | null;
+            /** @description Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`. */
+            currencyTotals: {
+                /**
+                 * @description Transaction currency (ISO 4217).
+                 * @example EUR
+                 */
+                currencyCode: string;
+                /**
+                 * @description Sum of line bases in this transaction currency, decimal string.
+                 * @example 500.00
+                 */
+                totalBase: string;
+                /**
+                 * @description Sum of line VAT in this transaction currency, decimal string.
+                 * @example 105.00
+                 */
+                totalVat: string;
+            }[];
             /**
              * @description When the voucher row was created — ISO timestamp.
              * @example 2025-03-14T09:12:00.000Z
@@ -4737,6 +4801,38 @@ export interface components {
              * @example 1
              */
             lineCount: number;
+            /** @description The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties). */
+            counterparty: {
+                /**
+                 * Format: uuid
+                 * @description Counterparty id (workspace-shared protistrana).
+                 * @example 0196f1de-0000-7000-8000-0000000000c1
+                 */
+                id: string;
+                /**
+                 * @description Counterparty display name (obchodní jméno), or null when unnamed.
+                 * @example ACME s.r.o.
+                 */
+                name: string | null;
+            } | null;
+            /** @description Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`. */
+            currencyTotals: {
+                /**
+                 * @description Transaction currency (ISO 4217).
+                 * @example EUR
+                 */
+                currencyCode: string;
+                /**
+                 * @description Sum of line bases in this transaction currency, decimal string.
+                 * @example 500.00
+                 */
+                totalBase: string;
+                /**
+                 * @description Sum of line VAT in this transaction currency, decimal string.
+                 * @example 105.00
+                 */
+                totalVat: string;
+            }[];
             /**
              * @description When the voucher row was created — ISO timestamp.
              * @example 2025-03-14T09:12:00.000Z
@@ -4809,10 +4905,9 @@ export interface components {
                 }[];
             }[];
         };
-        /** @description The organization's invoices (both directions), organization-scoped (FORCE RLS). */
+        /** @description A cursor-paginated page of the organization's invoices (both directions), organization-scoped (FORCE RLS), newest first. */
         ListInvoicesResponse: {
-            /** @description Invoice headers matching the filters, newest first. */
-            invoices: {
+            data: {
                 /**
                  * Format: uuid
                  * @description Opaque invoice identifier (UUID).
@@ -4883,12 +4978,51 @@ export interface components {
                  * @example 1
                  */
                 lineCount: number;
+                /** @description The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties). */
+                counterparty: {
+                    /**
+                     * Format: uuid
+                     * @description Counterparty id (workspace-shared protistrana).
+                     * @example 0196f1de-0000-7000-8000-0000000000c1
+                     */
+                    id: string;
+                    /**
+                     * @description Counterparty display name (obchodní jméno), or null when unnamed.
+                     * @example ACME s.r.o.
+                     */
+                    name: string | null;
+                } | null;
+                /** @description Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`. */
+                currencyTotals: {
+                    /**
+                     * @description Transaction currency (ISO 4217).
+                     * @example EUR
+                     */
+                    currencyCode: string;
+                    /**
+                     * @description Sum of line bases in this transaction currency, decimal string.
+                     * @example 500.00
+                     */
+                    totalBase: string;
+                    /**
+                     * @description Sum of line VAT in this transaction currency, decimal string.
+                     * @example 105.00
+                     */
+                    totalVat: string;
+                }[];
                 /**
                  * @description When the voucher row was created — ISO timestamp.
                  * @example 2025-03-14T09:12:00.000Z
                  */
                 createdAt: string;
             }[];
+            /**
+             * @description Cursor for the next page, or `null` when the current page is last.
+             * @example cur_2ZdAk5x
+             */
+            next_cursor: string | null;
+            /** @description `true` when more pages remain after this one. */
+            has_more: boolean;
         };
         /** @description A single invoice with its lines. */
         GetInvoiceResponse: {
@@ -4964,6 +5098,38 @@ export interface components {
                  * @example 1
                  */
                 lineCount: number;
+                /** @description The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties). */
+                counterparty: {
+                    /**
+                     * Format: uuid
+                     * @description Counterparty id (workspace-shared protistrana).
+                     * @example 0196f1de-0000-7000-8000-0000000000c1
+                     */
+                    id: string;
+                    /**
+                     * @description Counterparty display name (obchodní jméno), or null when unnamed.
+                     * @example ACME s.r.o.
+                     */
+                    name: string | null;
+                } | null;
+                /** @description Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`. */
+                currencyTotals: {
+                    /**
+                     * @description Transaction currency (ISO 4217).
+                     * @example EUR
+                     */
+                    currencyCode: string;
+                    /**
+                     * @description Sum of line bases in this transaction currency, decimal string.
+                     * @example 500.00
+                     */
+                    totalBase: string;
+                    /**
+                     * @description Sum of line VAT in this transaction currency, decimal string.
+                     * @example 105.00
+                     */
+                    totalVat: string;
+                }[];
                 /**
                  * @description When the voucher row was created — ISO timestamp.
                  * @example 2025-03-14T09:12:00.000Z
@@ -7732,6 +7898,10 @@ export interface operations {
     listInvoices: {
         parameters: {
             query?: {
+                /** @description Page size. 1–100; default 25. */
+                limit?: number;
+                /** @description Opaque pagination cursor returned by the previous page. Do not parse. */
+                cursor?: string;
                 /** @description Restrict to received or issued invoices. */
                 direction?: "received" | "issued";
                 /** @description Restrict to one účetní období. */
@@ -7939,6 +8109,38 @@ export interface operations {
                              * @example 1
                              */
                             lineCount: number;
+                            /** @description The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties). */
+                            counterparty: {
+                                /**
+                                 * Format: uuid
+                                 * @description Counterparty id (workspace-shared protistrana).
+                                 * @example 0196f1de-0000-7000-8000-0000000000c1
+                                 */
+                                id: string;
+                                /**
+                                 * @description Counterparty display name (obchodní jméno), or null when unnamed.
+                                 * @example ACME s.r.o.
+                                 */
+                                name: string | null;
+                            } | null;
+                            /** @description Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`. */
+                            currencyTotals: {
+                                /**
+                                 * @description Transaction currency (ISO 4217).
+                                 * @example EUR
+                                 */
+                                currencyCode: string;
+                                /**
+                                 * @description Sum of line bases in this transaction currency, decimal string.
+                                 * @example 500.00
+                                 */
+                                totalBase: string;
+                                /**
+                                 * @description Sum of line VAT in this transaction currency, decimal string.
+                                 * @example 105.00
+                                 */
+                                totalVat: string;
+                            }[];
                             /**
                              * @description When the voucher row was created — ISO timestamp.
                              * @example 2025-03-14T09:12:00.000Z

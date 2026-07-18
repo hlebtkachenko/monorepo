@@ -27,6 +27,8 @@ import type {
   ExtractionMethod,
   GetInvoiceResponse,
   Invoice,
+  InvoiceCounterparty,
+  InvoiceCurrencyTotal,
   InvoiceDirection,
   InvoiceLine,
   InvoicePartial,
@@ -43,6 +45,8 @@ import {
   type OrganizationBoundDb,
 } from "@workspace/db"
 import {
+  accounting_event,
+  counterparty,
   individual_record,
   partial_record,
   summary_record,
@@ -88,6 +92,37 @@ function directionOf(type: InvoiceType): InvoiceDirection {
 }
 function typeOf(direction: InvoiceDirection): InvoiceType {
   return direction === "received" ? "RECEIVED_INVOICE" : "ISSUED_INVOICE"
+}
+
+/**
+ * Keyset cursor for the invoice list. The list is ordered
+ * `(issued_at desc, id desc)`; the cursor carries the last row's `(issuedAt,
+ * id)` so the next page selects rows strictly ordered after it. Opaque
+ * (base64url JSON) per the public `CursorSchema` contract — clients never parse it.
+ */
+interface InvoiceCursor {
+  issuedAt: string
+  id: string
+}
+function encodeInvoiceCursor(cursor: InvoiceCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url")
+}
+function decodeInvoiceCursor(raw: string): InvoiceCursor {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"))
+  } catch {
+    throw new BadRequestException("Invalid cursor")
+  }
+  if (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    typeof (parsed as InvoiceCursor).issuedAt === "string" &&
+    typeof (parsed as InvoiceCursor).id === "string"
+  ) {
+    return parsed as InvoiceCursor
+  }
+  throw new BadRequestException("Invalid cursor")
 }
 
 /** Per-invoice rolled-up totals, computed in SQL (no JS money arithmetic — R13). */
@@ -152,6 +187,91 @@ export class InvoicesController {
     return map
   }
 
+  /**
+   * Resolves each invoice's counterparty, keyed by id. The counterparty lives on
+   * `accounting_event` (workspace-shared `counterparty`); readable here because
+   * `withOrganization` sets `app.workspace_id` (derived from the org row), so the
+   * workspace-scoped `counterparty_select` RLS policy resolves. Surfaced only when
+   * an invoice's lines resolve to EXACTLY ONE non-null counterparty — zero or
+   * multiple distinct counterparties map to `null` (ambiguous).
+   */
+  private async counterpartyFor(
+    db: OrganizationBoundDb,
+    invoiceIds: string[],
+  ): Promise<Map<string, InvoiceCounterparty | null>> {
+    const map = new Map<string, InvoiceCounterparty | null>()
+    if (invoiceIds.length === 0) return map
+    const rows = await db
+      .select({
+        invoiceId: individual_record.summary_record_id,
+        counterpartyId: sql<string | null>`min(${counterparty.id}::text)`,
+        counterpartyName: sql<string | null>`min(${counterparty.name})`,
+        distinctCount: sql<number>`count(distinct ${accounting_event.counterparty_id})::int`,
+      })
+      .from(individual_record)
+      .innerJoin(
+        accounting_event,
+        eq(accounting_event.id, individual_record.accounting_event_id),
+      )
+      .leftJoin(
+        counterparty,
+        eq(counterparty.id, accounting_event.counterparty_id),
+      )
+      .where(inArray(individual_record.summary_record_id, invoiceIds))
+      .groupBy(individual_record.summary_record_id)
+    for (const r of rows) {
+      map.set(
+        r.invoiceId,
+        r.distinctCount === 1 && r.counterpartyId
+          ? { id: r.counterpartyId, name: r.counterpartyName }
+          : null,
+      )
+    }
+    return map
+  }
+
+  /**
+   * Rolls up each invoice's partials by transaction currency (one row per
+   * distinct `currency_code`), keyed by invoice id. Sums the transaction-currency
+   * `base_amount`/`vat_amount` (NOT the frozen accounting-currency columns) in SQL
+   * — no JS money arithmetic (R13). Ordered by currency code for a stable page.
+   */
+  private async currencyTotalsFor(
+    db: OrganizationBoundDb,
+    invoiceIds: string[],
+  ): Promise<Map<string, InvoiceCurrencyTotal[]>> {
+    const map = new Map<string, InvoiceCurrencyTotal[]>()
+    if (invoiceIds.length === 0) return map
+    const rows = await db
+      .select({
+        invoiceId: individual_record.summary_record_id,
+        currencyCode: partial_record.currency_code,
+        totalBase: sql<string>`coalesce(sum(${partial_record.base_amount}), 0)::text`,
+        totalVat: sql<string>`coalesce(sum(${partial_record.vat_amount}), 0)::text`,
+      })
+      .from(individual_record)
+      .innerJoin(
+        partial_record,
+        eq(partial_record.individual_record_id, individual_record.id),
+      )
+      .where(inArray(individual_record.summary_record_id, invoiceIds))
+      .groupBy(
+        individual_record.summary_record_id,
+        partial_record.currency_code,
+      )
+      .orderBy(partial_record.currency_code)
+    for (const r of rows) {
+      const list = map.get(r.invoiceId) ?? []
+      list.push({
+        currencyCode: r.currencyCode,
+        totalBase: r.totalBase,
+        totalVat: r.totalVat,
+      })
+      map.set(r.invoiceId, list)
+    }
+    return map
+  }
+
   private toInvoice(
     r: {
       id: string
@@ -166,6 +286,8 @@ export class InvoicesController {
       created_at: Date
     },
     totals: InvoiceTotals | undefined,
+    counterpartyValue: InvoiceCounterparty | null,
+    currencyTotals: InvoiceCurrencyTotal[],
   ): Invoice {
     const type = r.type as InvoiceType
     return {
@@ -182,6 +304,8 @@ export class InvoicesController {
       totalBase: totals?.totalBase ?? "0",
       totalVat: totals?.totalVat ?? "0",
       lineCount: totals?.lineCount ?? 0,
+      counterparty: counterpartyValue,
+      currencyTotals,
       createdAt: r.created_at.toISOString(),
     }
   }
@@ -203,9 +327,13 @@ export class InvoicesController {
   @ApiOperation({
     summary: "List invoices",
     description:
-      "Returns invoice-typed summary records with rolled-up totals. Filter by " +
-      "direction / periodId.",
+      "Returns a cursor-paginated page of invoice-typed summary records " +
+      "(newest first) with rolled-up totals, resolved counterparty, and " +
+      "transaction-currency roll-ups. Filter by direction / periodId; page " +
+      "with limit / cursor.",
   })
+  @ApiQuery({ name: "limit", required: false, type: Number })
+  @ApiQuery({ name: "cursor", required: false, type: String })
   @ApiQuery({
     name: "direction",
     required: false,
@@ -217,20 +345,27 @@ export class InvoicesController {
     @Query() query: ListInvoicesQueryDto,
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ListInvoicesResponse> {
-    const { direction, periodId } = query
+    const { direction, periodId, limit, cursor } = query
     const typeFilter: readonly InvoiceType[] = direction
       ? [typeOf(direction)]
       : INVOICE_TYPES
+    const decoded = cursor ? decodeInvoiceCursor(cursor) : null
     const filters = [
       inArray(summary_record.type, [...typeFilter]),
       periodId ? eq(summary_record.period_id, periodId) : undefined,
+      // Keyset predicate: rows strictly after the cursor in (issued_at desc,
+      // id desc) order — a row-value comparison that matches the ORDER BY.
+      decoded
+        ? sql`(${summary_record.issued_at}, ${summary_record.id}) < (${decoded.issuedAt}::timestamptz, ${decoded.id}::uuid)`
+        : undefined,
     ].filter((f): f is NonNullable<typeof f> => f !== undefined)
 
     return withOrganization(
       principal.organizationId,
       principal.userId,
       async (db): Promise<ListInvoicesResponse> => {
-        const headers = await db
+        // Over-fetch one row to detect a further page without a second query.
+        const rows = await db
           .select(this.headerProjection)
           .from(summary_record)
           .where(and(...filters))
@@ -238,12 +373,31 @@ export class InvoicesController {
             sql`${summary_record.issued_at} desc`,
             sql`${summary_record.id} desc`,
           )
-        const totals = await this.totalsFor(
-          db,
-          headers.map((h) => h.id),
-        )
+          .limit(limit + 1)
+        const hasMore = rows.length > limit
+        const page = hasMore ? rows.slice(0, limit) : rows
+        const ids = page.map((h) => h.id)
+        const totals = await this.totalsFor(db, ids)
+        const counterparties = await this.counterpartyFor(db, ids)
+        const currencyTotals = await this.currencyTotalsFor(db, ids)
+        const last = page.at(-1)
         return {
-          invoices: headers.map((h) => this.toInvoice(h, totals.get(h.id))),
+          data: page.map((h) =>
+            this.toInvoice(
+              h,
+              totals.get(h.id),
+              counterparties.get(h.id) ?? null,
+              currencyTotals.get(h.id) ?? [],
+            ),
+          ),
+          next_cursor:
+            hasMore && last
+              ? encodeInvoiceCursor({
+                  issuedAt: last.issued_at.toISOString(),
+                  id: last.id,
+                })
+              : null,
+          has_more: hasMore,
         }
       },
     )
@@ -315,6 +469,8 @@ export class InvoicesController {
             : []
 
         const totals = await this.totalsFor(db, [invoiceId])
+        const counterparties = await this.counterpartyFor(db, [invoiceId])
+        const currencyTotals = await this.currencyTotalsFor(db, [invoiceId])
 
         const partialsByLine = new Map<string, InvoicePartial[]>()
         for (const p of partials) {
@@ -346,7 +502,12 @@ export class InvoicesController {
 
         return {
           invoice: {
-            ...this.toInvoice(header, totals.get(invoiceId)),
+            ...this.toInvoice(
+              header,
+              totals.get(invoiceId),
+              counterparties.get(invoiceId) ?? null,
+              currencyTotals.get(invoiceId) ?? [],
+            ),
             lines: invoiceLines,
           },
         }

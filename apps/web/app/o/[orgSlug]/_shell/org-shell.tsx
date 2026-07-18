@@ -3,13 +3,21 @@
 import * as React from "react"
 import { usePathname } from "next/navigation"
 
+import { useTranslations } from "@workspace/i18n/client"
 import {
   AppShell,
   AppPageHeaderProvider,
   AppContentHeaderSlot,
 } from "@workspace/ui/blocks/app-shell"
-import { AppRail, activeRailEntry } from "@workspace/ui/blocks/app-rail"
-import { AppSidebar } from "@workspace/ui/blocks/sidebar-panel"
+import {
+  AppRail,
+  activeRailEntry,
+  type RailMenuEntry,
+} from "@workspace/ui/blocks/app-rail"
+import {
+  AppSidebar,
+  type SidebarNavEntry,
+} from "@workspace/ui/blocks/sidebar-panel"
 import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
@@ -41,10 +49,25 @@ export function OrgShell({
   children: React.ReactNode
 }) {
   const pathname = usePathname() ?? undefined
-  const rail = React.useMemo(() => orgRailNav(slug), [slug])
-  const nav = React.useMemo(() => companyNav(slug), [slug])
+  const t = useTranslations("org.nav")
+  const rail = React.useMemo<RailMenuEntry[]>(
+    () =>
+      orgRailNav(slug).map(({ labelKey, ...rest }) => ({
+        ...rest,
+        label: t(labelKey),
+      })),
+    [slug, t],
+  )
+  const nav = React.useMemo<SidebarNavEntry[]>(
+    () =>
+      companyNav(slug).map(({ labelKey, ...rest }) => ({
+        ...rest,
+        label: t(labelKey),
+      })),
+    [slug, t],
+  )
   const active = activeRailEntry(rail, pathname)
-  const title = active?.label ?? "Company"
+  const title = active?.label ?? t("company")
 
   return (
     <AppPageHeaderProvider>

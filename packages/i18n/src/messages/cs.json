@@ -865,5 +865,65 @@
     "ossUnion": "Režim EU",
     "ossImport": "Dovozní režim",
     "ossValidFrom": "Platnost OSS od"
+  },
+  "org": {
+    "nav": {
+      "company": "Společnost",
+      "overview": "Přehled"
+    },
+    "roles": {
+      "owner": "Vlastník",
+      "admin": "Správce",
+      "member": "Člen",
+      "agent": "Agent",
+      "guest": "Host"
+    },
+    "header": {
+      "inbox": "Schránka",
+      "tasks": "Úkoly",
+      "getHelp": "Nápověda",
+      "help": {
+        "documentation": "Dokumentace",
+        "knowledgeBase": "Znalostní báze",
+        "contactUs": "Kontaktujte nás",
+        "keyboardShortcuts": "Klávesové zkratky",
+        "whatsNew": "Co je nového?",
+        "status": "Stav {brand}",
+        "supportAccess": "Přístup podpory",
+        "supportAccessInfo": "O přístupu podpory",
+        "supportAccessTooltip": "Již brzy – umožní našemu týmu podpory přihlásit se do vašeho pracovního prostoru a pomáhat s řešením potíží.",
+        "supportAccessSwitch": "Přístup podpory (již brzy)",
+        "sendFeedback": "Odeslat zpětnou vazbu",
+        "version": "Verze: {version}"
+      },
+      "sidekick": {
+        "label": "Sidekick",
+        "ask": "Zeptat se AI asistenta"
+      },
+      "profile": {
+        "tooltip": "Profil",
+        "avatarAlt": "Profil",
+        "accountFallback": "Účet",
+        "profile": "Profil",
+        "workspace": "Pracovní prostor",
+        "settings": "Nastavení",
+        "theme": "Motiv",
+        "themeSystem": "Systém",
+        "themeLight": "Světlý",
+        "themeDark": "Tmavý",
+        "icons": "Ikony",
+        "iconsLucide": "Lucide",
+        "iconsPhosphor": "Phosphor",
+        "iconsFontAwesome": "Font Awesome",
+        "language": "Jazyk",
+        "signOut": "Odhlásit se"
+      },
+      "signOut": {
+        "title": "Odhlásit se?",
+        "description": "Budete přesměrováni na přihlašovací stránku a pro přístup k pracovnímu prostoru se budete muset znovu přihlásit.",
+        "cancel": "Zrušit",
+        "confirm": "Odhlásit se"
+      }
+    }
   }
 }

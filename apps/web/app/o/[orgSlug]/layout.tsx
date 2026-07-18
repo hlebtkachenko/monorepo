@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
+import { getTranslations } from "@workspace/i18n/server"
 import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 
@@ -20,15 +21,6 @@ import { OrgShell } from "./_shell/org-shell"
 import { OrgHeaderActions } from "./_shell/app-header/header-actions"
 import { OrgSwitcherClient } from "./_shell/app-header/org-switcher"
 import { PeriodSwitcherClient } from "./_shell/app-header/period-switcher"
-
-// DB role enum → human-readable label rendered verbatim in the org switcher.
-const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  agent: "Agent",
-  guest: "Guest",
-}
 
 /**
  * Layout for the rebuilt org tree (`/o/[orgSlug]`).
@@ -90,6 +82,9 @@ export default async function OrgLayout({
     getActivePeriod(membership.organizationId, session.user.id),
   ])
 
+  // DB role enum → localized label rendered verbatim in the org switcher.
+  const tRoles = await getTranslations("org.roles")
+
   const header = (
     <AppHeader
       search={false}
@@ -100,7 +95,7 @@ export default async function OrgLayout({
             currentOrg={{
               id: membership.organizationId,
               name: membership.legalName,
-              role: ROLE_LABELS[membership.role],
+              role: tRoles(membership.role),
               memberCount: orgData.memberCount,
             }}
             recentOrgs={orgData.otherOrgs.map((o) => ({

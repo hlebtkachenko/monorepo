@@ -4,7 +4,10 @@ import { Separator } from "@workspace/ui/components/separator"
 import type { IconName } from "@workspace/ui/icon-packs"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { ContentHeaderActions } from "./content-header-actions"
+import {
+  ContentHeaderActions,
+  type ContentHeaderFavorite,
+} from "./content-header-actions"
 import {
   ContentHeaderBackLink,
   type ContentHeaderBackLinkData,
@@ -45,6 +48,12 @@ export interface ContentHeaderProps {
    * callers still type-check.
    */
   manageViews?: ViewTabsConfigure
+  /**
+   * Controlled favorite/star for this page. Omit → no star (an unwired header
+   * shows nothing). Present → a controlled star the caller toggles, persisting
+   * the page as a favorite. Presentational: the header holds no state.
+   */
+  favorite?: ContentHeaderFavorite
   className?: string
 }
 
@@ -79,6 +88,7 @@ export function ContentHeader({
   value,
   onValueChange,
   onAddView,
+  favorite,
   className,
 }: ContentHeaderProps) {
   const hasTabs = viewTabs != null && viewTabs.length > 0
@@ -117,7 +127,7 @@ export function ContentHeader({
         </>
       ) : null}
 
-      <ContentHeaderActions />
+      <ContentHeaderActions favorite={favorite} />
     </div>
   )
 }

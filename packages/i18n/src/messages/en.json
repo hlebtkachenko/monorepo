@@ -878,6 +878,16 @@
       "settings": "Settings",
       "debug": "Debug"
     },
+    "favorite": {
+      "tooltip": "Favorite",
+      "add": "Add to favorites",
+      "remove": "Remove from favorites"
+    },
+    "favorites": {
+      "heading": "Favorites",
+      "emptyTitle": "No favorites yet",
+      "emptyHint": "Star a page to pin it to this overview."
+    },
     "roles": {
       "owner": "Owner",
       "admin": "Admin",

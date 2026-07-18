@@ -1,40 +1,70 @@
 "use client"
 
-import * as React from "react"
-
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { cn } from "@workspace/ui/lib/utils"
 
-/** Local favorite/star toggle. */
-function FavoriteButton() {
-  const [favorite, setFavorite] = React.useState(false)
+/**
+ * Controlled favorite/star state for the content header. The header is
+ * presentational — it owns NO state: the caller passes the current `active`
+ * flag plus an `onToggle` that flips the persisted (server) state. The label
+ * fields are optional so this app-agnostic UI package renders standalone
+ * (Storybook, unwired consumers) with English defaults, while an app inside an
+ * i18n context passes translated strings.
+ */
+export interface ContentHeaderFavorite {
+  /** Whether the current page is favorited. Fully controlled by the caller. */
+  active: boolean
+  /** Fired on click — the caller flips the persisted favorite. */
+  onToggle: () => void
+  /** Hover tooltip text. Defaults to "Favorite". */
+  tooltip?: string
+  /** `aria-label` while inactive. Defaults to "Add to favorites". */
+  addLabel?: string
+  /** `aria-label` while active. Defaults to "Remove from favorites". */
+  removeLabel?: string
+}
+
+/** Controlled favorite/star toggle for the current page. */
+function FavoriteButton({
+  active,
+  onToggle,
+  tooltip = "Favorite",
+  addLabel = "Add to favorites",
+  removeLabel = "Remove from favorites",
+}: ContentHeaderFavorite) {
   return (
     <IconButton
       icon="Star"
-      aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-      tooltip="Favorite"
+      aria-label={active ? removeLabel : addLabel}
+      aria-pressed={active}
+      tooltip={tooltip}
       tooltipSide="bottom"
-      onClick={() => setFavorite((f) => !f)}
-      className={cn(favorite && "text-primary [&_svg]:fill-current")}
+      onClick={onToggle}
+      className={cn(active && "text-primary [&_svg]:fill-current")}
     />
   )
 }
 
 /**
- * The content-header's right-aligned action cluster — a CLOSED set `{Favorite}`,
- * rendered for EVERY page. There is no page-injection slot: the header is general
- * chrome, not page content. A new global action is added here (for all pages),
- * never per-page. The Configure button was removed. The assistant toggle sits to
- * the right of this cluster and is owned by the shell.
+ * The content-header's right-aligned action cluster — a CLOSED set `{Favorite}`.
+ * There is no page-injection slot: the header is general chrome, not page
+ * content. A new global action is added here (for all pages), never per-page.
+ * The assistant toggle sits to the right of this cluster and is owned by the
+ * shell.
  *
- * Favorite is a local toggle today; wiring it to the followed-pages store (so a
- * user's starred pages surface in an overview, queried by where/what) is a
- * tracked follow-up.
+ * The favorite star is FULLY controlled by the optional `favorite` prop (no
+ * local state): it renders only when a page wires a real toggle, so an unwired
+ * header shows no dead star. Passing `favorite` renders the controlled star.
  */
-export function ContentHeaderActions() {
+export function ContentHeaderActions({
+  favorite,
+}: {
+  favorite?: ContentHeaderFavorite
+}) {
+  if (!favorite) return null
   return (
     <div className="ml-auto flex shrink-0 items-center gap-0.5">
-      <FavoriteButton />
+      <FavoriteButton {...favorite} />
     </div>
   )
 }

@@ -19,8 +19,9 @@ import { orgHref } from "@/lib/org/href"
  * catalog while the nav stays a plain data list.
  */
 
-/** i18n key (under `org.nav`) for a nav entry's visible label. */
-export type OrgNavLabelKey = "company" | "overview" | "periods" | "debug"
+/** i18n key (under `org.nav`) for a nav entry's visible label. Local to this
+ * module — only the `Org*NavItem` aliases below are consumed elsewhere. */
+type OrgNavLabelKey = "company" | "overview" | "periods" | "debug"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {

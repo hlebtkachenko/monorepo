@@ -80,6 +80,38 @@ describe("parseExtractedInvoice (#570 shared IR validator)", () => {
       9007199254740993000n,
     )
   })
+
+  // #779 — the OPTIONAL document-grounded supply_kind.
+  it("keeps a recognized supply_kind", () => {
+    const ir = parseExtractedInvoice(
+      JSON.stringify({ ...validInvoice, supply_kind: "SERVICES" }),
+      "--out",
+    )
+    expect(ir.supply_kind).toBe("SERVICES")
+  })
+
+  it("drops an UNRECOGNIZED supply_kind to undefined (fail-safe, never throws)", () => {
+    // A bogus value must NOT sink the extraction; it degrades to null so the booker HOLDS the document rather
+    // than 400-ing at the capture schema. Absent supply_kind = held for human review.
+    const ir = parseExtractedInvoice(
+      JSON.stringify({ ...validInvoice, supply_kind: "FOOD" }),
+      "--out",
+    )
+    expect(ir.supply_kind).toBeUndefined()
+  })
+
+  it("drops a non-string supply_kind to undefined", () => {
+    const ir = parseExtractedInvoice(
+      JSON.stringify({ ...validInvoice, supply_kind: 7 }),
+      "--out",
+    )
+    expect(ir.supply_kind).toBeUndefined()
+  })
+
+  it("leaves an absent supply_kind absent (fail-safe default → booker holds)", () => {
+    const ir = parseExtractedInvoice(JSON.stringify(validInvoice), "--out")
+    expect(ir.supply_kind).toBeUndefined()
+  })
 })
 
 describe("extractIrJson (sentinel-block reader)", () => {

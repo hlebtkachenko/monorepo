@@ -180,6 +180,102 @@ describe("assembleBookPlan (creds-free folder → capture plan)", () => {
   })
 })
 
+// An ISDOC 6.0.1 e-invoice (supplier 12345678, customer 87654321, standard 21 %) — the same document is FP
+// or FV depending only on which party is the SUBJECT org, so `book` must be told which via `subject`.
+const isdocXml = `<?xml version="1.0" encoding="UTF-8"?>
+<Invoice version="6.0.1" xmlns="http://isdoc.cz/namespace/2013">
+  <DocumentType>1</DocumentType>
+  <ID>FP-2025-100</ID>
+  <IssueDate>2025-06-01</IssueDate>
+  <LocalCurrencyCode>CZK</LocalCurrencyCode>
+  <AccountingSupplierParty><Party>
+    <PartyIdentification><ID>12345678</ID></PartyIdentification>
+    <PartyName><Name>Dodavatel s.r.o.</Name></PartyName>
+    <PartyTaxScheme><CompanyID>CZ12345678</CompanyID><TaxScheme>VAT</TaxScheme></PartyTaxScheme>
+  </Party></AccountingSupplierParty>
+  <AccountingCustomerParty><Party>
+    <PartyIdentification><ID>87654321</ID></PartyIdentification>
+    <PartyName><Name>Odberatel s.r.o.</Name></PartyName>
+    <PartyTaxScheme><CompanyID>CZ87654321</CompanyID><TaxScheme>VAT</TaxScheme></PartyTaxScheme>
+  </Party></AccountingCustomerParty>
+  <InvoiceLines><InvoiceLine>
+    <ID>1</ID>
+    <InvoicedQuantity unitCode="ks">1</InvoicedQuantity>
+    <UnitPrice>1000.00</UnitPrice>
+    <ClassifiedTaxCategory><Percent>21</Percent></ClassifiedTaxCategory>
+    <Item><Description>Sluzby</Description></Item>
+  </InvoiceLine></InvoiceLines>
+  <TaxTotal>
+    <TaxSubTotal>
+      <TaxableAmount>1000.00</TaxableAmount>
+      <TaxAmount>210.00</TaxAmount>
+      <TaxInclusiveAmount>1210.00</TaxInclusiveAmount>
+      <TaxCategory><Percent>21</Percent></TaxCategory>
+    </TaxSubTotal>
+    <TaxAmount>210.00</TaxAmount>
+  </TaxTotal>
+  <LegalMonetaryTotal>
+    <TaxExclusiveAmount>1000.00</TaxExclusiveAmount>
+    <TaxInclusiveAmount>1210.00</TaxInclusiveAmount>
+    <PayableAmount>1210.00</PayableAmount>
+  </LegalMonetaryTotal>
+  <PaymentMeans><Payment>
+    <PaymentMeansCode>42</PaymentMeansCode>
+    <Details><VariableSymbol>2025100</VariableSymbol></Details>
+  </Payment></PaymentMeans>
+</Invoice>`
+
+describe("assembleBookPlan — ISDOC (issue #792)", () => {
+  let dir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "afframe-book-isdoc-"))
+    writeFileSync(join(dir, "faktura.isdoc"), isdocXml)
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("books an .isdoc file as RECEIVED_INVOICE when the subject org is the customer", () => {
+    const ctx: BookContext = {
+      sections,
+      captureContext,
+      subject: { ico: "87654321" },
+    }
+    const book = assembleBookPlan(dir, ctx, "2026-07-18T00:00:00.000Z")
+
+    expect(book.entries).toHaveLength(1)
+    const entry = book.entries[0]!
+    expect(entry.recordType).toBe("invoice")
+    expect(entry.plan.captureRequest.type).toBe("RECEIVED_INVOICE")
+    // Source-verbatim VAT survives into the capture partial (STANDARD 21 % / 210 tax).
+    const partial = entry.plan.captureRequest.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("STANDARD")
+    expect(partial.baseAmount).toBe("1000.00")
+    expect(partial.vatAmount).toBe("210.00")
+    expect(book.files).toHaveLength(0)
+  })
+
+  it("books the SAME document as ISSUED_INVOICE when the subject org is the supplier", () => {
+    const ctx: BookContext = {
+      sections,
+      captureContext,
+      subject: { ico: "12345678" },
+    }
+    const book = assembleBookPlan(dir, ctx, "2026-07-18T00:00:00.000Z")
+    expect(book.entries[0]!.plan.captureRequest.type).toBe("ISSUED_INVOICE")
+  })
+
+  it("fails closed (no entry, a direction warning) when no subject org identity is supplied", () => {
+    const book = assembleBookPlan(dir, bookContext, "2026-07-18T00:00:00.000Z")
+    expect(book.entries).toHaveLength(0)
+    expect(
+      book.warnings.some((w) => /direction is indeterminate/.test(w.message)),
+    ).toBe(true)
+  })
+})
+
 // [W1.4] The OCR extract→book bridge — the seam that lets a REAL PDF invoice flow into the HELD write loop.
 // A `brain extract` vision-OCR pre-pass produces this IR Invoice; the bridge maps it to an "ocr" capture.
 const provenance = {

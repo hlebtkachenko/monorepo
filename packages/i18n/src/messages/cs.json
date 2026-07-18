@@ -898,8 +898,11 @@
         "status": "Stav {brand}",
         "supportAccess": "Přístup podpory",
         "supportAccessInfo": "O přístupu podpory",
-        "supportAccessTooltip": "Již brzy – umožní našemu týmu podpory přihlásit se do vašeho pracovního prostoru a pomáhat s řešením potíží.",
-        "supportAccessSwitch": "Přístup podpory (již brzy)",
+        "supportAccessTooltip": "Umožní našemu týmu podpory přihlásit se k této firmě na 7 dní a pomoci s řešením potíží. Kdykoli jej vypnutím odvoláte.",
+        "supportAccessSwitch": "Přístup podpory",
+        "supportAccessOn": "Přístup podpory zapnut – náš tým se může 7 dní přihlásit.",
+        "supportAccessOff": "Přístup podpory vypnut – náš tým se již nemůže přihlásit.",
+        "supportAccessError": "Přístup podpory se nepodařilo změnit. Zkuste to znovu.",
         "sendFeedback": "Odeslat zpětnou vazbu",
         "version": "Verze: {version}"
       },

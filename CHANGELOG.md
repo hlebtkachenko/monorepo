@@ -13,6 +13,30 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.23.6] — 2026-07-18
+
+### Added
+
+- Enrich the `/v1/invoices` read model with the resolved counterparty and per-transaction-currency roll-ups (#536)
+- Paginate `GET /v1/invoices` with a cursor envelope (`data`/`next_cursor`/`has_more`, `limit`/`cursor` params) (#537)
+- changelog:collect now accepts --through <ref> to cut a partial release: only fragments whose adding commit is an ancestor of the boundary are folded in and deleted, leaving later-merged fragments pending. (#817)
+
+### Changed
+
+- Bump cloudflare/cloudflared image pin to 2026.7.2 in the ECS task and the Vault VPS sidecar (#701)
+- Un-pin rolldown (drop the 1.0.0-rc.18 override): rolldown 1.1.5 (floated via vite 8.1.0) fixes the Storybook chunk-split bug that dropped module bindings; storybook build + test-storybook verified green (#420)
+- Replaced the changelog fragment filename name pool with a larger curated set of notable scientists, economists, and engineers (~300 slugs). (#817)
+
+### Fixed
+
+- Web CSP connect-src now allows the S3 origin (`https://*.amazonaws.com`) in production, so react-pdf/pdf.js can fetch document preview bytes from presigned S3 URLs; previously only img-src allowed it, silently blocking prod PDF previews (#735)
+- Classify the local date-picker as a local composition (not an upstream mirror) so the shadcn upstream audit stops flagging it as lacking a manifest entry (#702)
+- Deflake the admin utility-page catalog test by warming the lazy feedback chunk in a setup hook (test-only), so its render-time dynamic import no longer stalls under CI contention (#818)
+
+### Dependencies
+
+- un-pin rolldown now the Storybook chunk-split bug is fixed (#808)
+
 ## [v0.23.5] — 2026-07-18
 
 ### Changed

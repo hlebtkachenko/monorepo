@@ -42,6 +42,12 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
           queries: security-extended
+          # Cache per-file TRAP extraction output (off by default for JS/TS).
+          # Extraction re-parses every source file each run (~30s of the analyze
+          # step); with the cache a run only re-extracts CHANGED files and
+          # restores the rest. Same database, same security-extended queries,
+          # identical findings — this only speeds the extraction phase.
+          trap-caching: true
       - uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
         with:
           category: "/language:${{ matrix.language }}"

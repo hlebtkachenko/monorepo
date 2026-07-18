@@ -21,6 +21,15 @@ const VERSION = "0.0.1"
  *   ?groups=invoices,accounting   register only those tag groups
  *   ?scope=read|write|all         register only read-only / non-destructive / all
  * Both are optional and compose. Unknown group names simply match nothing.
+ *
+ * NOT an authorization boundary. `groups`/`scope` only narrow what the LLM
+ * *sees*; they never widen access. Registering a tool is not authorizing it —
+ * every call still carries the caller's bearer to the API, where `ApiKeyGuard`
+ * enforces scope + tenant per invocation. Selection also fails OPEN by design:
+ * an empty/blank/unparseable value resolves to the full set (a bad `?scope`
+ * typo yields all tools, never zero), so it must never be relied on as a
+ * read-only control. The only real read-only guarantee is a read-scoped API
+ * key.
  */
 export function parseSelection(url: URL): ToolSelection {
   const groupsParam = url.searchParams.get("groups")

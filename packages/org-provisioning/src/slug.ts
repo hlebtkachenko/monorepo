@@ -25,6 +25,12 @@ export const FALLBACK_SLUG = "org"
  */
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // --- Routing / framework (top-level path collisions) ---
+  // `o` is the temporary URL prefix for the rebuilt org UI tree
+  // (`apps/web/app/o/[orgSlug]`) that runs in parallel with the frozen old tree
+  // during the rebuild. It becomes canonical at the flip, then this entry is
+  // dropped. (MIN_SLUG_LENGTH already blocks a 1-char slug; this makes the
+  // route-prefix intent explicit.)
+  "o",
   "admin",
   "api",
   "app",

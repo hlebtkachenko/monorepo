@@ -8,6 +8,7 @@ import noSetLocalOutsideWrapper from "./rules/no-set-local-outside-wrapper.js"
 import singleAuditWriter from "./rules/single-audit-writer.js"
 import noBareRoleIdentifier from "./rules/no-bare-role-identifier.js"
 import noLeakedAfkey from "./rules/no-leaked-afkey.js"
+import noCrossOrgTreeImport from "./rules/no-cross-org-tree-import.js"
 
 /**
  * workspace-rls flat-config plugin.
@@ -28,6 +29,23 @@ const workspaceRlsPlugin = {
     "single-audit-writer": singleAuditWriter,
     "no-bare-role-identifier": noBareRoleIdentifier,
     "no-leaked-afkey": noLeakedAfkey,
+  },
+}
+
+/**
+ * org-tree plugin — the dependency wall for the org UI rebuild.
+ *
+ * Declared as its own namespace (not folded into workspace-rls) so it can be
+ * enabled under a cwd-relative `**\/*.{ts,tsx}` glob. The workspace-rls block is
+ * scoped to `apps\/**` / `packages\/**`, which does NOT match when a package
+ * runs `eslint` from its own cwd (a file resolves to `app\/...`, not
+ * `apps\/web\/app\/...`) — so a rule that must fire on `apps\/web\/app\/o\/[orgSlug]`
+ * under `turbo lint` has to ride the same cwd-relative glob the built-in
+ * `no-restricted-imports` block uses.
+ */
+const orgTreePlugin = {
+  rules: {
+    "no-cross-org-tree-import": noCrossOrgTreeImport,
   },
 }
 
@@ -238,6 +256,19 @@ export const config = [
           ],
         },
       ],
+    },
+  },
+  // Org UI rebuild dependency wall: the new tree (app/o/[orgSlug]) and the
+  // frozen old tree (app/[orgSlug]) may not import each other. Rides the same
+  // cwd-relative glob as no-restricted-imports so it fires under `turbo lint`;
+  // the rule itself no-ops on any file outside the two org trees.
+  {
+    files: ["**/*.{ts,tsx}"],
+    plugins: {
+      "org-tree": orgTreePlugin,
+    },
+    rules: {
+      "org-tree/no-cross-org-tree-import": "error",
     },
   },
   // Type-checked promise-correctness rules. Excluded under lefthook to keep

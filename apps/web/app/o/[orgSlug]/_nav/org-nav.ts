@@ -1,5 +1,5 @@
-import type { RailMenuEntry } from "@workspace/ui/blocks/app-rail"
-import type { SidebarNavEntry } from "@workspace/ui/blocks/sidebar-panel"
+import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
+import type { SidebarNavPage } from "@workspace/ui/blocks/sidebar-panel"
 
 import { orgHref } from "@/lib/org/href"
 
@@ -10,14 +10,33 @@ import { orgHref } from "@/lib/org/href"
  * href is built through `orgHref` so the temporary `/o` prefix lives in one
  * place. This nav does NOT feed the `/v1/structure` codegen during coexistence
  * (that stays on the old nav until the flip).
+ *
+ * Labels are data-defined as i18n KEYS (`org.nav.*`), never literal strings —
+ * `org-shell.tsx` resolves them through `useTranslations("org.nav")` before
+ * handing the entries to the `@workspace/ui` rail/sidebar (which expect
+ * already-resolved `label` strings). This keeps every user-facing string in the
+ * catalog while the nav stays a plain data list.
  */
 
+/** i18n key (under `org.nav`) for a nav entry's visible label. */
+export type OrgNavLabelKey = "company" | "overview"
+
+/** A rail entry as authored here: the i18n label key plus the rest of the item. */
+export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
+  labelKey: OrgNavLabelKey
+}
+
+/** A sidebar page as authored here: the i18n label key plus the rest. */
+export type OrgSidebarNavItem = Omit<SidebarNavPage, "label"> & {
+  labelKey: OrgNavLabelKey
+}
+
 /** Rail menu — the modules. Grows as each module is rebuilt. */
-export function orgRailNav(slug: string): RailMenuEntry[] {
-  return [{ label: "Company", icon: "Goal", href: orgHref(slug) }]
+export function orgRailNav(slug: string): OrgRailNavItem[] {
+  return [{ labelKey: "company", icon: "Goal", href: orgHref(slug) }]
 }
 
 /** Sidebar tree for the Company home. */
-export function companyNav(slug: string): SidebarNavEntry[] {
-  return [{ label: "Overview", icon: "Goal", href: orgHref(slug) }]
+export function companyNav(slug: string): OrgSidebarNavItem[] {
+  return [{ labelKey: "overview", icon: "Goal", href: orgHref(slug) }]
 }

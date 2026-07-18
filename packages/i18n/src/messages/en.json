@@ -865,5 +865,65 @@
     "ossUnion": "Union scheme",
     "ossImport": "Import scheme",
     "ossValidFrom": "OSS valid from"
+  },
+  "org": {
+    "nav": {
+      "company": "Company",
+      "overview": "Overview"
+    },
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "agent": "Agent",
+      "guest": "Guest"
+    },
+    "header": {
+      "inbox": "Inbox",
+      "tasks": "Tasks",
+      "getHelp": "Get help",
+      "help": {
+        "documentation": "Documentation",
+        "knowledgeBase": "Knowledge base",
+        "contactUs": "Contact us",
+        "keyboardShortcuts": "Keyboard shortcuts",
+        "whatsNew": "What's new?",
+        "status": "{brand} status",
+        "supportAccess": "Support access",
+        "supportAccessInfo": "About support access",
+        "supportAccessTooltip": "Coming soon — lets our support team sign in to your workspace to help troubleshoot.",
+        "supportAccessSwitch": "Support access (coming soon)",
+        "sendFeedback": "Send feedback",
+        "version": "Version: {version}"
+      },
+      "sidekick": {
+        "label": "Sidekick",
+        "ask": "Ask AI Assistant"
+      },
+      "profile": {
+        "tooltip": "Profile",
+        "avatarAlt": "Profile",
+        "accountFallback": "Account",
+        "profile": "Profile",
+        "workspace": "Workspace",
+        "settings": "Settings",
+        "theme": "Theme",
+        "themeSystem": "System",
+        "themeLight": "Light",
+        "themeDark": "Dark",
+        "icons": "Icons",
+        "iconsLucide": "Lucide",
+        "iconsPhosphor": "Phosphor",
+        "iconsFontAwesome": "Font Awesome",
+        "language": "Language",
+        "signOut": "Sign out"
+      },
+      "signOut": {
+        "title": "Sign out?",
+        "description": "You'll be returned to the sign-in page and need to sign in again to access your workspace.",
+        "cancel": "Cancel",
+        "confirm": "Sign out"
+      }
+    }
   }
 }

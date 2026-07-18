@@ -87,6 +87,13 @@ export const organization = pgTable("organization", {
   responsible_user_id: uuid("responsible_user_id").references(
     () => app_user.id,
   ),
+  // Per-org consent gate for admin support login (0065). NULL = no consent;
+  // a future timestamp is an active 7-day grant that admin impersonation into
+  // this org requires. Owner/admin toggles it; toggle-off force-ends live
+  // impersonation. Read only for a known org id, so no index.
+  support_access_expires_at: timestamp("support_access_expires_at", {
+    withTimezone: true,
+  }),
   fiscal_year_start_month: smallint("fiscal_year_start_month")
     .notNull()
     .default(sql`1`)

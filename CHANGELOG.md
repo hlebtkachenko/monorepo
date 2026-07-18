@@ -13,6 +13,49 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.24.0] — 2026-07-18
+
+### Added
+
+- org rebuild: full app-shell header on the new /o tree (help menu, Sidekick, profile dropdown, tasks/inbox placeholders) + optional search box on AppHeader (search prop) (#816)
+- org UI rebuild foundation: parallel clean-room tree at app/o/[orgSlug] (own shell composing @workspace/ui directly, own nav, URL-authoritative period switch) + shared apps/web/lib/org libs (resolve, header, period, session, href) (#816)
+- org UI rebuild: ESLint org-tree/no-cross-org-tree-import wall (new app/o/[orgSlug] ↔ frozen app/[orgSlug] may not import each other) + reserve `o` as the temporary parallel-tree URL prefix (#816)
+- Automate published release deployments after a one-hour supersession and manual-deploy window, with release-note opt-out support. (#825)
+- Production deployments now report success or failure to Telegram with release, commit, change-summary, and failure-cause context, while the one-hour automatic release hold no longer consumes a GitHub Actions runner. (#826)
+- Add a dev/admin-only Debug rail module (last in rail) to the rebuilt /o org tree (#828)
+- Add a mobile bottom navigation to the rebuilt /o org shell (#828)
+- Add org-tree/no-loose-org-tree-folder ESLint rule that blocks any private folder other than _shell/ and _nav/ in the rebuilt /o org tree, so a flat _components/ (the old-tree pattern) cannot creep back; hard-gated by lint:org-new. (#828)
+- Add per-org support-access consent gating admin impersonation, wired to the org header toggle (#828)
+- Add the Company module Periods page and a Settings landing to the rebuilt /o org tree (#828)
+- Add the favorite_page table (per-user, per-org RLS) for the rebuilt org favorites feature (#828)
+- Add the favorite-page toggle in the content header and favorited-page cards on module overviews in the rebuilt /o tree (#828)
+- Seed the dev organization Acme s.r.o. (slug acme, owner@example.com, 2026 period) into every dev workspace (#828)
+
+### Changed
+
+- Derive the support-access consent window from a single SUPPORT_ACCESS_WINDOW_DAYS constant (was hardcoded independently in the SQL interval and the audit payload). (#828)
+- Drop the unused outerTx parameter from withOrgReadonly so read-only org transactions are always top-level, making 'the callback cannot write' a guarantee rather than a caveat a composed caller could break. (#828)
+- Externalize all rebuilt /o org-shell chrome strings to i18n (en + cs) (#828)
+- Relocate the /o favorites components (favorite-page-header, favorites-overview) out of a flat _components/ folder into the _shell anatomy (_shell/app-body/app-content/content-header and content-body), matching the org-tree charter. (#828)
+
+### Fixed
+
+- Add a11y landmarks (named primary-navigation rail + main-content landmark) and a visible-on-focus skip-to-content link to the app-shell, and make the shell loading skeleton content-shaped (rail + header + sidebar + content) instead of a single gray slab (#828)
+- Add org-name page titles, fail-closed header reads, error reference ids, and in-app error/not-found home links to the rebuilt /o tree (#828)
+- Clear the scaffolded chart of accounts and accounting period in the dev-period seed integration test teardown, fixing an intermittent cross-file chart_period_regime_fk violation that flaked the apps/web test suite. (#828)
+- Close the admin impersonation audit row when the Better Auth session swap fails, and close all of an actor's open rows on stop (not just the newest), so getActiveImpersonation no longer reports phantom active sessions. (#828)
+- Expose i18n label seams for the app-shell skip-to-content link and the primary-navigation + main-content landmarks, so the org UI localizes them (Czech screen readers no longer hear English chrome). (#828)
+- Fix the /o period switcher mis-stripping a sibling org slug that shares a prefix (e.g. /o/acme-backup under slug acme); the in-org sub-path now uses one segment-boundary-safe orgRelativePath helper shared with the org switcher. (#828)
+- Move the '+ Add view' button and overflow dropdown out of the ContentHeader view-tabs role=tablist (a tablist may only own tab children), fixing a critical aria-required-children a11y violation surfaced by the new content-header story. (#828)
+- Point the /o period switcher's Add/Manage links at the Company-module periods page (#828)
+- Preserve the current sub-path on org switch and other query params on period switch in the rebuilt /o tree (#828)
+- Un-export the OrgNavLabelKey nav type (used only within org-nav.ts) so knip no longer flags it as an unused export. (#828)
+
+### Security
+
+- Add withOrgReadonly and move rebuilt-org header/period reads onto it; ban withAdminBypass in apps/web/lib/org except cross-scope allowlist (#828)
+- Bind admin org-scoped impersonation to the target user's active organization membership, so an organization's support-access grant can no longer authorize impersonating a non-member. (#828)
+
 ## [v0.23.8] — 2026-07-18
 
 ### Changed

@@ -139,12 +139,37 @@ function partialWithoutRate(
 }
 
 /**
+ * True only for a well-formed Czech legal calendar date: strict `YYYY-MM-DD` naming a REAL day — matching the
+ * capture schema's `LEGAL_DATE` (`z.iso.date()`). Gates `taxPointDate`: the structured parsers emit date-only,
+ * but the OCR IR boundary (`parseExtractedInvoice`) does not validate date FORMAT, so a `tax_point_date`
+ * carrying a time or an impossible day must be DROPPED, not forwarded. Dropping leaves the DUZP unresolved — a
+ * state the server SURFACES (the VAT-evidence completeness check flags a null tax_point_date; the filing-period
+ * scope excludes it), never a silent issue-date period. Forwarding a datetime would instead fail the STRICT
+ * capture schema AFTER the accounting event was already created (occurredAt uses a lenient regex), orphaning
+ * it. Never slice a date off a datetime: a UTC instant near midnight shifts the Prague legal day by ±1.
+ */
+function isLegalDate(value: string | undefined): value is string {
+  if (value === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  )
+}
+
+/**
  * IR Invoice → CaptureAccountingDocumentRequest (STANDARD domestic, v1 scope).
  *
  * Direction maps to the document type (received → RECEIVED_INVOICE, issued → ISSUED_INVOICE). Each
  * `vat_summary` row becomes one partial. A credit note (`doc_type: "credit_note"`) flips the sign of
  * every base + tax (SignedDecimal accepts negatives). All lines hang off the single harness-supplied
  * `eventId`.
+ *
+ * `issuedAt` is the §11/1d okamžik vyhotovení (the document-issue date). `taxPointDate` is the DUZP/DPPD
+ * (§21) — the legal date the VAT outputs (přiznání / kontrolní hlášení period) hang off. They are DISTINCT
+ * legal dates, so a well-formed `tax_point_date` is threaded through; an absent OR malformed one is OMITTED
+ * (see `isLegalDate`) so the server surfaces the DUZP as unresolved rather than 400-ing the whole capture (and
+ * orphaning the already-created event). Never defaulted to `issue_date`. The capture schema only accepts
+ * `taxPointDate` on an invoice type — which is the only thing this adapter emits.
  */
 export function invoiceToCapture(
   invoice: Invoice,
@@ -161,6 +186,9 @@ export function invoiceToCapture(
     type:
       invoice.direction === "issued" ? "ISSUED_INVOICE" : "RECEIVED_INVOICE",
     issuedAt: invoice.issue_date,
+    ...(isLegalDate(invoice.tax_point_date)
+      ? { taxPointDate: invoice.tax_point_date }
+      : {}),
     lines: [
       {
         eventId: ctx.eventId,
@@ -223,13 +251,20 @@ function eventGateEnvelope(ctx: IrToEventContext): EventGateEnvelope {
 }
 
 /**
- * Digits-only IČO in the 1–8 range the request regex (`^\d{1,8}$`) accepts, else `undefined` (dropped).
- * The server left-pads to 8 — so we send clean 1–8 digits or nothing, NEVER a malformed value that would
- * crash the approve-tx CHECK. `> 8` digits is not a valid IČO and is dropped (fall through to DIČ / name).
+ * A Czech IČO in the 1–8 digit range the request regex (`^\d{1,8}$`) accepts, else `undefined` (dropped).
+ * A Czech IČO is bare digits (optionally space-grouped). A value that carries LETTERS — a foreign register
+ * id ("SK12345678") or a DIČ ("CZ12345678") — is NOT a Czech IČO; stripping the prefix and sending the
+ * remaining 8 digits would bind a WRONG-BUT-REAL Czech partner (the confident-wrong class: e.g. a Slovak
+ * counterparty resolved to whatever Czech company happens to hold that IČO). We reject such a value and fall
+ * through to DIČ / name. `> 8` digits is likewise not a valid IČO and is dropped. The server left-pads to 8.
  */
 function eventIco(raw: string | undefined): string | undefined {
   if (!raw) return undefined
-  const digits = raw.replace(/\D/g, "")
+  const trimmed = raw.trim()
+  // Anything but digits + internal spaces (a "SK"/"CZ"/… country prefix, punctuation) is not a bare Czech
+  // IČO — reject it rather than launder it into 8 digits that resolve to the wrong, real Czech partner.
+  if (/[^\d\s]/.test(trimmed)) return undefined
+  const digits = trimmed.replace(/\s/g, "")
   return digits.length >= 1 && digits.length <= 8 ? digits : undefined
 }
 

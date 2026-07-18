@@ -172,6 +172,38 @@ describe("invoiceToCapture", () => {
     expect(partial.baseAmount).toBe("1000.00")
   })
 
+  it("(h) threads a well-formed DUZP (taxPointDate); omits absent, never defaults to issue_date", () => {
+    // The tax point (DUZP/DPPD, §21) drives the VAT-return period and is a DISTINCT legal date from the
+    // §11/1d issue date. When the IR carries it, the capture must too — else the server leaves the VAT
+    // period unresolved.
+    const withDuzp = invoiceToCapture(
+      invoice({ issue_date: "2025-03-14", tax_point_date: "2025-03-20" }),
+      ctx,
+    )
+    expect(withDuzp.issuedAt).toBe("2025-03-14")
+    expect(withDuzp.taxPointDate).toBe("2025-03-20")
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(withDuzp),
+    ).not.toThrow()
+    // Absent in the IR → omitted, NEVER silently defaulted to the issue date (which would assert a wrong DUZP).
+    const without = invoiceToCapture(invoice(), ctx)
+    expect("taxPointDate" in without).toBe(false)
+  })
+
+  it("(h2) DROPS a malformed tax_point_date (datetime / impossible day) — never 400s the whole capture", () => {
+    // The strict schema (`z.iso.date()`) rejects a datetime; the EVENT's occurredAt (lenient) would accept it,
+    // so forwarding a datetime would create the event then 400 the capture, orphaning it. Dropping instead
+    // leaves the DUZP unresolved (a state the server surfaces), and the capture still parses clean. And a date
+    // is NEVER sliced off a datetime (UTC→Prague can shift the legal day ±1).
+    for (const bad of ["2025-03-20T00:00:00Z", "2025-13-40", "2025-2-3", ""]) {
+      const request = invoiceToCapture(invoice({ tax_point_date: bad }), ctx)
+      expect("taxPointDate" in request).toBe(false)
+      expect(() =>
+        CaptureAccountingDocumentRequestSchema.parse(request),
+      ).not.toThrow()
+    }
+  })
+
   it("(f) output carries no tenancy keys", () => {
     const request = invoiceToCapture(invoice(), ctx)
     const serialized = JSON.stringify(request, (_key, value) =>
@@ -478,7 +510,7 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
     expect(request.description).toBe("FP-2025-0042")
   })
 
-  it("drops a malformed IČO (>8 digits or non-digit) — never coerces, never crashes the CHECK", () => {
+  it("drops a malformed / foreign IČO (>8 digits or a country prefix) — never coerces, never crashes the CHECK", () => {
     const overlong = invoiceToEvent(
       invoice({ supplier: { name: "X GmbH", ico: "123456789" } }),
       eventCtx,
@@ -490,6 +522,21 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
       eventCtx,
     )
     expect(spaced.counterparty?.ico).toBe("12345678")
+    // A prefixed / foreign identifier ("SK12345678") is NOT a bare Czech IČO: the fix REJECTS it rather than
+    // stripping the "SK" and binding the wrong-but-real Czech company that holds "12345678". Falls through
+    // to the DIČ, so the counterparty identity is preserved — just never as a fabricated Czech IČO.
+    const foreign = invoiceToEvent(
+      invoice({
+        supplier: {
+          name: "Slovák s.r.o.",
+          ico: "SK12345678",
+          dic: "SK12345678",
+        },
+      }),
+      eventCtx,
+    )
+    expect(foreign.counterparty?.ico).toBeUndefined()
+    expect(foreign.counterparty?.dic).toBe("SK12345678")
   })
 
   it("drops a non-2-letter country (free-form IR) — never coerces 'Česká republika' to 'CZ'", () => {

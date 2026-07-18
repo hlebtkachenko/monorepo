@@ -179,12 +179,17 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+    outputs:
+      published-at: ${{ steps.publish.outputs.published_at }}
+      release-id: ${{ steps.publish.outputs.release_id }}
+      skip-cd: ${{ steps.publish.outputs.skip_cd }}
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
 
-      - name: Verify assets then publish the draft
+      - id: publish
+        name: Verify assets then publish the draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -199,4 +204,89 @@ jobs:
             exit 1
           fi
           gh release edit "${GITHUB_REF_NAME}" --draft=false
+          RELEASE=$(gh release view "${GITHUB_REF_NAME}" --json body,databaseId,publishedAt)
+          echo "release_id=$(jq -r '.databaseId' <<<"${RELEASE}")" >> "$GITHUB_OUTPUT"
+          echo "published_at=$(jq -r '.publishedAt' <<<"${RELEASE}")" >> "$GITHUB_OUTPUT"
+          if jq -r '.body // ""' <<<"${RELEASE}" | grep -Fqi '<!-- cd:skip -->'; then
+            echo "skip_cd=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip_cd=false" >> "$GITHUB_OUTPUT"
+          fi
           echo "Published ${GITHUB_REF_NAME}."
+
+  release-hold:
+    needs: publish-release
+    if: needs.publish-release.outputs.skip-cd != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions: {}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - name: Hold release for one hour
+        run: sleep 3600
+
+  deployment-gate:
+    needs: [publish-release, release-hold]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
+    outputs:
+      eligible: ${{ steps.release.outputs.eligible }}
+      production: ${{ steps.release.outputs.production }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - id: release
+        name: Check release and deployment state
+        env:
+          DEPLOYMENT_ENVIRONMENTS: staging,production
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ needs.publish-release.outputs.release-id }}
+          RELEASE_PUBLISHED_AT: ${{ needs.publish-release.outputs.published-at }}
+        run: node scripts/release-deploy-gate.mjs
+
+  staging:
+    needs: [publish-release, deployment-gate]
+    if: needs.deployment-gate.outputs.eligible == 'true'
+    permissions:
+      contents: read
+      deployments: read
+      id-token: write
+    uses: ./.github/workflows/_deploy-aws.yml
+    with:
+      auto_release_id: ${{ needs.publish-release.outputs.release-id }}
+      auto_release_published_at: ${{ needs.publish-release.outputs.published-at }}
+      brain_runtime_active: "1"
+      build_version: ${{ github.ref_name }}
+      environment: staging
+      force_rebuild_images: true
+      stack: all
+    secrets: inherit
+
+  production:
+    needs: [publish-release, deployment-gate, staging]
+    if: |
+      needs.deployment-gate.outputs.production == 'true' &&
+      needs.staging.outputs.deployed == 'true'
+    permissions:
+      contents: read
+      deployments: read
+      id-token: write
+    uses: ./.github/workflows/_deploy-aws.yml
+    with:
+      auto_release_id: ${{ needs.publish-release.outputs.release-id }}
+      auto_release_published_at: ${{ needs.publish-release.outputs.published-at }}
+      brain_runtime_active: "1"
+      build_version: ${{ github.ref_name }}
+      environment: production
+      force_rebuild_images: true
+      stack: all
+    secrets: inherit

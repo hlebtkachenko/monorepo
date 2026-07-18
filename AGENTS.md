@@ -357,7 +357,7 @@ When importing from upstream, rewrite anything that violates these rules. The up
 - All new workflows ship as ADVISORY. Hleb flips required-status manually after a green PR cycle.
 - Branch protection / PR-required rules are managed manually by Hleb via the ruleset (see `docs/conventions/CI-POLICY.md`).
 - Hardening conventions: default-deny `permissions: {}`, per-job least privilege, SHA-pinned actions with trailing version comment, `step-security/harden-runner` (audit), concurrency cancellation on PRs.
-- Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (the `guard` job requires `vars.AWS_BOOTSTRAPPED=true`, now set — staging deploys run; production stays gated by the `production` GitHub environment).
+- Reusable workflows under `.github/workflows/_*.yml`: `_supply-chain.yml`, `_build-image.yml`, `_deploy-aws.yml` (the `guard` job requires `vars.AWS_BOOTSTRAPPED=true`, now set). Published releases remain in `release.yml` for a one-hour hold; RCs deploy to staging, stable releases continue to production after staging smoke passes.
 - Composite bootstrap: `./.github/actions/setup` (pnpm + Node 24 + frozen install).
 
 ## Pull Request Workflow

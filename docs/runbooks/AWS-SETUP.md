@@ -312,7 +312,11 @@ This unblocks `_deploy-aws.yml`.
 
 ## Deploys
 
-**Deploys are manual-only by design.** Pushing to `main` does NOT auto-deploy. Every deploy is an explicit `gh workflow run` command. This is intentional: no surprise charges, no accidental prod pushes, full control over when AWS sees new code.
+Plain pushes to `main` do not deploy. After publishing a release, `release.yml`
+waits one hour, checks for the release skip marker, newer releases, and manual
+deployments, then runs staging followed by production for stable releases.
+Release candidates stop after staging. Manual deploys remain available through
+`_deploy-aws.yml`.
 
 ### Steady-state deploy (after main is updated)
 
@@ -443,34 +447,19 @@ gh workflow run _deploy-aws.yml \
 
 Production deploys use a SEPARATE OIDC role (`AWS_DEPLOY_ROLE_ARN_PRODUCTION` secret) and the `app.afframe.com` Cloudflare tunnel. Same code, separate runtime.
 
-#### Production deploy approval gate
+#### Production release gate
 
-The `deploy` job in `_deploy-aws.yml` references `environment: ${{ inputs.environment }}`. For production this resolves to the `production` GitHub Environment, which has a deployment-protection-rule requiring a human reviewer before the `deploy` job starts. Staging has no such rule, so it flows through.
+`release.yml` reaches production only after the stable release stays
+eligible for one hour and the staging deploy, smoke tests, and rollback guard
+succeed. `_deploy-aws.yml` keeps the `production` environment boundary for OIDC,
+secrets, audit history, and tag policy enforcement.
 
-Lifecycle of a production deploy:
-
-1. Operator triggers `_deploy-aws.yml -f environment=production` (CLI or repo Actions tab).
-2. `guard` + `validate-inputs` + `detect-changes` + `build-images` all run normally.
-3. `deploy` enters **"Waiting for review"** in the GitHub Actions UI.
-4. Approver opens the run, clicks "Review deployments", selects `production`, approves.
-5. `deploy` proceeds; `smoke` runs after; if smoke fails the rollback step fires.
-
-One-time operator setup of the protection rule (run from a machine with `gh` configured):
+The production environment allows `main` for manual deploys and `v*` tags for
+automatic release deploys:
 
 ```bash
-# Get your own user id once
-HLEB_ID=$(gh api user --jq .id)
-
-# Configure the protection rule
-gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production" \
-  -f wait_timer=0 \
-  -F prevent_self_review=false \
-  -F deployment_branch_policy='{"protected_branches":true,"custom_branch_policies":false}'
-
-gh api -X PUT "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules" \
-  --input - <<JSON
-{ "reviewers": [ { "type": "User", "id": $HLEB_ID } ] }
-JSON
+gh api -X POST /repos/hlebtkachenko/monorepo/environments/production/deployment-branch-policies \
+  -f name='v*' -f type=tag
 ```
 
 Sanity check the deploy role's `MaxSessionDuration` is at least 3600 (the workflow asks for that on every STS assume):
@@ -481,17 +470,9 @@ aws iam get-role --role-name <prod-deploy-role-name> --query Role.MaxSessionDura
 # aws iam update-role --role-name <prod-deploy-role-name> --max-session-duration 7200
 ```
 
-Remove the protection rule (rare; e.g. switching to a deploy bot):
-
-```bash
-gh api /repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules \
-  --jq '.custom_deployment_protection_rules[].id' \
-  | xargs -I {} gh api -X DELETE "/repos/hlebtkachenko/monorepo/environments/production/deployment-protection-rules/{}"
-```
-
 #### Staging deploy-branch policy
 
-Staging environment is also gated by a deployment-branch-policy. Default allowed branches: `main` only. Any deploy triggered with `--ref <other-branch>` fails immediately at `validate-inputs` with:
+Staging allows `main`, `verify/*`, and release tags matching `v*`. Any other ref fails immediately at `validate-inputs` with:
 
 > Branch "X" is not allowed to deploy to staging due to environment protection rules.
 
@@ -501,6 +482,8 @@ The `verify/*` pattern is permanently allowed so the F4 negative test (broken-co
 # One-time setup, already done:
 gh api -X POST /repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies \
   -f name='verify/*' -f type=branch
+gh api -X POST /repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies \
+  -f name='v*' -f type=tag
 ```
 
 Branch convention: any local branch you intend to deploy to staging without merging to main MUST be prefixed `verify/` (e.g. `verify/m2-broken-container`). Any other prefix gets rejected.

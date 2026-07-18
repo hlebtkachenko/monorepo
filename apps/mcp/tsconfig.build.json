@@ -1,4 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "noEmit": false, "rootDir": "./src" }
+  "compilerOptions": { "noEmit": false, "rootDir": "./src" },
+  // The stdio dist ships via the `afframe-mcp` bin. src/http.ts is the separate
+  // Cloudflare Worker entrypoint (bundled by wrangler), never part of dist.
+  "exclude": ["node_modules", "dist", "src/http.ts"]
 }

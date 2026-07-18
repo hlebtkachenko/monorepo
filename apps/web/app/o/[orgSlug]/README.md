@@ -24,6 +24,10 @@ canonical `/[orgSlug]` and the `/o` prefix disappears.
    `apps/web/lib/org/*`, or `apps/web/app/_lib/*` — never from `app/[orgSlug]/*`.
 4. **Every link goes through `orgHref`** (`@/lib/org/href`) so the `/o` prefix
    lives in exactly one place and the flip is a one-constant change.
+5. **No demo / placeholder content.** Every displayed element is either wired to
+   real org data (dynamic, as it would be for a real company) or empty. No mock
+   rows, fake text, or hardcoded sample values — ever. A page with no designed
+   content yet renders an empty body, not a placeholder.
 
 ## What lives where
 

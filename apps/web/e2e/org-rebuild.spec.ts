@@ -58,16 +58,17 @@ test.describe("Rebuilt org tree (/o) smoke", () => {
     await test.step(`/o/${SEEDED_ORG_SLUG} mounts the new shell`, async () => {
       const res = await page.goto(`/o/${SEEDED_ORG_SLUG}`)
       expect(res?.status()).toBe(200)
-      // AppShell chrome mounted — error.tsx renders none of it.
+      // AppShell chrome mounted — error.tsx renders none of it. The content
+      // panel is intentionally empty (no demo content), so the shell slot +
+      // the sidebar's Overview nav entry are what prove the new tree rendered.
       await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
-      await expect(page.getByText("rebuilt tree · /o")).toBeVisible()
+      await expect(page.getByRole("link", { name: "Overview" })).toBeVisible()
     })
 
-    await test.step("?period= reaches the page (URL-authoritative)", async () => {
+    await test.step("?period= does not break rendering (URL-authoritative)", async () => {
       const res = await page.goto(`/o/${SEEDED_ORG_SLUG}?period=smoke-token`)
       expect(res?.status()).toBe(200)
-      // The temp home echoes the raw ?period param, proving it flows through.
-      await expect(page.getByText("smoke-token")).toBeVisible()
+      await expect(page.locator('[data-slot="app-shell"]')).toBeVisible()
     })
 
     await test.step(`/${SEEDED_ORG_SLUG} (old tree) still renders`, async () => {

@@ -2,14 +2,12 @@
 /* global process */
 /**
  * Release-cut collector. Folds every `changelog.d/` fragment plus synthesized
- * Dependabot bumps into:
- *   1. a new `## [vX.Y.Z] — DATE` section in CHANGELOG.md (human), and
- *   2. `releases/vX.Y.Z.json` (machine-readable manifest for agents/tooling),
+ * Dependabot bumps into a new `## [vX.Y.Z] — DATE` section in CHANGELOG.md,
  * then deletes the consumed fragments (kept on `--dry-run` and `--keep`).
  *
  * `--dry-run` writes nothing and prints the rendered section + the suggested
- * bump + any release notes — this is the `changelog:preview` "what's shipping"
- * view that the single shared file used to give at a glance.
+ * bump — this is the `changelog:preview` "what's shipping" view that the single
+ * shared file used to give at a glance.
  *
  * Usage:
  *   node scripts/governance/collect-changelog.mjs --version v0.24.0 [--date YYYY-MM-DD]
@@ -18,18 +16,10 @@
  */
 
 import { spawnSync } from "node:child_process"
-import {
-  existsSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-  mkdirSync,
-} from "node:fs"
-import { join } from "node:path"
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 
 import {
   FRAGMENT_DIR,
-  buildManifest,
   loadFragments,
   pickBump,
   renderVersionSection,
@@ -37,7 +27,6 @@ import {
 import { synthesizeDependencyBullets } from "./synthesize-dependency-changelog.mjs"
 
 const CHANGELOG_FILE = "CHANGELOG.md"
-const MANIFEST_DIR = "releases"
 const VERSION_RE = /^v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?$/
 
 function usage() {
@@ -140,10 +129,9 @@ function dependencyFragments(sinceTag) {
     file: `synthesized:deps:${index}`,
     category: "Dependencies",
     bump: "patch",
-    scope: null,
     breaking: false,
     migration: false,
-    note: null,
+    override: false,
     body: bullet,
     summary: bullet.replace(/\s+/g, " ").trim(),
   }))
@@ -214,17 +202,6 @@ function main() {
   const current = readFileSync(CHANGELOG_FILE, "utf8")
   writeFileSync(CHANGELOG_FILE, insertSection(current, section))
 
-  const manifest = buildManifest(fragments, {
-    version,
-    date: resolvedDate,
-    prByFile,
-  })
-  mkdirSync(MANIFEST_DIR, { recursive: true })
-  writeFileSync(
-    join(MANIFEST_DIR, `${version}.json`),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-  )
-
   if (!keep) {
     for (const fragment of fileFragments) {
       if (existsSync(fragment.file)) rmSync(fragment.file)
@@ -233,8 +210,7 @@ function main() {
 
   process.stdout.write(
     [
-      `Collected ${fragments.length} entr${fragments.length === 1 ? "y" : "ies"} into ${CHANGELOG_FILE} under ## [${version}].`,
-      `Wrote ${join(MANIFEST_DIR, `${version}.json`)} (${bumpLine.toLowerCase()}).`,
+      `Collected ${fragments.length} entr${fragments.length === 1 ? "y" : "ies"} into ${CHANGELOG_FILE} under ## [${version}] (${bumpLine.toLowerCase()}).`,
       keep
         ? `Kept ${fileFragments.length} fragment${fileFragments.length === 1 ? "" : "s"} (--keep; delete them at the final release).`
         : `Removed ${fileFragments.length} consumed fragment${fileFragments.length === 1 ? "" : "s"} — stage the deletions.`,

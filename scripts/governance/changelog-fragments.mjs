@@ -4,8 +4,7 @@
  * Every non-release PR drops one fragment file under `changelog.d/` instead of
  * editing CHANGELOG.md's shared `## [Unreleased]` region. Unique filenames mean
  * parallel PRs never conflict. At release-cut, `collect-changelog.mjs` folds
- * every fragment into a new version section and a machine-readable manifest,
- * then deletes the fragments.
+ * every fragment into a new CHANGELOG.md version section, then deletes them.
  *
  * This module is pure (no fs, no git) except `loadFragments`, so the rendering
  * and bump logic is unit-testable. Callers that need git (PR backfill) resolve
@@ -93,14 +92,13 @@ export function parseFragment(text, name = "<fragment>") {
   return {
     category,
     bump,
-    scope: meta.scope || null,
     breaking: meta.breaking === true,
     migration: meta.migration === true,
     // The proposed bump is deliberate — the release agent takes it as final and
     // does not re-derive/argue against a rule-suggested level.
     override: meta.override === true,
     body,
-    // Single-line form used in the manifest and for stable sorting.
+    // Single-line form used for the rendered bullet and stable sorting.
     summary: body.replace(/\s+/g, " ").trim(),
   }
 }
@@ -204,31 +202,4 @@ export function renderVersionSection(fragments, { heading, prByFile = {} }) {
   // Drop the trailing blank so the caller controls spacing.
   while (lines.at(-1) === "") lines.pop()
   return lines.join("\n")
-}
-
-/**
- * Machine-readable release manifest — the agent-facing companion to the human
- * CHANGELOG section. Written to `releases/<version>.json` at collect-time so
- * tooling can diff releases without parsing markdown.
- */
-export function buildManifest(fragments, { version, date, prByFile = {} }) {
-  return {
-    version,
-    date,
-    suggestedBump: pickBump(fragments),
-    // An author marked their bump as deliberate — the release agent honors the
-    // suggested bump as final and does not argue it down/up against a rule.
-    bumpOverridden: fragments.some((f) => f.override),
-    breaking: fragments.some((f) => f.breaking),
-    changes: sortFragments(fragments, prByFile).map((f) => ({
-      category: f.category,
-      scope: f.scope,
-      bump: f.bump,
-      override: f.override,
-      breaking: f.breaking,
-      migration: f.migration,
-      pr: prByFile[f.file] ?? null,
-      summary: f.summary,
-    })),
-  }
 }

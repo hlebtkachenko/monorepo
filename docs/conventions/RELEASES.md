@@ -57,22 +57,26 @@ a shared region and never conflict — this replaced the old single hand-edited
 merge. Use:
 
 ```bash
-pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override] [--scope web] [--breaking] [--migration]
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override] [--breaking] [--migration]
 ```
 
 Only `--category` and `--entry` are required. The fragment is named
 `<figure>-<hex>.md` — a random economist/mathematician from
 `scripts/governance/changelog-names.txt` (flavour) plus a hex suffix that
-guarantees uniqueness. The optional fields become YAML frontmatter that carries
-release signal both to the human changelog and to the machine manifest:
+guarantees uniqueness. The optional fields become YAML frontmatter:
 
-| Field         | Effect                                                                                                                                                                                                                                |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--bump`      | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump. (A level, never a concrete version number — the actual `vX.Y.Z` is decided at cut.)                                              |
-| `--override`  | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Surfaced as `bumpOverridden` in the manifest + a `(override)` tag on the preview's suggested bump. |
-| `--scope`     | Package/area (e.g. `web`, `brain`). Greppable in the manifest.                                                                                                                                                                        |
-| `--breaking`  | Hoists the entry into a **Breaking changes** callout atop the version section.                                                                                                                                                        |
-| `--migration` | Hoists into a **Migration required** callout (ties to the forward-fix-only rule).                                                                                                                                                     |
+| Field         | Effect                                                                                                                                                                                  |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bump`      | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump _level_ (never a concrete version number — the actual `vX.Y.Z` is decided at cut).  |
+| `--override`  | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Tags the preview's suggested-bump line `(override)`. |
+| `--breaking`  | Hoists the entry into a **Breaking changes** callout atop the version section.                                                                                                          |
+| `--migration` | Hoists into a **Migration required** callout (ties to the forward-fix-only rule).                                                                                                       |
+
+**Author one fragment per meaningful change** — the gate's floor is one, but a
+PR doing several distinct things writes several `changelog:add` calls, so the
+squashed PR still yields multiple rich bullets. Never scrape raw commit messages
+(that reintroduces `wip` / `fix review` noise); the body is the curated,
+user-facing bullet.
 
 Preview the pending release at any time (renders every fragment as the next
 version section, prints the suggested bump with an `(override)` tag when set):
@@ -94,19 +98,18 @@ dependency bumps are not lost — the collector synthesizes them into the
 
 ```bash
 # 1. Collect every changelog.d/ fragment (plus synthesized Dependabot bumps
-#    since the last tag) into a new CHANGELOG.md version section AND a
-#    machine-readable releases/vX.Y.Z.json manifest, then delete the consumed
-#    fragments. Backfills each bullet's (#PR) from git automatically.
+#    since the last tag) into a new CHANGELOG.md version section, then delete
+#    the consumed fragments. Backfills each bullet's (#PR) from git.
 #    Preview first with: pnpm changelog:preview
 pnpm changelog:collect -- --version v0.2.0
 
 # 2. Review the generated section. Add a "### Security" bullet by hand if any
-#    dependency bump fixed a CVE (the manifest flags nothing as a CVE on its
-#    own). The suggested bump printed by collect follows docs bump rules above.
+#    dependency bump fixed a CVE. The suggested bump printed by collect follows
+#    the docs bump rules above.
 $EDITOR CHANGELOG.md
 
-# 3. Stage + commit the changelog, manifest, and fragment deletions
-git add CHANGELOG.md releases/ changelog.d/
+# 3. Stage + commit the changelog and the fragment deletions
+git add CHANGELOG.md changelog.d/
 git commit -m "chore(release): v0.2.0"
 
 # 4. Push the commit, then create + push the tag
@@ -145,13 +148,13 @@ So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
 
 ```bash
 # 1. Collect fragments + synthesized Dependabot bumps into a new CHANGELOG.md
-#    version section and releases/v0.2.0.json, deleting consumed fragments.
+#    version section, deleting consumed fragments.
 pnpm changelog:collect -- --version v0.2.0
 
 # 2. Review the generated section. Add a "### Security" bullet by hand if any
 #    dependency bump fixed a CVE.
 $EDITOR CHANGELOG.md
-git add CHANGELOG.md releases/ changelog.d/
+git add CHANGELOG.md changelog.d/
 git commit -m "chore(release): v0.2.0"
 git push origin main
 

@@ -1,7 +1,6 @@
 ---
 category: Changed
 bump: minor
-scope: repo
 ---
 
-Migrate the changelog workflow to per-PR fragment files under `changelog.d/` (kills the shared `## [Unreleased]` merge conflict): `changelog:add` writes a fragment, `changelog:preview` renders the pending release, `changelog:collect` folds fragments into CHANGELOG.md plus a machine-readable `releases/<version>.json` manifest at release-cut
+Migrate the changelog workflow to per-PR fragment files under `changelog.d/`, replacing the shared `## [Unreleased]` block that conflicted on every second parallel merge: `changelog:add` writes a uniquely-named fragment, `changelog:preview` renders the pending release with the suggested version bump, and `changelog:collect` folds all fragments into a new `CHANGELOG.md` version section (backfilling each `(#PR)` from git) at release-cut

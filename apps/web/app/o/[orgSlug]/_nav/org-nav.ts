@@ -1,3 +1,4 @@
+import type { BottomNavItem } from "@workspace/ui/blocks/app-shell"
 import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
 import type { SidebarNavPage } from "@workspace/ui/blocks/sidebar-panel"
 
@@ -31,6 +32,11 @@ export type OrgSidebarNavItem = Omit<SidebarNavPage, "label"> & {
   labelKey: OrgNavLabelKey
 }
 
+/** A bottom-nav entry as authored here: the i18n label key plus the rest. */
+export type OrgBottomNavItem = Omit<BottomNavItem, "label"> & {
+  labelKey: OrgNavLabelKey
+}
+
 /**
  * Rail menu — the modules. Grows as each module is rebuilt.
  *
@@ -55,6 +61,23 @@ export function orgRailNav(
     })
   }
   return modules
+}
+
+/**
+ * Bottom nav — the mobile counterpart of the rail. Surfaces the SAME top-level
+ * modules, in the same order, with the same `options.debug` gating, projected to
+ * the `AppShellBottomNav` shape (which the AppShell shows only below `md`, where
+ * the rail is hidden). Derived from `orgRailNav` so the bar can never drift from
+ * the rail: whatever modules the rail gains, the bar gains too. Non-navigating
+ * rail placeholders (no `href`) are dropped — a bottom-bar tab must link.
+ */
+export function orgBottomNav(
+  slug: string,
+  options: { debug?: boolean } = {},
+): OrgBottomNavItem[] {
+  return orgRailNav(slug, options).flatMap(({ labelKey, icon, href }) =>
+    href === undefined ? [] : [{ labelKey, icon, href }],
+  )
 }
 
 /** Sidebar tree for the Company module. */

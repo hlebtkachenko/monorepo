@@ -6,8 +6,10 @@ import { usePathname } from "next/navigation"
 import { useTranslations } from "@workspace/i18n/client"
 import {
   AppShell,
+  AppShellBottomNav,
   AppPageHeaderProvider,
   AppContentHeaderSlot,
+  type BottomNavItem,
 } from "@workspace/ui/blocks/app-shell"
 import {
   AppRail,
@@ -24,7 +26,7 @@ import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import { orgBasePath, orgHref } from "@/lib/org/href"
 
-import { companyNav, debugNav, orgRailNav } from "../_nav/org-nav"
+import { companyNav, debugNav, orgBottomNav, orgRailNav } from "../_nav/org-nav"
 
 /**
  * The persistent shell for the rebuilt org tree — mounted once by `layout.tsx`
@@ -70,6 +72,17 @@ export function OrgShell({
       })),
     [slug, t, showDebug],
   )
+  // Mobile bottom nav: the same modules the rail shows, same debug gating,
+  // resolved to `label` strings. The AppShell renders it only below `md`, where
+  // the rail is hidden — no breakpoints of our own.
+  const bottomNav = React.useMemo<BottomNavItem[]>(
+    () =>
+      orgBottomNav(slug, { debug: showDebug }).map(({ labelKey, ...rest }) => ({
+        ...rest,
+        label: t(labelKey),
+      })),
+    [slug, t, showDebug],
+  )
   const active = activeRailEntry(rail, pathname)
   // Pick the active module's sidebar tree. Company is the default; the Debug
   // module has its own single-Overview tree.
@@ -91,6 +104,9 @@ export function OrgShell({
       <AppShell
         header={header}
         rail={<AppRail items={rail} currentPath={pathname} />}
+        bottomNav={
+          <AppShellBottomNav items={bottomNav} currentPath={pathname} />
+        }
         sidebar={<AppSidebar nav={nav} currentPath={pathname} />}
         sidebarHeader={
           <span className="truncate text-sm font-medium">{title}</span>

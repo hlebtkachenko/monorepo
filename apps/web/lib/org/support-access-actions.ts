@@ -21,9 +21,11 @@ export interface SetSupportAccessResult {
  * The consent flag (`organization.support_access_expires_at`) is the
  * precondition an admin operator's impersonation session requires to sign in to
  * this org: no active grant → the admin console refuses. `on` writes a 7-day
- * window (the outer bound; each impersonation session still has its own 30-min
- * TTL); `off` clears it AND force-ends any live impersonation row for the org so
- * an operator already inside is cut immediately.
+ * window (the outer bound). `off` clears it — which blocks all NEW support
+ * sign-ins immediately — and marks the org's open impersonation rows ended in
+ * the audit table. NOTE: ending the audit row does not itself terminate a Better
+ * Auth session already live; an operator already inside is bounded by the
+ * impersonation session's own TTL until live-session revocation is wired (S1).
  *
  * Tenancy + authz are derived server-side, never from the client: `userId` from
  * the session, `organizationId` + `role` from `resolveMembership({ slug, userId })`
@@ -67,8 +69,9 @@ export async function setSupportAccess(
       .where(eq(organization.id, organizationId))
   })
 
-  // Revoke cuts any live operator session for this org immediately.
+  // Revoke marks the org's open impersonation rows ended (audit envelope).
   if (!on) {
+    // rls-allow-admin-bypass: impersonation table is admin-bypass-only (app_user has no grant)
     await withAdminBypass(async (db) => {
       await db
         .update(impersonation)

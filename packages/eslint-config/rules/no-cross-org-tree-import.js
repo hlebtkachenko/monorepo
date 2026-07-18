@@ -27,17 +27,34 @@
 
 import path from "node:path"
 
-const NEW_SEGMENT = "/app/o/[orgSlug]/"
-const OLD_SEGMENT = "/app/[orgSlug]/"
+const NEW_SEGMENT = "/app/o/[orgSlug]"
+const OLD_SEGMENT = "/app/[orgSlug]"
+
+/**
+ * True when `base` appears in `p` as a full path segment — followed by `/` (a
+ * file inside the tree) or ending the string (a bare-directory import like
+ * `@/app/[orgSlug]`). Matching the bare base too closes the escape where a
+ * no-trailing-slash import slipped through unclassified; the segment-boundary
+ * check keeps siblings like `/app/[orgSlug]-backup` from misclassifying.
+ */
+function inTree(p, base) {
+  let i = p.indexOf(base)
+  while (i !== -1) {
+    const after = p[i + base.length]
+    if (after === undefined || after === "/") return true
+    i = p.indexOf(base, i + 1)
+  }
+  return false
+}
 
 /**
  * Classify a forward-slash path into the tree it belongs to, else null.
- * The NEW segment is checked first; the two segments are mutually exclusive
- * (`/app/o/[orgSlug]/` never contains `/app/[orgSlug]/`).
+ * The NEW base is checked first; the two are mutually exclusive
+ * (`/app/o/[orgSlug]` never contains `/app/[orgSlug]`).
  */
 function treeOf(p) {
-  if (p.includes(NEW_SEGMENT)) return "new"
-  if (p.includes(OLD_SEGMENT)) return "old"
+  if (inTree(p, NEW_SEGMENT)) return "new"
+  if (inTree(p, OLD_SEGMENT)) return "old"
   return null
 }
 

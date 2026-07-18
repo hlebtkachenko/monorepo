@@ -2,10 +2,12 @@
  * RuleTester fixtures for org-tree/no-cross-org-tree-import.
  *
  * Valid: files outside both org trees, imports of shared code (@workspace/*,
- * apps/web/lib), and same-tree imports (alias + relative).
+ * apps/web/lib), same-tree imports (alias + relative), and sibling dirs that
+ * merely share a name prefix (`[orgSlug]-backup`).
  *
- * Invalid: new -> old and old -> new edges via alias, relative path, and
- * dynamic import.
+ * Invalid: new -> old and old -> new edges through every reported node type
+ * (import, `export ... from`, `export * from`, dynamic import) via alias and
+ * relative path, plus the bare-directory (no trailing slash) escape.
  */
 
 import { test, describe, it } from "node:test"
@@ -114,5 +116,86 @@ test("no-cross-org-tree-import — invalid: old -> new via alias", () => {
         errors: [{ messageId: "oldToNew" }],
       },
     ],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: old -> new via relative path", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: OLD,
+        code: `import { OrgShell } from '../o/[orgSlug]/_shell/org-shell'`,
+        errors: [{ messageId: "oldToNew" }],
+      },
+    ],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: old -> new via dynamic import", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: OLD,
+        code: `const m = import('@/app/o/[orgSlug]/_shell/org-shell')`,
+        errors: [{ messageId: "oldToNew" }],
+      },
+    ],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: new -> old via `export ... from`", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: NEW,
+        code: `export { getOrgAccountingContext } from '@/app/[orgSlug]/_lib/accounting-data'`,
+        errors: [{ messageId: "newToOld" }],
+      },
+    ],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: new -> old via `export * from`", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: NEW,
+        code: `export * from '@/app/[orgSlug]/_lib/accounting-data'`,
+        errors: [{ messageId: "newToOld" }],
+      },
+    ],
+  })
+})
+
+// The escape the boundary fix closes: a bare-directory import (no trailing
+// slash, no sub-path) must still be classified into the old tree.
+test("no-cross-org-tree-import — invalid: new -> old via bare directory import", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: NEW,
+        code: `import all from '@/app/[orgSlug]'`,
+        errors: [{ messageId: "newToOld" }],
+      },
+    ],
+  })
+})
+
+// A sibling dir that merely shares the name prefix is NOT the old tree — the
+// segment-boundary check must not misclassify it (no false positive).
+test("no-cross-org-tree-import — valid: prefix-sibling dir is not the old tree", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [
+      {
+        filename: NEW,
+        code: `import { thing } from '@/app/[orgSlug]-backup/thing'`,
+      },
+    ],
+    invalid: [],
   })
 })

@@ -14,10 +14,14 @@ canonical `/[orgSlug]` and the `/o` prefix disappears.
 
 ## Rules (enforced)
 
-1. **The two trees may never import each other.** Enforced by the
+1. **The two trees may never import each other.** The
    `org-tree/no-cross-org-tree-import` ESLint rule
-   (`packages/eslint-config/rules/`). Green lint ⟺ the old tree can be deleted
-   without breaking this one.
+   (`packages/eslint-config/rules/`) flags both directions. The **new → old**
+   direction is the one that matters and is **hard-gated** in CI by
+   `pnpm --filter web lint:org-new` (`eslint app/o --max-warnings 0`): green
+   lint ⟺ the frozen old tree can be `rm -rf`'d without breaking this one.
+   (old → new is advisory-only — the old tree is deleted at the flip anyway, so
+   nothing depends on it staying clean.)
 2. **Do not backport** old-tree changes or fixes into the new tree, and do not
    patch the old tree to match the new one. The old tree is disposable.
 3. **Shared code lives outside both trees.** Import from `@workspace/*`,

@@ -326,6 +326,16 @@ export function AppShell({
           className,
         )}
       >
+        {/* Skip link — the first focusable element in the shell, so a keyboard
+            user's initial Tab reveals it and can jump past the rail/sidebar
+            straight to `<main id="main-content">`. Off-screen until focused. */}
+        <a
+          href="#main-content"
+          data-slot="app-shell-skip-link"
+          className="sr-only rounded-md border border-border-subtle bg-shell-surface px-4 py-2 text-sm font-medium text-foreground shadow-md outline-none focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          Skip to content
+        </a>
         {rail !== undefined && (
           <aside
             data-slot="app-shell-rail"

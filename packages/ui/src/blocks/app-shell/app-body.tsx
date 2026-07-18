@@ -368,7 +368,13 @@ export function AppBody({
           )}
           <main
             data-slot="app-shell-main"
-            className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden"
+            // Named main landmark + `tabIndex={-1}` so the shell-level
+            // "skip to content" link can move keyboard focus straight here,
+            // bypassing the rail/sidebar on every page.
+            id="main-content"
+            aria-label="Main content"
+            tabIndex={-1}
+            className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none"
           >
             <PanelHeader>
               {(!sidebarIsOpen || isMobile) && renderSidebarToggle("left")}

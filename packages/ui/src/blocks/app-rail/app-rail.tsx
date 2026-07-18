@@ -150,6 +150,10 @@ export function AppRail({
         <nav
           data-slot="app-rail"
           data-mode={mode}
+          // Names the primary-navigation landmark for screen readers (the
+          // sidebar's module nav labels itself "Module", so the two rails
+          // are distinguishable in the landmark list).
+          aria-label="Primary"
           // Stop the global AppContextMenu from also firing.
           onContextMenu={(e) => e.stopPropagation()}
           className={cn(

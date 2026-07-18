@@ -111,6 +111,7 @@ export async function startImpersonation(
     }
   }
 
+  let impersonationId: string | undefined
   try {
     await withAdminBypass(async (db) => {
       const target = await db
@@ -156,14 +157,18 @@ export async function startImpersonation(
         }
       }
 
-      await db.insert(impersonation).values({
-        workspace_id: ctx.workspaceId,
-        organization_id: input.organizationId ?? null,
-        actor_user_id: ctx.userId,
-        target_user_id: input.targetUserId,
-        reason,
-        expected_end_at: new Date(Date.now() + IMPERSONATION_TTL_MS),
-      })
+      const [inserted] = await db
+        .insert(impersonation)
+        .values({
+          workspace_id: ctx.workspaceId,
+          organization_id: input.organizationId ?? null,
+          actor_user_id: ctx.userId,
+          target_user_id: input.targetUserId,
+          reason,
+          expected_end_at: new Date(Date.now() + IMPERSONATION_TTL_MS),
+        })
+        .returning({ id: impersonation.id })
+      impersonationId = inserted?.id
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "insert failed"
@@ -183,6 +188,25 @@ export async function startImpersonation(
       )
     }
   } catch (err) {
+    // The impersonation row committed before this swap, but no live session was
+    // granted — close it now so getActiveImpersonation() and the audit envelope
+    // never report a phantom "active" impersonation with no live session.
+    if (impersonationId) {
+      const id = impersonationId
+      try {
+        await withAdminBypass((db) =>
+          db
+            .update(impersonation)
+            .set({ ended_at: new Date() })
+            .where(eq(impersonation.id, id)),
+        )
+      } catch (closeErr) {
+        console.error(
+          "startImpersonation: failed to close row after Better Auth swap failure",
+          closeErr,
+        )
+      }
+    }
     await auditAdminAction({
       action: "admin.user.impersonation_start_failed",
       payload: {
@@ -213,32 +237,26 @@ export async function startImpersonation(
 }
 
 /**
- * Server action: close the most recent active impersonation window for
- * the current staff user. Calls Better Auth `stopImpersonating` best-effort.
+ * Server action: close ALL active impersonation windows for the current staff
+ * user. Only one Better Auth session is live at a time, but stray open rows can
+ * accrue (e.g. a re-start before a stop), so closing every open row keeps
+ * getActiveImpersonation() + the audit envelope honest. Calls Better Auth
+ * `stopImpersonating` best-effort.
  */
 export async function stopImpersonation(): Promise<ImpersonationMutationResult> {
   const ctx = await requireAdminCapability("admin:impersonate")
 
   try {
     await withAdminBypass(async (db) => {
-      const row = await db
-        .select({ id: impersonation.id })
-        .from(impersonation)
+      await db
+        .update(impersonation)
+        .set({ ended_at: new Date() })
         .where(
           and(
             eq(impersonation.actor_user_id, ctx.userId),
             isNull(impersonation.ended_at),
           ),
         )
-        .orderBy(desc(impersonation.started_at))
-        .limit(1)
-      const current = row[0]
-      if (!current) return
-
-      await db
-        .update(impersonation)
-        .set({ ended_at: new Date() })
-        .where(eq(impersonation.id, current.id))
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "update failed"

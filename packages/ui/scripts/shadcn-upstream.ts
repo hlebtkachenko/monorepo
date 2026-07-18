@@ -501,13 +501,15 @@ async function readManifest(style: string): Promise<UpstreamManifest> {
   }
 }
 
-function localCoverage() {
-  const localNames = new Set(Object.keys(localRegistry))
+export function localCoverage(registry: typeof localRegistry = localRegistry) {
+  const localNames = new Set(Object.keys(registry))
   const localShadcnNames = new Set(
-    Object.entries(localRegistry)
+    Object.entries(registry)
       .filter(
         ([, meta]) =>
-          meta.source.includes("shadcn") && meta.tracking !== "asset",
+          meta.source.includes("shadcn") &&
+          meta.tracking !== "asset" &&
+          meta.tracking !== "local-composition",
       )
       .map(([name]) => name),
   )

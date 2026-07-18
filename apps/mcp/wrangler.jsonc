@@ -1,0 +1,45 @@
+{
+  // Hosted Afframe MCP endpoint — Streamable HTTP over a Cloudflare Worker.
+  // Bundles src/http.ts (the WebStandard transport); the stdio path (src/server.ts)
+  // ships separately via the `afframe-mcp` npx bin and is not deployed here.
+  //
+  // Two named environments; ALWAYS deploy with `--env staging|production`.
+  // The top-level `name` is a sentinel (`afframe-mcp-unbound`) deliberately
+  // distinct from every env name, so a stray bare `wrangler deploy` (no `--env`)
+  // creates a harmless unused worker instead of clobbering the production
+  // `afframe-mcp` worker (which would strip its route + AFFRAME_API_BASE var).
+  // Deploy via .github/workflows/deploy-mcp.yml (workflow_dispatch).
+  //
+  // No secrets: the caller supplies their Afframe API key per request as a
+  // Bearer token, which the Worker forwards to the public API. No D1, no crons.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "afframe-mcp-unbound",
+  "main": "src/http.ts",
+  "compatibility_date": "2026-01-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "env": {
+    "staging": {
+      "name": "afframe-mcp-staging",
+      // custom_domain auto-creates the DNS record on the afframe.com zone.
+      "routes": [
+        { "pattern": "mcp-staging.afframe.com", "custom_domain": true },
+      ],
+      "vars": {
+        "AFFRAME_API_BASE": "https://api-staging.afframe.com",
+      },
+    },
+    "production": {
+      "name": "afframe-mcp",
+      "routes": [{ "pattern": "mcp.afframe.com", "custom_domain": true }],
+      "vars": {
+        "AFFRAME_API_BASE": "https://api.afframe.com",
+      },
+    },
+  },
+}

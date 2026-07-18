@@ -32,6 +32,16 @@ on:
         required: false
         type: string
         default: ""
+      auto_release_id:
+        description: "Published release ID for automatic CD. Empty for manual deploys. When set, the guard rechecks the release and this environment after acquiring the deployment lock."
+        required: false
+        type: string
+        default: ""
+      auto_release_published_at:
+        description: "Expected published_at timestamp for auto_release_id. Required when auto_release_id is set."
+        required: false
+        type: string
+        default: ""
     outputs:
       deployed:
         description: "Whether the deploy step actually ran"
@@ -89,6 +99,9 @@ jobs:
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      deployments: read
     outputs:
       go: ${{ steps.flag.outputs.go }}
     steps:
@@ -96,15 +109,35 @@ jobs:
         with:
           egress-policy: audit
 
+      - if: inputs.auto_release_id != ''
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - id: release
+        if: inputs.auto_release_id != ''
+        name: Recheck automatic release after acquiring environment lock
+        env:
+          DEPLOYMENT_ENVIRONMENTS: ${{ inputs.environment }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.auto_release_id }}
+          RELEASE_PUBLISHED_AT: ${{ inputs.auto_release_published_at }}
+        run: node scripts/release-deploy-gate.mjs
+
       - id: flag
         env:
+          AUTO_RELEASE_ELIGIBLE: ${{ steps.release.outputs.eligible }}
+          AUTO_RELEASE_ID: ${{ inputs.auto_release_id }}
           BOOTSTRAPPED: ${{ vars.AWS_BOOTSTRAPPED }}
         run: |
-          if [ "${BOOTSTRAPPED}" = "true" ]; then
-            echo "go=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "${BOOTSTRAPPED}" != "true" ]; then
             echo "AWS deploy gated: vars.AWS_BOOTSTRAPPED is not 'true'. Set it to 'true' to enable deploys."
             echo "go=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "${AUTO_RELEASE_ID}" ] && [ "${AUTO_RELEASE_ELIGIBLE}" != "true" ]; then
+            echo "Automatic release deploy is no longer eligible."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
           fi
 
   # Pre-deploy fast-fail on missing repo vars / secrets. CDK throws on the
@@ -985,11 +1018,9 @@ jobs:
     # Cold RDS/ECS resume now runs in deploy-prep under the image builds and
     # has its own 55-minute ceiling.
     timeout-minutes: 75
-    # Production deploys pause here for human approval. Configured on the
-    # `production` GitHub Environment via deployment-protection-rules
-    # (required-reviewers). Staging has no protection rule so deploys
-    # flow through. See docs/runbooks/AWS-SETUP.md "Production deploy
-    # approval".
+    # Environment boundary controls OIDC identity, secrets, audit history,
+    # and allowed branches/tags. Automatic stable releases reach production
+    # only after the controller's one-hour hold and a green staging deploy.
     environment: ${{ inputs.environment }}
     permissions:
       id-token: write

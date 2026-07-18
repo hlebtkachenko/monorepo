@@ -2,15 +2,15 @@
 
 > Public host + email inventory: [`docs/DOMAINS-AND-EMAIL.md`](../DOMAINS-AND-EMAIL.md).
 
-Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Staging deploys are live; production deploys additionally require approval in the `production` GitHub environment (first prod deploy: v0.2.5, 2026-06-01).
+Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` runs. Published releases enter the one-hour automatic CD hold; manual deploy remains available for recovery and operator-directed changes.
 
 ## Trigger matrix
 
-| Trigger                | Behaviour                                                                                                                                                                                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tag a release `v0.x.x` | `release.yml` builds the `apps/web` tarball + SLSA L3 provenance + CycloneDX SBOM + cosign signature, creates the GitHub Release. **Does NOT deploy to AWS** — deploy is a separate manual step (see `docs/conventions/RELEASES.md` "Tag → deploy order"). |
-| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                                                                                                                                                                   |
-| Manual deploy          | `gh workflow run _deploy-aws.yml -f environment=<staging\|production>` (production requires environment approval). After tagging, deploy is what actually moves AWS to the new version.                                                                    |
+| Trigger                | Behaviour                                                                                                                                                                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Tag a release `v0.x.x` | `release.yml` builds and publishes the signed GitHub Release, waits one hour, then deploys an eligible stable release to staging and production. Release candidates stop after staging. Add `<!-- cd:skip -->` to the release body to suppress automatic CD. |
+| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                                                                                                                                                                     |
+| Manual deploy          | `gh workflow run _deploy-aws.yml -f environment=<staging\|production>`. A manual deployment started during the one-hour release hold suppresses automatic CD for that release.                                                                               |
 
 ## Pre-deploy checklist
 

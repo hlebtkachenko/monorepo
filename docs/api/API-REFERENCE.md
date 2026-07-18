@@ -207,7 +207,7 @@ The docs surface is **public-by-design**. `/v1/docs` and `/v1/openapi.json` are 
 
 - Build: `pnpm --filter api build` (webpack bundle, source-first workspace deps).
 - Container: same Fargate task as before — no new image layer.
-- Deploy: the standard `_deploy-aws.yml` workflow. Staging first; production flip is manual per ADR-0020 / AFF-220.
+- Deploy: published stable releases run the one-hour automatic CD controller, staging first, then production. `_deploy-aws.yml` remains the manual recovery entrypoint.
 
 ---
 

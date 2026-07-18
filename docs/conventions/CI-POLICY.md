@@ -175,13 +175,13 @@ When `TURBO_API` is empty (the v1 default before manual variable set), the compo
 
 ## Concurrency
 
-| Workflow                 | Group                                | cancel-in-progress |
-| ------------------------ | ------------------------------------ | ------------------ |
-| PR builds (`ci.yml`)     | `ci-${{ github.ref }}`               | `true`             |
-| `main` builds            | `ci-main`                            | `false`            |
-| Release builds (tag)     | `release-${{ github.ref }}`          | `false`            |
-| Deploy AWS               | `deploy-aws-${{ env }}-${{ stack }}` | `false`            |
-| Drift detect (scheduled) | `drift`                              | `true`             |
+| Workflow                 | Group                             | cancel-in-progress |
+| ------------------------ | --------------------------------- | ------------------ |
+| PR builds (`ci.yml`)     | `ci-${{ github.ref }}`            | `true`             |
+| `main` builds            | `ci-main`                         | `false`            |
+| Release build + auto CD  | `release-${{ github.ref }}`       | `false`            |
+| Deploy / power AWS       | `env-mutation-${{ environment }}` | `false`            |
+| Drift detect (scheduled) | `drift`                           | `true`             |
 
 Rule: PR runs cancel; `main`, releases, and deploys never cancel. Cancellation on `main` or release would leave a half-built artifact on the registry.
 

@@ -127,20 +127,22 @@ structural reasons.
 
 Two environments must exist on the repo. Create at start of bootstrap (does not need AWS).
 
-| Environment  | Required reviewers | Wait timer | Branch policy |
-| ------------ | ------------------ | ---------- | ------------- |
-| `staging`    | 0 (auto-deploy)    | 0          | `main` only   |
-| `production` | 1 (Hleb for now)   | 5 minutes  | `main` only   |
+| Environment  | Required reviewers | Wait timer | Branch policy                 |
+| ------------ | ------------------ | ---------- | ----------------------------- |
+| `staging`    | 0                  | 0          | `main`, `verify/*`, tags `v*` |
+| `production` | 0                  | 0          | `main`, tags `v*`             |
 
 ```bash
-gh api -X PUT repos/hlebtkachenko/monorepo/environments/staging
+gh api -X PUT repos/hlebtkachenko/monorepo/environments/staging \
+  -F deployment_branch_policy='{"protected_branches":false,"custom_branch_policies":true}'
 gh api -X PUT repos/hlebtkachenko/monorepo/environments/production \
-  -f wait_timer=300 \
-  -F reviewers='[{"type":"User","id":<TBD-numeric-user-id>}]' \
-  -F deployment_branch_policy='{"protected_branches":true,"custom_branch_policies":false}'
+  -F deployment_branch_policy='{"protected_branches":false,"custom_branch_policies":true}'
+gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name='verify/*' -f type=branch
+gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name='v*' -f type=tag
+gh api -X POST repos/hlebtkachenko/monorepo/environments/production/deployment-branch-policies -f name=main -f type=branch
+gh api -X POST repos/hlebtkachenko/monorepo/environments/production/deployment-branch-policies -f name='v*' -f type=tag
 ```
-
-Get your numeric user id with `gh api user --jq .id`.
 
 ## Setting repo vars (post-bootstrap)
 

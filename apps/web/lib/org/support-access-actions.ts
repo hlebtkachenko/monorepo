@@ -11,6 +11,10 @@ import { impersonation, organization } from "@workspace/db/schema"
 import { resolveMembership } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
+/** Length of the support-access consent window. Single source for the SQL
+ * interval and the audit payload so the two can never drift. */
+const SUPPORT_ACCESS_WINDOW_DAYS = 7
+
 export interface SetSupportAccessResult {
   ok: boolean
 }
@@ -64,7 +68,9 @@ export async function setSupportAccess(
     await db
       .update(organization)
       .set({
-        support_access_expires_at: on ? sql`now() + interval '7 days'` : null,
+        support_access_expires_at: on
+          ? sql`now() + make_interval(days => ${SUPPORT_ACCESS_WINDOW_DAYS})`
+          : null,
       })
       .where(eq(organization.id, organizationId))
   })
@@ -90,7 +96,7 @@ export async function setSupportAccess(
     organizationId,
     actorUserId: userId,
     action: on ? "org.support_access.granted" : "org.support_access.revoked",
-    payload: on ? { window: "7 days" } : {},
+    payload: on ? { window: `${SUPPORT_ACCESS_WINDOW_DAYS} days` } : {},
   })
 
   return { ok: true }

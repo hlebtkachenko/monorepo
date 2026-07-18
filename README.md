@@ -11,8 +11,16 @@ Next.js + shadcn/ui monorepo with Turborepo, pnpm workspaces, Storybook, and Vit
 
 ```bash
 pnpm install
-pnpm dev          # Next.js dev server (port 3000)
+pnpm dev          # all app dev servers via turbo
 ```
+
+In a Conductor workspace (the normal setup), single dev servers start from the
+Run menu — `web`, `api`, and `admin` buttons, each on the workspace's own
+`$CONDUCTOR_PORT` range against its isolated database (defined in
+[`.conductor/settings.toml`](.conductor/settings.toml), explained in
+[`docs/runbooks/CONDUCTOR.md`](docs/runbooks/CONDUCTOR.md)). Launching all
+apps at once stays a terminal command: `pnpm dev`. On a plain clone without
+Conductor, web binds :3000 and admin :3100.
 
 ## Repository Map
 
@@ -72,7 +80,7 @@ rule that bites. Full rules: [`AGENTS.md`](AGENTS.md). Task router:
 
 | Command                                  | Description                    |
 | ---------------------------------------- | ------------------------------ |
-| `pnpm dev`                               | Start Next.js dev server       |
+| `pnpm dev`                               | Start all app dev servers      |
 | `pnpm build`                             | Build all packages and apps    |
 | `pnpm test`                              | Run all tests via Turborepo    |
 | `pnpm lint`                              | Lint all packages              |

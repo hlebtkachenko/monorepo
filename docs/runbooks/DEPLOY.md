@@ -6,11 +6,11 @@ Active. `vars.AWS_BOOTSTRAPPED=true` is set (2026-05-11), so `_deploy-aws.yml` r
 
 ## Trigger matrix
 
-| Trigger                | Behaviour                                                                                                                                                                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Tag a release `v0.x.x` | `release.yml` builds and publishes the signed GitHub Release, waits one hour, then deploys an eligible stable release to staging and production. Release candidates stop after staging. Add `<!-- cd:skip -->` to the release body to suppress automatic CD. |
-| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                                                                                                                                                                     |
-| Manual deploy          | `gh workflow run _deploy-aws.yml -f environment=<staging\|production>`. A manual deployment started during the one-hour release hold suppresses automatic CD for that release.                                                                               |
+| Trigger                | Behaviour                                                                                                                                                                                                                                                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tag a release `v0.x.x` | `release.yml` builds and publishes the signed GitHub Release, waits on the non-billable `release-hold` Environment timer for one hour, then deploys an eligible stable release to staging and production. Release candidates stop after staging. Add `<!-- cd:skip -->` to the release body to suppress automatic CD. |
+| Push to `main`         | `ci.yml` runs full check suite. No deploy on plain main pushes — releases gate via tags.                                                                                                                                                                                                                              |
+| Manual deploy          | `gh workflow run _deploy-aws.yml -f environment=<staging\|production>`. A manual deployment started during the one-hour release hold suppresses automatic CD for that release.                                                                                                                                        |
 
 ## Pre-deploy checklist
 
@@ -57,6 +57,23 @@ images build, then performs a single ECS rolling deploy. There is no canary
 logic. The workflow renders a new ECS task definition, triggers a rolling
 update, watches health checks for ~5 minutes, and auto-aborts with an ECS
 circuit-breaker rollback on failure. There is no `_rollback.yml` workflow.
+
+## Telegram deployment notifications
+
+`_deploy-aws.yml` posts advisory messages through the Telegram bot ingest
+endpoint. Bot delivery failure never changes deployment status.
+
+| Outcome                              | Telegram message                                                                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Staging succeeds                     | none                                                                                                                  |
+| Production succeeds                  | automatic/manual mode, release or base release + commit count, deployed commit, change summary, stack scope, run link |
+| Staging or production fails          | the same target context plus failed phase, failed step, sanitized error excerpt, run link                             |
+| Automatic release becomes ineligible | none; newer releases, manual deploys, and the `cd:skip` marker are expected suppression, not incidents                |
+
+The old generic `_deploy-aws` entry was removed from `notify-ci.yml`, so a
+failed deploy produces one detailed Telegram alert instead of a detailed alert
+plus a generic CI-failure duplicate. Telegram-triggered `/deploy` and
+`/rollback` commands still send their existing confirmation/dispatch replies.
 
 ## Rollback triggers
 

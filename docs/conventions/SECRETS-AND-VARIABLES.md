@@ -28,6 +28,7 @@
 | `AWS_ACCOUNT_ID`                                                  | repo `secrets`                       | repository                                                        | single-account MVP (ADR-0007); stored as secret to keep account ID out of logs                                                                                                                                                                                                 |
 | `AWS_DEPLOY_ROLE_ARN_STAGING`, `AWS_DEPLOY_ROLE_ARN_PRODUCTION`   | repo `secrets`                       | repository                                                        | contain account ID; trust policy gates the actual access                                                                                                                                                                                                                       |
 | `AWS_BOOTSTRAPPED`                                                | repo `vars`                          | repository                                                        | boolean flag, gates AWS-touching workflows                                                                                                                                                                                                                                     |
+| `INGEST_SECRET`                                                   | repo `secrets`                       | repository                                                        | shared bearer for GitHub Actions to send CI and deployment events through `bot.afframe.com`; never the Telegram bot token                                                                                                                                                      |
 | `OPENSTATUS_*` (5) + `OVH_VPS_SSH_KEY` + `OVH_VPS_HOST_KEY`       | repo `secrets`                       | repository                                                        | OpenStatus stack + VPS deploy path. Status page is off-AWS (ADR-0019) so these do not live in AWS Secrets Manager. Rendered into `/opt/openstatus/.env.docker` by `deploy-statuspage.yml`. See [`infra/openstatus/deploy/README.md`](../../infra/openstatus/deploy/README.md). |
 | `OVH_VPS_HOST` / `OVH_VPS_PORT` / `OVH_VPS_USER`                  | repo `vars`                          | repository                                                        | non-secret deploy coordinates                                                                                                                                                                                                                                                  |
 | Cosign signing                                                    | none                                 | n/a                                                               | keyless OIDC via Sigstore; no secret stored                                                                                                                                                                                                                                    |
@@ -125,18 +126,21 @@ structural reasons.
 
 ## GitHub environments
 
-Two environments must exist on the repo. Create at start of bootstrap (does not need AWS).
+Three environments must exist on the repo. Create at start of bootstrap (does not need AWS).
 
-| Environment  | Required reviewers | Wait timer | Branch policy                 |
-| ------------ | ------------------ | ---------- | ----------------------------- |
-| `staging`    | 0                  | 0          | `main`, `verify/*`, tags `v*` |
-| `production` | 0                  | 0          | `main`, tags `v*`             |
+| Environment    | Required reviewers | Wait timer | Branch policy                 |
+| -------------- | ------------------ | ---------- | ----------------------------- |
+| `release-hold` | 0                  | 60 minutes | unrestricted                  |
+| `staging`      | 0                  | 0          | `main`, `verify/*`, tags `v*` |
+| `production`   | 0                  | 0          | `main`, tags `v*`             |
 
 ```bash
 gh api -X PUT repos/hlebtkachenko/monorepo/environments/staging \
   -F deployment_branch_policy='{"protected_branches":false,"custom_branch_policies":true}'
 gh api -X PUT repos/hlebtkachenko/monorepo/environments/production \
   -F deployment_branch_policy='{"protected_branches":false,"custom_branch_policies":true}'
+gh api -X PUT repos/hlebtkachenko/monorepo/environments/release-hold \
+  -F wait_timer=60
 gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name=main -f type=branch
 gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name='verify/*' -f type=branch
 gh api -X POST repos/hlebtkachenko/monorepo/environments/staging/deployment-branch-policies -f name='v*' -f type=tag
@@ -152,6 +156,7 @@ gh variable set AWS_BOOTSTRAPPED                 --body true
 gh secret set AWS_ACCOUNT_ID                     --body <TBD-account-id>
 gh secret set AWS_DEPLOY_ROLE_ARN_STAGING        --body <TBD-staging-deploy-role-arn>
 gh secret set AWS_DEPLOY_ROLE_ARN_PRODUCTION     --body <TBD-production-deploy-role-arn>
+gh secret set INGEST_SECRET                      --body <TBD-bot-ingest-secret>
 ```
 
 ## Setting environment secrets

@@ -1,0 +1,84 @@
+# Deploy the hosted Afframe MCP endpoint (apps/mcp, src/http.ts) to Cloudflare Workers.
+# Manual only (workflow_dispatch) — no push trigger, so a merge never auto-deploys.
+# Requires the existing repo secrets CLOUDFLARE_API_TOKEN (Workers + Zone:Edit) and
+# CLOUDFLARE_ACCOUNT_ID. No per-Worker secrets: the caller supplies their Afframe API
+# key per request as a Bearer token, which the Worker forwards to the public API.
+#
+# The `production` GitHub Environment must carry a required-reviewer protection rule
+# (configured in repo settings) so a prod deploy pauses for human approval; `staging`
+# runs immediately.
+name: deploy-mcp
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        type: choice
+        options:
+          - staging
+          - production
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: deploy-mcp-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ github.event.inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: apps/mcp
+          # No wranglerVersion pin: use the wrangler installed by the setup step
+          # so workspace:* deps resolve (same rationale as deploy-bot.yml).
+          command: deploy --env ${{ github.event.inputs.environment }}
+
+      - name: Smoke check (health + unauthenticated gate)
+        env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        run: |
+          if [ "$ENVIRONMENT" = "production" ]; then
+            host="mcp.afframe.com"
+          else
+            host="mcp-staging.afframe.com"
+          fi
+
+          # Liveness: /health is unauthenticated and never touches the API, so it
+          # is a valid smoke even when the staging API stack is parked.
+          health=$(curl -sS -o /tmp/health.json -w '%{http_code}' "https://${host}/health") || true
+          jq . /tmp/health.json || true
+          if [ "$health" != "200" ]; then
+            echo "::error::${host}/health expected 200, got ${health}"
+            exit 1
+          fi
+
+          # Security gate: an unauthenticated MCP call must be rejected at the edge
+          # (401), never enumerate tools.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "https://${host}/" \
+            -H 'content-type: application/json' \
+            --data '{"jsonrpc":"2.0","method":"tools/list","id":1}') || true
+          if [ "$code" != "401" ]; then
+            echo "::error::unauthenticated tools/list expected 401, got ${code}"
+            exit 1
+          fi
+
+          echo "MCP ${ENVIRONMENT} smoke OK: health 200, unauthenticated gate 401" >> "$GITHUB_STEP_SUMMARY"

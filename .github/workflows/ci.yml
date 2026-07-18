@@ -136,6 +136,15 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo lint --affected --ui=stream --continue
 
+      # Hard gate for the org-UI rebuild dependency wall: the new /o tree must
+      # stay warning-free (its no-cross-org-tree-import rule is downgraded to a
+      # warning by the repo-wide onlyWarn, so --max-warnings 0 is what makes it
+      # blocking). Not --affected: the wall must be checked on every run so a
+      # new->old import can never slip through during coexistence. Cheap; skips
+      # cleanly once the tree is git-mv'd to the canonical path at the flip.
+      - name: Org tree boundary (new /o tree)
+        run: pnpm --filter web lint:org-new
+
       # `cdk synth` coverage moved to `workflow-lint / cdk-synth-strict` —
       # per-env + --strict mode + offline. See .github/workflows/workflow-lint.yml.
 

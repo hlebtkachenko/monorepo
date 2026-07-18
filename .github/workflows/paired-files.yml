@@ -38,7 +38,7 @@ jobs:
         run: node scripts/governance/check-archetype-body.mjs
       - name: Check changelog fragment added
         if: ${{ github.event.pull_request.user.login != 'dependabot[bot]' }}
-        run: node scripts/governance/check-changelog-unreleased.mjs
+        run: node scripts/governance/check-changelog-fragment.mjs
         env:
           BASE_REF: ${{ github.event.pull_request.base.sha }}
           HEAD_REF: ${{ github.event.pull_request.head.sha }}

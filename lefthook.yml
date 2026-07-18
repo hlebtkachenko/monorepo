@@ -101,18 +101,18 @@ pre-push:
       # behaviour skips when push has no file changes).
       glob: "*"
       run: node scripts/check-pr-title.mjs "$(git log -1 --format='%s')"
-    changelog-unreleased:
+    changelog-fragment:
       # Mirrors the required `check` workflow's changelog gate. Every
-      # non-release PR must add an entry under CHANGELOG.md ## [Unreleased].
-      # Release PRs with a `chore(release): vX.Y.Z` title are exempt because
-      # they move Unreleased entries into a versioned section.
+      # non-release PR must add one fragment under changelog.d/. Release PRs
+      # with a `chore(release): vX.Y.Z` title are exempt because they run the
+      # collector, which consumes fragments into a versioned section.
       glob: "*"
       run: |
         if ! git rev-parse --verify --quiet origin/main >/dev/null; then
-          echo "[lefthook changelog-unreleased] origin/main not fetched — skipping. Run: git fetch origin main"
+          echo "[lefthook changelog-fragment] origin/main not fetched — skipping. Run: git fetch origin main"
           exit 0
         fi
-        node scripts/governance/check-changelog-unreleased.mjs \
+        node scripts/governance/check-changelog-fragment.mjs \
           --base origin/main \
           --head HEAD \
           --title "$(git log -1 --format='%s')"

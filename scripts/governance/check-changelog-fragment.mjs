@@ -23,7 +23,7 @@ const RELEASE_TITLE_RE =
 
 function usage() {
   process.stderr.write(
-    "usage: check-changelog-unreleased.mjs --base <ref> --head <ref|WORKTREE> --title <pr-title>\n",
+    "usage: check-changelog-fragment.mjs --base <ref> --head <ref|WORKTREE> --title <pr-title>\n",
   )
 }
 

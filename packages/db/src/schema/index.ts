@@ -105,3 +105,6 @@ export * from "./inbox_item"
 
 // Brain admission caps — cross-instance concurrent-run slots, admin-plane / NO RLS (0063, #472)
 export * from "./brain_admission_slot"
+
+// Org favorites — per-user, per-org starred pages, org-scoped FORCE RLS (0064)
+export * from "./favorite_page"

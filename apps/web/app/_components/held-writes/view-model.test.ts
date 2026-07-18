@@ -405,6 +405,130 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     ).toBe(true)
   })
 
+  it("[#779] a partial with NO supply_kind is HELD (never previewed as a 548 posting) — matches bookDocument", () => {
+    // The core defect: an absent supplyKind previously defaulted to OTHER → a confident 548 posting the
+    // approve then threw on. The preview must now mirror bookDocument's fail-closed hold: skip the partial
+    // with a caveat, never fabricate an account.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "5000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "1050.00",
+                  vatJurisdiction: "DOMESTIC",
+                  // supplyKind deliberately absent
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    // ONLY the SERVICES partial's lines — the supply-kind-less partial contributes NO 548 (nor any) line.
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.lines.some((l) => l.account === "548")).toBe(false)
+    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("druh plnění"))).toBe(
+      true,
+    )
+  })
+
+  it("[#779] a lone supply-kind-less partial yields NO preview (held), not a fabricated 548 posting", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "5000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "1050.00",
+                  vatJurisdiction: "DOMESTIC",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    // No derivable posting → null preview (the UI shows "held"), never a guessed 548 entry.
+    expect(vm.mddPreview).toBeNull()
+  })
+
+  it("[#779] skips an ADVANCE partial (§37a settlement not modelled) with a caveat — matches bookDocument", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "20000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "4200.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "ADVANCE",
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
+      "518",
+      "343",
+      "321",
+    ])
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("Záloha"))).toBe(true)
+  })
+
   it("reverses the MD/D sides for a credit note captured with negative amounts (§42 dobropis)", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({

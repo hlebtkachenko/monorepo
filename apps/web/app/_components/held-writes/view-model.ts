@@ -612,13 +612,30 @@ function mddPreviewFromCapture(
   const lines: MddPreviewLine[] = []
   const scenarioIds = new Set<string>()
   let skippedAsset = false
+  let skippedAdvance = false
+  let skippedUnclassifiedSupply = false
   let skippedUnclassifiable = false
   let hasCreditNote = false
 
   for (const p of partials) {
-    const supplyKind = (asString(p["supplyKind"]) ?? "OTHER") as SupplyKind
+    // #779: mirror EXACTLY what `bookDocument` does with `supply_kind` so the preview never shows a posting
+    // the approve would then refuse to book. The booker FAILS CLOSED (holds the document) on a null
+    // supply_kind, on ASSET (capitalisation facts absent), and on ADVANCE (§37a settlement not modelled) —
+    // book-document.ts:216-235. Previously an absent supplyKind defaulted to "OTHER" and previewed a confident
+    // 548 posting that the approve transaction then threw on — a confident-wrong DISPLAY. Now each of those
+    // three holds is surfaced as a caveat, not a fabricated account.
+    const rawSupplyKind = asString(p["supplyKind"])
+    if (rawSupplyKind == null) {
+      skippedUnclassifiedSupply = true
+      continue
+    }
+    const supplyKind = rawSupplyKind as SupplyKind
     if (supplyKind === "ASSET") {
       skippedAsset = true
+      continue
+    }
+    if (supplyKind === "ADVANCE") {
+      skippedAdvance = true
       continue
     }
     const jurisdiction = (asString(p["vatJurisdiction"]) ??
@@ -689,6 +706,16 @@ function mddPreviewFromCapture(
   if (skippedAsset) {
     caveats.push(
       "Dlouhodobý majetek (ASSET) v položkách dokladu — kapitalizace se u náhledu nezachycuje, protože zachycený doklad nenese informaci o době použitelnosti.",
+    )
+  }
+  if (skippedAdvance) {
+    caveats.push(
+      "Záloha (ADVANCE, §37a) v položkách dokladu — vypořádání zálohové DPH se automaticky neúčtuje; doklad se při schválení podrží k ručnímu posouzení a v náhledu se tato položka nezobrazuje jako zaúčtování.",
+    )
+  }
+  if (skippedUnclassifiedSupply) {
+    caveats.push(
+      "U některé položky není určen druh plnění — nákladový účet nelze bezpečně odvodit, takže se doklad při schválení podrží k ručnímu posouzení; náhled tuto položku nezobrazuje jako zaúčtování (neúčtuje se na odhadnutý účet).",
     )
   }
   if (hasCreditNote) {

@@ -13,7 +13,6 @@ import {
   LOCALE_COOKIE,
   isLocale,
 } from "@workspace/i18n/config"
-import { toast } from "@workspace/ui/components/sonner"
 
 import {
   BRAND_SUPPORT_EMAIL,
@@ -61,7 +60,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
-import { XCircle, XIcon } from "@workspace/ui/lib/icons"
+import { XIcon } from "@workspace/ui/lib/icons"
 import { Switch } from "@workspace/ui/components/switch"
 import {
   Tooltip,
@@ -107,7 +106,6 @@ export function OrgHeaderActions({
   const locale = useLocale()
   const { theme = "system", setTheme } = useTheme()
   const { pack, setPack } = useIconPack()
-  const [supportAccess, setSupportAccess] = useState(false)
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackContext, setFeedbackContext] =
@@ -137,22 +135,6 @@ export function OrgHeaderActions({
   }
 
   const settingsHref = orgHref(slug, "settings")
-
-  const setSupport = (next: boolean) => {
-    setSupportAccess(next)
-    if (next) {
-      toast.success("Support access on", {
-        description: "Our support team can now view your workspace.",
-        closeButton: true,
-      })
-    } else {
-      toast("Support access off", {
-        icon: <XCircle className="size-4" />,
-        description: "Our support team can no longer view your workspace.",
-        closeButton: true,
-      })
-    }
-  }
 
   // "Send feedback" reuses the right-click feedback dialog. There's no clicked
   // element, so capture a page-level context snapshot on open.
@@ -230,15 +212,14 @@ export function OrgHeaderActions({
             <BrandName /> status
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {/* Grant support access — a real menuitem so it joins the menu's
-              roving focus. Enter or click toggles; the Switch is presentational
-              and `onSelect` preventDefault keeps the menu open. */}
+          {/* Support access is not wired yet — the real toggle (add/remove a
+              support-agent admin + admin login-as) lands in F11. The Switch is
+              disabled and selecting is a no-op so the eventual control is
+              visible without falsely granting access for an action that does
+              nothing. */}
           <DropdownMenuItem
             className="justify-between"
-            onSelect={(e) => {
-              e.preventDefault()
-              setSupport(!supportAccess)
-            }}
+            onSelect={(e) => e.preventDefault()}
           >
             <span className="flex items-center gap-1">
               Support access
@@ -256,15 +237,15 @@ export function OrgHeaderActions({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-52">
-                  Lets our support team sign in to your workspace to help
-                  troubleshoot. Turn it off any time.
+                  Coming soon — lets our support team sign in to your workspace
+                  to help troubleshoot.
                 </TooltipContent>
               </Tooltip>
             </span>
             <Switch
-              checked={supportAccess}
-              onCheckedChange={setSupport}
-              aria-label="Support access"
+              checked={false}
+              disabled
+              aria-label="Support access (coming soon)"
               tabIndex={-1}
               className="pointer-events-none"
             />

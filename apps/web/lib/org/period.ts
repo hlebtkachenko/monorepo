@@ -3,7 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { desc, eq } from "drizzle-orm"
-import { withOrganization } from "@workspace/db"
+import { withOrgReadonly } from "@workspace/db"
 import { accounting_period } from "@workspace/db/schema"
 
 /**
@@ -38,13 +38,14 @@ export interface HeaderPeriod {
  * each page (period-scoped data) resolve different active periods but share this
  * one DB read per RSC request.
  *
- * Runs under `withOrganization`: it binds `app.organization_id` (+ `app.user_id`)
+ * Runs under `withOrgReadonly`: it binds `app.organization_id` (+ `app.user_id`)
  * so the `accounting_period` FORCE-RLS `organization_isolation` policy is the
- * tenant boundary. The explicit `organization_id` filter is defense-in-depth.
+ * tenant boundary, and runs the transaction READ ONLY so this RSC read provably
+ * cannot mutate. The explicit `organization_id` filter is defense-in-depth.
  */
 const getPeriods = cache(
   async (organizationId: string, userId: string): Promise<HeaderPeriod[]> =>
-    withOrganization(organizationId, userId, async (db) =>
+    withOrgReadonly(organizationId, userId, async (db) =>
       db
         .select({
           id: accounting_period.id,

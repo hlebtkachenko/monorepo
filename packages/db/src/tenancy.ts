@@ -53,6 +53,9 @@ import type * as schema from "./schema/index"
  * happens exactly once inside `withTenantGuc`, after all GUCs are set.
  */
 export const organizationBrand: unique symbol = Symbol("OrganizationBound")
+export const organizationReadonlyBrand: unique symbol = Symbol(
+  "OrganizationReadonlyBound",
+)
 export const workspaceBrand: unique symbol = Symbol("WorkspaceBound")
 export const adminBypassBrand: unique symbol = Symbol.for(
   "@workspace/db/adminBypassBrand",
@@ -69,6 +72,17 @@ export type AnyTx = PgTransaction<PostgresJsQueryResultHKT, Schema, FullSchema>
  * compile error: the intersection property at `organizationBrand` is absent.
  */
 export type OrganizationBoundDb = AnyTx & { readonly [organizationBrand]: true }
+
+/**
+ * Drizzle transaction handle identical in binding to `OrganizationBoundDb` but
+ * obtained through `withOrgReadonly`, where the transaction was additionally
+ * set `READ ONLY`. The distinct brand documents at the type level that the
+ * callback provably cannot mutate persistent data. Callers receive this brand
+ * only through `withOrgReadonly`.
+ */
+export type OrganizationReadonlyDb = AnyTx & {
+  readonly [organizationReadonlyBrand]: true
+}
 
 /**
  * Drizzle transaction handle with app.workspace_id + app.user_id GUCs set via
@@ -159,10 +173,21 @@ async function withTenantGuc<T, Bound extends AnyTx>(
   outerTx: AnyTx | undefined,
   bindGucs: (tx: AnyTx, composed: boolean) => Promise<void>,
   fn: (db: Bound) => Promise<T>,
+  readonly = false,
 ): Promise<T> {
   const runner = outerTx ?? db
   const composed = outerTx !== undefined
   return await runner.transaction(async (tx) => {
+    // `SET TRANSACTION READ ONLY` must precede the first query of the
+    // transaction (Postgres rejects it once a SELECT/DML has run), so it is
+    // issued here before the prior-GUC snapshot's `current_setting` reads and
+    // before `bindGucs`. `set_config`/`SET` and plain SELECTs are permitted in
+    // a read-only transaction; only writes to persistent tables are blocked.
+    // Only the non-composed path can guarantee this is the first statement — see
+    // the composition caveat on `withOrgReadonly`.
+    if (readonly) {
+      await tx.execute(sql`SET TRANSACTION READ ONLY`)
+    }
     const prior = composed
       ? {
           orgId: await readGuc(tx, "app.organization_id"),
@@ -188,8 +213,57 @@ async function withTenantGuc<T, Bound extends AnyTx>(
 }
 
 // ---------------------------------------------------------------------------
-// withOrganization
+// withOrganization / withOrgReadonly
 // ---------------------------------------------------------------------------
+
+/**
+ * Build the org-tier GUC binder shared by `withOrganization` and
+ * `withOrgReadonly`: set `app.organization_id` + `app.user_id`, derive
+ * `app.workspace_id` from the organization row, and clear inherited outer-scope
+ * values in a composed frame. `helperName` prefixes the not-found error so each
+ * public helper throws under its own name.
+ */
+function bindOrganizationGucs(
+  helperName: string,
+  organizationId: string,
+  userId: string | null,
+): (tx: AnyTx, composed: boolean) => Promise<void> {
+  return async (tx, composed) => {
+    await tx.execute(
+      sql`SELECT set_config('app.organization_id', ${organizationId}, true)`,
+    )
+    if (userId) {
+      await tx.execute(sql`SELECT set_config('app.user_id', ${userId}, true)`)
+    } else if (composed) {
+      // Clear outer-scope app.user_id so a userId=null call doesn't silently
+      // inherit the prior user's identity for audit/RLS purposes.
+      await tx.execute(sql`SELECT set_config('app.user_id', '', true)`)
+    }
+
+    // Derive parent workspace_id from the organization row so workspace-tier
+    // RLS policies resolve inside the org-bound tx without a separate
+    // withWorkspace frame.
+    const wsRows = await executeRows<{ workspace_id: string | null }>(
+      tx,
+      sql`SELECT workspace_id FROM organization WHERE id = ${organizationId}::uuid`,
+    )
+    if (!wsRows[0]) {
+      throw new Error(
+        `${helperName}: organization not found: ${organizationId}`,
+      )
+    }
+    const workspaceId = wsRows[0].workspace_id
+    if (workspaceId) {
+      await tx.execute(
+        sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`,
+      )
+    } else if (composed) {
+      // Org row has no workspace_id (legacy data). Clear outer-scope
+      // app.workspace_id to avoid inheriting an unrelated workspace.
+      await tx.execute(sql`SELECT set_config('app.workspace_id', '', true)`)
+    }
+  }
+}
 
 /**
  * Run `fn` inside a transaction with `app.organization_id`, `app.user_id`,
@@ -217,42 +291,39 @@ export async function withOrganization<T>(
 ): Promise<T> {
   return await withTenantGuc<T, OrganizationBoundDb>(
     outerTx,
-    async (tx, composed) => {
-      await tx.execute(
-        sql`SELECT set_config('app.organization_id', ${organizationId}, true)`,
-      )
-      if (userId) {
-        await tx.execute(sql`SELECT set_config('app.user_id', ${userId}, true)`)
-      } else if (composed) {
-        // Clear outer-scope app.user_id so a userId=null call doesn't silently
-        // inherit the prior user's identity for audit/RLS purposes.
-        await tx.execute(sql`SELECT set_config('app.user_id', '', true)`)
-      }
-
-      // Derive parent workspace_id from the organization row so workspace-tier
-      // RLS policies resolve inside the org-bound tx without a separate
-      // withWorkspace frame.
-      const wsRows = await executeRows<{ workspace_id: string | null }>(
-        tx,
-        sql`SELECT workspace_id FROM organization WHERE id = ${organizationId}::uuid`,
-      )
-      if (!wsRows[0]) {
-        throw new Error(
-          `withOrganization: organization not found: ${organizationId}`,
-        )
-      }
-      const workspaceId = wsRows[0].workspace_id
-      if (workspaceId) {
-        await tx.execute(
-          sql`SELECT set_config('app.workspace_id', ${workspaceId}, true)`,
-        )
-      } else if (composed) {
-        // Org row has no workspace_id (legacy data). Clear outer-scope
-        // app.workspace_id to avoid inheriting an unrelated workspace.
-        await tx.execute(sql`SELECT set_config('app.workspace_id', '', true)`)
-      }
-    },
+    bindOrganizationGucs("withOrganization", organizationId, userId),
     fn,
+  )
+}
+
+/**
+ * Read-only sibling of `withOrganization`: binds the exact same org-tier GUCs
+ * (`app.organization_id` + `app.user_id`, derived `app.workspace_id`) so the
+ * same FORCE-RLS policies are the tenant boundary, but additionally issues
+ * `SET TRANSACTION READ ONLY` as the first statement so the callback provably
+ * cannot mutate persistent data. Use it for org-scoped reads (RSC/data
+ * fetching) that must never write — the read-only transaction turns any
+ * accidental INSERT/UPDATE/DELETE into a hard Postgres error instead of a
+ * silent write.
+ *
+ * Same signature + throw-on-missing-org contract as `withOrganization`.
+ *
+ * Composition caveat: `SET TRANSACTION READ ONLY` is only valid as the first
+ * statement of a transaction. Passing `outerTx` (SAVEPOINT nesting) after the
+ * outer transaction has run a query will make Postgres reject the read-only
+ * mode; the known call sites are all top-level (no `outerTx`).
+ */
+export async function withOrgReadonly<T>(
+  organizationId: string,
+  userId: string | null,
+  fn: (db: OrganizationReadonlyDb) => Promise<T>,
+  outerTx?: AnyTx,
+): Promise<T> {
+  return await withTenantGuc<T, OrganizationReadonlyDb>(
+    outerTx,
+    bindOrganizationGucs("withOrgReadonly", organizationId, userId),
+    fn,
+    true,
   )
 }
 

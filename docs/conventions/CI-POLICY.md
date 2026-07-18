@@ -104,7 +104,11 @@ Workflow-level `paths:` filters on the trigger block create stuck PRs when the w
 filters to `branches: [main]` at the trigger level because it is incident
 notification only, never a required check. The job still filters to failed
 `push`/`schedule`/`workflow_dispatch` runs so successful main runs stay quiet,
-but PR completions no longer spawn noisy skipped notification runs.
+but PR completions no longer spawn noisy skipped notification runs. AWS deploy
+and Release workflows are not watched here. `_deploy-aws.yml` owns detailed
+deployment notifications so manual and automatic failures do not also produce
+a generic duplicate alert. Publishing a release by itself is intentionally
+quiet.
 
 ### In-workflow job/step skip via `changes` upstream
 

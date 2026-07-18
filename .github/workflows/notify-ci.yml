@@ -1,7 +1,8 @@
-# DEV-53 — CI failure -> Telegram + deduped GitHub issue, with a one-tap Rerun button.
+# DEV-53 — main CI failure -> Telegram with a one-tap Rerun button.
 # Observes other workflows via `workflow_run` (no edits to the watched workflows). Fires only
 # on failures of post-merge / scheduled / dispatched runs on main — PR-author failure loops
-# stay quiet. Advisory: this workflow never gates anything.
+# stay quiet. Deployment outcomes are owned by `_deploy-aws.yml` so they carry release and
+# target context without duplicate generic alerts. Advisory: this workflow never gates anything.
 name: notify-ci
 
 on:
@@ -9,9 +10,7 @@ on:
     workflows:
       - CI
       - E2E Tests
-      - _deploy-aws
       - deploy-bot
-      - Release
       - Container Scan
       - CodeQL
     types: [completed]

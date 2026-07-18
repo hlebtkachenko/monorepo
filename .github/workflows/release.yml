@@ -218,14 +218,17 @@ jobs:
     needs: publish-release
     if: needs.publish-release.outputs.skip-cd != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 65
+    timeout-minutes: 5
+    # The release-hold environment has a 60-minute wait timer. GitHub applies
+    # the timer before assigning a runner, so the hold consumes no runner time.
+    environment: release-hold
     permissions: {}
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
           egress-policy: audit
-      - name: Hold release for one hour
-        run: sleep 3600
+      - name: Confirm release hold elapsed
+        run: echo "The release-hold environment wait timer elapsed."
 
   deployment-gate:
     needs: [publish-release, release-hold]
@@ -257,6 +260,7 @@ jobs:
     needs: [publish-release, deployment-gate]
     if: needs.deployment-gate.outputs.eligible == 'true'
     permissions:
+      actions: read
       contents: read
       deployments: read
       id-token: write
@@ -277,6 +281,7 @@ jobs:
       needs.deployment-gate.outputs.production == 'true' &&
       needs.staging.outputs.deployed == 'true'
     permissions:
+      actions: read
       contents: read
       deployments: read
       id-token: write

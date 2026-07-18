@@ -187,14 +187,17 @@ The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 6. Attaches the tarball + provenance + SBOM as release assets.
 7. Marks the release as **Pre-release** if the tag matches `-rc.<N>`, otherwise **Latest**.
 
-After publishing, `release.yml` waits one hour, rechecks release and deployment
+After publishing, `release.yml` enters the `release-hold` GitHub Environment.
+Its 60-minute wait timer delays the job before GitHub assigns a runner, so the
+hold uses no runner minutes. The workflow then rechecks release and deployment
 state, deploys release candidates to staging, and deploys stable releases to
 staging followed by production.
 
 ## Tag → deploy order (the operational rule)
 
 `release.yml` publishes the immutable GitHub Release artifact, provenance, and
-SBOM. `release.yml` then holds for one hour. At the end of the hold,
+SBOM. `release.yml` then waits on the `release-hold` Environment's 60-minute
+timer. At the end of the hold,
 it deploys only when all of these remain true:
 
 - the release body does not contain `<!-- cd:skip -->`;
@@ -205,10 +208,34 @@ The gate runs again inside `_deploy-aws.yml` after the per-environment
 concurrency lock is acquired. A manual deploy that wins the lock therefore
 suppresses the automatic deploy instead of being followed by a duplicate.
 
+### One-shot and runner-cost guarantees
+
+- `release.yml` has one trigger only: a push of a `v*` tag. It has no schedule,
+  `release`, `workflow_run`, or self-dispatch trigger.
+- Publishing the GitHub Release does not trigger another run. One pushed tag
+  creates one release workflow run.
+- The one-hour delay is a GitHub Environment wait timer. Wait time is applied
+  before runner assignment and is not billable runner time.
+- Release concurrency is keyed by the immutable tag ref and never cancels an
+  active run. A manual rerun cannot create a redeploy loop: the deployment gate
+  rejects a release once a staging or production deployment already started.
+- A newer release, a manual deployment, or `<!-- cd:skip -->` suppresses the
+  pending automatic deployment. Suppression is terminal for that run.
+
 Release candidates deploy to staging only. Stable releases deploy to staging,
 pass the existing smoke and rollback gates, then deploy to production. Plain
 pushes to `main` remain non-deploying. `_deploy-aws.yml` remains available for
 manual deploys and recovery.
+
+Deployment notifications go through `bot.afframe.com/ingest`:
+
+- successful staging deploys stay quiet;
+- every successful production deploy sends its automatic/manual mode, release
+  or base-release-plus-commits target, deployed commit, change summary, stack,
+  and workflow link;
+- a failed staging or production deploy sends the same target context plus a
+  TLDR with the failed phase, failed step, and a sanitized error excerpt;
+- expected automatic suppression is not reported as a failure.
 
 To publish without automatic CD, add this exact hidden marker to the GitHub
 Release body before the one-hour hold ends:

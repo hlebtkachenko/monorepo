@@ -104,6 +104,7 @@ jobs:
       deployments: read
     outputs:
       go: ${{ steps.flag.outputs.go }}
+      reason: ${{ steps.flag.outputs.reason }}
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -133,11 +134,14 @@ jobs:
           if [ "${BOOTSTRAPPED}" != "true" ]; then
             echo "AWS deploy gated: vars.AWS_BOOTSTRAPPED is not 'true'. Set it to 'true' to enable deploys."
             echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "reason=aws-not-bootstrapped" >> "$GITHUB_OUTPUT"
           elif [ -n "${AUTO_RELEASE_ID}" ] && [ "${AUTO_RELEASE_ELIGIBLE}" != "true" ]; then
             echo "Automatic release deploy is no longer eligible."
             echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "reason=release-ineligible" >> "$GITHUB_OUTPUT"
           else
             echo "go=true" >> "$GITHUB_OUTPUT"
+            echo "reason=ready" >> "$GITHUB_OUTPUT"
           fi
 
   # Pre-deploy fast-fail on missing repo vars / secrets. CDK throws on the
@@ -1900,3 +1904,44 @@ jobs:
             --region "$AWS_REGION" >/dev/null
           echo "::error::smoke failed; rollback issued to $TARGET_TD; exiting non-zero"
           exit 1
+
+  # Advisory Telegram delivery. Successful staging deploys stay quiet;
+  # successful production deploys and failures in either environment notify.
+  # This job never changes deployment truth if the bot itself is unavailable.
+  notify-telegram:
+    needs:
+      [
+        guard,
+        validate-inputs,
+        brand-placeholder-guard,
+        detect-changes,
+        deploy-prep,
+        build-images,
+        deploy,
+        restore-paused-state,
+        smoke,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Notify Telegram of deployment outcome
+        env:
+          AUTO_RELEASE_ID: ${{ inputs.auto_release_id }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOY_NEEDS_JSON: ${{ toJSON(needs) }}
+          DEPLOY_STACK: ${{ inputs.stack }}
+          GITHUB_TOKEN: ${{ github.token }}
+          IMAGE_TAG_OVERRIDE: ${{ inputs.image_tag_override }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: node scripts/deploy-notification.mjs

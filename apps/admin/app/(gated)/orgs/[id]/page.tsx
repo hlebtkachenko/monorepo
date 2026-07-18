@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation"
-import { desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, sql } from "drizzle-orm"
 
 import { withAdminBypass } from "@workspace/db"
 import {
+  app_user,
   audit_event,
   organization,
   organization_membership,
@@ -12,6 +13,7 @@ import { Text } from "@workspace/ui/components/text"
 
 import { auditAdminAction } from "@/lib/admin-audit"
 import { SectionCard } from "../../_components"
+import { SignInToOrgForm } from "./_components/sign-in-to-org-form"
 
 export const metadata = { title: "Organization" }
 
@@ -50,7 +52,52 @@ async function loadOrg(id: string) {
       .orderBy(desc(audit_event.created_at))
       .limit(10)
 
-    return { org, ws: ws ?? null, memberCount, recentActivity }
+    // Resolve the sign-in target: the responsible accountant if set, else the
+    // org owner. This is who the operator impersonates when signing in to the
+    // org (both have access to the book).
+    let targetUserId: string | null = null
+    let targetEmail: string | null = null
+    let targetRole: "responsible" | "owner" | null = null
+
+    if (org.responsible_user_id) {
+      const [u] = await db
+        .select({ id: app_user.id, email: app_user.email })
+        .from(app_user)
+        .where(eq(app_user.id, org.responsible_user_id))
+        .limit(1)
+      if (u) {
+        targetUserId = u.id
+        targetEmail = u.email
+        targetRole = "responsible"
+      }
+    }
+    if (!targetUserId) {
+      const [owner] = await db
+        .select({ id: app_user.id, email: app_user.email })
+        .from(organization_membership)
+        .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+        .where(
+          and(
+            eq(organization_membership.organization_id, id),
+            eq(organization_membership.role, "owner"),
+            eq(organization_membership.active, true),
+          ),
+        )
+        .limit(1)
+      if (owner) {
+        targetUserId = owner.id
+        targetEmail = owner.email
+        targetRole = "owner"
+      }
+    }
+
+    return {
+      org,
+      ws: ws ?? null,
+      memberCount,
+      recentActivity,
+      target: { targetUserId, targetEmail, targetRole },
+    }
   })
 }
 
@@ -90,7 +137,12 @@ export default async function OrgDetailPage({
 
   if (!data) notFound()
 
-  const { org, ws, memberCount, recentActivity } = data
+  const { org, ws, memberCount, recentActivity, target } = data
+
+  const supportExpiresAt = org.support_access_expires_at
+    ? new Date(org.support_access_expires_at)
+    : null
+  const grantActive = supportExpiresAt !== null && supportExpiresAt > new Date()
 
   void auditAdminAction({
     action: "admin.org.viewed",
@@ -154,6 +206,36 @@ export default async function OrgDetailPage({
           )}
         </SectionCard>
       </div>
+
+      <SectionCard title="Support access">
+        <div className="flex flex-col gap-4">
+          <div>
+            <KV
+              label="Status"
+              value={
+                grantActive ? (
+                  <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                    Granted
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Off</span>
+                )
+              }
+            />
+            <KV
+              label="Consent expires"
+              value={grantActive ? fmt(supportExpiresAt) : "—"}
+            />
+          </div>
+          <SignInToOrgForm
+            organizationId={id}
+            targetUserId={target.targetUserId}
+            targetEmail={target.targetEmail}
+            targetRole={target.targetRole}
+            grantActive={grantActive}
+          />
+        </div>
+      </SectionCard>
     </div>
   )
 }

@@ -6,7 +6,12 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { app_user, impersonation } from "@workspace/db/schema"
+import {
+  app_user,
+  impersonation,
+  organization,
+  organization_membership,
+} from "@workspace/db/schema"
 
 import { auditAdminAction } from "./admin-audit"
 import { requireAdminCapability } from "./admin-capability"
@@ -75,7 +80,14 @@ export async function getActiveImpersonation(): Promise<ImpersonationState | nul
  *   1. Capability check.
  *   2. Validate reason (>= 8 chars after trim).
  *   3. Validate the target user exists.
- *   4. INSERT `impersonation` row with `expected_end_at = now() + 30min`.
+ *   3b. When `organizationId` is set (the "Sign in to this org" flow): require
+ *       (a) the org to have an ACTIVE support-access grant
+ *       (`support_access_expires_at > now()`) — the org's own consent gate —
+ *       AND (b) the target user to be an ACTIVE member of that org. Without
+ *       (b), org X's grant could stamp an impersonation of a non-member,
+ *       producing a false org↔user audit association. Both refuse otherwise.
+ *   4. INSERT `impersonation` row with `expected_end_at = now() + 30min`,
+ *      stamping `organization_id` when org-scoped.
  *   5. Best-effort call into Better Auth's admin plugin
  *      (`auth.api.impersonateUser`) to actually swap the live session.
  *      Banner-only flows still work even if the BA call fails — we audit
@@ -99,6 +111,7 @@ export async function startImpersonation(
     }
   }
 
+  let impersonationId: string | undefined
   try {
     await withAdminBypass(async (db) => {
       const target = await db
@@ -110,13 +123,52 @@ export async function startImpersonation(
         throw new Error("target user not found")
       }
 
-      await db.insert(impersonation).values({
-        workspace_id: ctx.workspaceId,
-        actor_user_id: ctx.userId,
-        target_user_id: input.targetUserId,
-        reason,
-        expected_end_at: new Date(Date.now() + IMPERSONATION_TTL_MS),
-      })
+      // Org-scoped sign-in precondition: the org must currently consent AND
+      // the target must be an active member of that org.
+      if (input.organizationId) {
+        const [org] = await db
+          .select({
+            granted: sql<boolean>`(${organization.support_access_expires_at} > now())`,
+          })
+          .from(organization)
+          .where(eq(organization.id, input.organizationId))
+          .limit(1)
+        if (!org || org.granted !== true) {
+          throw new Error(
+            "organization has not granted support access (no active consent window)",
+          )
+        }
+
+        const membership = await db
+          .select({ id: organization_membership.id })
+          .from(organization_membership)
+          .where(
+            and(
+              eq(organization_membership.organization_id, input.organizationId),
+              eq(organization_membership.user_id, input.targetUserId),
+              eq(organization_membership.active, true),
+            ),
+          )
+          .limit(1)
+        if (membership.length === 0) {
+          throw new Error(
+            "target user is not an active member of this organization",
+          )
+        }
+      }
+
+      const [inserted] = await db
+        .insert(impersonation)
+        .values({
+          workspace_id: ctx.workspaceId,
+          organization_id: input.organizationId ?? null,
+          actor_user_id: ctx.userId,
+          target_user_id: input.targetUserId,
+          reason,
+          expected_end_at: new Date(Date.now() + IMPERSONATION_TTL_MS),
+        })
+        .returning({ id: impersonation.id })
+      impersonationId = inserted?.id
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "insert failed"
@@ -136,6 +188,25 @@ export async function startImpersonation(
       )
     }
   } catch (err) {
+    // The impersonation row committed before this swap, but no live session was
+    // granted — close it now so getActiveImpersonation() and the audit envelope
+    // never report a phantom "active" impersonation with no live session.
+    if (impersonationId) {
+      const id = impersonationId
+      try {
+        await withAdminBypass((db) =>
+          db
+            .update(impersonation)
+            .set({ ended_at: new Date() })
+            .where(eq(impersonation.id, id)),
+        )
+      } catch (closeErr) {
+        console.error(
+          "startImpersonation: failed to close row after Better Auth swap failure",
+          closeErr,
+        )
+      }
+    }
     await auditAdminAction({
       action: "admin.user.impersonation_start_failed",
       payload: {
@@ -154,39 +225,38 @@ export async function startImpersonation(
 
   await auditAdminAction({
     action: "admin.user.impersonation_started",
-    payload: { target_user_id: input.targetUserId, reason },
+    organizationId: input.organizationId ?? null,
+    payload: {
+      target_user_id: input.targetUserId,
+      reason,
+      organization_id: input.organizationId ?? null,
+    },
   })
 
   return { ok: true }
 }
 
 /**
- * Server action: close the most recent active impersonation window for
- * the current staff user. Calls Better Auth `stopImpersonating` best-effort.
+ * Server action: close ALL active impersonation windows for the current staff
+ * user. Only one Better Auth session is live at a time, but stray open rows can
+ * accrue (e.g. a re-start before a stop), so closing every open row keeps
+ * getActiveImpersonation() + the audit envelope honest. Calls Better Auth
+ * `stopImpersonating` best-effort.
  */
 export async function stopImpersonation(): Promise<ImpersonationMutationResult> {
   const ctx = await requireAdminCapability("admin:impersonate")
 
   try {
     await withAdminBypass(async (db) => {
-      const row = await db
-        .select({ id: impersonation.id })
-        .from(impersonation)
+      await db
+        .update(impersonation)
+        .set({ ended_at: new Date() })
         .where(
           and(
             eq(impersonation.actor_user_id, ctx.userId),
             isNull(impersonation.ended_at),
           ),
         )
-        .orderBy(desc(impersonation.started_at))
-        .limit(1)
-      const current = row[0]
-      if (!current) return
-
-      await db
-        .update(impersonation)
-        .set({ ended_at: new Date() })
-        .where(eq(impersonation.id, current.id))
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : "update failed"

@@ -1,0 +1,103 @@
+"use server"
+
+import { and, eq, isNull, sql } from "drizzle-orm"
+import {
+  withAdminBypass,
+  withOrganization,
+  writeAuditEventGlobal,
+} from "@workspace/db"
+import { impersonation, organization } from "@workspace/db/schema"
+
+import { resolveMembership } from "@/lib/org/resolve"
+import { getRequestSession } from "@/lib/org/session"
+
+/** Length of the support-access consent window. Single source for the SQL
+ * interval and the audit payload so the two can never drift. */
+const SUPPORT_ACCESS_WINDOW_DAYS = 7
+
+export interface SetSupportAccessResult {
+  ok: boolean
+}
+
+/**
+ * Toggle per-org support-access consent (F11).
+ *
+ * The consent flag (`organization.support_access_expires_at`) is the
+ * precondition an admin operator's impersonation session requires to sign in to
+ * this org: no active grant → the admin console refuses. `on` writes a 7-day
+ * window (the outer bound). `off` clears it — which blocks all NEW support
+ * sign-ins immediately — and marks the org's open impersonation rows ended in
+ * the audit table. NOTE: ending the audit row does not itself terminate a Better
+ * Auth session already live; an operator already inside is bounded by the
+ * impersonation session's own TTL until live-session revocation is wired (S1).
+ *
+ * Tenancy + authz are derived server-side, never from the client: `userId` from
+ * the session, `organizationId` + `role` from `resolveMembership({ slug, userId })`
+ * (the same (slug, userId) key the org layout uses, so only an org the caller
+ * belongs to resolves). Only an owner/admin may toggle — a member/agent/guest is
+ * refused. The `organization` write runs under `withOrganization` (FORCE RLS is
+ * the tenant boundary); the impersonation force-end runs under `withAdminBypass`
+ * because `impersonation` is admin-bypass-only (app_user has no grant on it).
+ *
+ * Every grant/revoke is audited via `writeAuditEventGlobal` (admin bypass): the
+ * org owner giving consent may not be a workspace member, so the
+ * workspace-membership-gated `audit_event_insert` RLS policy can't be relied on
+ * from inside `withOrganization`.
+ */
+export async function setSupportAccess(
+  slug: string,
+  on: boolean,
+): Promise<SetSupportAccessResult> {
+  const session = await getRequestSession()
+  const userId = session?.user?.id
+  if (!userId) return { ok: false }
+
+  const membership = await resolveMembership({ slug, userId })
+  // Owner/admin write-gate — mirrors authorizeOrgAdmin without reaching into the
+  // frozen old tree (the org-tree wall).
+  if (
+    !membership ||
+    (membership.role !== "owner" && membership.role !== "admin")
+  ) {
+    return { ok: false }
+  }
+
+  const { organizationId, workspaceId } = membership
+
+  await withOrganization(organizationId, userId, async (db) => {
+    await db
+      .update(organization)
+      .set({
+        support_access_expires_at: on
+          ? sql`now() + make_interval(days => ${SUPPORT_ACCESS_WINDOW_DAYS})`
+          : null,
+      })
+      .where(eq(organization.id, organizationId))
+  })
+
+  // Revoke marks the org's open impersonation rows ended (audit envelope).
+  if (!on) {
+    // rls-allow-admin-bypass: impersonation table is admin-bypass-only (app_user has no grant)
+    await withAdminBypass(async (db) => {
+      await db
+        .update(impersonation)
+        .set({ ended_at: sql`now()` })
+        .where(
+          and(
+            eq(impersonation.organization_id, organizationId),
+            isNull(impersonation.ended_at),
+          ),
+        )
+    })
+  }
+
+  await writeAuditEventGlobal({
+    workspaceId,
+    organizationId,
+    actorUserId: userId,
+    action: on ? "org.support_access.granted" : "org.support_access.revoked",
+    payload: on ? { window: `${SUPPORT_ACCESS_WINDOW_DAYS} days` } : {},
+  })
+
+  return { ok: true }
+}

@@ -1,7 +1,9 @@
-import type { ReactNode } from "react"
+import { cache, type ReactNode } from "react"
+import type { Metadata } from "next"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 
+import { getTranslations } from "@workspace/i18n/server"
 import { getBuildIdentity, getBuildVersion } from "@workspace/ui/brand-assets"
 import { AppHeader } from "@workspace/ui/blocks/app-header"
 
@@ -20,14 +22,50 @@ import { OrgShell } from "./_shell/org-shell"
 import { OrgHeaderActions } from "./_shell/app-header/header-actions"
 import { OrgSwitcherClient } from "./_shell/app-header/org-switcher"
 import { PeriodSwitcherClient } from "./_shell/app-header/period-switcher"
+import { hasDebugModuleAccess } from "./debug/access"
 
-// DB role enum → human-readable label rendered verbatim in the org switcher.
-const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {
-  owner: "Owner",
-  admin: "Admin",
-  member: "Member",
-  agent: "Agent",
-  guest: "Guest",
+/**
+ * Per-request memoized membership resolution.
+ *
+ * `resolveMembership` isn't `cache()`-wrapped itself, and both `generateMetadata`
+ * and the layout render need the same lookup in one request pass. Wrapping it
+ * here — keyed on the primitive slug + user id, not a fresh object literal —
+ * collapses the two co-rendering reads into a single DB roundtrip, the same
+ * reasoning `getRequestSession` documents for the session read.
+ */
+const resolveLayoutMembership = cache((slug: string, userId: string) =>
+  resolveMembership({ slug, userId }),
+)
+
+/**
+ * The org's legal name is the layout's default document title, so the browser
+ * tab shows the org (composed by the root `%s · {brand}` template) instead of
+ * always the bare brand. Page-level titles still override. The org name is
+ * proper-noun data, not a translatable string.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>
+}): Promise<Metadata> {
+  const { orgSlug } = await params
+  if (!isResolvableOrgSlug(orgSlug)) return {}
+
+  const session = await getRequestSession()
+  if (!session) return {}
+
+  try {
+    const membership = await resolveLayoutMembership(orgSlug, session.user.id)
+    if (!membership) return {}
+    // Plain string, not a `title.template`: the root layout's `%s · {brand}`
+    // template composes it, and it becomes the default title for org pages that
+    // don't set their own (page-level `org.titles.*` still override).
+    return { title: membership.legalName }
+  } catch {
+    // A transient resolution error just means no org-specific title; the layout
+    // render below performs the fail-closed redirect.
+    return {}
+  }
 }
 
 /**
@@ -64,10 +102,7 @@ export default async function OrgLayout({
 
   let membership: ResolvedMembership | null
   try {
-    membership = await resolveMembership({
-      slug: orgSlug,
-      userId: session.user.id,
-    })
+    membership = await resolveLayoutMembership(orgSlug, session.user.id)
   } catch (err) {
     // Fail closed on transient DB errors so a partial outage can't leak the
     // shell to an unauthorized viewer.
@@ -78,17 +113,38 @@ export default async function OrgLayout({
     redirect("/workspace?error=no-access")
   }
 
-  const [{ userName, userImage }, orgData, period] = await Promise.all([
-    getHeaderUser(session.user.id, session.user.email),
-    getHeaderOrgData({
-      organizationId: membership.organizationId,
-      userId: session.user.id,
-    }),
-    // The layout can't read `searchParams`, so it resolves the cookie/default
-    // active period for the switcher's initial value; the client switcher then
-    // overrides from the live `?period=` URL.
-    getActivePeriod(membership.organizationId, session.user.id),
-  ])
+  // Fail closed on a transient DB error in the header reads: redirect safely
+  // instead of bubbling to a nonexistent boundary (mirrors the membership guard).
+  let headerData: [
+    Awaited<ReturnType<typeof getHeaderUser>>,
+    Awaited<ReturnType<typeof getHeaderOrgData>>,
+    Awaited<ReturnType<typeof getActivePeriod>>,
+    boolean,
+  ]
+  try {
+    headerData = await Promise.all([
+      getHeaderUser(session.user.id, session.user.email),
+      getHeaderOrgData({
+        organizationId: membership.organizationId,
+        userId: session.user.id,
+      }),
+      // The layout can't read `searchParams`, so it resolves the cookie/default
+      // active period for the switcher's initial value; the client switcher then
+      // overrides from the live `?period=` URL.
+      getActivePeriod(membership.organizationId, session.user.id),
+      // Debug rail visibility: allowlisted operators see the Debug module link on
+      // staging/prod (the page gate independently re-checks). Batched here so it
+      // doesn't serialize behind the header reads.
+      hasDebugModuleAccess(membership.workspaceId),
+    ])
+  } catch (err) {
+    console.error("[o/orgSlug/layout] header reads threw", err)
+    redirect("/workspace?error=internal")
+  }
+  const [{ userName, userImage }, orgData, period, debugAccess] = headerData
+
+  // DB role enum → localized label rendered verbatim in the org switcher.
+  const tRoles = await getTranslations("org.roles")
 
   const header = (
     <AppHeader
@@ -100,7 +156,7 @@ export default async function OrgLayout({
             currentOrg={{
               id: membership.organizationId,
               name: membership.legalName,
-              role: ROLE_LABELS[membership.role],
+              role: tRoles(membership.role),
               memberCount: orgData.memberCount,
             }}
             recentOrgs={orgData.otherOrgs.map((o) => ({
@@ -123,13 +179,19 @@ export default async function OrgLayout({
           userImage={userImage}
           slug={orgSlug}
           version={getBuildVersion()}
+          supportAccessActive={orgData.supportAccessActive}
         />
       }
     />
   )
 
   return (
-    <OrgShell slug={orgSlug} header={header} deployment={getBuildIdentity()}>
+    <OrgShell
+      slug={orgSlug}
+      header={header}
+      deployment={getBuildIdentity()}
+      debugAccess={debugAccess}
+    >
       {children}
     </OrgShell>
   )

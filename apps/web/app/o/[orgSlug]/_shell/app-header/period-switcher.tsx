@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
 
-import { orgBasePath, orgHref } from "@/lib/org/href"
+import { orgHref, orgRelativePath } from "@/lib/org/href"
 import { setPeriodDefault } from "@/lib/org/period-actions"
 import type { HeaderPeriod } from "@/lib/org/period"
 
@@ -36,10 +36,11 @@ function toPeriod(p: HeaderPeriod) {
  * Period switcher for the rebuilt tree. The URL is the single source of truth:
  * the active value reads live from `?period=` (falling back to the server
  * default the layout resolved from the cookie), and selecting a period pushes a
- * new URL that carries `?period=` while preserving the current in-org path. The
- * cookie is updated as a best-effort sticky default via `setPeriodDefault`; it
- * is never authoritative. This removes the old tree's fire-and-forget optimistic
- * state and per-page cookie re-derivation.
+ * new URL that swaps `?period=` while preserving the current in-org path AND all
+ * other existing query params (e.g. `?tab=`, filters). The cookie is updated as
+ * a best-effort sticky default via `setPeriodDefault`; it is never authoritative.
+ * This removes the old tree's fire-and-forget optimistic state and per-page
+ * cookie re-derivation.
  */
 export function PeriodSwitcherClient({
   slug,
@@ -58,19 +59,16 @@ export function PeriodSwitcherClient({
   const value = searchParams.get("period") ?? defaultPeriodId
   const items = periods.map(toPeriod)
 
-  // The current path relative to the org base, so switching a period keeps you
-  // on the same page instead of bouncing to the org home.
-  function relativePath() {
-    const base = orgBasePath(slug)
-    const path = pathname ?? base
-    return path.startsWith(base)
-      ? path.slice(base.length).replace(/^\/+/, "")
-      : ""
-  }
-
   function selectPeriod(id: string) {
+    // Keep the user on the same page: the in-org sub-path (segment-boundary
+    // safe via orgRelativePath) is preserved, only `period` is swapped while
+    // every other live query param (tab, filters) is kept.
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("period", id)
+    const relative = orgRelativePath(pathname ?? "", slug)
+    const target = `${orgHref(slug, relative)}?${params.toString()}`
     startTransition(() => {
-      router.push(orgHref(slug, relativePath(), { period: id }))
+      router.push(target)
     })
     // Persist as the sticky default for a later plain navigation; best-effort.
     void setPeriodDefault(id)
@@ -81,8 +79,8 @@ export function PeriodSwitcherClient({
       periods={items}
       value={value}
       onValueChange={selectPeriod}
-      onAddPeriod={() => router.push(orgHref(slug, "settings/periods"))}
-      onManagePeriods={() => router.push(orgHref(slug, "settings/periods"))}
+      onAddPeriod={() => router.push(orgHref(slug, "company/periods"))}
+      onManagePeriods={() => router.push(orgHref(slug, "company/periods"))}
     />
   )
 }

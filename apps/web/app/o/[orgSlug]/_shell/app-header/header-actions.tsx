@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useLocale } from "next-intl"
 import { useTheme } from "next-themes"
 import { LogOut } from "lucide-react"
 
+import { useTranslations } from "@workspace/i18n/client"
 import {
   locales,
   localeLabel,
@@ -14,11 +15,7 @@ import {
   isLocale,
 } from "@workspace/i18n/config"
 
-import {
-  BRAND_SUPPORT_EMAIL,
-  BrandName,
-  SidekickMark,
-} from "@workspace/ui/brand-assets"
+import { BRAND_SUPPORT_EMAIL, SidekickMark } from "@workspace/ui/brand-assets"
 import {
   BugReportDialog,
   buildBugReport,
@@ -62,6 +59,7 @@ import {
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { XIcon } from "@workspace/ui/lib/icons"
 import { Switch } from "@workspace/ui/components/switch"
+import { toast } from "@workspace/ui/components/sonner"
 import {
   Tooltip,
   TooltipContent,
@@ -75,6 +73,7 @@ import {
 } from "@workspace/ui/icon-packs"
 
 import { orgHref } from "@/lib/org/href"
+import { setSupportAccess } from "@/lib/org/support-access-actions"
 import { signOutAction } from "@/app/auth/_lib/account-actions"
 import { reportFeedback } from "@/app/_components/report-feedback"
 
@@ -93,23 +92,46 @@ export function OrgHeaderActions({
   userImage,
   slug,
   version,
+  supportAccessActive = false,
 }: {
   userName?: string
   userImage?: string
   slug: string
   version?: string
+  /** Server-resolved current support-access grant state (F11). */
+  supportAccessActive?: boolean
 }) {
   const icons = useIcons()
   const shell = useAppShell()
   const pathname = usePathname()
   const router = useRouter()
   const locale = useLocale()
+  const t = useTranslations("org.header")
+  const tBrand = useTranslations("brand")
   const { theme = "system", setTheme } = useTheme()
   const { pack, setPack } = useIconPack()
   const [signOutOpen, setSignOutOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackContext, setFeedbackContext] =
     useState<CapturedContext | null>(null)
+  // Support access reflects the server-resolved grant, updated optimistically
+  // on toggle and reverted if the server action rejects.
+  const [supportOn, setSupportOn] = useState(supportAccessActive)
+  const [, startSupportTransition] = useTransition()
+
+  const onToggleSupportAccess = (next: boolean) => {
+    setSupportOn(next)
+    startSupportTransition(async () => {
+      const result = await setSupportAccess(slug, next)
+      if (!result.ok) {
+        setSupportOn(!next)
+        toast.error(t("help.supportAccessError"))
+        return
+      }
+      toast(next ? t("help.supportAccessOn") : t("help.supportAccessOff"))
+      router.refresh()
+    })
+  }
 
   const DocsIcon = icons.FileText
   const KnowledgeIcon = icons.BookOpen
@@ -155,22 +177,22 @@ export function OrgHeaderActions({
       {/* Tasks + Inbox are placeholders for now — no target wired yet. */}
       <IconButton
         icon="Inbox"
-        tooltip="Inbox"
+        tooltip={t("inbox")}
         tooltipSide="bottom"
         className="max-md:hidden"
       />
       <IconButton
         icon="ListTodo"
-        tooltip="Tasks"
+        tooltip={t("tasks")}
         tooltipSide="bottom"
         className="max-md:hidden"
       />
 
       <DropdownMenu modal={false}>
-        <HeaderMenuTrigger tooltip="Get help">
+        <HeaderMenuTrigger tooltip={t("getHelp")}>
           <IconButton
             icon="CircleHelp"
-            aria-label="Get help"
+            aria-label={t("getHelp")}
             className="max-md:hidden"
           />
         </HeaderMenuTrigger>
@@ -184,50 +206,50 @@ export function OrgHeaderActions({
               "Contact us" needs no site, so it is wired. */}
           <DropdownMenuItem>
             <DocsIcon />
-            Documentation
+            {t("help.documentation")}
             <ExternalIcon className="ml-auto size-3" />
           </DropdownMenuItem>
           <DropdownMenuItem>
             <KnowledgeIcon />
-            Knowledge base
+            {t("help.knowledgeBase")}
             <ExternalIcon className="ml-auto size-3" />
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href={`mailto:${BRAND_SUPPORT_EMAIL}`}>
               <ContactIcon />
-              Contact us
+              {t("help.contactUs")}
             </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem>
             <KeyboardIcon />
-            Keyboard shortcuts
+            {t("help.keyboardShortcuts")}
           </DropdownMenuItem>
           <DropdownMenuItem>
             <WhatsNewIcon />
-            What&apos;s new?
+            {t("help.whatsNew")}
           </DropdownMenuItem>
           <DropdownMenuItem>
             <StatusIcon />
-            <BrandName /> status
+            {t("help.status", { brand: tBrand("name") })}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {/* Support access is not wired yet — the real toggle (add/remove a
-              support-agent admin + admin login-as) lands in F11. The Switch is
-              disabled and selecting is a no-op so the eventual control is
-              visible without falsely granting access for an action that does
-              nothing. */}
+          {/* Support access consent (F11): the org owner/admin opens a 7-day
+              window in which an Afframe operator can sign in to this org via
+              admin impersonation. `onSelect` preventDefault keeps the menu open
+              so the Switch state is visible after toggling; the toggle calls the
+              server action inside a transition and reverts on failure. */}
           <DropdownMenuItem
             className="justify-between"
             onSelect={(e) => e.preventDefault()}
           >
             <span className="flex items-center gap-1">
-              Support access
+              {t("help.supportAccess")}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    aria-label="About support access"
+                    aria-label={t("help.supportAccessInfo")}
                     tabIndex={-1}
                     className="inline-flex text-muted-foreground outline-none"
                     onPointerDown={(e) => e.stopPropagation()}
@@ -237,24 +259,21 @@ export function OrgHeaderActions({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-52">
-                  Coming soon — lets our support team sign in to your workspace
-                  to help troubleshoot.
+                  {t("help.supportAccessTooltip")}
                 </TooltipContent>
               </Tooltip>
             </span>
             <Switch
-              checked={false}
-              disabled
-              aria-label="Support access (coming soon)"
-              tabIndex={-1}
-              className="pointer-events-none"
+              checked={supportOn}
+              onCheckedChange={onToggleSupportAccess}
+              aria-label={t("help.supportAccessSwitch")}
             />
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={openFeedback}>
-            Send feedback
+            {t("help.sendFeedback")}
           </DropdownMenuItem>
           <div className="px-2 py-1.5 text-[length:var(--menu-text-size)] text-muted-foreground">
-            Version: {version ?? "dev"}
+            {t("help.version", { version: version ?? "dev" })}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -270,22 +289,25 @@ export function OrgHeaderActions({
             <SidekickMark />
           )
         }
-        label="Sidekick"
+        label={t("sidekick.label")}
         labelPosition="beside"
         active={shell?.assistantOpen}
-        aria-label="Ask AI Assistant"
-        tooltip="Ask AI Assistant"
+        aria-label={t("sidekick.ask")}
+        tooltip={t("sidekick.ask")}
         tooltipSide="bottom"
         onClick={() => shell?.toggleAssistant()}
       />
 
       <DropdownMenu modal={false}>
-        <HeaderMenuTrigger tooltip="Profile">
+        <HeaderMenuTrigger tooltip={t("profile.tooltip")}>
           <IconButton
-            aria-label="Profile"
+            aria-label={t("profile.tooltip")}
             iconNode={
               <Avatar className="size-[var(--icon-size)] after:hidden">
-                <AvatarImage src={userImage} alt={userName ?? "Profile"} />
+                <AvatarImage
+                  src={userImage}
+                  alt={userName ?? t("profile.avatarAlt")}
+                />
                 <AvatarFallback className="text-[11px] font-medium text-icon-active">
                   {initialsOf(userName)}
                 </AvatarFallback>
@@ -301,13 +323,16 @@ export function OrgHeaderActions({
           {/* Identity — avatar + name only (no email, per spec). */}
           <DropdownMenuLabel className="flex items-center gap-2 py-1.5 font-normal">
             <Avatar className="size-8 after:hidden">
-              <AvatarImage src={userImage} alt={userName ?? "Profile"} />
+              <AvatarImage
+                src={userImage}
+                alt={userName ?? t("profile.avatarAlt")}
+              />
               <AvatarFallback className="text-[11px] font-medium text-icon-active">
                 {initialsOf(userName)}
               </AvatarFallback>
             </Avatar>
             <span className="truncate text-[length:var(--menu-text-size)] font-medium text-foreground">
-              {userName ?? "Account"}
+              {userName ?? t("profile.accountFallback")}
             </span>
           </DropdownMenuLabel>
 
@@ -316,19 +341,19 @@ export function OrgHeaderActions({
           <DropdownMenuItem asChild>
             <Link href="/workspace/profile">
               <ProfileIcon />
-              Profile
+              {t("profile.profile")}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href="/workspace">
               <WorkspaceIcon />
-              Workspace
+              {t("profile.workspace")}
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <Link href={settingsHref}>
               <SettingsIcon />
-              Settings
+              {t("profile.settings")}
             </Link>
           </DropdownMenuItem>
 
@@ -337,17 +362,19 @@ export function OrgHeaderActions({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <ThemeIcon />
-              Theme
+              {t("profile.theme")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
                 <DropdownMenuRadioItem value="system">
-                  System
+                  {t("profile.themeSystem")}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="light">
-                  Light
+                  {t("profile.themeLight")}
                 </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="dark">
+                  {t("profile.themeDark")}
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -355,7 +382,7 @@ export function OrgHeaderActions({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <IconsIcon />
-              Icons
+              {t("profile.icons")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup
@@ -363,13 +390,13 @@ export function OrgHeaderActions({
                 onValueChange={(v) => setPack(v as IconPackName)}
               >
                 <DropdownMenuRadioItem value="lucide">
-                  Lucide
+                  {t("profile.iconsLucide")}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="phosphor">
-                  Phosphor
+                  {t("profile.iconsPhosphor")}
                 </DropdownMenuRadioItem>
                 <DropdownMenuRadioItem value="fontawesome">
-                  Font Awesome
+                  {t("profile.iconsFontAwesome")}
                 </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
@@ -378,7 +405,7 @@ export function OrgHeaderActions({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <LanguageIcon />
-              Language
+              {t("profile.language")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               <DropdownMenuRadioGroup value={locale} onValueChange={setLocale}>
@@ -398,7 +425,7 @@ export function OrgHeaderActions({
             onSelect={() => setSignOutOpen(true)}
           >
             <LogOut />
-            Sign out
+            {t("profile.signOut")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -408,17 +435,16 @@ export function OrgHeaderActions({
       <AlertDialog open={signOutOpen} onOpenChange={setSignOutOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Sign out?</AlertDialogTitle>
+            <AlertDialogTitle>{t("signOut.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              You&apos;ll be returned to the sign-in page and need to sign in
-              again to access your workspace.
+              {t("signOut.description")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("signOut.cancel")}</AlertDialogCancel>
             <form action={signOutAction}>
               <AlertDialogAction type="submit" variant="destructive">
-                Sign out
+                {t("signOut.confirm")}
               </AlertDialogAction>
             </form>
           </AlertDialogFooter>

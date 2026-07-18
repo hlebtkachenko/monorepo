@@ -865,5 +865,90 @@
     "ossUnion": "Režim EU",
     "ossImport": "Dovozní režim",
     "ossValidFrom": "Platnost OSS od"
+  },
+  "org": {
+    "nav": {
+      "company": "Společnost",
+      "overview": "Přehled",
+      "periods": "Období",
+      "debug": "Ladění"
+    },
+    "a11y": {
+      "skipToContent": "Přeskočit na obsah",
+      "primaryNav": "Primární navigace",
+      "mainContent": "Hlavní obsah"
+    },
+    "titles": {
+      "periods": "Období",
+      "settings": "Nastavení",
+      "debug": "Ladění"
+    },
+    "favorite": {
+      "tooltip": "Oblíbené",
+      "add": "Přidat do oblíbených",
+      "remove": "Odebrat z oblíbených"
+    },
+    "favorites": {
+      "heading": "Oblíbené",
+      "emptyTitle": "Zatím žádné oblíbené",
+      "emptyHint": "Označte stránku hvězdičkou a připne se do tohoto přehledu."
+    },
+    "roles": {
+      "owner": "Vlastník",
+      "admin": "Správce",
+      "member": "Člen",
+      "agent": "Agent",
+      "guest": "Host"
+    },
+    "header": {
+      "inbox": "Schránka",
+      "tasks": "Úkoly",
+      "getHelp": "Nápověda",
+      "help": {
+        "documentation": "Dokumentace",
+        "knowledgeBase": "Znalostní báze",
+        "contactUs": "Kontaktujte nás",
+        "keyboardShortcuts": "Klávesové zkratky",
+        "whatsNew": "Co je nového?",
+        "status": "Stav {brand}",
+        "supportAccess": "Přístup podpory",
+        "supportAccessInfo": "O přístupu podpory",
+        "supportAccessTooltip": "Umožní našemu týmu podpory přihlásit se k této firmě na 7 dní a pomoci s řešením potíží. Kdykoli jej vypnutím odvoláte.",
+        "supportAccessSwitch": "Přístup podpory",
+        "supportAccessOn": "Přístup podpory zapnut – náš tým se může 7 dní přihlásit.",
+        "supportAccessOff": "Přístup podpory vypnut – náš tým se již nemůže přihlásit.",
+        "supportAccessError": "Přístup podpory se nepodařilo změnit. Zkuste to znovu.",
+        "sendFeedback": "Odeslat zpětnou vazbu",
+        "version": "Verze: {version}"
+      },
+      "sidekick": {
+        "label": "Sidekick",
+        "ask": "Zeptat se AI asistenta"
+      },
+      "profile": {
+        "tooltip": "Profil",
+        "avatarAlt": "Profil",
+        "accountFallback": "Účet",
+        "profile": "Profil",
+        "workspace": "Pracovní prostor",
+        "settings": "Nastavení",
+        "theme": "Motiv",
+        "themeSystem": "Systém",
+        "themeLight": "Světlý",
+        "themeDark": "Tmavý",
+        "icons": "Ikony",
+        "iconsLucide": "Lucide",
+        "iconsPhosphor": "Phosphor",
+        "iconsFontAwesome": "Font Awesome",
+        "language": "Jazyk",
+        "signOut": "Odhlásit se"
+      },
+      "signOut": {
+        "title": "Odhlásit se?",
+        "description": "Budete přesměrováni na přihlašovací stránku a pro přístup k pracovnímu prostoru se budete muset znovu přihlásit.",
+        "cancel": "Zrušit",
+        "confirm": "Odhlásit se"
+      }
+    }
   }
 }

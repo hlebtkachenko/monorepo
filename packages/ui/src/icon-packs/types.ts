@@ -194,6 +194,9 @@ export const ICON_NAMES = [
   "FileDown",
   "ArrowLeftRight",
   "Printer",
+  // Lucide LAB icon (ships via `@lucide/lab`, not the stable set) — built in
+  // the lucide pack through `createLucideIcon`. Used as the Debug rail module.
+  "ChevronsLeftRightSquare",
 ] as const
 
 export type IconName = (typeof ICON_NAMES)[number]

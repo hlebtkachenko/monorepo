@@ -78,7 +78,7 @@ if [ -n "$DOCKER_OK" ]; then
     pnpm --filter @workspace/db db:migrate \
     || echo "WARN: db:migrate failed; run it once the DB is reachable." >&2
 
-  echo "==> seed demo owner + acme tenant graph"
+  echo "==> seed demo owner + acme tenant graph + 2026 period"
   if [ -f apps/web/.env.local ]; then
     # shellcheck source=/dev/null  # generated at runtime, absent at lint time
     set -a; . apps/web/.env.local; set +a
@@ -87,6 +87,9 @@ if [ -n "$DOCKER_OK" ]; then
     || echo "WARN: minting demo credential failed." >&2
   DATABASE_URL="$APPURL" pnpm --filter @workspace/db db:seed \
     || echo "WARN: db:seed failed." >&2
+  # Open acme's first účetní období (2026) so /o/acme resolves to a bookable org.
+  DATABASE_URL="$APPURL" pnpm exec tsx apps/web/scripts/seed-dev-period.ts \
+    || echo "WARN: seeding acme 2026 period failed." >&2
 
   echo "==> generate apps/admin/.env.local (port $((WEB_PORT + 2)))"
   # Admin gates on the seeded workspace id; the fresh DB has exactly one.

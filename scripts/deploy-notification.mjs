@@ -92,10 +92,11 @@ export function decideDeploymentNotification({
 
 export function summarizeReleaseBody(body) {
   const cleaned = String(body ?? "")
-    .replace(/<!--[\s\S]*?-->/g, "")
     .split("\n")
     .map((line) => line.trim())
-    .filter(Boolean)
+    .filter(
+      (line) => line && !(line.startsWith("<!--") && line.endsWith("-->")),
+    )
 
   const bullets = cleaned
     .filter((line) => /^[-*]\s+/.test(line))

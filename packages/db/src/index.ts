@@ -10,15 +10,18 @@
 // Tenancy helpers + branded types
 export {
   withOrganization,
+  withOrgReadonly,
   withWorkspace,
   withAdminBypass,
   executeRows,
   organizationBrand,
+  organizationReadonlyBrand,
   workspaceBrand,
   adminBypassBrand,
 } from "./tenancy"
 export type {
   OrganizationBoundDb,
+  OrganizationReadonlyDb,
   WorkspaceBoundDb,
   AdminBypassDb,
 } from "./tenancy"

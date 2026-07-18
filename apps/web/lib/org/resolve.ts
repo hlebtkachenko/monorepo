@@ -53,6 +53,7 @@ export async function resolveMembership(input: {
   slug: string
   userId: string
 }): Promise<ResolvedMembership | null> {
+  // rls-allow-admin-bypass: cross-workspace slug→org lookup runs before any org id/GUC exists (org.slug is unique only per workspace).
   return await withAdminBypass(async (db) => {
     const [row] = await db
       .select({

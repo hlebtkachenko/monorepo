@@ -1,7 +1,7 @@
 import "server-only"
 
 import { and, asc, count, eq, ne } from "drizzle-orm"
-import { withAdminBypass, withOrganization } from "@workspace/db"
+import { withAdminBypass, withOrgReadonly } from "@workspace/db"
 import {
   app_user,
   organization,
@@ -16,11 +16,11 @@ import { presignAvatarRead } from "@/app/_lib/avatar-storage"
  * (`apps/web/lib/org/`); mirrors the inline `getHeaderUser` + `_lib/header-org`
  * from the frozen old tree.
  *
- * `memberCount` runs under `withOrganization` (FORCE RLS is the tenant boundary,
- * with an explicit filter for defense-in-depth). `otherOrgs` spans workspaces,
- * so it must stay under `withAdminBypass` — FORCE RLS would drop every sibling.
- * `getHeaderUser` reads the single signed-in user's own row under
- * `withAdminBypass` (global identity, no org scope).
+ * `memberCount` runs under `withOrgReadonly` (FORCE RLS is the tenant boundary,
+ * with an explicit filter for defense-in-depth, in a read-only transaction).
+ * `otherOrgs` spans workspaces, so it must stay under `withAdminBypass` — FORCE
+ * RLS would drop every sibling. `getHeaderUser` reads the single signed-in
+ * user's own row under `withAdminBypass` (global identity, no org scope).
  */
 
 export interface HeaderUser {
@@ -37,6 +37,7 @@ export async function getHeaderUser(
   userId: string,
   email: string,
 ): Promise<HeaderUser> {
+  // rls-allow-admin-bypass: global app_user identity read, no org scope.
   const row = await withAdminBypass(async (db) => {
     const [r] = await db
       .select({
@@ -73,11 +74,11 @@ export async function getHeaderOrgData(input: {
   userId: string
 }): Promise<HeaderOrgData> {
   const [memberCount, otherOrgs] = await Promise.all([
-    // Current-org member count under FORCE RLS: withOrganization binds
-    // app.organization_id + app.user_id, and org_membership_org_read permits a
-    // proven member to count the current org's members. The explicit filter is
-    // defense-in-depth.
-    withOrganization(input.organizationId, input.userId, async (db) => {
+    // Current-org member count under FORCE RLS: withOrgReadonly binds
+    // app.organization_id + app.user_id in a read-only tx, and
+    // org_membership_org_read permits a proven member to count the current org's
+    // members. The explicit filter is defense-in-depth.
+    withOrgReadonly(input.organizationId, input.userId, async (db) => {
       const [counted] = await db
         .select({ count: count() })
         .from(organization_membership)
@@ -91,6 +92,7 @@ export async function getHeaderOrgData(input: {
     }),
     // Org-switcher list spans workspaces, so it must bypass RLS — FORCE RLS
     // would scope it to the current org and drop every sibling.
+    // rls-allow-admin-bypass: cross-workspace org-switcher list; a single-org bind drops siblings.
     withAdminBypass(async (db) =>
       db
         .select({

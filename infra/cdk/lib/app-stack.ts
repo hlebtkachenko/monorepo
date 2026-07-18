@@ -1263,7 +1263,7 @@ export class AppStack extends Stack {
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
-      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.6.1"),
+      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.7.2"),
       // Non-essential: a flapping tunnel connector must not cycle the whole
       // task. ECS still restarts it; its exit will not kill web/api/db.
       essential: false,

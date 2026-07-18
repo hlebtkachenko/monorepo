@@ -2,8 +2,8 @@
 
 This is a closed-beta product. External contributions are not accepted yet. This document exists for the core team and any human or AI agent doing planned work in the repo.
 
-**Start here**: [`README.md`](README.md) introduces the monorepo. Use
-[`docs/README.md`](docs/README.md) to find the canonical runbook, convention,
+**Start here**: [`README.md`](../README.md) introduces the monorepo. Use
+[`docs/README.md`](../docs/README.md) to find the canonical runbook, convention,
 specification, or reference for a task.
 
 ## Hard Rules (project-wide)
@@ -49,7 +49,7 @@ Before opening a PR:
 
 Small, single-concern PRs, squash-merged. The full convention (sizing,
 cache-buster isolation, preflight, merge method, grouping related PRs) lives in
-[`docs/conventions/PR-WORKFLOW.md`](docs/conventions/PR-WORKFLOW.md).
+[`docs/conventions/PR-WORKFLOW.md`](../docs/conventions/PR-WORKFLOW.md).
 
 Use `gh pr create` with a clear title and body that includes:
 

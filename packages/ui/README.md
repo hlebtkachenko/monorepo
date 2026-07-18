@@ -47,7 +47,12 @@ pnpm --filter @workspace/ui storybook        # start Storybook on :6006
 pnpm --filter @workspace/ui test:watch       # Vitest watch mode
 pnpm --filter @workspace/ui audit:stories    # check story coverage
 pnpm --filter @workspace/ui audit:stories:fix  # generate missing baseline stories
+pnpm dlx shadcn@latest add button -c apps/web  # import a shadcn/ui component
 ```
+
+Imported components land in `src/components/`; complete the four-file folder
+(implementation, `index.ts`, story, test) and register the component in
+`src/lib/registry.ts`.
 
 ## Design rules
 

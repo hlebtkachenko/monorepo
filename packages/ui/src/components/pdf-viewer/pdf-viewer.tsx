@@ -217,8 +217,11 @@ function PdfViewer({
       <div
         ref={containerRef}
         data-slot="pdf-viewer-canvas"
+        role="region"
+        aria-label="PDF document"
+        tabIndex={0}
         className={cn(
-          "flex-1 overflow-auto bg-muted/30",
+          "flex-1 overflow-auto bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
           viewMode === "scroll" && "p-4",
           viewMode !== "scroll" && "flex items-start justify-center p-4",
         )}

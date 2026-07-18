@@ -4,11 +4,14 @@ import { createElement } from "react"
 import "@testing-library/jest-dom/vitest"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, expect, it, vi } from "vitest"
+import { beforeAll, describe, expect, it, vi } from "vitest"
 
 import { NextIntlClientProvider } from "@workspace/i18n/client"
 import messages from "@workspace/i18n/messages/en.json"
-import { UTILITY_PAGE_IDS } from "@workspace/ui/blocks/utility-page"
+import {
+  UtilityPage,
+  UTILITY_PAGE_IDS,
+} from "@workspace/ui/blocks/utility-page"
 
 import { UtilityPageCatalog } from "./utility-page-catalog"
 
@@ -28,6 +31,35 @@ function renderCatalog() {
 }
 
 describe("UtilityPageCatalog", () => {
+  // The preview feedback UI is a React.lazy chunk. Resolving that render-time
+  // dynamic import can stall under CI CPU contention (this suite runs alongside
+  // the large @workspace/ui suite), which timed the case out. Warm the lazy()
+  // payload once here by rendering the Suspense boundary in a feedback state and
+  // awaiting the resolved chunk; the module-scoped lazy() instance is shared, so
+  // the assertion render below is then synchronous. Paid once, generous budget.
+  beforeAll(async () => {
+    const { unmount } = render(
+      createElement(NextIntlClientProvider, {
+        locale: "en",
+        messages,
+        children: createElement(UtilityPage, {
+          state: "service_unavailable",
+          runtime: {
+            application: "admin",
+            automaticReport: false,
+            report: { payload: { message: "warm" } },
+          },
+        }),
+      }),
+    )
+    await screen.findByRole(
+      "button",
+      { name: "Send report" },
+      { timeout: 25_000 },
+    )
+    unmount()
+  }, 30_000)
+
   it("lists every state and connects selection to the real preview", async () => {
     const user = userEvent.setup()
     const { container } = renderCatalog()
@@ -53,19 +85,11 @@ describe("UtilityPageCatalog", () => {
         container.querySelector("[data-slot='utility-page']"),
       ).toHaveAttribute("data-state", "service_unavailable"),
     )
-    // Heavy async render under CI load can exceed findBy's default 1000ms wait
-    // (the whole case budgets 20s); give these the same headroom.
+    // The feedback lazy() payload is warmed (see beforeAll), so this render's
+    // Suspense boundary resolves synchronously — the default findBy wait is enough.
+    expect(await screen.findByText("Report this problem")).toBeInTheDocument()
     expect(
-      await screen.findByText("Report this problem", undefined, {
-        timeout: 10_000,
-      }),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByRole(
-        "button",
-        { name: "Send report" },
-        { timeout: 10_000 },
-      ),
+      await screen.findByRole("button", { name: "Send report" }),
     ).toHaveAttribute("data-variant", "link")
   }, 20_000)
 })

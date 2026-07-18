@@ -19,6 +19,12 @@
 // rate is 0 — which could be a genuine 0% supply OR a flattened EXEMPT one) is emitted as OUTSIDE_VAT so the
 // server's `unverified_vat_regime` hold routes it to human review instead of auto-applying a guessed regime.
 //
+// SUPPLY KIND (#779): the STANDARD partial carries the DOCUMENT-GROUNDED `supplyKind` the extract vision
+// model read off the invoice (IR `Invoice.supply_kind`), so the booker picks the cost account from a fact
+// rather than failing closed on a null. It is NEVER fabricated here: absent on the IR ⇒ omitted ⇒ persisted
+// null ⇒ the booker holds for human review. This adapter is also the single compile-time parity point where
+// the Brain-owned `SupplyKind` set is checked against the capture contract's `SUPPLY_KIND` enum.
+//
 // Tenancy ([G2-Opus]): the produced object carries NO organization_id / user_id / workspace_id / role —
 // those are server-injected from the API-key principal. This module emits only @workspace/shared request
 // DTOs and never imports @workspace/accounting.
@@ -34,6 +40,7 @@ import type {
   CashDocument,
   Counterparty,
   Invoice,
+  SupplyKind,
   VatSummaryRow,
 } from "@workspace/brain"
 
@@ -92,19 +99,33 @@ function gateEnvelope(ctx: IrToCaptureContext): CaptureGateEnvelope {
  * Map one IR VAT-summary row to a capture partial. `sign` (+1 / -1) flips base + tax for a credit note.
  * `baseAmount` and `vatAmount` come STRAIGHT from the source (`base_minor` / `tax_minor`); never `base *
  * rate`. A row always carries a numeric `rate`, so this is always a valid STANDARD partial.
+ *
+ * `supplyKind` (#779) is the DOCUMENT-GROUNDED druh plnění the extract model read off the invoice — stamped
+ * onto the STANDARD partial so the booker (`bookDocument`) picks the cost account from a real fact instead of
+ * failing closed on a null. It is stamped ONLY on a rate-bearing STANDARD partial: a rate-less / OUTSIDE_VAT
+ * row (`partialWithoutRate`) is already held for VAT-regime review, so it stays supply-kind-null (the booker
+ * holds it too). Absent on the IR ⇒ omitted here ⇒ persisted null ⇒ the booker holds for human review — the
+ * fail-closed identity is preserved; a supply kind is NEVER fabricated.
  */
 function partialFromVatRow(
   row: VatSummaryRow,
   currencyCode: string,
   sign: 1n | -1n,
+  supplyKind?: SupplyKind,
 ): CapturePartial {
-  // A non-positive rate (0% / missing) is NOT an unambiguous STANDARD supply: a 0% row could be a genuine
-  // zero-rated domestic supply OR an EXEMPT / osvobozeno supply the extractor flattened to 0% — and the
+  // A reverse-charge row (domestic PDP / §92 — the customer self-assesses, so the source tax is 0 at a real
+  // rate) is NOT a STANDARD supply either: booking it STANDARD with a positive rate + 0 tax asserts a regime
+  // the adapter must not fabricate. We route it to the OUTSIDE_VAT hold — the base is preserved, and
+  // `classifyAccountingEvent` on the server assigns REVERSE_CHARGE. Checked BEFORE the rate test because a PDP
+  // row carries a positive `rate` (e.g. 21) that would otherwise fall through to the STANDARD branch below.
+  //
+  // A non-positive rate (0% / missing) is likewise NOT an unambiguous STANDARD supply: a 0% row could be a
+  // genuine zero-rated domestic supply OR an EXEMPT / osvobozeno supply the extractor flattened to 0% — and the
   // server veto passes a STANDARD 0% partial (rate 0, no vatAmount) straight through. The adapter does not
-  // guess the regime: it routes a non-positive-rate row to the OUTSIDE_VAT hold so `classifyAccountingEvent`
-  // decides and the server holds it, rather than asserting STANDARD 0%. `!(rate > 0)` (not `rate <= 0`) is
-  // deliberate: it also routes a NaN rate to the hold (`NaN > 0` is false), failing safe on a bad extraction.
-  if (!(row.rate > 0)) {
+  // guess the regime: it routes such a row to the OUTSIDE_VAT hold so `classifyAccountingEvent` decides and the
+  // server holds it, rather than asserting STANDARD 0%. `!(rate > 0)` (not `rate <= 0`) is deliberate: it also
+  // routes a NaN rate to the hold (`NaN > 0` is false), failing safe on a bad extraction.
+  if (row.reverse_charge || !(row.rate > 0)) {
     return partialWithoutRate(row.base_minor * sign, currencyCode)
   }
   // [G1-F4] `vatAmount` comes STRAIGHT from the source tax field (`tax_minor`), NEVER `base * rate` — a
@@ -119,6 +140,10 @@ function partialFromVatRow(
     vatAmount: minorToDecimal(row.tax_minor * sign),
     vatJurisdiction: "DOMESTIC",
     currencyCode,
+    // Document-grounded supply kind (#779): stamped when the IR carried one, omitted otherwise (never
+    // fabricated). Assigning the Brain `SupplyKind` here is also the compile-time check that it is a member
+    // of the capture contract's `SUPPLY_KIND` enum — see the parity guard in `ir-to-capture.test.ts`.
+    ...(supplyKind ? { supplyKind } : {}),
   }
 }
 
@@ -139,20 +164,48 @@ function partialWithoutRate(
 }
 
 /**
+ * True only for a well-formed Czech legal calendar date: strict `YYYY-MM-DD` naming a REAL day — matching the
+ * capture schema's `LEGAL_DATE` (`z.iso.date()`). Gates `taxPointDate`: the structured parsers emit date-only,
+ * but the OCR IR boundary (`parseExtractedInvoice`) does not validate date FORMAT, so a `tax_point_date`
+ * carrying a time or an impossible day must be DROPPED, not forwarded. Dropping leaves the DUZP unresolved — a
+ * state the server SURFACES (the VAT-evidence completeness check flags a null tax_point_date; the filing-period
+ * scope excludes it), never a silent issue-date period. Forwarding a datetime would instead fail the STRICT
+ * capture schema AFTER the accounting event was already created (occurredAt uses a lenient regex), orphaning
+ * it. Never slice a date off a datetime: a UTC instant near midnight shifts the Prague legal day by ±1.
+ */
+function isLegalDate(value: string | undefined): value is string {
+  if (value === undefined || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const date = new Date(`${value}T00:00:00Z`)
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  )
+}
+
+/**
  * IR Invoice → CaptureAccountingDocumentRequest (STANDARD domestic, v1 scope).
  *
  * Direction maps to the document type (received → RECEIVED_INVOICE, issued → ISSUED_INVOICE). Each
  * `vat_summary` row becomes one partial. A credit note (`doc_type: "credit_note"`) flips the sign of
  * every base + tax (SignedDecimal accepts negatives). All lines hang off the single harness-supplied
  * `eventId`.
+ *
+ * `issuedAt` is the §11/1d okamžik vyhotovení (the document-issue date). `taxPointDate` is the DUZP/DPPD
+ * (§21) — the legal date the VAT outputs (přiznání / kontrolní hlášení period) hang off. They are DISTINCT
+ * legal dates, so a well-formed `tax_point_date` is threaded through; an absent OR malformed one is OMITTED
+ * (see `isLegalDate`) so the server surfaces the DUZP as unresolved rather than 400-ing the whole capture (and
+ * orphaning the already-created event). Never defaulted to `issue_date`. The capture schema only accepts
+ * `taxPointDate` on an invoice type — which is the only thing this adapter emits.
  */
 export function invoiceToCapture(
   invoice: Invoice,
   ctx: IrToCaptureContext,
 ): CaptureAccountingDocumentRequest {
   const sign: 1n | -1n = invoice.doc_type === "credit_note" ? -1n : 1n
+  // The document-grounded supply kind (#779) is invoice-level: the extract model emits it ONLY for a
+  // single-supply document (omitted when the lines mix kinds), so every rate-bearing partial derived from the
+  // vat_summary shares it. A mixed document carries no supply_kind ⇒ null ⇒ the booker holds it.
   const partials: CapturePartial[] = invoice.vat_summary.map((row) =>
-    partialFromVatRow(row, invoice.currency, sign),
+    partialFromVatRow(row, invoice.currency, sign, invoice.supply_kind),
   )
 
   return {
@@ -161,6 +214,9 @@ export function invoiceToCapture(
     type:
       invoice.direction === "issued" ? "ISSUED_INVOICE" : "RECEIVED_INVOICE",
     issuedAt: invoice.issue_date,
+    ...(isLegalDate(invoice.tax_point_date)
+      ? { taxPointDate: invoice.tax_point_date }
+      : {}),
     lines: [
       {
         eventId: ctx.eventId,
@@ -223,13 +279,20 @@ function eventGateEnvelope(ctx: IrToEventContext): EventGateEnvelope {
 }
 
 /**
- * Digits-only IČO in the 1–8 range the request regex (`^\d{1,8}$`) accepts, else `undefined` (dropped).
- * The server left-pads to 8 — so we send clean 1–8 digits or nothing, NEVER a malformed value that would
- * crash the approve-tx CHECK. `> 8` digits is not a valid IČO and is dropped (fall through to DIČ / name).
+ * A Czech IČO in the 1–8 digit range the request regex (`^\d{1,8}$`) accepts, else `undefined` (dropped).
+ * A Czech IČO is bare digits (optionally space-grouped). A value that carries LETTERS — a foreign register
+ * id ("SK12345678") or a DIČ ("CZ12345678") — is NOT a Czech IČO; stripping the prefix and sending the
+ * remaining 8 digits would bind a WRONG-BUT-REAL Czech partner (the confident-wrong class: e.g. a Slovak
+ * counterparty resolved to whatever Czech company happens to hold that IČO). We reject such a value and fall
+ * through to DIČ / name. `> 8` digits is likewise not a valid IČO and is dropped. The server left-pads to 8.
  */
 function eventIco(raw: string | undefined): string | undefined {
   if (!raw) return undefined
-  const digits = raw.replace(/\D/g, "")
+  const trimmed = raw.trim()
+  // Anything but digits + internal spaces (a "SK"/"CZ"/… country prefix, punctuation) is not a bare Czech
+  // IČO — reject it rather than launder it into 8 digits that resolve to the wrong, real Czech partner.
+  if (/[^\d\s]/.test(trimmed)) return undefined
+  const digits = trimmed.replace(/\s/g, "")
   return digits.length >= 1 && digits.length <= 8 ? digits : undefined
 }
 

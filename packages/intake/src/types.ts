@@ -25,6 +25,17 @@ export interface ParseContext {
   sourcePath: string
   /** ISO-8601 timestamp to stamp `ingested_at` — injected, never read from the clock. */
   ingestedAt: string
+  /**
+   * The IČO of the org whose books this dump belongs to — the SUBJECT org, used ONLY to orient a
+   * reader-relative document direction (issued vs received) for formats that do not encode it themselves
+   * (ISDOC: an e-invoice is identical on both sides; only comparing this identity to the supplier/customer
+   * party tells us which side we are on). Digits only. NOT a tenancy key: the real tenant org is resolved
+   * server-side from the API-key principal; this is the subject org's public register identifier, and it
+   * never widens what the write may do. Absent ⇒ a format that needs it fails closed (no record + warning).
+   */
+  subjectIco?: string
+  /** The DIČ of the subject org — the fallback direction key when the IČO is absent on a party. With country prefix. */
+  subjectDic?: string
 }
 
 /** A non-fatal issue a parser surfaces instead of throwing (kept for the human review pile). */

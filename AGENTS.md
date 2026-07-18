@@ -136,7 +136,7 @@ awaiting relocation).
 
 ## Releases
 
-Versions follow `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`) for stable releases and `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` (e.g. `v0.2.1-rc.1`) for release candidates. Tagging is manual and gated to Hleb until v1. Full conventions, bump rules, and the cut workflow live in [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
+Versions follow `v<MAJOR>.<MINOR>.<PATCH>` (e.g. `v0.2.0`) for stable releases and `v<MAJOR>.<MINOR>.<PATCH>-rc.<N>` (e.g. `v0.2.1-rc.1`) for release candidates. Tagging is human-gated to Hleb until v1: a tag is cut only on his explicit authorization, which he may **delegate** to an agent by instructing a release cut — the agent then runs the whole workflow end to end, tag and push included. No agent or automation tags without that instruction. Full conventions, bump rules, and the cut workflow live in [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
 
 The current build version is surfaced at runtime via the `BUILD_VERSION` env (injected by the Docker image build), readable through `getBuildVersion()` / `<BuildVersion />` from `@workspace/ui/brand-assets`. It shows in the footer of every auth/onboarding page so the deployed version is always visible.
 

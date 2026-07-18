@@ -7,6 +7,8 @@ import { renderResult, toolError } from "../_render"
 import { defaultAnnotationsForMethod, getAnnotations } from "../_curate"
 
 const inputShape = {
+  "limit": z.number().int().min(1).max(100).describe("Page size. 1–100; default 25.").optional(),
+  "cursor": z.string().min(1).max(512).describe("Opaque pagination cursor returned by the previous page. Do not parse.").optional(),
   "direction": z.enum(["received","issued"]).describe("Restrict to received or issued invoices.").optional(),
   "periodId": z.string().uuid().describe("Restrict to one účetní období.").optional(),
 }
@@ -19,7 +21,7 @@ export function registerListInvoices(
     "list_invoices",
     {
       title: "List invoices",
-      description: `Returns the organization's invoices — \`summary_record\` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — with rolled-up accounting-currency totals. Organization-scoped (FORCE RLS). Optionally filter by \`direction\` and \`periodId\`. An invoice is a voucher header, not a posting; use \`GET /v1/accounting/periods/{id}/journal\` for the journal bookings.`,
+      description: `Returns a cursor-paginated page of the organization's invoices — \`summary_record\` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — newest first, with rolled-up accounting-currency totals, the resolved counterparty, and transaction-currency roll-ups. Organization-scoped (FORCE RLS). Page with \`limit\` (1–100, default 25) + the opaque \`cursor\` from the previous page's \`next_cursor\`; optionally filter by \`direction\` and \`periodId\`. An invoice is a voucher header, not a posting; use \`GET /v1/accounting/periods/{id}/journal\` for the journal bookings.`,
       inputSchema: inputShape,
       annotations: {
         ...defaultAnnotationsForMethod("get"),
@@ -29,7 +31,7 @@ export function registerListInvoices(
     async (args): Promise<CallToolResult> => {
       try {
         const raw = args as Record<string, unknown>
-        const params = { query: { "direction": raw["direction"], "periodId": raw["periodId"] } } as unknown as NonNullable<operations["listInvoices"]["parameters"]>
+        const params = { query: { "limit": raw["limit"], "cursor": raw["cursor"], "direction": raw["direction"], "periodId": raw["periodId"] } } as unknown as NonNullable<operations["listInvoices"]["parameters"]>
         const init = { params }
         const { data, error, response } = await client.GET("/v1/invoices", init)
         if (error) throw error

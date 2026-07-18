@@ -5,7 +5,7 @@ import {
   GATE_ENVELOPE,
   IndividualRecordSchema,
 } from "./accounting-writes"
-import { InvoiceIdSchema } from "./primitives"
+import { InvoiceIdSchema, PageQuerySchema, pageOf } from "./primitives"
 import "./zod-openapi"
 
 /**
@@ -34,6 +34,50 @@ export const InvoiceDirectionSchema = z.enum(["received", "issued"]).openapi({
   example: "received",
 })
 export type InvoiceDirection = z.infer<typeof InvoiceDirectionSchema>
+
+/**
+ * The invoice's counterparty (protistrana). Lives on `accounting_event`
+ * (workspace-shared `counterparty`), surfaced here when the invoice's lines
+ * resolve to exactly one non-null counterparty.
+ */
+export const InvoiceCounterpartySchema = z
+  .object({
+    id: z.string().uuid().openapi({
+      description: "Counterparty id (workspace-shared protistrana).",
+      example: "0196f1de-0000-7000-8000-0000000000c1",
+    }),
+    name: z.string().nullable().openapi({
+      description:
+        "Counterparty display name (obchodní jméno), or null when unnamed.",
+      example: "ACME s.r.o.",
+    }),
+  })
+  .openapi({ description: "The invoice's counterparty (protistrana)." })
+export type InvoiceCounterparty = z.infer<typeof InvoiceCounterpartySchema>
+
+/** Per-transaction-currency roll-up of the invoice's partials. */
+export const InvoiceCurrencyTotalSchema = z
+  .object({
+    currencyCode: z.string().openapi({
+      description: "Transaction currency (ISO 4217).",
+      example: "EUR",
+    }),
+    totalBase: z.string().openapi({
+      description:
+        "Sum of line bases in this transaction currency, decimal string.",
+      example: "500.00",
+    }),
+    totalVat: z.string().openapi({
+      description:
+        "Sum of line VAT in this transaction currency, decimal string.",
+      example: "105.00",
+    }),
+  })
+  .openapi({
+    description:
+      "A transaction-currency roll-up (one per distinct partial currency).",
+  })
+export type InvoiceCurrencyTotal = z.infer<typeof InvoiceCurrencyTotalSchema>
 
 /** Invoice header — the summary_record fields + rolled-up accounting-currency totals. */
 export const InvoiceSchema = z
@@ -89,6 +133,17 @@ export const InvoiceSchema = z
     lineCount: z.number().int().openapi({
       description: "Number of individual-record lines on the invoice.",
       example: 1,
+    }),
+    counterparty: InvoiceCounterpartySchema.nullable().openapi({
+      description:
+        "The invoice's counterparty when its lines resolve to exactly one; " +
+        "null otherwise (zero, or multiple distinct counterparties).",
+    }),
+    currencyTotals: z.array(InvoiceCurrencyTotalSchema).openapi({
+      description:
+        "Transaction-currency roll-ups, one per distinct partial currency " +
+        "(ordered by currency code). The frozen accounting-currency totals " +
+        "stay in `totalBase`/`totalVat`.",
     }),
     createdAt: z.string().openapi({
       description: "When the voucher row was created — ISO timestamp.",
@@ -170,32 +225,31 @@ export const InvoiceDetailSchema = InvoiceSchema.extend({
 }).openapi({ description: "An invoice with its full line/partial detail." })
 export type InvoiceDetail = z.infer<typeof InvoiceDetailSchema>
 
-/** `GET /v1/invoices` query — optional direction / period filters. */
-export const ListInvoicesQuerySchema = z
-  .object({
-    direction: InvoiceDirectionSchema.optional().openapi({
-      description: "Restrict to received or issued invoices.",
-    }),
-    periodId: z.string().uuid().optional().openapi({
-      description: "Restrict to one účetní období.",
-      example: "0196f1de-0000-7000-8000-0000000000d1",
-    }),
-  })
-  .openapi({ description: "Filters for the invoice list." })
+/**
+ * `GET /v1/invoices` query — cursor pagination (`limit`/`cursor` from
+ * `PageQuerySchema`) plus optional direction / period filters.
+ */
+export const ListInvoicesQuerySchema = PageQuerySchema.extend({
+  direction: InvoiceDirectionSchema.optional().openapi({
+    description: "Restrict to received or issued invoices.",
+  }),
+  periodId: z.string().uuid().optional().openapi({
+    description: "Restrict to one účetní období.",
+    example: "0196f1de-0000-7000-8000-0000000000d1",
+  }),
+}).openapi({ description: "Filters + cursor pagination for the invoice list." })
 export type ListInvoicesQuery = z.infer<typeof ListInvoicesQuerySchema>
 
-/** `GET /v1/invoices` response. */
-export const ListInvoicesResponseSchema = z
-  .object({
-    invoices: z.array(InvoiceSchema).openapi({
-      description: "Invoice headers matching the filters, newest first.",
-    }),
-  })
-  .openapi({
-    description:
-      "The organization's invoices (both directions), organization-scoped " +
-      "(FORCE RLS).",
-  })
+/**
+ * `GET /v1/invoices` response — a cursor-paginated page of invoice headers.
+ * `data` holds the page (newest first), `next_cursor` is the opaque cursor for
+ * the following page (null on the last), `has_more` flags whether more remain.
+ */
+export const ListInvoicesResponseSchema = pageOf(InvoiceSchema).openapi({
+  description:
+    "A cursor-paginated page of the organization's invoices (both " +
+    "directions), organization-scoped (FORCE RLS), newest first.",
+})
 export type ListInvoicesResponse = z.infer<typeof ListInvoicesResponseSchema>
 
 /** `GET /v1/invoices/{invoiceId}` response. */

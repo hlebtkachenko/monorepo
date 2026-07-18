@@ -13,8 +13,11 @@
  *   node scripts/governance/add-changelog-entry.mjs \
  *     --category Fixed \
  *     --entry "Org switcher preserves the current module when switching orgs" \
- *     [--bump patch|minor|major] [--scope web] [--breaking] [--migration] \
- *     [--note "ship as v0.24 per Hleb"] [--name custom-slug] [--dir changelog.d]
+ *     [--bump patch|minor|major] [--override] [--scope web] [--breaking] \
+ *     [--migration] [--name custom-slug] [--dir changelog.d]
+ *
+ * --override marks the --bump as deliberate: the release agent takes it as the
+ * final level and does not argue it against a rule-derived default.
  */
 
 import { randomBytes } from "node:crypto"
@@ -32,8 +35,8 @@ function usage() {
   process.stderr.write(
     [
       "usage: add-changelog-entry.mjs --category <name> --entry <text>",
-      "         [--bump patch|minor|major] [--scope <area>] [--breaking]",
-      "         [--migration] [--note <text>] [--name <slug>] [--dir <path>]",
+      "         [--bump patch|minor|major] [--override] [--scope <area>]",
+      "         [--breaking] [--migration] [--name <slug>] [--dir <path>]",
       `  categories: ${CATEGORY_ORDER.join(", ")}`,
       "",
     ].join("\n"),
@@ -46,11 +49,11 @@ function parseArgs(argv) {
     entry: "",
     bump: "",
     scope: "",
-    note: "",
     name: "",
     dir: FRAGMENT_DIR,
     breaking: false,
     migration: false,
+    override: false,
   }
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -60,11 +63,11 @@ function parseArgs(argv) {
     else if (arg === "--entry") parsed.entry = argv[++i] ?? ""
     else if (arg === "--bump") parsed.bump = argv[++i] ?? ""
     else if (arg === "--scope") parsed.scope = argv[++i] ?? ""
-    else if (arg === "--note") parsed.note = argv[++i] ?? ""
     else if (arg === "--name") parsed.name = argv[++i] ?? ""
     else if (arg === "--dir") parsed.dir = argv[++i] ?? ""
     else if (arg === "--breaking") parsed.breaking = true
     else if (arg === "--migration") parsed.migration = true
+    else if (arg === "--override") parsed.override = true
     else {
       usage()
       process.stderr.write(`unknown argument: ${arg}\n`)
@@ -134,7 +137,7 @@ function buildFragment(options) {
   if (options.scope) lines.push(`scope: ${options.scope}`)
   if (options.breaking) lines.push("breaking: true")
   if (options.migration) lines.push("migration: true")
-  if (options.note) lines.push(`note: ${JSON.stringify(options.note)}`)
+  if (options.override) lines.push("override: true")
   lines.push("---", "", options.entry.trim(), "")
   return lines.join("\n")
 }

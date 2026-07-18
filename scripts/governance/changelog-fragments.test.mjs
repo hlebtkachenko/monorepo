@@ -17,7 +17,7 @@ test("parses a minimal fragment (category only, defaults applied)", () => {
   assert.equal(f.breaking, false)
   assert.equal(f.migration, false)
   assert.equal(f.scope, null)
-  assert.equal(f.note, null)
+  assert.equal(f.override, false)
   assert.equal(f.summary, "Org switcher preserves module.")
 })
 
@@ -29,7 +29,7 @@ test("parses all optional fields", () => {
     "scope: brain",
     "breaking: true",
     "migration: true",
-    'note: "ship as v0.24 per Hleb"',
+    "override: true",
     "---",
     "New posting lane behind the approval gate.",
     "",
@@ -39,7 +39,7 @@ test("parses all optional fields", () => {
   assert.equal(f.scope, "brain")
   assert.equal(f.breaking, true)
   assert.equal(f.migration, true)
-  assert.equal(f.note, "ship as v0.24 per Hleb")
+  assert.equal(f.override, true)
 })
 
 test("collapses a multi-line body into a single summary", () => {
@@ -136,7 +136,7 @@ test("does not double-append a PR ref already present in the body", () => {
   assert.doesNotMatch(out, /\(#99\) \(#99\)/)
 })
 
-test("buildManifest emits suggested bump, notes, and per-change rows", () => {
+test("buildManifest emits suggested bump, override flag, and per-change rows", () => {
   const fragments = [
     {
       file: "a.md",
@@ -145,7 +145,7 @@ test("buildManifest emits suggested bump, notes, and per-change rows", () => {
       scope: "web",
       breaking: false,
       migration: false,
-      note: null,
+      override: false,
       summary: "fix a",
     },
     {
@@ -155,7 +155,7 @@ test("buildManifest emits suggested bump, notes, and per-change rows", () => {
       scope: "brain",
       breaking: false,
       migration: false,
-      note: "coordinate release",
+      override: true,
       summary: "add b",
     },
   ]
@@ -167,12 +167,13 @@ test("buildManifest emits suggested bump, notes, and per-change rows", () => {
 
   assert.equal(manifest.version, "v0.24.0")
   assert.equal(manifest.suggestedBump, "minor")
-  assert.deepEqual(manifest.notes, ["coordinate release"])
+  assert.equal(manifest.bumpOverridden, true)
   assert.equal(manifest.changes.length, 2)
   assert.deepEqual(manifest.changes[0], {
     category: "Fixed",
     scope: "web",
     bump: "patch",
+    override: false,
     breaking: false,
     migration: false,
     pr: 10,

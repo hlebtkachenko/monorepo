@@ -57,7 +57,7 @@ a shared region and never conflict — this replaced the old single hand-edited
 merge. Use:
 
 ```bash
-pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--scope web] [--breaking] [--migration] [--note "..."]
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override] [--scope web] [--breaking] [--migration]
 ```
 
 Only `--category` and `--entry` are required. The fragment is named
@@ -66,16 +66,16 @@ Only `--category` and `--entry` are required. The fragment is named
 guarantees uniqueness. The optional fields become YAML frontmatter that carries
 release signal both to the human changelog and to the machine manifest:
 
-| Field         | Effect                                                                                                                                                                               |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--bump`      | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump.                                                                                 |
-| `--scope`     | Package/area (e.g. `web`, `brain`). Greppable in the manifest.                                                                                                                       |
-| `--breaking`  | Hoists the entry into a **Breaking changes** callout atop the version section.                                                                                                       |
-| `--migration` | Hoists into a **Migration required** callout (ties to the forward-fix-only rule).                                                                                                    |
-| `--note`      | A free-text instruction the release agent must honor without re-asking (e.g. a bump override, or "ship coupled with X"). Surfaced in `changelog:preview` and the manifest `notes[]`. |
+| Field         | Effect                                                                                                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bump`      | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump. (A level, never a concrete version number — the actual `vX.Y.Z` is decided at cut.)                                              |
+| `--override`  | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Surfaced as `bumpOverridden` in the manifest + a `(override)` tag on the preview's suggested bump. |
+| `--scope`     | Package/area (e.g. `web`, `brain`). Greppable in the manifest.                                                                                                                                                                        |
+| `--breaking`  | Hoists the entry into a **Breaking changes** callout atop the version section.                                                                                                                                                        |
+| `--migration` | Hoists into a **Migration required** callout (ties to the forward-fix-only rule).                                                                                                                                                     |
 
 Preview the pending release at any time (renders every fragment as the next
-version section, prints the suggested bump and any notes):
+version section, prints the suggested bump with an `(override)` tag when set):
 
 ```bash
 pnpm changelog:preview

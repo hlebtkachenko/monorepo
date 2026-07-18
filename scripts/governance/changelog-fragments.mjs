@@ -33,7 +33,7 @@ export const CATEGORY_ORDER = [
 /** Version-bump levers, weakest → strongest. `pickBump` takes the strongest. */
 export const BUMP_ORDER = ["patch", "minor", "major"]
 
-const BOOL_KEYS = new Set(["breaking", "migration"])
+const BOOL_KEYS = new Set(["breaking", "migration", "override"])
 
 /**
  * Parse one fragment (YAML-subset frontmatter + markdown body). Throws with a
@@ -96,7 +96,9 @@ export function parseFragment(text, name = "<fragment>") {
     scope: meta.scope || null,
     breaking: meta.breaking === true,
     migration: meta.migration === true,
-    note: meta.note || null,
+    // The proposed bump is deliberate — the release agent takes it as final and
+    // does not re-derive/argue against a rule-suggested level.
+    override: meta.override === true,
     body,
     // Single-line form used in the manifest and for stable sorting.
     summary: body.replace(/\s+/g, " ").trim(),
@@ -214,13 +216,15 @@ export function buildManifest(fragments, { version, date, prByFile = {} }) {
     version,
     date,
     suggestedBump: pickBump(fragments),
+    // An author marked their bump as deliberate — the release agent honors the
+    // suggested bump as final and does not argue it down/up against a rule.
+    bumpOverridden: fragments.some((f) => f.override),
     breaking: fragments.some((f) => f.breaking),
-    // Override / context instructions the release agent must honor (no re-ask).
-    notes: fragments.filter((f) => f.note).map((f) => f.note),
     changes: sortFragments(fragments, prByFile).map((f) => ({
       category: f.category,
       scope: f.scope,
       bump: f.bump,
+      override: f.override,
       breaking: f.breaking,
       migration: f.migration,
       pr: prByFile[f.file] ?? null,

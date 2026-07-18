@@ -195,15 +195,16 @@ function main() {
     : `## [${version}] — ${resolvedDate}`
   const section = renderVersionSection(fragments, { heading, prByFile })
   const bump = pickBump(fragments)
-  const notes = fragments.filter((f) => f.note).map((f) => f.note)
+  const overridden = fragments.some((f) => f.override)
+  const bumpLine = `Suggested bump: ${bump.toUpperCase()}${
+    overridden
+      ? " (override — take as final; do not re-derive against the rule)"
+      : ""
+  }`
 
   if (dryRun) {
     process.stdout.write(`${section}\n\n`)
-    process.stdout.write(`Suggested bump: ${bump.toUpperCase()}\n`)
-    if (notes.length > 0) {
-      process.stdout.write("Release notes (honor without re-asking):\n")
-      for (const note of notes) process.stdout.write(`  - ${note}\n`)
-    }
+    process.stdout.write(`${bumpLine}\n`)
     process.stdout.write(
       `\n${fragments.length} pending entr${fragments.length === 1 ? "y" : "ies"}. See docs/conventions/RELEASES.md for the bump rules.\n`,
     )
@@ -233,11 +234,10 @@ function main() {
   process.stdout.write(
     [
       `Collected ${fragments.length} entr${fragments.length === 1 ? "y" : "ies"} into ${CHANGELOG_FILE} under ## [${version}].`,
-      `Wrote ${join(MANIFEST_DIR, `${version}.json`)} (suggested bump: ${bump.toUpperCase()}).`,
+      `Wrote ${join(MANIFEST_DIR, `${version}.json`)} (${bumpLine.toLowerCase()}).`,
       keep
         ? `Kept ${fileFragments.length} fragment${fileFragments.length === 1 ? "" : "s"} (--keep; delete them at the final release).`
         : `Removed ${fileFragments.length} consumed fragment${fileFragments.length === 1 ? "" : "s"} — stage the deletions.`,
-      notes.length > 0 ? `Release notes: ${notes.join(" | ")}` : "",
     ]
       .filter(Boolean)
       .join("\n") + "\n",

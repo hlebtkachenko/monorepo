@@ -9,6 +9,7 @@ import singleAuditWriter from "./rules/single-audit-writer.js"
 import noBareRoleIdentifier from "./rules/no-bare-role-identifier.js"
 import noLeakedAfkey from "./rules/no-leaked-afkey.js"
 import noCrossOrgTreeImport from "./rules/no-cross-org-tree-import.js"
+import noLooseOrgTreeFolder from "./rules/no-loose-org-tree-folder.js"
 import noAdminBypassInLibOrg from "./rules/no-admin-bypass-in-lib-org.js"
 
 /**
@@ -48,6 +49,7 @@ const workspaceRlsPlugin = {
 const orgTreePlugin = {
   rules: {
     "no-cross-org-tree-import": noCrossOrgTreeImport,
+    "no-loose-org-tree-folder": noLooseOrgTreeFolder,
   },
 }
 
@@ -271,6 +273,9 @@ export const config = [
     },
     rules: {
       "org-tree/no-cross-org-tree-import": "error",
+      // Layout wall: the new tree's only private folders are _shell + _nav.
+      // Blocks a flat _components/ (the old-tree pattern) from creeping back.
+      "org-tree/no-loose-org-tree-folder": "error",
     },
   },
   // Bounds the withAdminBypass surface in the rebuilt org lib. Rides the same

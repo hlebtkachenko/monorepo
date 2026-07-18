@@ -32,6 +32,13 @@ canonical `/[orgSlug]` and the `/o` prefix disappears.
    real org data (dynamic, as it would be for a real company) or empty. No mock
    rows, fake text, or hardcoded sample values — ever. A page with no designed
    content yet renders an empty body, not a placeholder.
+6. **No loose `_components/` — everything this tree owns is grouped under
+   `_shell/` or `_nav/`.** A flat `_components/` folder is the OLD tree's pattern
+   and is forbidden at any depth. Page compositions live under the `_shell`
+   anatomy (`_shell/app-body/app-content/content-header/` or `.../content-body/`),
+   never a dumping folder. Enforced by `org-tree/no-loose-org-tree-folder` under
+   the same `pnpm --filter web lint:org-new` (`--max-warnings 0`) gate as the
+   wall — green lint ⟺ the layout matches this charter.
 
 ## What lives where
 

@@ -137,12 +137,22 @@ function mapParty(wrapper: unknown): Counterparty | undefined {
   const party = obj(obj(wrapper).Party)
   if (Object.keys(party).length === 0) return undefined
   const name = text(obj(party.PartyName).Name) || undefined
-  const ico = digitsOnly(obj(party.PartyIdentification).ID)
+  const addr = obj(party.PostalAddress)
+  const country = text(obj(addr.Country).IdentificationCode) || undefined
+  // PartyIdentification/ID is a CZECH IČO only for a domestic party. A value carrying letters ("SK12345678")
+  // or a non-CZ country marks a FOREIGN register id — mapping it to `ico` (the Czech-IČO field) would
+  // fabricate a Czech identity that the server's counterparty dedup then binds to whatever real Czech company
+  // holds those 8 digits (the confident-wrong class). Leave `ico` unset for a foreign party; its identity
+  // rides on the DIČ (`tax_id`, country-prefixed) + `country`, which the IČO→DIČ→(name+country) dedup resolves
+  // independently — so a foreign counterparty is booked correctly, just never under a synthetic Czech IČO.
+  const rawId = text(obj(party.PartyIdentification).ID).trim()
+  const foreign =
+    /[^\d\s]/.test(rawId) ||
+    (country !== undefined && country.toUpperCase() !== "CZ")
+  const ico = foreign ? undefined : digitsOnly(rawId)
   const pts = party.PartyTaxScheme
   const dic = pts ? text(obj(pts).CompanyID) || undefined : undefined
   if (!name && !ico && !dic) return undefined
-  const addr = obj(party.PostalAddress)
-  const country = text(obj(addr.Country).IdentificationCode) || undefined
   const address: Address = {
     ...(text(addr.StreetName) ? { street: text(addr.StreetName) } : {}),
     ...(text(addr.CityName) ? { city: text(addr.CityName) } : {}),

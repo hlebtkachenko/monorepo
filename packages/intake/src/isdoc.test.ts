@@ -134,6 +134,21 @@ describe("parseIsdoc — foreign currency", () => {
   })
 })
 
+describe("parseIsdoc — foreign counterparty", () => {
+  it("never fabricates a Czech IČO for a foreign (SK) party; keeps the DIČ + country for DIČ-based dedup", () => {
+    // 10-non-czk's customer is Slovak: PartyIdentification/ID "SK12345678" (a foreign register id, NOT a Czech
+    // IČO) + country SK + a real DIČ "SK2020123456". The adapter must NOT strip "SK…"→"12345678" into `ico`
+    // (that binds whatever real Czech company holds that IČO); the identity rides on the DIČ + country instead.
+    const inv = parseOne("10-non-czk", ctxFor(CUSTOMER_A)) // supplier 87654321 (CZ) → issued
+    expect(inv.customer?.ico).toBeUndefined()
+    expect(inv.customer?.dic).toBe("SK2020123456")
+    expect(inv.customer?.is_vat_payer).toBe(true)
+    expect(inv.customer?.address?.country).toBe("SK")
+    // The Czech supplier is unaffected — its bare-digit IČO still maps.
+    expect(inv.supplier?.ico).toBe(CUSTOMER_A)
+  })
+})
+
 describe("parseIsdoc — payment method + document types", () => {
   it("maps a cash payment (PaymentMeansCode 10) to payment_method cash", () => {
     const inv = parseOne("02-cash", ctxFor(CUSTOMER_A))

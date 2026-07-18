@@ -1,6 +1,6 @@
 # `@afframe/mcp` — MCP Server Design
 
-> **[Wip — implemented in-repo, not published.]** `apps/mcp` ships a working stdio MCP server with codegen-generated tools for the GET operations (`ping`, `getOrganization`, `getStatus`, `getStructure`, `listArchetypes`) and POST operations (`createFeedback` — request bodies become Zod `inputSchema`s; AFF-236). `getStructure` / `listArchetypes` expose the app's structure (modules, pages, layout archetypes) for agent discovery. There is no npm publish pipeline and no Streamable-HTTP transport. Sections beyond the shipped stdio surface remain design intent ([`ADR-0023`](../adr/0023-public-api-developer-platform.md)).
+> **[Wip — implemented in-repo, not published.]** `apps/mcp` ships a working stdio MCP server with codegen-generated tools for the GET operations (`ping`, `getOrganization`, `getStatus`, `getStructure`, `listArchetypes`) and POST operations (`createFeedback` — request bodies become Zod `inputSchema`s; AFF-236). `getStructure` / `listArchetypes` expose the app's structure (modules, pages, layout archetypes) for agent discovery. The hosted Streamable-HTTP transport now exists too: `src/http.ts` is a stateless Cloudflare Worker (`mcp.afframe.com`) that gates on bearer presence and forwards the caller's `Authorization: Bearer` API key to `api.afframe.com`, deployed manually via `.github/workflows/deploy-mcp.yml` (#829). It ships **bearer-first** — OAuth 2.1 is deferred (see the [ADR-0023](../adr/0023-public-api-developer-platform.md) amendment). There is still no npm publish pipeline.
 
 Design + usage reference for the official Model Context Protocol server exposing `api.afframe.com/v1` to LLM clients (Claude Desktop, Claude Code, Cursor, ChatGPT desktop, ...).
 
@@ -14,11 +14,11 @@ Design + usage reference for the official Model Context Protocol server exposing
 | Schema source          | Auto-generate from OpenAPI 3.1, hand-curate, commit as source (don't regenerate at runtime) | In-house TypeScript codegen at `apps/mcp/scripts/gen-tools.ts` (see ADR-0024 §4). `cnoe-io/openapi-mcp-codegen` rejected — Python-only. Repair pass gets ~94% usable. |
 | Distribution — local   | `npx -y @afframe/mcp@latest` (env-var bearer token)                                         | Most common pattern in `claude_desktop_config.json`                                                                                                                   |
 | Distribution — desktop | Claude Desktop Extensions (`.dxt`)                                                          | One-click install, OS-keychain secrets, bundled Node runtime                                                                                                          |
-| Distribution — hosted  | `mcp.afframe.com` (Streamable HTTP + OAuth)                                                 | Zero install, OAuth = no key handling. The Stripe/GitHub/Cloudflare pattern.                                                                                          |
+| Distribution — hosted  | `mcp.afframe.com` (Streamable HTTP; bearer-first, OAuth later)                              | Zero install. Ships bearer-first (forward the caller's API key); OAuth 2.1 deferred to a later ADR. The Stripe/GitHub/Cloudflare pattern.                             |
 | Transport (remote)     | Streamable HTTP only                                                                        | SSE deprecated in MCP spec 2025-03-26, fully removed 2026-03-26                                                                                                       |
 | Repo location          | `apps/mcp`                                                                                  | Shares `@workspace/shared` types with `apps/api` and `apps/cli`                                                                                                       |
 | Auth (local)           | `AFFRAME_API_KEY` env var → `Authorization: Bearer ...`                                     | Standard; never accept a per-tool token argument                                                                                                                      |
-| Auth (hosted)          | OAuth 2.1 device flow against `app.afframe.com`                                             | Per the 2025-06-18 MCP authorization spec                                                                                                                             |
+| Auth (hosted)          | Bearer at launch (forward `Authorization: Bearer` to the API); OAuth 2.1 deferred           | Bearer covers dev / CI / agents now with no authorization-server work; OAuth 2.1 device flow (per the 2025-06-18 MCP authorization spec) lands in a later ADR         |
 | Naming                 | `verb_resource` snake_case (`create_invoice`, `list_invoices`)                              | Convention in Stripe / GitHub / Sentry. Clients namespace as `mcp__afframe__verb_resource`.                                                                           |
 | Scope split            | Three pre-bundled flavours: `read`, `write`, `destructive`                                  | Least-privilege scope model; accountancy clients won't grant write on day one                                                                                         |
 | Discovery              | Publish `/.well-known/mcp` + list in registry.modelcontextprotocol.io                       | Lets registries crawl capability without connecting                                                                                                                   |
@@ -102,14 +102,15 @@ afframe.dxt
 ### Hosted (`mcp.afframe.com`)
 
 ```
-$ claude mcp add --transport http afframe https://mcp.afframe.com/mcp
-# browser opens app.afframe.com/oauth/authorize?...
-# user clicks "Allow", a scoped, short-lived OAuth token is issued
-# Claude stores the refresh token; tool calls forward the access token
+$ claude mcp add --transport http afframe https://mcp.afframe.com \
+    --header "Authorization: Bearer ${AFFRAME_API_KEY}"
+# the Worker forwards the bearer to api.afframe.com; ApiKeyGuard verifies it
+# and enforces scopes + tenant isolation. No OAuth handshake (bearer-first).
 ```
 
-- OAuth 2.1 device-flow per the [2025-06-18 MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization).
-- The hosted server runs on Cloudflare Workers (`createMcpHandler()`, stateless) — Streamable HTTP, no Durable Object state.
+- **Bearer-first (shipped):** the caller supplies their Afframe API key as `Authorization: Bearer …`. The Worker gates on bearer presence and forwards it to the API, which is the sole verification + tenant-isolation point (a Worker cannot reach the database). Every method — including `initialize` and `tools/list` — requires a bearer, so the tool catalog is not enumerable anonymously.
+- The hosted server runs on Cloudflare Workers using the MCP SDK's `WebStandardStreamableHTTPServerTransport` (stateless: one server + transport per request, no Durable Object state).
+- **OAuth 2.1 device-flow (deferred):** per the [2025-06-18 MCP authorization spec](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization), for the one-click connector UX. Deferred to a later ADR — see the ADR-0023 amendment.
 
 ---
 
@@ -194,7 +195,7 @@ Each tool is one file under `apps/mcp/src/tools/`. Filename matches `name`. Triv
 | --------- | ----------------------------------------------------------------------------------------------------------------- |
 | 0.1       | `npx @afframe/mcp` with 5 read tools against the foundation (`whoami`, `get_organization`, `ping`). Internal use. |
 | 0.5       | All AFF-71 domain tools (read + write split). Published to npm.                                                   |
-| 0.9       | `mcp.afframe.com` hosted Streamable HTTP + OAuth. DXT bundle.                                                     |
+| 0.9       | `mcp.afframe.com` hosted Streamable HTTP — **bearer-first shipped** (#829); OAuth 2.1 + DXT bundle deferred.      |
 | 1.0       | Listed in registry.modelcontextprotocol.io. Documented in `/docs/mcp`.                                            |
 
 ---

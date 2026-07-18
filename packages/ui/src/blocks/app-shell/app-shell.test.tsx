@@ -67,6 +67,28 @@ describe("AppShell", () => {
     ).toBeNull()
   })
 
+  it("exposes a skip-to-content link and a named main landmark", () => {
+    const { container } = render(
+      <AppShell rail={<div />} sidebar={<div />}>
+        <div data-testid="body" />
+      </AppShell>,
+    )
+    const skip = screen.getByRole("link", { name: /skip to content/i })
+    expect(skip).toHaveAttribute("href", "#main-content")
+    // The skip link must be the very first focusable element so a keyboard
+    // user reaches it on their first Tab.
+    expect(container.querySelector("[data-slot='app-shell-skip-link']")).toBe(
+      skip,
+    )
+
+    const main = container.querySelector("[data-slot='app-shell-main']")
+    expect(main).toHaveAttribute("id", "main-content")
+    expect(main).toHaveAttribute("aria-label", "Main content")
+    expect(main).toHaveAttribute("tabindex", "-1")
+    // The skip link target resolves to the main landmark.
+    expect(screen.getByRole("main")).toBe(main)
+  })
+
   it("toggles the assistant panel on button click", () => {
     const { container } = render(
       <AppShell sidebar={<div />} assistant={<div data-testid="assistant" />}>
@@ -609,6 +631,17 @@ describe("ShellSkeleton", () => {
     expect(
       container.querySelector("[data-slot='app-shell-skeleton']"),
     ).toBeTruthy()
+  })
+
+  it("is content-shaped — rail, header bar, sidebar, and content regions", () => {
+    const { container } = render(<ShellSkeleton />)
+    // Four shell-shaped placeholder regions (rail + header + sidebar +
+    // content) instead of the old single full-viewport slab.
+    expect(
+      container.querySelectorAll(
+        "[data-slot='app-shell-skeleton'] [data-slot='skeleton']",
+      ),
+    ).toHaveLength(4)
   })
 })
 

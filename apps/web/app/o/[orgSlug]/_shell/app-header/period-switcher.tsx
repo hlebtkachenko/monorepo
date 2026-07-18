@@ -86,8 +86,8 @@ export function PeriodSwitcherClient({
       periods={items}
       value={value}
       onValueChange={selectPeriod}
-      onAddPeriod={() => router.push(orgHref(slug, "settings/periods"))}
-      onManagePeriods={() => router.push(orgHref(slug, "settings/periods"))}
+      onAddPeriod={() => router.push(orgHref(slug, "company/periods"))}
+      onManagePeriods={() => router.push(orgHref(slug, "company/periods"))}
     />
   )
 }

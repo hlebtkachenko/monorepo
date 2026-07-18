@@ -16,7 +16,10 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen": "tsx scripts/gen-tools.ts"
+    "gen": "tsx scripts/gen-tools.ts",
+    "deploy": "wrangler deploy",
+    "deploy:staging": "wrangler deploy --env staging",
+    "deploy:production": "wrangler deploy --env production"
   },
   "dependencies": {
     "@afframe/sdk": "workspace:*",
@@ -24,12 +27,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260706.1",
     "@types/node": "^26.0.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "eslint": "^9.39.2",
     "tsx": "^4.23.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.105.0"
   }
 }

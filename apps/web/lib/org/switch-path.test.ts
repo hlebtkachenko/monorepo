@@ -56,4 +56,12 @@ describe("orgSwitchTarget", () => {
       "/o/north",
     )
   })
+
+  it("does not mis-strip a sibling slug that shares a prefix (segment boundary)", () => {
+    // `/o/acme-backup/x` is NOT under source slug `acme`; the old loose
+    // startsWith would strip it to `-backup/x`. It must fall back to the root.
+    expect(orgSwitchTarget("/o/acme-backup/x", "acme", "north")).toBe(
+      "/o/north",
+    )
+  })
 })

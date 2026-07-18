@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
 
-import { orgBasePath, orgHref } from "@/lib/org/href"
+import { orgHref, orgRelativePath } from "@/lib/org/href"
 import { setPeriodDefault } from "@/lib/org/period-actions"
 import type { HeaderPeriod } from "@/lib/org/period"
 
@@ -59,21 +59,14 @@ export function PeriodSwitcherClient({
   const value = searchParams.get("period") ?? defaultPeriodId
   const items = periods.map(toPeriod)
 
-  // The current path relative to the org base, so switching a period keeps you
-  // on the same page instead of bouncing to the org home.
-  function relativePath() {
-    const base = orgBasePath(slug)
-    const path = pathname ?? base
-    return path.startsWith(base)
-      ? path.slice(base.length).replace(/^\/+/, "")
-      : ""
-  }
-
   function selectPeriod(id: string) {
-    // Swap only `period`, preserving every other live query param (tab, filters).
+    // Keep the user on the same page: the in-org sub-path (segment-boundary
+    // safe via orgRelativePath) is preserved, only `period` is swapped while
+    // every other live query param (tab, filters) is kept.
     const params = new URLSearchParams(searchParams.toString())
     params.set("period", id)
-    const target = `${orgHref(slug, relativePath())}?${params.toString()}`
+    const relative = orgRelativePath(pathname ?? "", slug)
+    const target = `${orgHref(slug, relative)}?${params.toString()}`
     startTransition(() => {
       router.push(target)
     })

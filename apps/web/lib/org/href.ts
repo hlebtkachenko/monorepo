@@ -42,3 +42,20 @@ export function orgHref(
   const period = opts?.period
   return period ? `${base}?period=${encodeURIComponent(period)}` : base
 }
+
+/**
+ * The in-org sub-path of a pathname — the inverse of `orgHref`. Strips the
+ * `/o/<slug>` base (query/hash removed) and returns what follows, e.g.
+ * `/o/acme/company/periods` → `"company/periods"`; the org home → `""`.
+ *
+ * The base is matched on a full segment boundary (`=== base` or `base + "/"`),
+ * so a sibling slug that merely shares a prefix (`/o/acme-backup/x` under slug
+ * `acme`) does NOT mis-strip to `-backup/x` — it returns `""`. Single home of
+ * this logic so the org switcher and the period switcher can't diverge.
+ */
+export function orgRelativePath(pathname: string, slug: string): string {
+  const clean = pathname.split(/[?#]/)[0] ?? ""
+  const base = orgBasePath(slug)
+  if (clean === base) return ""
+  return clean.startsWith(`${base}/`) ? clean.slice(base.length + 1) : ""
+}

@@ -1,4 +1,4 @@
-import { orgBasePath, orgHref } from "./href"
+import { orgHref, orgRelativePath } from "./href"
 
 /**
  * Build the destination URL when switching from the current org to another,
@@ -29,13 +29,5 @@ export function orgSwitchTarget(
   fromSlug: string,
   toSlug: string,
 ): string {
-  const clean = currentPathname.split(/[?#]/)[0] ?? ""
-  const fromBase = orgBasePath(fromSlug)
-  const rest =
-    clean === fromBase
-      ? ""
-      : clean.startsWith(`${fromBase}/`)
-        ? clean.slice(fromBase.length + 1)
-        : ""
-  return orgHref(toSlug, rest)
+  return orgHref(toSlug, orgRelativePath(currentPathname, fromSlug))
 }

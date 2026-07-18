@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, eq } from "drizzle-orm"
+import { and, asc, eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import { organization, organization_membership } from "@workspace/db/schema"
 import { RESERVED_SLUGS } from "@workspace/org-provisioning"
@@ -71,6 +71,10 @@ export async function resolveMembership(input: {
         ),
       )
       .where(eq(organization.slug, input.slug))
+      // Deterministic pick when a slug repeats across workspaces the user
+      // belongs to (org.slug is unique only per workspace): without an order,
+      // the layout could bind tenancy to a non-deterministic row.
+      .orderBy(asc(organization.id))
       .limit(1)
     if (!row) return null
 

@@ -3,7 +3,7 @@ import "server-only"
 import { cache } from "react"
 import { cookies } from "next/headers"
 import { desc, eq } from "drizzle-orm"
-import { withAdminBypass } from "@workspace/db"
+import { withOrganization } from "@workspace/db"
 import { accounting_period } from "@workspace/db/schema"
 
 /**
@@ -32,19 +32,19 @@ export interface HeaderPeriod {
 }
 
 /**
- * The org's accounting periods, newest first, keyed by the primitive org id so
- * `React.cache` actually memoizes (a `{ organizationId }` object arg would be a
- * fresh reference every call, which cache can't dedup). The layout (switcher
- * list) and each page (period-scoped data) resolve different active periods but
- * share this one DB read per RSC request.
+ * The org's accounting periods, newest first, keyed by the primitive org id +
+ * user id so `React.cache` actually memoizes (an object arg would be a fresh
+ * reference every call, which cache can't dedup). The layout (switcher list) and
+ * each page (period-scoped data) resolve different active periods but share this
+ * one DB read per RSC request.
  *
- * Runs under `withAdminBypass` with an explicit `organization_id` filter: the
- * org GUC is not bound in the layout, so a `withOrganization` read would have no
- * GUC to scope by — the equality filter is the tenant boundary.
+ * Runs under `withOrganization`: it binds `app.organization_id` (+ `app.user_id`)
+ * so the `accounting_period` FORCE-RLS `organization_isolation` policy is the
+ * tenant boundary. The explicit `organization_id` filter is defense-in-depth.
  */
 const getPeriods = cache(
-  async (organizationId: string): Promise<HeaderPeriod[]> =>
-    withAdminBypass(async (db) =>
+  async (organizationId: string, userId: string): Promise<HeaderPeriod[]> =>
+    withOrganization(organizationId, userId, async (db) =>
       db
         .select({
           id: accounting_period.id,
@@ -78,14 +78,6 @@ export function resolveActivePeriod(
   return firstOpen ?? periods[0] ?? null
 }
 
-/** Same resolution as {@link resolveActivePeriod}, returning just the id. */
-export function resolveActivePeriodId(
-  periods: HeaderPeriod[],
-  requested: string | undefined | null,
-): string | null {
-  return resolveActivePeriod(periods, requested)?.id ?? null
-}
-
 export interface ActivePeriodState {
   periods: HeaderPeriod[]
   active: HeaderPeriod | null
@@ -104,9 +96,10 @@ export interface ActivePeriodState {
 export const getActivePeriod = cache(
   async (
     organizationId: string,
+    userId: string,
     requested?: string | null,
   ): Promise<ActivePeriodState> => {
-    const periods = await getPeriods(organizationId)
+    const periods = await getPeriods(organizationId, userId)
     const cookieDefault = (await cookies()).get(PERIOD_COOKIE)?.value
     const active = resolveActivePeriod(periods, requested ?? cookieDefault)
     return { periods, active }

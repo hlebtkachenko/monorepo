@@ -87,7 +87,7 @@ export default async function OrgLayout({
     // The layout can't read `searchParams`, so it resolves the cookie/default
     // active period for the switcher's initial value; the client switcher then
     // overrides from the live `?period=` URL.
-    getActivePeriod(membership.organizationId),
+    getActivePeriod(membership.organizationId, session.user.id),
   ])
 
   const header = (

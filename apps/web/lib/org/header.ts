@@ -1,7 +1,7 @@
 import "server-only"
 
 import { and, asc, count, eq, ne } from "drizzle-orm"
-import { withAdminBypass } from "@workspace/db"
+import { withAdminBypass, withOrganization } from "@workspace/db"
 import {
   app_user,
   organization,
@@ -16,14 +16,15 @@ import { presignAvatarRead } from "@/app/_lib/avatar-storage"
  * (`apps/web/lib/org/`); mirrors the inline `getHeaderUser` + `_lib/header-org`
  * from the frozen old tree.
  *
- * All reads run under `withAdminBypass` with explicit id filters: the org GUC is
- * not bound in the layout (it is bound per server action / route handler), and
- * the org-switcher list spans workspaces so FORCE RLS would drop siblings. The
- * explicit equality filters are the tenant boundary.
+ * `memberCount` runs under `withOrganization` (FORCE RLS is the tenant boundary,
+ * with an explicit filter for defense-in-depth). `otherOrgs` spans workspaces,
+ * so it must stay under `withAdminBypass` — FORCE RLS would drop every sibling.
+ * `getHeaderUser` reads the single signed-in user's own row under
+ * `withAdminBypass` (global identity, no org scope).
  */
 
 export interface HeaderUser {
-  userName?: string
+  userName: string
   userImage?: string
 }
 
@@ -71,41 +72,48 @@ export async function getHeaderOrgData(input: {
   organizationId: string
   userId: string
 }): Promise<HeaderOrgData> {
-  return await withAdminBypass(async (db) => {
-    const [counted] = await db
-      .select({ count: count() })
-      .from(organization_membership)
-      .where(
-        and(
-          eq(organization_membership.organization_id, input.organizationId),
-          eq(organization_membership.active, true),
-        ),
-      )
+  const [memberCount, otherOrgs] = await Promise.all([
+    // Current-org member count under FORCE RLS: withOrganization binds
+    // app.organization_id + app.user_id, and org_membership_org_read permits a
+    // proven member to count the current org's members. The explicit filter is
+    // defense-in-depth.
+    withOrganization(input.organizationId, input.userId, async (db) => {
+      const [counted] = await db
+        .select({ count: count() })
+        .from(organization_membership)
+        .where(
+          and(
+            eq(organization_membership.organization_id, input.organizationId),
+            eq(organization_membership.active, true),
+          ),
+        )
+      return counted?.count ?? 0
+    }),
+    // Org-switcher list spans workspaces, so it must bypass RLS — FORCE RLS
+    // would scope it to the current org and drop every sibling.
+    withAdminBypass(async (db) =>
+      db
+        .select({
+          id: organization.id,
+          slug: organization.slug,
+          name: organization.legal_name,
+        })
+        .from(organization_membership)
+        .innerJoin(
+          organization,
+          eq(organization.id, organization_membership.organization_id),
+        )
+        .where(
+          and(
+            eq(organization_membership.user_id, input.userId),
+            eq(organization_membership.active, true),
+            ne(organization.id, input.organizationId),
+          ),
+        )
+        .orderBy(asc(organization.legal_name))
+        .limit(3),
+    ),
+  ])
 
-    const others = await db
-      .select({
-        id: organization.id,
-        slug: organization.slug,
-        name: organization.legal_name,
-      })
-      .from(organization_membership)
-      .innerJoin(
-        organization,
-        eq(organization.id, organization_membership.organization_id),
-      )
-      .where(
-        and(
-          eq(organization_membership.user_id, input.userId),
-          eq(organization_membership.active, true),
-          ne(organization.id, input.organizationId),
-        ),
-      )
-      .orderBy(asc(organization.legal_name))
-      .limit(3)
-
-    return {
-      memberCount: counted?.count ?? 0,
-      otherOrgs: others,
-    }
-  })
+  return { memberCount, otherOrgs }
 }

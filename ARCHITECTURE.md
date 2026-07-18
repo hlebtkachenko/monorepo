@@ -19,10 +19,16 @@ apps/
   cli/                             Official command-line client for the public API (@afframe/cli) — also the `afframe brain` operator commands
   bot/                             Telegram dev bot — sole owner of Telegram I/O; grammY on a Cloudflare Worker
 packages/
-  ui/                              shadcn/ui component library (120 registry entries, Storybook, Vitest)
+  ui/                              shadcn/ui component library (135 registry entries, Storybook, Vitest)
   db/                              Drizzle schema + RLS + migrations
   auth/                            Better Auth + session binding + RLS GUC
+  accounting/                      Czech accounting domain core (postings, books read-model, statements, close-readiness)
+  accounting-kb/                   Vendored machine-readable Czech accounting knowledge base (consumed by brain)
   brain/                           Afframe Brain — agent-native accounting-booking client (unprivileged API/MCP client, not a server; ADR-0025)
+  filing/                          Czech e-filing XML generate + validate (ISDOC, FÚ EPO; pure, bytes-out)
+  intake/                          Client-dump parsers (XLSX/CSV/ZIP/Pohoda XML) to canonical Brain IR (pure, bytes-in)
+  registries/                      Czech public-registry clients (ARES)
+  org-provisioning/                Organization creation-scaffolding protocol (mints a ready-to-book účetní jednotka)
   shared/                          Shared utilities, Zod schemas
   sdk/                             Official TypeScript SDK for the public API (@afframe/sdk)
   notify/                          Typed client + message contract for the Telegram bot (POSTs to bot /ingest)
@@ -30,8 +36,7 @@ packages/
   config/                          Runtime config loader (AWS Secrets Manager / SSM)
   workers/                         pg-boss background job handlers
   observability/                   pino + OpenTelemetry helpers
-  email/                           React Email templates + transport
-  pdf/                             PDF/A-3 generation + QR Platba
+  email/                           Transactional email templates (shared renderShell) + transport selection
   storage/                         Org-scoped object storage
   testcontainers/                  Integration test containers
   eslint-config/                   Shared ESLint flat configs
@@ -75,7 +80,7 @@ All app reads and writes go through one of:
 
 - `withWorkspace(workspaceId, userId, fn)` binds `app.workspace_id` + `app.user_id`.
 - `withOrganization(organizationId, userId, fn)` binds `app.organization_id` (and re-derives `app.workspace_id` from `organization.workspace_id` in the same transaction).
-- `withAdminBypass()` takes `SET LOCAL ROLE lac_admin` (BYPASSRLS) for backfill, admin tooling, and cross-tenant lookups.
+- `withAdminBypass()` takes `SET LOCAL ROLE app_admin` (BYPASSRLS) for backfill, admin tooling, and cross-tenant lookups.
 
 The helpers are nestable via SAVEPOINT. Pass `outerTx` to nest inside an existing transaction; Drizzle opens a SAVEPOINT rather than a new top-level transaction. Prior GUCs (`app.organization_id`, `app.user_id`, `app.workspace_id`) are snapshot-and-restored in `finally` because `set_config(..., true)` is transaction-scoped, not SAVEPOINT-scoped — `ROLLBACK TO SAVEPOINT` does not undo `set_config`. The save/restore pair is load-bearing. `withWorkspace` additionally clears `app.organization_id` in nested calls to prevent workspace-tier reads from inheriting an org GUC from an outer scope.
 
@@ -244,7 +249,7 @@ Three-layer defense against cost-runaway attacks (see [ADR 0016](docs/adr/0016-c
 2. **Lambda kill-switch** in `SecurityStack`. SNS-triggered and idempotent, it stops the environment's ECS service and RDS instance. No IAM-deny is applied to the operator.
 3. **AWS Budgets.** Each environment has a $55 total budget wired to the kill-switch and a $10 data-transfer alert budget. Production also has a $55 account-wide total budget wired to the kill-switch. Total-budget 100% notifications publish to the kill-switch SNS topic.
 
-Container hardening: `capDrop ALL` on all 3 containers, `readonlyRootFilesystem` on api + cloudflared, shared ephemeral `/tmp` mount.
+Container hardening: `capDrop ALL` on all 7 long-running containers (web, api, admin, pgbouncer, cerbos, openfga, cloudflared), `readonlyRootFilesystem` on api, cerbos, openfga, cloudflared, and the three init containers — web, admin, and pgbouncer keep writable roots for documented reasons (see `infra/cdk/lib/app-stack.ts`), shared ephemeral `/tmp` mount.
 
 CloudTrail multi-region management-events trail (free first management trail) for forensics. RDS auto-restart watcher Lambda re-stops the DB after AWS's 7-day forced restart when tagged `cost-stop-requested=true`.
 

@@ -59,4 +59,15 @@ describe("hosted MCP Worker auth gate", () => {
     )
     expect(res.status).toBe(500)
   })
+
+  it("serves the group catalog unauthenticated at GET /groups", async () => {
+    const res = await worker.fetch(
+      new Request("https://mcp.afframe.com/groups"),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const catalog = (await res.json()) as { slug: string; count: number }[]
+    expect(Array.isArray(catalog)).toBe(true)
+    expect(catalog.some((g) => g.slug === "invoices")).toBe(true)
+  })
 })

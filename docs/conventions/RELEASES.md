@@ -43,9 +43,16 @@ The release workflow auto-flags `-rc.*` tags as pre-release; stable tags become 
 
 ## Who tags
 
-For now: **Hleb only**. Tagging is a manual, human-gated act. No automation pushes tags.
+Tagging is **human-gated**, not human-executed. A release tag is cut only on
+Hleb's explicit authorization — never autonomously, never by scheduled
+automation. That authorization is **delegable**: when Hleb tells an agent to
+"cut a release" (with no narrower scope), the agent runs the workflow end to
+end **including creating and pushing the annotated tag** — that instruction _is_
+the human gate. Absent such an instruction, no agent and no automation pushes a
+tag.
 
-This keeps the release cadence tight and predictable while the product surface is still fluid.
+This keeps the release cadence human-decided while letting a delegated cut
+finish in one shot instead of stalling half-done at the release PR.
 
 ## Changelog discipline (fragment files)
 

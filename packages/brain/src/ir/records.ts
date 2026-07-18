@@ -78,6 +78,36 @@ export type CashDirection = "income" | "expense"
 
 export type AttachmentKind = "invoice_pdf" | "receipt" | "contract" | "unknown"
 
+/**
+ * Druh plnění (supply kind) — a DOCUMENT-GROUNDED classification the extract vision model reads off the
+ * document, NOT a value guessed downstream. It is what the deterministic booker (`bookDocument`) feeds
+ * `classifyEvent` to pick the cost/revenue account (501 material / 504 goods / 518 services / 548 other …);
+ * an absent value fails closed (the booker HOLDS the document for human review rather than guessing an
+ * account). See #779.
+ *
+ * The values MIRROR the accounting `SupplyKind` (`packages/accounting/src/classify.ts`), the capture
+ * contract `SUPPLY_KIND` enum (`packages/shared/src/api/accounting-writes.ts`), and the DB CHECK
+ * (`packages/db/migrations/0043_accounting_supply_kind.sql`). The Brain deliberately imports NEITHER
+ * `@workspace/accounting` NOR `@workspace/shared` (see `packages/brain/CLAUDE.md` +
+ * `onboarding/discover.ts`), so the set is re-declared here as a Brain-owned const. The intake adapter
+ * (`packages/intake/src/ir-to-capture.ts`) carries a compile-time parity guard against the capture
+ * contract, so any drift between the two sets fails `pnpm typecheck`.
+ */
+export const BRAIN_SUPPLY_KINDS = [
+  "GOODS",
+  "MATERIAL",
+  "SERVICES",
+  "UTILITY",
+  "RENT",
+  "INSURANCE",
+  "ASSET",
+  "ADVANCE",
+  "CREDIT_NOTE",
+  "OTHER",
+] as const
+
+export type SupplyKind = (typeof BRAIN_SUPPLY_KINDS)[number]
+
 // ── Top-level IR records (each carries the provenance envelope) ──────────────
 
 /** ISDOC-shaped; covers přijatá/vydaná, dobropis, proforma, advance. */
@@ -101,6 +131,12 @@ export interface Invoice extends ProvenanceEnvelope {
   vat_summary: VatSummaryRow[]
   total_minor: bigint
   payment_method?: PaymentMethod
+  /**
+   * Document-grounded druh plnění — emitted by the extract vision model ONLY when the whole document is one
+   * clear supply kind (omitted on a mixed/ambiguous document). Threads onto the capture partial so the booker
+   * picks the right cost account; absent ⇒ the booker holds for human review (#779). Never guessed downstream.
+   */
+  supply_kind?: SupplyKind
   /** Digits only. */
   variable_symbol?: string
   constant_symbol?: string
@@ -189,11 +225,7 @@ export interface Attachment extends ProvenanceEnvelope {
 
 /** The discriminated union of every top-level IR record. */
 export type IrRecord =
-  | Invoice
-  | BankTransaction
-  | CashDocument
-  | GLEntry
-  | Attachment
+  Invoice | BankTransaction | CashDocument | GLEntry | Attachment
 
 // ── Type guards (discriminated by `record_type`) ────────────────────────────
 

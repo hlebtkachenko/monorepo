@@ -8,8 +8,8 @@ import {
   readInviteClaims,
   clearInviteCookie,
   readRawInviteToken,
-} from "../../../onboarding/_lib/invite-cookie"
-import { materializeInvite } from "../../_lib/materialize-invite"
+} from "@/lib/auth/invite-cookie"
+import { materializeInvite } from "@/lib/auth/materialize-invite"
 
 /**
  * Server action invoked when a signed-in user lands on /auth/invite with

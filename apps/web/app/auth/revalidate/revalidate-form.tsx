@@ -9,7 +9,7 @@ import { Heading } from "@workspace/ui/components/heading"
 import { PasswordInput } from "@workspace/ui/components/password-input"
 import { Text } from "@workspace/ui/components/text"
 
-import { reportClientError } from "../../_lib/report-error"
+import { reportClientError } from "@/lib/report-error"
 import { revalidateSessionAction } from "./revalidate-action"
 
 function sanitizeNext(raw: string | null): string {

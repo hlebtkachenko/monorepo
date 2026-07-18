@@ -30,7 +30,7 @@
  * Usage:
  *   DATABASE_URL=postgres://... pnpm --filter @workspace/db db:seed
  */
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 import {
   app_user,
   organization,
@@ -166,6 +166,9 @@ async function main(): Promise<void> {
           person_kind: "legal_entity",
           // Required when person_kind = 'legal_entity' (CHECK constraint).
           legal_subject_kind: "for_profit",
+          // s.r.o. legal form — lets the org-provisioning accounting scaffold
+          // derive the DOUBLE_ENTRY regime for the dev 2026 period.
+          legal_form_code: "SRO",
           fiscal_year_start_month: 1,
         })
         .returning({ id: organization.id })
@@ -175,6 +178,19 @@ async function main(): Promise<void> {
       organizationId = inserted.id
       console.log(`organization created ${orgSlug} (${organizationId})`)
     }
+
+    // Backfill legal_form_code on an org seeded before this column was added,
+    // so a re-run over an existing dev DB still lets the accounting scaffold
+    // derive the regime. No-op once set (idempotent).
+    await tx
+      .update(organization)
+      .set({ legal_form_code: "SRO" })
+      .where(
+        and(
+          eq(organization.id, organizationId),
+          isNull(organization.legal_form_code),
+        ),
+      )
 
     // Organization membership -------------------------------------------
     // Keyed on (user_id, organization_id) — same scoping fix as the

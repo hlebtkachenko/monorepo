@@ -178,6 +178,54 @@ describe("invoiceToCapture", () => {
     expect(partial.baseAmount).toBe("1000.00")
   })
 
+  it("(g2) a reverse-charge summary row (positive rate, 0 tax) routes to OUTSIDE_VAT, never STANDARD", () => {
+    // A domestic PDP / §92 row carries a real rate (21) but 0 tax (the customer self-assesses). Booking it
+    // STANDARD 21% with 0 tax would assert a regime the adapter must not fabricate — it routes to the
+    // OUTSIDE_VAT hold (base preserved) so `classifyAccountingEvent` assigns REVERSE_CHARGE server-side.
+    const request = invoiceToCapture(
+      invoice({
+        vat_summary: [
+          {
+            rate: 21,
+            base_minor: 100000n,
+            tax_minor: 0n,
+            reverse_charge: true,
+          },
+        ],
+      }),
+      ctx,
+    )
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.vatMode).not.toBe("STANDARD")
+    expect(partial.vatRate).toBeUndefined()
+    expect(partial.vatAmount).toBeUndefined()
+    expect(partial.baseAmount).toBe("1000.00")
+  })
+
+  it("(g3) a reverse-charge row on a credit note flips the base sign but stays OUTSIDE_VAT", () => {
+    const request = invoiceToCapture(
+      invoice({
+        doc_type: "credit_note",
+        vat_summary: [
+          {
+            rate: 21,
+            base_minor: 100000n,
+            tax_minor: 0n,
+            reverse_charge: true,
+          },
+        ],
+      }),
+      ctx,
+    )
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.baseAmount).toBe("-1000.00")
+  })
+
   it("(h) threads a well-formed DUZP (taxPointDate); omits absent, never defaults to issue_date", () => {
     // The tax point (DUZP/DPPD, §21) drives the VAT-return period and is a DISTINCT legal date from the
     // §11/1d issue date. When the IR carries it, the capture must too — else the server leaves the VAT

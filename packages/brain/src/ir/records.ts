@@ -39,6 +39,13 @@ export interface VatSummaryRow {
   rate: number
   base_minor: bigint
   tax_minor: bigint
+  /**
+   * Domestic reverse-charge (PDP / §92) row — the customer self-assesses the VAT, so the source `tax_minor`
+   * is 0 even though `rate` is a real percentage. Set by parsers that carry an explicit reverse-charge marker
+   * (e.g. ISDOC `LocalReverseChargeFlag`). The IR→capture adapter routes such a row to the OUTSIDE_VAT hold so
+   * the server classifies the regime — it must NOT be booked as a STANDARD 0-tax supply. Absent ⇒ standard.
+   */
+  reverse_charge?: boolean
 }
 
 export interface InvoiceLine {

@@ -52,6 +52,11 @@ interface AppRailProps {
   defaultMode?: RailMode
   /** Persisted-mode storage key. Override to scope per-app. */
   storageKey?: string
+  /**
+   * Accessible name for the primary-navigation landmark. English default;
+   * pass a localized string from an i18n'd app.
+   */
+  navLabel?: string
   className?: string
 }
 
@@ -118,6 +123,7 @@ export function AppRail({
   currentPath,
   defaultMode = "expanded",
   storageKey = "app-rail-mode",
+  navLabel = "Primary",
   className,
 }: AppRailProps) {
   const [mode, setMode] = React.useState<RailMode>(defaultMode)
@@ -153,7 +159,7 @@ export function AppRail({
           // Names the primary-navigation landmark for screen readers (the
           // sidebar's module nav labels itself "Module", so the two rails
           // are distinguishable in the landmark list).
-          aria-label="Primary"
+          aria-label={navLabel}
           // Stop the global AppContextMenu from also firing.
           onContextMenu={(e) => e.stopPropagation()}
           className={cn(

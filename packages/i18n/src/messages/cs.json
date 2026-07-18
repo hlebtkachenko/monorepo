@@ -873,6 +873,11 @@
       "periods": "Období",
       "debug": "Ladění"
     },
+    "a11y": {
+      "skipToContent": "Přeskočit na obsah",
+      "primaryNav": "Primární navigace",
+      "mainContent": "Hlavní obsah"
+    },
     "titles": {
       "periods": "Období",
       "settings": "Nastavení",

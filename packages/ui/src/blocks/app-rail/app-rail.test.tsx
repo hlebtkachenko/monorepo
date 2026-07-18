@@ -35,6 +35,19 @@ describe("AppRail", () => {
     ).toBeInTheDocument()
   })
 
+  it("honors an overridden navLabel (i18n seam)", () => {
+    render(
+      <AppRail
+        items={items}
+        defaultMode="expanded"
+        navLabel="Primární navigace"
+      />,
+    )
+    expect(
+      screen.getByRole("navigation", { name: "Primární navigace" }),
+    ).toBeInTheDocument()
+  })
+
   it("renders a divider for each separator entry", () => {
     render(<AppRail items={items} defaultMode="expanded" />)
     expect(screen.getAllByRole("separator")).toHaveLength(1)

@@ -47,6 +47,17 @@ interface AppShellProps {
   bottomNav?: React.ReactNode
   children?: React.ReactNode
   className?: string
+  /**
+   * Accessible label for the "skip to content" link (the shell's first
+   * focusable element). English default; pass a localized string from an
+   * i18n'd app, mirroring the ContentHeader favorite's label props.
+   */
+  skipToContentLabel?: string
+  /**
+   * Accessible name for the `<main>` landmark (the skip-link target).
+   * English default; pass a localized string from an i18n'd app.
+   */
+  mainLabel?: string
   defaultSidebarOpen?: boolean
   defaultAssistantOpen?: boolean
   /**
@@ -194,6 +205,8 @@ export function AppShell({
   bottomNav,
   children,
   className,
+  skipToContentLabel = "Skip to content",
+  mainLabel = "Main content",
   assistantVariant = "shell",
   defaultSidebarOpen = true,
   defaultAssistantOpen = false,
@@ -334,7 +347,7 @@ export function AppShell({
           data-slot="app-shell-skip-link"
           className="sr-only rounded-md border border-border-subtle bg-shell-surface px-4 py-2 text-sm font-medium text-foreground shadow-md outline-none focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Skip to content
+          {skipToContentLabel}
         </a>
         {rail !== undefined && (
           <aside
@@ -410,6 +423,7 @@ export function AppShell({
           contentHeader={contentHeader}
           assistant={assistant}
           assistantVariant={assistantVariant}
+          mainLabel={mainLabel}
           isMobile={isMobile}
           sidebarOpen={sidebarOpen}
           sidebarIsOpen={sidebarIsOpen}

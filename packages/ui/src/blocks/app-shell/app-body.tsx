@@ -260,6 +260,8 @@ interface AppBodyProps {
   assistant?: React.ReactNode
   children?: React.ReactNode
   assistantVariant: "shell" | "dropdown"
+  /** Accessible name for the `<main>` landmark (the skip-link target). */
+  mainLabel: string
 
   // ── resolved layout state (owned by AppShell, passed down) ──
   isMobile: boolean
@@ -303,6 +305,7 @@ export function AppBody({
   assistant,
   children,
   assistantVariant,
+  mainLabel,
   isMobile,
   sidebarOpen,
   sidebarIsOpen,
@@ -372,7 +375,7 @@ export function AppBody({
             // "skip to content" link can move keyboard focus straight here,
             // bypassing the rail/sidebar on every page.
             id="main-content"
-            aria-label="Main content"
+            aria-label={mainLabel}
             tabIndex={-1}
             className="relative flex h-full min-w-0 flex-1 flex-col overflow-hidden outline-none"
           >

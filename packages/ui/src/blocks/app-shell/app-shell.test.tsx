@@ -89,6 +89,25 @@ describe("AppShell", () => {
     expect(screen.getByRole("main")).toBe(main)
   })
 
+  it("honors overridden skip-to-content and main-landmark labels (i18n seam)", () => {
+    const { container } = render(
+      <AppShell
+        rail={<div />}
+        sidebar={<div />}
+        skipToContentLabel="Přeskočit na obsah"
+        mainLabel="Hlavní obsah"
+      >
+        <div />
+      </AppShell>,
+    )
+    expect(
+      screen.getByRole("link", { name: "Přeskočit na obsah" }),
+    ).toBeInTheDocument()
+    expect(
+      container.querySelector("[data-slot='app-shell-main']"),
+    ).toHaveAttribute("aria-label", "Hlavní obsah")
+  })
+
   it("toggles the assistant panel on button click", () => {
     const { container } = render(
       <AppShell sidebar={<div />} assistant={<div data-testid="assistant" />}>

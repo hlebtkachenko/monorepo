@@ -62,6 +62,7 @@ export function OrgShell({
 }) {
   const pathname = usePathname() ?? undefined
   const t = useTranslations("org.nav")
+  const a11y = useTranslations("org.a11y")
   // Debug rail visibility: dev builds always, otherwise the allowlist seam.
   const showDebug = process.env.NODE_ENV === "development" || debugAccess
   const rail = React.useMemo<RailMenuEntry[]>(
@@ -103,7 +104,15 @@ export function OrgShell({
     <AppPageHeaderProvider>
       <AppShell
         header={header}
-        rail={<AppRail items={rail} currentPath={pathname} />}
+        skipToContentLabel={a11y("skipToContent")}
+        mainLabel={a11y("mainContent")}
+        rail={
+          <AppRail
+            items={rail}
+            currentPath={pathname}
+            navLabel={a11y("primaryNav")}
+          />
+        }
         bottomNav={
           <AppShellBottomNav items={bottomNav} currentPath={pathname} />
         }

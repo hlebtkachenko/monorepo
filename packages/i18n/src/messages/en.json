@@ -873,6 +873,11 @@
       "periods": "Periods",
       "debug": "Debug"
     },
+    "a11y": {
+      "skipToContent": "Skip to content",
+      "primaryNav": "Primary",
+      "mainContent": "Main content"
+    },
     "titles": {
       "periods": "Periods",
       "settings": "Settings",

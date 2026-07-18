@@ -19,7 +19,7 @@ import { orgHref } from "@/lib/org/href"
  */
 
 /** i18n key (under `org.nav`) for a nav entry's visible label. */
-export type OrgNavLabelKey = "company" | "overview"
+export type OrgNavLabelKey = "company" | "overview" | "periods"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
@@ -36,7 +36,14 @@ export function orgRailNav(slug: string): OrgRailNavItem[] {
   return [{ labelKey: "company", icon: "Goal", href: orgHref(slug) }]
 }
 
-/** Sidebar tree for the Company home. */
+/** Sidebar tree for the Company module. */
 export function companyNav(slug: string): OrgSidebarNavItem[] {
-  return [{ labelKey: "overview", icon: "Goal", href: orgHref(slug) }]
+  return [
+    { labelKey: "overview", icon: "Goal", href: orgHref(slug) },
+    {
+      labelKey: "periods",
+      icon: "CalendarClock",
+      href: orgHref(slug, "company/periods"),
+    },
+  ]
 }

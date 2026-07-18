@@ -869,7 +869,12 @@
   "org": {
     "nav": {
       "company": "Společnost",
-      "overview": "Přehled"
+      "overview": "Přehled",
+      "periods": "Období"
+    },
+    "titles": {
+      "periods": "Období",
+      "settings": "Nastavení"
     },
     "roles": {
       "owner": "Vlastník",

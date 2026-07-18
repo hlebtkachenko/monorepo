@@ -2043,6 +2043,23 @@ CREATE TABLE public.dppo_annual_taxpayer_category (
 ALTER TABLE ONLY public.dppo_annual_taxpayer_category FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: favorite_page; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.favorite_page (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    page_route text NOT NULL,
+    module_key text NOT NULL,
+    label text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.favorite_page FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: feature_flag; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3289,6 +3306,20 @@ ALTER TABLE ONLY public.dppo_annual_taxpayer_category
     ADD CONSTRAINT dppo_annual_taxpayer_category_pkey PRIMARY KEY (organization_id, period_id);
 
 --
+-- Name: favorite_page favorite_page_org_user_route_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.favorite_page
+    ADD CONSTRAINT favorite_page_org_user_route_unique UNIQUE (organization_id, user_id, page_route);
+
+--
+-- Name: favorite_page favorite_page_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.favorite_page
+    ADD CONSTRAINT favorite_page_pkey PRIMARY KEY (id);
+
+--
 -- Name: feature_flag feature_flag_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4029,6 +4060,12 @@ CREATE UNIQUE INDEX counterparty_workspace_tax_id_unique ON public.counterparty 
 --
 
 CREATE INDEX depreciation_plan_asset_idx ON public.depreciation_plan USING btree (asset_id);
+
+--
+-- Name: favorite_page_org_user_module_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX favorite_page_org_user_module_idx ON public.favorite_page USING btree (organization_id, user_id, module_key, sort_order);
 
 --
 -- Name: impersonation_actor_started_idx; Type: INDEX; Schema: public; Owner: -
@@ -5134,6 +5171,20 @@ ALTER TABLE ONLY public.dppo_annual_taxpayer_category
     ADD CONSTRAINT dppo_annual_taxpayer_category_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
+-- Name: favorite_page favorite_page_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.favorite_page
+    ADD CONSTRAINT favorite_page_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: favorite_page favorite_page_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.favorite_page
+    ADD CONSTRAINT favorite_page_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
 -- Name: impersonation impersonation_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5987,6 +6038,12 @@ ALTER TABLE public.dppo_annual_adjustment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.dppo_annual_taxpayer_category ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: favorite_page; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.favorite_page ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6237,6 +6294,12 @@ CREATE POLICY organization_isolation ON public.dppo_annual_adjustment USING ((or
 --
 
 CREATE POLICY organization_isolation ON public.dppo_annual_taxpayer_category USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: favorite_page organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.favorite_page USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record organization_isolation; Type: POLICY; Schema: public; Owner: -

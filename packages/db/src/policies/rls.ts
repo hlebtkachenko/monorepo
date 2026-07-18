@@ -81,6 +81,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // DPPO annual worksheet inputs (0054_dppo_annual_adjustment.sql)
   "dppo_annual_adjustment",
   "dppo_annual_taxpayer_category",
+  // org favorites — per-user starred pages (0064_favorite_page.sql)
+  "favorite_page",
 ] as const
 
 export type OrganizationScopedTable =

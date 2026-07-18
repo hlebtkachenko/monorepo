@@ -75,12 +75,28 @@ interface AggRow {
   totalVat: string
   lineCount: number
 }
+interface CounterpartyAggRow {
+  invoiceId: string
+  organization_id: string
+  counterpartyId: string | null
+  counterpartyName: string | null
+  distinctCount: number
+}
+interface CurrencyAggRow {
+  invoiceId: string
+  organization_id: string
+  currencyCode: string
+  totalBase: string
+  totalVat: string
+}
 
 const state = vi.hoisted(() => ({
   summaryRows: [] as SummaryRow[],
   lineRows: [] as LineRow[],
   partialRows: [] as PartialRow[],
   aggRows: [] as AggRow[],
+  counterpartyAggRows: [] as CounterpartyAggRow[],
+  currencyAggRows: [] as CurrencyAggRow[],
   scopeCalls: [] as Array<{ orgId: string; userId: string | null }>,
   gateOpts: null as Record<string, unknown> | null,
   captureInputs: [] as Array<Record<string, unknown>>,
@@ -130,6 +146,8 @@ vi.mock("@workspace/db/schema", () => ({
     "unit_price",
     "created_at",
   ]),
+  accounting_event: marker("accounting_event")(["id", "counterparty_id"]),
+  counterparty: marker("counterparty")(["id", "name"]),
 }))
 
 type Pred =
@@ -145,7 +163,7 @@ vi.mock("@workspace/db", () => {
   })
   const sql = (strings: TemplateStringsArray) => ({ sql: strings.join("") })
 
-  const fieldOf = (marker: string): string => marker.split(".")[1] ?? ""
+  const fieldOf = (marker: string): string => (marker ?? "").split(".")[1] ?? ""
   const matches = (
     row: Record<string, unknown>,
     pred: Pred | null,
@@ -157,6 +175,9 @@ vi.mock("@workspace/db", () => {
         row[fieldOf(pred.inArray.column as string)],
       )
     }
+    // Raw `sql` predicates (e.g. the keyset cursor comparison) carry no
+    // `column`/`value` — the mock cannot evaluate them, so they pass through.
+    if (!("column" in pred)) return true
     return row[fieldOf(pred.column as string)] === pred.value
   }
   const project = (
@@ -187,6 +208,14 @@ vi.mock("@workspace/db", () => {
       state.partialRows.filter((r) => r.organization_id === orgId),
     )
     const aggs = state.aggRows.filter((r) => r.organization_id === orgId)
+    const counterpartyAggs = state.counterpartyAggRows.filter(
+      (r) => r.organization_id === orgId,
+    )
+    const currencyAggs = state.currencyAggRows.filter(
+      (r) => r.organization_id === orgId,
+    )
+    const inIds = (invoiceId: string, predicate: Pred | null): boolean =>
+      matches({ summary_record_id: invoiceId }, predicate)
 
     const db = {
       select(projection: Record<string, string>) {
@@ -200,11 +229,30 @@ vi.mock("@workspace/db", () => {
               .map((r) => project(r, projection))
           }
           if (table === "individual_record" && joined) {
-            // aggregate branch — projection holds sql objects; return canned aggs
+            // Aggregate branches — projection holds sql objects, so dispatch on
+            // the projection's discriminating key and return canned aggs.
+            if ("distinctCount" in projection) {
+              return counterpartyAggs
+                .filter((r) => inIds(r.invoiceId, predicate))
+                .map((r) => ({
+                  invoiceId: r.invoiceId,
+                  counterpartyId: r.counterpartyId,
+                  counterpartyName: r.counterpartyName,
+                  distinctCount: r.distinctCount,
+                }))
+            }
+            if ("currencyCode" in projection) {
+              return currencyAggs
+                .filter((r) => inIds(r.invoiceId, predicate))
+                .map((r) => ({
+                  invoiceId: r.invoiceId,
+                  currencyCode: r.currencyCode,
+                  totalBase: r.totalBase,
+                  totalVat: r.totalVat,
+                }))
+            }
             return aggs
-              .filter((r) =>
-                matches({ summary_record_id: r.invoiceId }, predicate),
-              )
+              .filter((r) => inIds(r.invoiceId, predicate))
               .map((r) => ({
                 invoiceId: r.invoiceId,
                 totalBase: r.totalBase,
@@ -240,7 +288,7 @@ vi.mock("@workspace/db", () => {
             predicate = p ?? null
             return chain
           },
-          groupBy: () => Promise.resolve(rowsFor()),
+          groupBy: () => chain,
           orderBy: () => chain,
           limit: (n: number) => Promise.resolve(rowsFor().slice(0, n)),
           then: (resolve: (v: unknown) => unknown) => resolve(rowsFor()),
@@ -347,6 +395,7 @@ const INV_ISSUED = "0196f1de-0000-7000-8000-000000000fa2"
 const INV_B = "0196f1de-0000-7000-8000-000000000fb1"
 const EVENT_ID = "0196f1de-0000-7000-8000-0000000000e1"
 const SERIES_ID = "0196f1de-0000-7000-8000-0000000000c9"
+const CP_ID = "0196f1de-0000-7000-8000-0000000000c1"
 
 function principalFor(orgId: string, scopes: readonly string[] = []) {
   return {
@@ -472,6 +521,24 @@ describe("InvoicesController (/v1/invoices)", () => {
         lineCount: 1,
       },
     ]
+    state.counterpartyAggRows = [
+      {
+        invoiceId: INV_RECV,
+        organization_id: ORG_A,
+        counterpartyId: CP_ID,
+        counterpartyName: "ACME s.r.o.",
+        distinctCount: 1,
+      },
+    ]
+    state.currencyAggRows = [
+      {
+        invoiceId: INV_RECV,
+        organization_id: ORG_A,
+        currencyCode: "CZK",
+        totalBase: "12100.00",
+        totalVat: "2541.00",
+      },
+    ]
     state.scopeCalls = []
     state.gateOpts = null
     state.captureInputs = []
@@ -481,20 +548,22 @@ describe("InvoicesController (/v1/invoices)", () => {
     await supertest(app.getHttpServer()).get("/v1/invoices").expect(401)
   })
 
-  it("lists only the caller's invoices with rolled-up totals", async () => {
+  it("lists only the caller's invoices with rolled-up totals, counterparty + per-currency totals", async () => {
     verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
     const res = await supertest(app.getHttpServer())
       .get("/v1/invoices")
       .set("Authorization", "Bearer affk_live_a")
       .expect(200)
     expect(ListInvoicesResponseSchema.safeParse(res.body).success).toBe(true)
-    expect(res.body.invoices.map((i: { id: string }) => id(i)).sort()).toEqual(
+    // Cursor envelope: data / next_cursor / has_more (no legacy `invoices` key).
+    expect(res.body).not.toHaveProperty("invoices")
+    expect(res.body.has_more).toBe(false)
+    expect(res.body.next_cursor).toBeNull()
+    expect(res.body.data.map((i: { id: string }) => id(i)).sort()).toEqual(
       [INV_RECV, INV_ISSUED].sort(),
     )
     expect(JSON.stringify(res.body)).not.toContain(INV_B)
-    const recv = res.body.invoices.find(
-      (i: { id: string }) => i.id === INV_RECV,
-    )
+    const recv = res.body.data.find((i: { id: string }) => i.id === INV_RECV)
     expect(recv).toMatchObject({
       direction: "received",
       type: "RECEIVED_INVOICE",
@@ -503,7 +572,18 @@ describe("InvoicesController (/v1/invoices)", () => {
       lineCount: 1,
       taxPointDate: "2025-03-14",
       receivedDate: "2025-03-16",
+      // [#536] enrichment
+      counterparty: { id: CP_ID, name: "ACME s.r.o." },
+      currencyTotals: [
+        { currencyCode: "CZK", totalBase: "12100.00", totalVat: "2541.00" },
+      ],
     })
+    // An invoice with no resolved counterparty / partials enriches to null / [].
+    const issued = res.body.data.find(
+      (i: { id: string }) => i.id === INV_ISSUED,
+    )
+    expect(issued.counterparty).toBeNull()
+    expect(issued.currencyTotals).toEqual([])
   })
 
   it("filters by direction", async () => {
@@ -513,8 +593,8 @@ describe("InvoicesController (/v1/invoices)", () => {
       .query({ direction: "issued" })
       .set("Authorization", "Bearer affk_live_a")
       .expect(200)
-    expect(res.body.invoices).toHaveLength(1)
-    expect(res.body.invoices[0].id).toBe(INV_ISSUED)
+    expect(res.body.data).toHaveLength(1)
+    expect(res.body.data[0].id).toBe(INV_ISSUED)
   })
 
   it("filters by periodId", async () => {
@@ -524,8 +604,43 @@ describe("InvoicesController (/v1/invoices)", () => {
       .query({ periodId: PERIOD_1 })
       .set("Authorization", "Bearer affk_live_a")
       .expect(200)
-    expect(res.body.invoices).toHaveLength(1)
-    expect(res.body.invoices[0].id).toBe(INV_RECV)
+    expect(res.body.data).toHaveLength(1)
+    expect(res.body.data[0].id).toBe(INV_RECV)
+  })
+
+  it("caps the page at `limit` and returns a cursor when more remain", async () => {
+    verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+    const res = await supertest(app.getHttpServer())
+      .get("/v1/invoices")
+      .query({ limit: 1 })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(200)
+    expect(res.body.data).toHaveLength(1)
+    expect(res.body.has_more).toBe(true)
+    expect(typeof res.body.next_cursor).toBe("string")
+    // Opaque cursor decodes to the last row's keyset (issuedAt + id).
+    const decoded = JSON.parse(
+      Buffer.from(res.body.next_cursor as string, "base64url").toString("utf8"),
+    )
+    expect(decoded).toMatchObject({ id: res.body.data[0].id })
+  })
+
+  it("accepts a well-formed cursor (opaque round-trip) and 400s a malformed one", async () => {
+    verifyApiKeyMock.mockResolvedValue(principalFor(ORG_A))
+    const cursor = Buffer.from(
+      JSON.stringify({ issuedAt: "2025-03-14T09:00:00.000Z", id: INV_RECV }),
+      "utf8",
+    ).toString("base64url")
+    await supertest(app.getHttpServer())
+      .get("/v1/invoices")
+      .query({ cursor })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(200)
+    await supertest(app.getHttpServer())
+      .get("/v1/invoices")
+      .query({ cursor: "zzzz" })
+      .set("Authorization", "Bearer affk_live_a")
+      .expect(400)
   })
 
   it("derives the tenant scope from the principal, never from query input", async () => {
@@ -549,6 +664,13 @@ describe("InvoicesController (/v1/invoices)", () => {
       .expect(200)
     expect(GetInvoiceResponseSchema.safeParse(res.body).success).toBe(true)
     expect(res.body.invoice.id).toBe(INV_RECV)
+    expect(res.body.invoice.counterparty).toEqual({
+      id: CP_ID,
+      name: "ACME s.r.o.",
+    })
+    expect(res.body.invoice.currencyTotals).toEqual([
+      { currencyCode: "CZK", totalBase: "12100.00", totalVat: "2541.00" },
+    ])
     expect(res.body.invoice.lines).toHaveLength(1)
     expect(res.body.invoice.lines[0].partials[0]).toMatchObject({
       baseAmount: "12100.00",

@@ -7078,6 +7078,56 @@
         ],
         "description": "An invoice line (individual record)."
       },
+      "InvoiceCounterparty": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Counterparty id (workspace-shared protistrana).",
+            "example": "0196f1de-0000-7000-8000-0000000000c1"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+            "example": "ACME s.r.o."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "description": "The invoice's counterparty (protistrana)."
+      },
+      "InvoiceCurrencyTotal": {
+        "type": "object",
+        "properties": {
+          "currencyCode": {
+            "type": "string",
+            "description": "Transaction currency (ISO 4217).",
+            "example": "EUR"
+          },
+          "totalBase": {
+            "type": "string",
+            "description": "Sum of line bases in this transaction currency, decimal string.",
+            "example": "500.00"
+          },
+          "totalVat": {
+            "type": "string",
+            "description": "Sum of line VAT in this transaction currency, decimal string.",
+            "example": "105.00"
+          }
+        },
+        "required": [
+          "currencyCode",
+          "totalBase",
+          "totalVat"
+        ],
+        "description": "A transaction-currency roll-up (one per distinct partial currency)."
+      },
       "Invoice": {
         "type": "object",
         "properties": {
@@ -7163,6 +7213,63 @@
             "description": "Number of individual-record lines on the invoice.",
             "example": 1
           },
+          "counterparty": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Counterparty id (workspace-shared protistrana).",
+                "example": "0196f1de-0000-7000-8000-0000000000c1"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+                "example": "ACME s.r.o."
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "description": "The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties)."
+          },
+          "currencyTotals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "currencyCode": {
+                  "type": "string",
+                  "description": "Transaction currency (ISO 4217).",
+                  "example": "EUR"
+                },
+                "totalBase": {
+                  "type": "string",
+                  "description": "Sum of line bases in this transaction currency, decimal string.",
+                  "example": "500.00"
+                },
+                "totalVat": {
+                  "type": "string",
+                  "description": "Sum of line VAT in this transaction currency, decimal string.",
+                  "example": "105.00"
+                }
+              },
+              "required": [
+                "currencyCode",
+                "totalBase",
+                "totalVat"
+              ],
+              "description": "A transaction-currency roll-up (one per distinct partial currency)."
+            },
+            "description": "Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`."
+          },
           "createdAt": {
             "type": "string",
             "description": "When the voucher row was created — ISO timestamp.",
@@ -7183,6 +7290,8 @@
           "totalBase",
           "totalVat",
           "lineCount",
+          "counterparty",
+          "currencyTotals",
           "createdAt"
         ],
         "description": "An invoice (invoice-typed summary record) header."
@@ -7271,6 +7380,63 @@
             "type": "integer",
             "description": "Number of individual-record lines on the invoice.",
             "example": 1
+          },
+          "counterparty": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Counterparty id (workspace-shared protistrana).",
+                "example": "0196f1de-0000-7000-8000-0000000000c1"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+                "example": "ACME s.r.o."
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "description": "The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties)."
+          },
+          "currencyTotals": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "currencyCode": {
+                  "type": "string",
+                  "description": "Transaction currency (ISO 4217).",
+                  "example": "EUR"
+                },
+                "totalBase": {
+                  "type": "string",
+                  "description": "Sum of line bases in this transaction currency, decimal string.",
+                  "example": "500.00"
+                },
+                "totalVat": {
+                  "type": "string",
+                  "description": "Sum of line VAT in this transaction currency, decimal string.",
+                  "example": "105.00"
+                }
+              },
+              "required": [
+                "currencyCode",
+                "totalBase",
+                "totalVat"
+              ],
+              "description": "A transaction-currency roll-up (one per distinct partial currency)."
+            },
+            "description": "Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`."
           },
           "createdAt": {
             "type": "string",
@@ -7429,6 +7595,8 @@
           "totalBase",
           "totalVat",
           "lineCount",
+          "counterparty",
+          "currencyTotals",
           "createdAt",
           "lines"
         ],
@@ -7437,7 +7605,7 @@
       "ListInvoicesResponse": {
         "type": "object",
         "properties": {
-          "invoices": {
+          "data": {
             "type": "array",
             "items": {
               "type": "object",
@@ -7524,6 +7692,63 @@
                   "description": "Number of individual-record lines on the invoice.",
                   "example": 1
                 },
+                "counterparty": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Counterparty id (workspace-shared protistrana).",
+                      "example": "0196f1de-0000-7000-8000-0000000000c1"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+                      "example": "ACME s.r.o."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name"
+                  ],
+                  "description": "The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties)."
+                },
+                "currencyTotals": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "currencyCode": {
+                        "type": "string",
+                        "description": "Transaction currency (ISO 4217).",
+                        "example": "EUR"
+                      },
+                      "totalBase": {
+                        "type": "string",
+                        "description": "Sum of line bases in this transaction currency, decimal string.",
+                        "example": "500.00"
+                      },
+                      "totalVat": {
+                        "type": "string",
+                        "description": "Sum of line VAT in this transaction currency, decimal string.",
+                        "example": "105.00"
+                      }
+                    },
+                    "required": [
+                      "currencyCode",
+                      "totalBase",
+                      "totalVat"
+                    ],
+                    "description": "A transaction-currency roll-up (one per distinct partial currency)."
+                  },
+                  "description": "Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`."
+                },
                 "createdAt": {
                   "type": "string",
                   "description": "When the voucher row was created — ISO timestamp.",
@@ -7544,17 +7769,34 @@
                 "totalBase",
                 "totalVat",
                 "lineCount",
+                "counterparty",
+                "currencyTotals",
                 "createdAt"
               ],
               "description": "An invoice (invoice-typed summary record) header."
-            },
-            "description": "Invoice headers matching the filters, newest first."
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Cursor for the next page, or `null` when the current page is last.",
+            "example": "cur_2ZdAk5x"
+          },
+          "has_more": {
+            "type": "boolean",
+            "description": "`true` when more pages remain after this one."
           }
         },
         "required": [
-          "invoices"
+          "data",
+          "next_cursor",
+          "has_more"
         ],
-        "description": "The organization's invoices (both directions), organization-scoped (FORCE RLS)."
+        "description": "A cursor-paginated page of the organization's invoices (both directions), organization-scoped (FORCE RLS), newest first."
       },
       "GetInvoiceResponse": {
         "type": "object",
@@ -7643,6 +7885,63 @@
                 "type": "integer",
                 "description": "Number of individual-record lines on the invoice.",
                 "example": 1
+              },
+              "counterparty": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Counterparty id (workspace-shared protistrana).",
+                    "example": "0196f1de-0000-7000-8000-0000000000c1"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+                    "example": "ACME s.r.o."
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "description": "The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties)."
+              },
+              "currencyTotals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "currencyCode": {
+                      "type": "string",
+                      "description": "Transaction currency (ISO 4217).",
+                      "example": "EUR"
+                    },
+                    "totalBase": {
+                      "type": "string",
+                      "description": "Sum of line bases in this transaction currency, decimal string.",
+                      "example": "500.00"
+                    },
+                    "totalVat": {
+                      "type": "string",
+                      "description": "Sum of line VAT in this transaction currency, decimal string.",
+                      "example": "105.00"
+                    }
+                  },
+                  "required": [
+                    "currencyCode",
+                    "totalBase",
+                    "totalVat"
+                  ],
+                  "description": "A transaction-currency roll-up (one per distinct partial currency)."
+                },
+                "description": "Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`."
               },
               "createdAt": {
                 "type": "string",
@@ -7801,6 +8100,8 @@
               "totalBase",
               "totalVat",
               "lineCount",
+              "counterparty",
+              "currencyTotals",
               "createdAt",
               "lines"
             ],
@@ -12690,7 +12991,7 @@
       "get": {
         "operationId": "listInvoices",
         "summary": "List invoices",
-        "description": "Returns the organization's invoices — `summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — with rolled-up accounting-currency totals. Organization-scoped (FORCE RLS). Optionally filter by `direction` and `periodId`. An invoice is a voucher header, not a posting; use `GET /v1/accounting/periods/{id}/journal` for the journal bookings.",
+        "description": "Returns a cursor-paginated page of the organization's invoices — `summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — newest first, with rolled-up accounting-currency totals, the resolved counterparty, and transaction-currency roll-ups. Organization-scoped (FORCE RLS). Page with `limit` (1–100, default 25) + the opaque `cursor` from the previous page's `next_cursor`; optionally filter by `direction` and `periodId`. An invoice is a voucher header, not a posting; use `GET /v1/accounting/periods/{id}/journal` for the journal bookings.",
         "tags": [
           "Invoices"
         ],
@@ -12700,6 +13001,33 @@
           }
         ],
         "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "description": "Page size. 1–100; default 25.",
+              "example": 25
+            },
+            "required": false,
+            "description": "Page size. 1–100; default 25.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "description": "Opaque pagination cursor returned by the previous page. Do not parse.",
+              "example": "cur_2ZdAk5x"
+            },
+            "required": false,
+            "description": "Opaque pagination cursor returned by the previous page. Do not parse.",
+            "name": "cursor",
+            "in": "query"
+          },
           {
             "schema": {
               "type": "string",
@@ -13043,6 +13371,63 @@
                           "description": "Number of individual-record lines on the invoice.",
                           "example": 1
                         },
+                        "counterparty": {
+                          "type": [
+                            "object",
+                            "null"
+                          ],
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "description": "Counterparty id (workspace-shared protistrana).",
+                              "example": "0196f1de-0000-7000-8000-0000000000c1"
+                            },
+                            "name": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "Counterparty display name (obchodní jméno), or null when unnamed.",
+                              "example": "ACME s.r.o."
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "description": "The invoice's counterparty when its lines resolve to exactly one; null otherwise (zero, or multiple distinct counterparties)."
+                        },
+                        "currencyTotals": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "currencyCode": {
+                                "type": "string",
+                                "description": "Transaction currency (ISO 4217).",
+                                "example": "EUR"
+                              },
+                              "totalBase": {
+                                "type": "string",
+                                "description": "Sum of line bases in this transaction currency, decimal string.",
+                                "example": "500.00"
+                              },
+                              "totalVat": {
+                                "type": "string",
+                                "description": "Sum of line VAT in this transaction currency, decimal string.",
+                                "example": "105.00"
+                              }
+                            },
+                            "required": [
+                              "currencyCode",
+                              "totalBase",
+                              "totalVat"
+                            ],
+                            "description": "A transaction-currency roll-up (one per distinct partial currency)."
+                          },
+                          "description": "Transaction-currency roll-ups, one per distinct partial currency (ordered by currency code). The frozen accounting-currency totals stay in `totalBase`/`totalVat`."
+                        },
                         "createdAt": {
                           "type": "string",
                           "description": "When the voucher row was created — ISO timestamp.",
@@ -13200,6 +13585,8 @@
                         "totalBase",
                         "totalVat",
                         "lineCount",
+                        "counterparty",
+                        "currencyTotals",
                         "createdAt",
                         "lines"
                       ],

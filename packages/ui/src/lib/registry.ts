@@ -9,9 +9,13 @@ type ComponentMeta = {
   dependencies?: string[]
   packages?: string[]
   // How the shadcn upstream audit tracks this entry. "asset" = tracked as a
-  // pinned source asset (see TRACKED_ASSET_SOURCES), so it is excluded from
-  // per-item registry drift enforcement. Omitted = tracked as a registry item.
-  tracking?: "item" | "asset"
+  // pinned source asset (see TRACKED_ASSET_SOURCES). "local-composition" = a
+  // local composition of already-tracked shadcn primitives with no standalone
+  // upstream registry item of its own (e.g. date-picker over calendar). Both
+  // are excluded from per-item registry drift enforcement. Omitted = tracked as
+  // a registry item. (Distinct from the manifest's `state: "composed"`, which
+  // is for local compositions that DO have an upstream registry item.)
+  tracking?: "item" | "asset" | "local-composition"
 }
 
 export const registry: Record<string, ComponentMeta> = {
@@ -603,6 +607,10 @@ export const registry: Record<string, ComponentMeta> = {
     categories: ["forms"],
     dependencies: ["button", "calendar", "card"],
     packages: ["date-fns"],
+    // Local composition of tracked shadcn primitives; shadcn ships date-picker
+    // only as a docs example (no standalone registry:ui item), so it carries no
+    // upstream digest of its own.
+    tracking: "local-composition",
   },
   dialog: {
     source: "shadcn",

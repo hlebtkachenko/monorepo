@@ -5,6 +5,7 @@ import {
   digestRegistryItem,
   digestTextAsset,
   fetchJson,
+  localCoverage,
   type RegistryItem,
   type UpstreamManifest,
   validateConfigStyle,
@@ -153,6 +154,36 @@ describe("shadcn upstream tracking", () => {
     expect(report.invalidLocal).toContain(
       "missing-local: local shadcn component lacks manifest entry",
     )
+  })
+
+  it("excludes composed local compositions from per-item drift", () => {
+    const { localNames, localShadcnNames } = localCoverage()
+    // date-picker composes tracked primitives (calendar/card/button) and has no
+    // standalone upstream registry item, so it must not demand a manifest entry.
+    expect(localNames.has("date-picker")).toBe(true)
+    expect(localShadcnNames.has("date-picker")).toBe(false)
+    // A genuinely adapted shadcn component is still enforced.
+    expect(localShadcnNames.has("button")).toBe(true)
+  })
+
+  it("honors the local-composition tracking marker", () => {
+    const { localShadcnNames } = localCoverage({
+      widget: {
+        source: "shadcn",
+        sourceType: "vanilla",
+        description: "",
+        categories: [],
+        tracking: "local-composition",
+      },
+      plain: {
+        source: "shadcn",
+        sourceType: "vanilla",
+        description: "",
+        categories: [],
+      },
+    })
+    expect(localShadcnNames.has("widget")).toBe(false)
+    expect(localShadcnNames.has("plain")).toBe(true)
   })
 
   it("rejects unsafe dispositions and style mismatch", () => {

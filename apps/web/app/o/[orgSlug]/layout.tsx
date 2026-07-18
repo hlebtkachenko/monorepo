@@ -179,6 +179,7 @@ export default async function OrgLayout({
           userImage={userImage}
           slug={orgSlug}
           version={getBuildVersion()}
+          supportAccessActive={orgData.supportAccessActive}
         />
       }
     />

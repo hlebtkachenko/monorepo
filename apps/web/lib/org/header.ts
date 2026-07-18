@@ -1,6 +1,6 @@
 import "server-only"
 
-import { and, asc, count, eq, ne } from "drizzle-orm"
+import { and, asc, count, eq, ne, sql } from "drizzle-orm"
 import { withAdminBypass, withOrgReadonly } from "@workspace/db"
 import {
   app_user,
@@ -62,6 +62,12 @@ export interface HeaderOrgData {
   /** Active member count for the current org (drives "· N Members"). */
   memberCount: number
   /**
+   * True when this org currently grants admin support access — i.e.
+   * `support_access_expires_at` is in the future. Drives the header
+   * Support-access toggle's checked state (F11).
+   */
+  supportAccessActive: boolean
+  /**
    * Up to 3 other orgs the user actively belongs to, across every workspace,
    * excluding the current one. There is no `last_accessed_at` column, so the
    * order is deterministic-by-name, not true recency.
@@ -73,11 +79,12 @@ export async function getHeaderOrgData(input: {
   organizationId: string
   userId: string
 }): Promise<HeaderOrgData> {
-  const [memberCount, otherOrgs] = await Promise.all([
-    // Current-org member count under FORCE RLS: withOrgReadonly binds
-    // app.organization_id + app.user_id in a read-only tx, and
-    // org_membership_org_read permits a proven member to count the current org's
-    // members. The explicit filter is defense-in-depth.
+  const [orgScoped, otherOrgs] = await Promise.all([
+    // Current-org reads under FORCE RLS: withOrgReadonly binds
+    // app.organization_id + app.user_id in a read-only tx. The member count
+    // relies on org_membership_org_read (a proven member may count the current
+    // org's members); the support-access flag reads the org's own row, visible
+    // under organization_isolation. Explicit filters are defense-in-depth.
     withOrgReadonly(input.organizationId, input.userId, async (db) => {
       const [counted] = await db
         .select({ count: count() })
@@ -88,7 +95,19 @@ export async function getHeaderOrgData(input: {
             eq(organization_membership.active, true),
           ),
         )
-      return counted?.count ?? 0
+      const [org] = await db
+        .select({
+          // NULL / past → false; a future timestamp → true (evaluated in SQL to
+          // avoid app-vs-DB clock skew).
+          supportAccessActive: sql<boolean>`(${organization.support_access_expires_at} > now())`,
+        })
+        .from(organization)
+        .where(eq(organization.id, input.organizationId))
+        .limit(1)
+      return {
+        memberCount: counted?.count ?? 0,
+        supportAccessActive: org?.supportAccessActive ?? false,
+      }
     }),
     // Org-switcher list spans workspaces, so it must bypass RLS — FORCE RLS
     // would scope it to the current org and drop every sibling.
@@ -117,5 +136,9 @@ export async function getHeaderOrgData(input: {
     ),
   ])
 
-  return { memberCount, otherOrgs }
+  return {
+    memberCount: orgScoped.memberCount,
+    supportAccessActive: orgScoped.supportAccessActive,
+    otherOrgs,
+  }
 }

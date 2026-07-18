@@ -898,8 +898,11 @@
         "status": "{brand} status",
         "supportAccess": "Support access",
         "supportAccessInfo": "About support access",
-        "supportAccessTooltip": "Coming soon — lets our support team sign in to your workspace to help troubleshoot.",
-        "supportAccessSwitch": "Support access (coming soon)",
+        "supportAccessTooltip": "Lets our support team sign in to this company for 7 days to help troubleshoot. Turn it off any time to revoke.",
+        "supportAccessSwitch": "Support access",
+        "supportAccessOn": "Support access on — our team can sign in for 7 days.",
+        "supportAccessOff": "Support access off — our team can no longer sign in.",
+        "supportAccessError": "Couldn't change support access. Try again.",
         "sendFeedback": "Send feedback",
         "version": "Version: {version}"
       },

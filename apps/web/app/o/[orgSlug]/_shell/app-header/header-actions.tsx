@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { useLocale } from "next-intl"
@@ -59,6 +59,7 @@ import {
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { XIcon } from "@workspace/ui/lib/icons"
 import { Switch } from "@workspace/ui/components/switch"
+import { toast } from "@workspace/ui/components/sonner"
 import {
   Tooltip,
   TooltipContent,
@@ -72,6 +73,7 @@ import {
 } from "@workspace/ui/icon-packs"
 
 import { orgHref } from "@/lib/org/href"
+import { setSupportAccess } from "@/lib/org/support-access-actions"
 import { signOutAction } from "@/app/auth/_lib/account-actions"
 import { reportFeedback } from "@/app/_components/report-feedback"
 
@@ -90,11 +92,14 @@ export function OrgHeaderActions({
   userImage,
   slug,
   version,
+  supportAccessActive = false,
 }: {
   userName?: string
   userImage?: string
   slug: string
   version?: string
+  /** Server-resolved current support-access grant state (F11). */
+  supportAccessActive?: boolean
 }) {
   const icons = useIcons()
   const shell = useAppShell()
@@ -109,6 +114,24 @@ export function OrgHeaderActions({
   const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [feedbackContext, setFeedbackContext] =
     useState<CapturedContext | null>(null)
+  // Support access reflects the server-resolved grant, updated optimistically
+  // on toggle and reverted if the server action rejects.
+  const [supportOn, setSupportOn] = useState(supportAccessActive)
+  const [, startSupportTransition] = useTransition()
+
+  const onToggleSupportAccess = (next: boolean) => {
+    setSupportOn(next)
+    startSupportTransition(async () => {
+      const result = await setSupportAccess(slug, next)
+      if (!result.ok) {
+        setSupportOn(!next)
+        toast.error(t("help.supportAccessError"))
+        return
+      }
+      toast(next ? t("help.supportAccessOn") : t("help.supportAccessOff"))
+      router.refresh()
+    })
+  }
 
   const DocsIcon = icons.FileText
   const KnowledgeIcon = icons.BookOpen
@@ -211,11 +234,11 @@ export function OrgHeaderActions({
             {t("help.status", { brand: tBrand("name") })}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          {/* Support access is not wired yet — the real toggle (add/remove a
-              support-agent admin + admin login-as) lands in F11. The Switch is
-              disabled and selecting is a no-op so the eventual control is
-              visible without falsely granting access for an action that does
-              nothing. */}
+          {/* Support access consent (F11): the org owner/admin opens a 7-day
+              window in which an Afframe operator can sign in to this org via
+              admin impersonation. `onSelect` preventDefault keeps the menu open
+              so the Switch state is visible after toggling; the toggle calls the
+              server action inside a transition and reverts on failure. */}
           <DropdownMenuItem
             className="justify-between"
             onSelect={(e) => e.preventDefault()}
@@ -241,11 +264,9 @@ export function OrgHeaderActions({
               </Tooltip>
             </span>
             <Switch
-              checked={false}
-              disabled
+              checked={supportOn}
+              onCheckedChange={onToggleSupportAccess}
               aria-label={t("help.supportAccessSwitch")}
-              tabIndex={-1}
-              className="pointer-events-none"
             />
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={openFeedback}>

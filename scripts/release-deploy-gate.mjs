@@ -108,8 +108,16 @@ async function githubGet(path, { apiUrl, token }) {
   return response.json()
 }
 
-function writeOutput(name, value, outputPath) {
-  if (outputPath) appendFileSync(outputPath, `${name}=${value}\n`)
+export function formatDecisionOutputs({ eligible, production }) {
+  return [
+    `eligible=${eligible === true ? "true" : "false"}`,
+    `production=${production === true ? "true" : "false"}`,
+    "",
+  ].join("\n")
+}
+
+function writeDecisionOutputs(decision, outputPath) {
+  if (outputPath) appendFileSync(outputPath, formatDecisionOutputs(decision))
 }
 
 export async function runReleaseDeployGate(env = process.env) {
@@ -167,9 +175,7 @@ export async function runReleaseDeployGate(env = process.env) {
     deploymentsByEnvironment,
     expectedPublishedAt,
   })
-  writeOutput("eligible", String(decision.eligible), env.GITHUB_OUTPUT)
-  writeOutput("production", String(decision.production), env.GITHUB_OUTPUT)
-  writeOutput("reason", decision.reason, env.GITHUB_OUTPUT)
+  writeDecisionOutputs(decision, env.GITHUB_OUTPUT)
   process.stdout.write(
     `${decision.eligible ? "Eligible" : "Skipped"}: ${decision.reason}\n`,
   )

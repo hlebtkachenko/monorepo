@@ -3,6 +3,7 @@ import { test } from "node:test"
 
 import {
   evaluateReleaseDeployGate,
+  formatDecisionOutputs,
   SKIP_CD_MARKER,
 } from "./release-deploy-gate.mjs"
 
@@ -95,4 +96,15 @@ test("publication timestamp mismatch fails closed", () => {
   })
   assert.equal(result.eligible, false)
   assert.match(result.reason, /timestamp changed/)
+})
+
+test("workflow outputs contain only normalized booleans", () => {
+  assert.equal(
+    formatDecisionOutputs({
+      eligible: true,
+      production: false,
+      reason: "untrusted\ncommand=value",
+    }),
+    "eligible=true\nproduction=false\n",
+  )
 })

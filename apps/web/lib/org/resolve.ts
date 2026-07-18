@@ -2,7 +2,11 @@ import "server-only"
 
 import { and, asc, eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
-import { organization, organization_membership } from "@workspace/db/schema"
+import {
+  organization,
+  organization_membership,
+  type OrganizationRole,
+} from "@workspace/db/schema"
 import { RESERVED_SLUGS } from "@workspace/org-provisioning"
 
 /**
@@ -36,7 +40,7 @@ export interface ResolvedMembership {
   organizationId: string
   workspaceId: string
   legalName: string
-  role: "owner" | "admin" | "member" | "agent" | "guest"
+  role: OrganizationRole
 }
 
 /**

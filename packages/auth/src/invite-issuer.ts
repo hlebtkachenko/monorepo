@@ -5,6 +5,7 @@ import {
   organization,
   organization_membership,
   workspace,
+  type OrganizationRole,
 } from "@workspace/db/schema"
 import { sendEmail, inviteEmail } from "@workspace/email"
 
@@ -78,7 +79,7 @@ export function isPendingInviteUniqueViolation(err: unknown): boolean {
 }
 
 /** Roles the app accepts on an invite. Mirrors organization_membership.role. */
-export type InviteRole = "owner" | "admin" | "member" | "agent" | "guest"
+export type InviteRole = OrganizationRole
 
 /**
  * Shape returned by `readInviteByRawToken`. Kept compatible with the

@@ -16,8 +16,9 @@ import type { OrganizationBoundDb } from "../tenancy"
 import { app_user } from "../schema/app_user"
 import { tool_call_log } from "../schema/tool_call_log"
 import type { ActorKind } from "./types"
+import type { OrganizationRole } from "../schema/_enums"
 
-export type AuditDetailRole = "owner" | "admin" | "member" | "agent" | "guest"
+export type AuditDetailRole = OrganizationRole
 
 export class AuditAuthorizationError extends Error {
   constructor(role: string) {

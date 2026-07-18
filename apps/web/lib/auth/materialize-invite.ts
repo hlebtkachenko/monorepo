@@ -7,6 +7,7 @@ import {
   organization,
   organization_membership,
   workspace_membership,
+  type OrganizationRole,
 } from "@workspace/db/schema"
 
 /**
@@ -179,7 +180,7 @@ export async function materializeInvite(
         workspace_id: org.workspace_id,
         user_id: input.userId,
         workspace_membership_id: wsMembershipId,
-        role: role as "owner" | "admin" | "member" | "agent" | "guest",
+        role: role as OrganizationRole,
       })
     }
 

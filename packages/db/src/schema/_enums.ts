@@ -33,6 +33,12 @@ export const organizationRole = pgEnum("organization_role", [
   "guest",
 ])
 
+/**
+ * Union of `organization_role` values, derived from the pgEnum so it can
+ * never drift from the DB type. Distinct from the 3-value `workspace_role`.
+ */
+export type OrganizationRole = (typeof organizationRole.enumValues)[number]
+
 // Mirrors: packages/db/migrations/0002_auth.sql — CREATE TYPE invite_status AS ENUM
 export const inviteStatus = pgEnum("invite_status", [
   "pending",

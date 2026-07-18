@@ -100,12 +100,18 @@ jobs:
               - 'package.json'
               - '**/package.json'
 
-  lint-typecheck:
+  # Split out of the old `lint-typecheck` job (CICD-05): typecheck and lint
+  # are independent turbo tasks that share nothing but the runner setup, so
+  # running them as two parallel jobs turns a ~sum into a ~max on the critical
+  # path. Both are internal jobs rolled up by the `ci` aggregator — neither is
+  # an individually-required context, so splitting adds no ruleset change. The
+  # `eslint` name is deliberate: the required `lint` context belongs to
+  # commitlint (commitlint.yml), so a job named `lint` here would collide.
+  typecheck:
     needs: [changes]
-    # Skip the whole runner setup on docs-only PRs (no code = no typecheck/
-    # lint work to do anyway, --affected makes the inside no-op but the
-    # runner setup still costs ~60-90s). Aggregator treats `skipped` as
-    # non-failure so the required `ci` check stays green.
+    # Skip the whole runner setup on docs-only PRs (no code = no typecheck
+    # work; --affected makes the inside a no-op but the setup still costs
+    # ~60-90s). Aggregator treats `skipped` as non-failure so `ci` stays green.
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -130,6 +136,24 @@ jobs:
           APP_DOMAIN: example.com
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo typecheck --affected --ui=stream --continue
+
+  eslint:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history so `turbo --affected` can diff against the PR base.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
 
       - name: Lint
         env:
@@ -171,6 +195,11 @@ jobs:
         # @workspace/db tests require a Postgres 18 testcontainer or service.
         # They run in the dedicated db-tests.yml workflow. Excluding here
         # avoids Docker overhead + double execution.
+        # `web` is excluded too (CICD-05): apps/web tests boot a Postgres 18
+        # testcontainer and run serially (fileParallelism: false) — a slow,
+        # Docker-bound pole that would otherwise gate every other package's
+        # fast pure-unit run. It gets its own `web-integration` job below so
+        # the two run in parallel (critical path = max, not sum).
         # --affected scopes to packages touched vs the PR base. Full graph
         # still runs on push to main (HEAD^ base = previous commit only,
         # so on main the affected scope is one-commit delta, which is the
@@ -179,7 +208,36 @@ jobs:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
-        run: pnpm turbo test --filter=!@workspace/db --affected --ui=stream --continue
+        run: pnpm turbo test --filter=!@workspace/db --filter=!web --affected --ui=stream --continue
+
+  # apps/web integration tests, split out of `unit-test` (CICD-05). These boot
+  # a Postgres 18 testcontainer via globalSetup and run serially, so they are
+  # the slow pole of the old combined job. Isolated here they run concurrently
+  # with the fast pure-unit packages. Docker is preinstalled on ubuntu-latest.
+  web-integration:
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Full history so `turbo --affected` can diff against the PR base.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+
+      - name: Test (apps/web integration)
+        env:
+          AWS_ACCOUNT_ID: "123456789012"
+          APP_DOMAIN: test.example.com
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: pnpm turbo test --filter=web --affected --ui=stream --continue
 
   coverage:
     needs: [changes]
@@ -209,18 +267,20 @@ jobs:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
         run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
 
-  # Storybook build + interaction tests in ONE job (CICD-02).
-  # History: originally a single sequential job (~220-240s), then split into
-  # build + 2-shard test matrix with an artifact handoff. Measured timings
-  # (runs 27126594582/27126837045/27078022761) showed the split made UI PRs
-  # SLOWER end-to-end (~7.2-7.4m critical path): each shard paid ~70s runner
-  # setup + ~40s Playwright deps + ~35s cache save + the artifact download
-  # for only ~70-82s of actual test work, plus a runner-queue hop between
-  # build and test. Collapsed back to one job: build (~70s, turbo-cached)
-  # + unsharded test (~150s at current suite size) ≈ ~4.7m critical path.
-  # Revisit sharding only when the unsharded test phase alone exceeds ~5m.
-  # Gated on `needs.changes.outputs.ui == 'true'` so non-UI PRs skip the
-  # whole job; the aggregator treats `skipped` as non-failure.
+  # Storybook build + interaction/a11y tests, sharded across a matrix (CICD-05).
+  # History: single job (~220-240s) -> build + 2-shard test matrix with an
+  # artifact handoff (SLOWER: each shard paid setup + Playwright deps + a
+  # ~35s turbo-cache SAVE + an artifact download for only ~70-82s of test
+  # work) -> collapsed back to one job. Two things changed since, which make
+  # sharding win now: (1) build-storybook restores from the Cloudflare turbo
+  # remote cache as `>>> FULL TURBO` in ~2s per leg, so there is NO artifact
+  # handoff — each leg rebuilds instantly; (2) the a11y suite grew to ~173s,
+  # large enough that splitting it 4 ways beats the per-leg fixed overhead.
+  # `--shard=k/4` splits the 145 story suites evenly. webkit dropped: the
+  # test-runner runs chromium only (no playwright.config declares a webkit
+  # project), so installing it was pure waste. Gated on
+  # `needs.changes.outputs.ui == 'true'` so non-UI PRs skip the whole job;
+  # the aggregator treats `skipped` as non-failure.
   storybook:
     needs: [changes]
     if: needs.changes.outputs.ui == 'true'
@@ -228,6 +288,12 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    strategy:
+      # One failing shard must not cancel the others — we want the full
+      # a11y/interaction failure set in one run, not the first shard's only.
+      fail-fast: false
+      matrix:
+        shard: ["1", "2", "3", "4"]
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -243,7 +309,9 @@ jobs:
       - name: Story coverage audit (advisory)
         # Advisory — surfaces missing variant stories / story files in the
         # log without blocking merge. Flip to required only after a green
-        # cycle (same policy as every other new gate).
+        # cycle (same policy as every other new gate). Runs on one shard only
+        # (identical output on every leg — no reason to run it four times).
+        if: matrix.shard == '1'
         continue-on-error: true
         run: pnpm --filter @workspace/ui audit:stories
 
@@ -262,21 +330,21 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: pw-${{ runner.os }}-${{ steps.pw-version.outputs.version }}
+          key: pw-${{ runner.os }}-${{ steps.pw-version.outputs.version }}-chromium
 
       - name: Install Playwright (browsers + system deps)
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @workspace/ui exec playwright install --with-deps chromium chromium-headless-shell webkit
+        run: pnpm --filter @workspace/ui exec playwright install --with-deps chromium chromium-headless-shell
 
       - name: Install Playwright system deps (cache hit)
         if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @workspace/ui exec playwright install-deps chromium webkit
+        run: pnpm --filter @workspace/ui exec playwright install-deps chromium
 
-      - name: Storybook Interaction & A11y Tests
+      - name: Storybook Interaction & A11y Tests (shard ${{ matrix.shard }}/4)
         run: |
           pnpm dlx concurrently -k -s first -n "SB,TEST" \
             "pnpm dlx http-server packages/ui/storybook-static --port 6006 --silent" \
-            "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006"
+            "pnpm dlx wait-on tcp:127.0.0.1:6006 && pnpm --filter @workspace/ui test-storybook --url http://127.0.0.1:6006 --shard=${{ matrix.shard }}/4"
 
   build:
     needs: [changes]
@@ -296,15 +364,29 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          # Build stays full-graph — deploy/release path consumes the full
-          # build artifact set (apps/web/.next/standalone, apps/api/dist,
-          # apps/admin/.next). Partial build = poisoned release. So no
-          # --affected here, and no need for fetch-depth: 0 either.
+          # fetch-depth: 0 so the PR build can diff against the PR base for
+          # `turbo --affected` (see the Build step). Cheap; harmless on push.
+          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
 
       - name: Build
-        run: pnpm turbo build --ui=stream
+        # PR builds are compile-verify only, so they scope to `--affected`
+        # (CICD-05): a change that can't affect a package's build can't break
+        # it, and turbo's graph pulls in every dependent of a shared change.
+        # Same gap as the typecheck --affected already in use, and the
+        # main-push full-graph build below is the backstop. Push to main and
+        # releases stay FULL-GRAPH — the deploy/release path consumes the
+        # complete artifact set (apps/web/.next/standalone, apps/api/dist,
+        # apps/admin/.next); a partial build there would poison the release.
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            pnpm turbo build --affected --ui=stream
+          else
+            pnpm turbo build --ui=stream
+          fi
 
       - name: Scan client bundle for leaked server secrets
         # Defence-in-depth post-build check. Fails if any server-only env var
@@ -352,7 +434,8 @@ jobs:
   # aggregator) — that's how the storybook skip works without breaking
   # the required `ci` check.
   ci:
-    needs: [changes, lint-typecheck, unit-test, storybook, build]
+    needs:
+      [changes, typecheck, eslint, unit-test, web-integration, storybook, build]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

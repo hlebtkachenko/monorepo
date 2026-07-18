@@ -25,9 +25,13 @@ git commit -m "fix(web): ..."
 
 Squash away `wip` / `fixup` commits before they reach `main`, so every commit
 that lands carries exactly one fragment = one changelog bullet. A PR that makes
-three distinct changes has three commits and three fragments. The CI gate
-requires at least one fragment per non-release PR (Dependabot and
-`chore(release): vX.Y.Z` PRs are exempt).
+three distinct changes has three commits and three fragments.
+
+What the CI gate actually enforces (the required `check` context, on every PR):
+**at least one valid fragment is added and none are deleted** — a per-PR floor,
+not per-commit. "One fragment per commit" is the convention above; the machine
+only checks that the PR added a fragment. Dependabot and `chore(release): vX.Y.Z`
+PRs are exempt.
 
 ## A fragment
 
@@ -62,11 +66,11 @@ suffix guarantees uniqueness. Do not edit or delete another PR's fragment.
 
 ## Automatic vs manual
 
-| Step                                                                                     | Who                                        |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------ |
-| Write a fragment per commit                                                              | you / agent (`changelog:add`)              |
-| Gate: PR added ≥1 valid fragment                                                         | automatic (CI `check`, pre-push)           |
-| Assemble `CHANGELOG.md` + backfill `(#PR)` + fold in Dependabot bumps + delete fragments | automatic (`changelog:collect` at release) |
-| Choose the version number and push the tag                                               | manual (release owner)                     |
+| Step                                                                                                    | Who                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Write a fragment per commit                                                                             | manual — you / agent (`changelog:add`)                                                                                       |
+| Enforce that a PR added ≥1 valid fragment (none deleted)                                                | automatic — required CI `check` gate on every PR (+ a local pre-push mirror)                                                 |
+| Assemble the version section: group by category, backfill `(#PR)`, fold in Dependabot, delete fragments | scripted, but run manually — the release owner runs `changelog:collect` in the `chore(release)` PR (no workflow triggers it) |
+| Choose the version number and push the tag                                                              | manual — release owner                                                                                                       |
 
 Full convention: [`docs/conventions/RELEASES.md`](../docs/conventions/RELEASES.md).

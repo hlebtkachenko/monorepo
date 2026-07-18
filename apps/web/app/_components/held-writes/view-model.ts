@@ -160,6 +160,13 @@ export interface MddPreview {
   totalCredit: string
   /** Σ(MD) = Σ(Dal) — always true for a verbatim posting; a re-derived capture preview should also balance (each scenario entry set does), a mismatch signals a classification/rounding issue worth flagging to the reviewer. */
   balanced: boolean
+  /**
+   * TRUE when the whole document will be HELD at book time (nothing posts). `bookDocument` books a document
+   * all-or-nothing — any single un-bookable partial (null / ASSET / ADVANCE supply_kind, or an unclassifiable
+   * row) throws and rolls the whole approve transaction back — so a preview that showed the survivors' lines
+   * would over-state what booking does. When this is set, `lines` is empty and `caveats` carry the reason(s).
+   */
+  heldWholeDocument: boolean
   /** Non-blocking caveats about what this preview does NOT model (e.g. capitalisation, časové rozlišení). */
   caveats: string[]
 }
@@ -513,6 +520,7 @@ function finalizeMddPreview(
   scenarioLabel: string | null,
   lines: MddPreviewLine[],
   caveats: string[],
+  heldWholeDocument = false,
 ): MddPreview {
   const totalDebit = lines
     .filter((l) => l.side === "DEBIT")
@@ -527,6 +535,7 @@ function finalizeMddPreview(
     totalDebit: formatMinorUnits(totalDebit),
     totalCredit: formatMinorUnits(totalCredit),
     balanced: totalDebit === totalCredit,
+    heldWholeDocument,
     caveats,
   }
 }
@@ -727,6 +736,19 @@ function mddPreviewFromCapture(
     caveats.push(
       "Některou položku dokladu nebylo možné zařadit (např. neplatná sazba DPH) — v náhledu je vynechána.",
     )
+  }
+  // #779 follow-up: bookDocument books all-or-nothing — any partial it cannot book (a null / ASSET / ADVANCE
+  // supply_kind, or an unclassifiable row) throws and holds the WHOLE document (the approve transaction rolls
+  // back, nothing posts). Every per-partial skip above is exactly one of those holds, so if ANY partial was
+  // skipped the faithful preview is a whole-document HOLD, not a partial posting of the survivors — that would
+  // over-state what the approve actually books. Drop the derived lines; keep the reason caveats.
+  if (
+    skippedAsset ||
+    skippedAdvance ||
+    skippedUnclassifiedSupply ||
+    skippedUnclassifiable
+  ) {
+    return finalizeMddPreview(null, null, [], caveats, true)
   }
   if (lines.length === 0) return null
 

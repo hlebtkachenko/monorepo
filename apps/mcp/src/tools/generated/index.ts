@@ -45,50 +45,150 @@ import { registerMatchBookingTemplate } from "./matchBookingTemplate"
 import { registerListAccountingPeriods } from "./listAccountingPeriods"
 import { registerCreateAccountingPeriod } from "./createAccountingPeriod"
 
-export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
-  registerPing(server, client)
-  registerGetOrganization(server, client)
-  registerGetStatus(server, client)
-  registerCreateFeedback(server, client)
-  registerGetStructure(server, client)
-  registerListArchetypes(server, client)
-  registerGetAccountingJournal(server, client)
-  registerGetAccountingLedger(server, client)
-  registerGetAccountingOpenItems(server, client)
-  registerGetAccountingSaldokonto(server, client)
-  registerGetAccountingVatReturn(server, client)
-  registerGetAccountingCorporateIncomeTax(server, client)
-  registerGetAccountingEcSalesList(server, client)
-  registerGetAccountingControlStatement(server, client)
-  registerGetAccountingFinancialStatements(server, client)
-  registerGetAccountingStatementLayout(server, client)
-  registerClassifyAccountingEvent(server, client)
-  registerListAccountingNumberSeries(server, client)
-  registerCreateNumberSeries(server, client)
-  registerCreateAccountingEvent(server, client)
-  registerCaptureAccountingDocument(server, client)
-  registerCreateAccountingPosting(server, client)
-  registerCreateAsset(server, client)
-  registerCreateDepreciationPlan(server, client)
-  registerCreateInventoryCount(server, client)
-  registerListAccountingHeldWrites(server, client)
-  registerResolveAccountingHeldWrite(server, client)
-  registerListInvoices(server, client)
-  registerCreateInvoice(server, client)
-  registerGetInvoice(server, client)
-  registerListAccounts(server, client)
-  registerGetAccount(server, client)
-  registerListDocuments(server, client)
-  registerGetDocumentDownloadUrl(server, client)
-  registerListOcrTemplates(server, client)
-  registerCreateOcrTemplate(server, client)
-  registerConfirmOcrTemplate(server, client)
-  registerListBookingTemplates(server, client)
-  registerCreateBookingTemplate(server, client)
-  registerConfirmBookingTemplate(server, client)
-  registerMatchBookingTemplate(server, client)
-  registerListAccountingPeriods(server, client)
-  registerCreateAccountingPeriod(server, client)
+type Registrar = (server: McpServer, client: AfframeClient) => void
+
+const REGISTRARS: Record<string, Registrar> = {
+  ping: registerPing,
+  getOrganization: registerGetOrganization,
+  getStatus: registerGetStatus,
+  createFeedback: registerCreateFeedback,
+  getStructure: registerGetStructure,
+  listArchetypes: registerListArchetypes,
+  getAccountingJournal: registerGetAccountingJournal,
+  getAccountingLedger: registerGetAccountingLedger,
+  getAccountingOpenItems: registerGetAccountingOpenItems,
+  getAccountingSaldokonto: registerGetAccountingSaldokonto,
+  getAccountingVatReturn: registerGetAccountingVatReturn,
+  getAccountingCorporateIncomeTax: registerGetAccountingCorporateIncomeTax,
+  getAccountingEcSalesList: registerGetAccountingEcSalesList,
+  getAccountingControlStatement: registerGetAccountingControlStatement,
+  getAccountingFinancialStatements: registerGetAccountingFinancialStatements,
+  getAccountingStatementLayout: registerGetAccountingStatementLayout,
+  classifyAccountingEvent: registerClassifyAccountingEvent,
+  listAccountingNumberSeries: registerListAccountingNumberSeries,
+  createNumberSeries: registerCreateNumberSeries,
+  createAccountingEvent: registerCreateAccountingEvent,
+  captureAccountingDocument: registerCaptureAccountingDocument,
+  createAccountingPosting: registerCreateAccountingPosting,
+  createAsset: registerCreateAsset,
+  createDepreciationPlan: registerCreateDepreciationPlan,
+  createInventoryCount: registerCreateInventoryCount,
+  listAccountingHeldWrites: registerListAccountingHeldWrites,
+  resolveAccountingHeldWrite: registerResolveAccountingHeldWrite,
+  listInvoices: registerListInvoices,
+  createInvoice: registerCreateInvoice,
+  getInvoice: registerGetInvoice,
+  listAccounts: registerListAccounts,
+  getAccount: registerGetAccount,
+  listDocuments: registerListDocuments,
+  getDocumentDownloadUrl: registerGetDocumentDownloadUrl,
+  listOcrTemplates: registerListOcrTemplates,
+  createOcrTemplate: registerCreateOcrTemplate,
+  confirmOcrTemplate: registerConfirmOcrTemplate,
+  listBookingTemplates: registerListBookingTemplates,
+  createBookingTemplate: registerCreateBookingTemplate,
+  confirmBookingTemplate: registerConfirmBookingTemplate,
+  matchBookingTemplate: registerMatchBookingTemplate,
+  listAccountingPeriods: registerListAccountingPeriods,
+  createAccountingPeriod: registerCreateAccountingPeriod,
+}
+
+interface ToolMeta {
+  /** Slugified first OpenAPI tag — the group an agent can select by. */
+  group: string
+  readOnly: boolean
+  destructive: boolean
+}
+
+/** Per-operation group + read/destructive metadata (spec order). Internal to the gated registrar. */
+const TOOL_INDEX: Record<string, ToolMeta> = {
+  ping: { group: "meta", readOnly: true, destructive: false },
+  getOrganization: { group: "organization", readOnly: true, destructive: false },
+  getStatus: { group: "status", readOnly: true, destructive: false },
+  createFeedback: { group: "feedback", readOnly: false, destructive: false },
+  getStructure: { group: "structure", readOnly: true, destructive: false },
+  listArchetypes: { group: "structure", readOnly: true, destructive: false },
+  getAccountingJournal: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingLedger: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingOpenItems: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingSaldokonto: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingVatReturn: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingCorporateIncomeTax: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingEcSalesList: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingControlStatement: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingFinancialStatements: { group: "accounting", readOnly: true, destructive: false },
+  getAccountingStatementLayout: { group: "accounting", readOnly: true, destructive: false },
+  classifyAccountingEvent: { group: "accounting", readOnly: false, destructive: false },
+  listAccountingNumberSeries: { group: "accounting", readOnly: true, destructive: false },
+  createNumberSeries: { group: "accounting", readOnly: false, destructive: false },
+  createAccountingEvent: { group: "accounting", readOnly: false, destructive: false },
+  captureAccountingDocument: { group: "accounting", readOnly: false, destructive: false },
+  createAccountingPosting: { group: "accounting", readOnly: false, destructive: false },
+  createAsset: { group: "accounting", readOnly: false, destructive: false },
+  createDepreciationPlan: { group: "accounting", readOnly: false, destructive: false },
+  createInventoryCount: { group: "accounting", readOnly: false, destructive: false },
+  listAccountingHeldWrites: { group: "accounting", readOnly: true, destructive: false },
+  resolveAccountingHeldWrite: { group: "accounting", readOnly: false, destructive: false },
+  listInvoices: { group: "invoices", readOnly: true, destructive: false },
+  createInvoice: { group: "invoices", readOnly: false, destructive: false },
+  getInvoice: { group: "invoices", readOnly: true, destructive: false },
+  listAccounts: { group: "accounts", readOnly: true, destructive: false },
+  getAccount: { group: "accounts", readOnly: true, destructive: false },
+  listDocuments: { group: "documents", readOnly: true, destructive: false },
+  getDocumentDownloadUrl: { group: "documents", readOnly: true, destructive: false },
+  listOcrTemplates: { group: "ocr-templates", readOnly: true, destructive: false },
+  createOcrTemplate: { group: "ocr-templates", readOnly: false, destructive: false },
+  confirmOcrTemplate: { group: "ocr-templates", readOnly: false, destructive: false },
+  listBookingTemplates: { group: "booking-templates", readOnly: true, destructive: false },
+  createBookingTemplate: { group: "booking-templates", readOnly: false, destructive: false },
+  confirmBookingTemplate: { group: "booking-templates", readOnly: false, destructive: false },
+  matchBookingTemplate: { group: "booking-templates", readOnly: false, destructive: false },
+  listAccountingPeriods: { group: "accounting", readOnly: true, destructive: false },
+  createAccountingPeriod: { group: "accounting", readOnly: false, destructive: false },
+}
+
+/** Catalog of selectable tool groups (slug, description, tool count). */
+export const TOOL_GROUP_CATALOG = [
+  { slug: "accounting", description: "accounting", count: 23 },
+  { slug: "accounts", description: "accounts", count: 2 },
+  { slug: "booking-templates", description: "booking-templates", count: 4 },
+  { slug: "documents", description: "documents", count: 2 },
+  { slug: "feedback", description: "Send bug reports, requests, and questions", count: 1 },
+  { slug: "invoices", description: "invoices", count: 3 },
+  { slug: "meta", description: "Service metadata and auth smoke tests", count: 1 },
+  { slug: "ocr-templates", description: "Workspace-shared Brain OCR extraction templates (learned supplier invoice layouts)", count: 3 },
+  { slug: "organization", description: "The API key's own organization", count: 1 },
+  { slug: "status", description: "Service status and component health", count: 1 },
+  { slug: "structure", description: "Application information architecture — modules, pages, and layout archetypes for agent discovery", count: 2 },
+] as const
+
+export interface ToolSelection {
+  /** Register only tools in these groups. Undefined = every group. */
+  groups?: readonly string[]
+  /** "read" = read-only tools; "write" = non-destructive mutating (== all today, no destructive tools); "all" = everything. */
+  scope?: "read" | "write" | "all"
+}
+
+/**
+ * Register generated tools onto an McpServer. With no selection, registers
+ * every tool (backward-compatible with the stdio entrypoint). A selection
+ * gates registration by group and/or scope, so the hosted Worker exposes a
+ * smaller, relevant surface and never builds the unselected tools.
+ */
+export function registerGeneratedTools(
+  server: McpServer,
+  client: AfframeClient,
+  selection: ToolSelection = {},
+): void {
+  const { groups, scope = "all" } = selection
+  for (const [operationId, register] of Object.entries(REGISTRARS)) {
+    const meta = TOOL_INDEX[operationId]
+    if (!meta) continue
+    if (groups && !groups.includes(meta.group)) continue
+    if (scope === "read" && !meta.readOnly) continue
+    if (scope === "write" && meta.destructive) continue
+    register(server, client)
+  }
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import worker from "./http"
+import worker, { parseSelection } from "./http"
 
 const env = { AFFRAME_API_BASE: "https://api.example.test" }
 
@@ -58,5 +58,35 @@ describe("hosted MCP Worker auth gate", () => {
       { AFFRAME_API_BASE: "" },
     )
     expect(res.status).toBe(500)
+  })
+
+  it("normalizes empty/blank groups to no selection (never a zero-tool server)", () => {
+    expect(parseSelection(new URL("https://x/")).groups).toBeUndefined()
+    expect(parseSelection(new URL("https://x/?groups=")).groups).toBeUndefined()
+    expect(
+      parseSelection(new URL("https://x/?groups=,%20,")).groups,
+    ).toBeUndefined()
+  })
+
+  it("parses + trims a real group list and validates scope", () => {
+    const sel = parseSelection(
+      new URL("https://x/?groups=invoices,%20accounting&scope=read"),
+    )
+    expect(sel.groups).toEqual(["invoices", "accounting"])
+    expect(sel.scope).toBe("read")
+    expect(
+      parseSelection(new URL("https://x/?scope=bogus")).scope,
+    ).toBeUndefined()
+  })
+
+  it("serves the group catalog unauthenticated at GET /groups", async () => {
+    const res = await worker.fetch(
+      new Request("https://mcp.afframe.com/groups"),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const catalog = (await res.json()) as { slug: string; count: number }[]
+    expect(Array.isArray(catalog)).toBe(true)
+    expect(catalog.some((g) => g.slug === "invoices")).toBe(true)
   })
 })

@@ -13,6 +13,18 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.23.8] — 2026-07-18
+
+### Changed
+
+- Improve repository navigation with Cursor file nesting, a linked root map, a per-domain entry-point index, and GitHub community files under the `.github/` directory. (#814)
+
+### Fixed
+
+- Make the PDF viewer scroll region keyboard-focusable, fixing the intermittent scrollable-region-focusable a11y gate failure in Storybook CI. (#814)
+- Make the admin utility-page catalog test assertion deterministic: query the feedback UI synchronously (getBy) after the state settles instead of three default-1s findBy polls, closing the last CI-contention flake vector (test-only) (#820)
+- Correct documentation drift: ARCHITECTURE.md package map (six missing packages, phantom pdf package, registry count, app_admin role, seven-container hardening, renderShell email), and root README pnpm dev description with Conductor Run-menu guidance. (#823)
+
 ## [v0.23.7] — 2026-07-18
 
 ### Added

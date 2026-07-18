@@ -4,7 +4,7 @@ Next.js + shadcn/ui monorepo with Turborepo, pnpm workspaces, Storybook, and Vit
 
 ## Prerequisites
 
-- Node.js >= 22
+- Node.js >= 24
 - pnpm 11.x (`corepack enable`)
 
 ## Getting Started
@@ -43,7 +43,7 @@ pnpm dev          # Next.js dev server (port 3000)
 
 | Group           | Packages                                                                                                                                                                                                                            |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Accounting      | [`accounting`](packages/accounting), [`accounting-kb`](packages/accounting-kb), [`brain`](packages/brain), [`intake`](packages/intake), [`registries`](packages/registries)                                                         |
+| Accounting      | [`accounting`](packages/accounting), [`accounting-kb`](packages/accounting-kb), [`brain`](packages/brain), [`filing`](packages/filing), [`intake`](packages/intake), [`registries`](packages/registries)                            |
 | Platform        | [`auth`](packages/auth), [`db`](packages/db), [`storage`](packages/storage), [`workers`](packages/workers), [`org-provisioning`](packages/org-provisioning), [`observability`](packages/observability), [`notify`](packages/notify) |
 | Product         | [`ui`](packages/ui), [`email`](packages/email), [`i18n`](packages/i18n)                                                                                                                                                             |
 | Developer tools | [`sdk`](packages/sdk), [`shared`](packages/shared), [`config`](packages/config), [`eslint-config`](packages/eslint-config), [`typescript-config`](packages/typescript-config), [`testcontainers`](packages/testcontainers)          |

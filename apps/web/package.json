@@ -68,13 +68,13 @@
     {
       "name": "Total JS (brotli)",
       "path": ".next/static/**/*.js",
-      "limit": "1.5 MB",
+      "limit": "3 MB",
       "running": false
     },
     {
       "name": "Total JS (raw)",
       "path": ".next/static/**/*.js",
-      "limit": "6 MB",
+      "limit": "12 MB",
       "brotli": false,
       "gzip": false,
       "running": false

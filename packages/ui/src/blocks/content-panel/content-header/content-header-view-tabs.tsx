@@ -74,44 +74,51 @@ export function ContentHeaderViewTabs({
 
   return (
     <div
-      role="tablist"
-      aria-label="Views"
       // flex-1 middle that scrolls; drop the bottom edge onto the header's bottom
       // hairline (the bar's `py-1` = 4px) so each tab's underline lands on it.
       className="-mb-1 flex min-w-0 flex-1 items-stretch gap-2 self-stretch overflow-x-auto"
     >
-      {viewTabs.map((tab, index) => {
-        const active = tab.value === value
-        // The mandatory first view ("All") + the active view always stay inline;
-        // the rest fold into the dropdown when the header narrows.
-        const priority = index === 0 || active
-        const badgeValue = tab.count ?? tab.badge
-        return (
-          <button
-            key={tab.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => onValueChange?.(tab.value)}
-            className={cn(
-              "group relative flex h-full shrink-0 items-center gap-1.5 px-1.5 pb-1 whitespace-nowrap",
-              // The underline: flush on the hairline, spanning the padded tab.
-              "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:transition-colors",
-              active
-                ? "text-sm font-medium text-foreground after:bg-foreground"
-                : "text-sm font-normal text-muted-foreground transition-colors after:bg-transparent hover:text-foreground",
-              !priority && "@max-[36rem]/ch:hidden",
-            )}
-          >
-            <span className="truncate">{tab.label}</span>
-            {badgeValue != null ? (
-              <Badge variant={active ? "default" : "secondary"}>
-                {badgeValue}
-              </Badge>
-            ) : null}
-          </button>
-        )
-      })}
+      {/* Only the tabs belong to the tablist. The "+ Add view" button and the
+          overflow dropdown are NOT tabs, so they sit OUTSIDE it — a `tablist`
+          may only own `tab` children (WCAG / axe aria-required-children). */}
+      <div
+        role="tablist"
+        aria-label="Views"
+        className="flex items-stretch gap-2 self-stretch"
+      >
+        {viewTabs.map((tab, index) => {
+          const active = tab.value === value
+          // The mandatory first view ("All") + the active view always stay inline;
+          // the rest fold into the dropdown when the header narrows.
+          const priority = index === 0 || active
+          const badgeValue = tab.count ?? tab.badge
+          return (
+            <button
+              key={tab.value}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onValueChange?.(tab.value)}
+              className={cn(
+                "group relative flex h-full shrink-0 items-center gap-1.5 px-1.5 pb-1 whitespace-nowrap",
+                // The underline: flush on the hairline, spanning the padded tab.
+                "after:pointer-events-none after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:transition-colors",
+                active
+                  ? "text-sm font-medium text-foreground after:bg-foreground"
+                  : "text-sm font-normal text-muted-foreground transition-colors after:bg-transparent hover:text-foreground",
+                !priority && "@max-[36rem]/ch:hidden",
+              )}
+            >
+              <span className="truncate">{tab.label}</span>
+              {badgeValue != null ? (
+                <Badge variant={active ? "default" : "secondary"}>
+                  {badgeValue}
+                </Badge>
+              ) : null}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Inline "+ Add view" — hidden when narrow (it moves into the dropdown). */}
       {onAddView ? (

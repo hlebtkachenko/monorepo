@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 /* global process */
 /**
- * Required PR gate: every non-release PR must add a bullet under
- * CHANGELOG.md's ## [Unreleased] section without removing existing bullets.
+ * Required PR gate: every non-release PR must add at least one CHANGELOG
+ * fragment under `changelog.d/` and must not delete an existing one (fragments
+ * are removed only at release-cut). Every added fragment must be schema-valid.
  *
- * Release PRs are exempt because they intentionally move Unreleased entries
- * into a versioned section.
+ * Unique-per-PR fragment files replace the old shared `## [Unreleased]` region,
+ * so parallel PRs no longer conflict. Release PRs are exempt — they run
+ * `collect-changelog.mjs`, which consumes the fragments into a version section.
+ *
+ * CLI/env are unchanged from the previous gate so preflight, the lefthook
+ * pre-push hook, and the CI `check` job need no rewiring.
  */
 
 import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
+
+import { FRAGMENT_DIR, parseFragment } from "./changelog-fragments.mjs"
 
 const RELEASE_TITLE_RE =
   /^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?$/
@@ -51,11 +58,10 @@ function parseArgs(argv) {
   return parsed
 }
 
-function git(args, options = {}) {
+function git(args) {
   const result = spawnSync("git", args, {
     encoding: "utf8",
     maxBuffer: 10 * 1024 * 1024,
-    ...options,
   })
 
   if (result.status !== 0) {
@@ -67,64 +73,39 @@ function git(args, options = {}) {
   return result.stdout
 }
 
-function gitShow(ref, path) {
-  if (ref === "WORKTREE") {
-    return readFileSync(path, "utf8")
-  }
-
-  return git(["show", `${ref}:${path}`])
-}
-
-function changedFiles(base, head) {
-  if (head === "WORKTREE") {
-    return git(["diff", "--name-only", base, "--"]).split("\n").filter(Boolean)
-  }
-
-  return git(["diff", "--name-only", `${base}...${head}`])
+function fragmentLines(stdout) {
+  return stdout
     .split("\n")
-    .filter(Boolean)
+    .map((line) => line.trim())
+    .filter((line) => line.endsWith(".md"))
 }
 
-function unreleasedBody(markdown) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n")
-  const start = lines.findIndex((line) => line.trim() === "## [Unreleased]")
-
-  if (start === -1) {
-    throw new Error(
-      "CHANGELOG.md is missing the required ## [Unreleased] section.",
-    )
-  }
-
-  const end = lines.findIndex(
-    (line, index) => index > start && /^## \[[^\]]+\]/.test(line.trim()),
+function fragmentsByStatus(base, head, filter) {
+  // WORKTREE: compare base against the working tree (uncommitted included).
+  // Otherwise: compare the base..head range of the PR.
+  const range = head === "WORKTREE" ? [base] : [`${base}...${head}`]
+  const tracked = fragmentLines(
+    git([
+      "diff",
+      `--diff-filter=${filter}`,
+      "--name-only",
+      ...range,
+      "--",
+      FRAGMENT_DIR,
+    ]),
   )
 
-  return lines.slice(start + 1, end === -1 ? lines.length : end)
-}
-
-function bulletBlocks(sectionLines) {
-  const blocks = []
-  let current = null
-
-  for (const line of sectionLines) {
-    if (/^###\s+/.test(line.trim())) {
-      continue
-    }
-
-    if (/^\s*-\s+\S/.test(line)) {
-      if (current) blocks.push(current)
-      current = [line]
-      continue
-    }
-
-    if (current && line.trim() !== "") {
-      current.push(line)
-    }
+  // `git diff` ignores untracked files, so a brand-new fragment that has not
+  // been staged/committed yet is invisible to the range diff. In WORKTREE mode
+  // fold in untracked additions so a locally-created fragment counts.
+  if (head === "WORKTREE" && filter === "A") {
+    const untracked = fragmentLines(
+      git(["ls-files", "--others", "--exclude-standard", "--", FRAGMENT_DIR]),
+    )
+    return [...new Set([...tracked, ...untracked])]
   }
 
-  if (current) blocks.push(current)
-
-  return blocks.map((block) => block.join(" ").replace(/\s+/g, " ").trim())
+  return tracked
 }
 
 function fail(message) {
@@ -136,51 +117,50 @@ const { base, head, title } = parseArgs(process.argv.slice(2))
 
 if (RELEASE_TITLE_RE.test(title)) {
   process.stdout.write(
-    "Release PR title detected; skipping Unreleased-add requirement.\n",
+    "Release PR title detected; skipping fragment-add requirement.\n",
   )
   process.exit(0)
 }
 
-const files = changedFiles(base, head)
-if (!files.includes("CHANGELOG.md")) {
-  fail(
-    "CHANGELOG.md was not changed. Add a bullet under ## [Unreleased], or use a chore(release): vX.Y.Z PR title for release cuts.",
-  )
-}
-
-let baseBlocks
-let headBlocks
+let added
+let deleted
 try {
-  baseBlocks = bulletBlocks(unreleasedBody(gitShow(base, "CHANGELOG.md")))
-  headBlocks = bulletBlocks(unreleasedBody(gitShow(head, "CHANGELOG.md")))
+  added = fragmentsByStatus(base, head, "A")
+  deleted = fragmentsByStatus(base, head, "D")
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
 }
 
-const missing = baseBlocks.filter((block) => !headBlocks.includes(block))
-if (missing.length > 0) {
+if (deleted.length > 0) {
   fail(
     [
-      "existing Unreleased entries were removed or edited.",
-      "Normal PRs must only add to Unreleased; release PRs move entries into a version section.",
+      "existing changelog fragments were deleted.",
+      "Fragments are consumed only at release-cut (chore(release): vX.Y.Z).",
       "",
-      "Missing from head:",
-      ...missing.map((block) => `  - ${block}`),
+      "Deleted:",
+      ...deleted.map((file) => `  - ${file}`),
     ].join("\n"),
   )
 }
 
-const added = headBlocks.filter((block) => !baseBlocks.includes(block))
 if (added.length === 0) {
   fail(
-    "CHANGELOG.md changed, but no new bullet was added under ## [Unreleased].",
+    `no changelog fragment added under ${FRAGMENT_DIR}/. Run: pnpm changelog:add -- --category <Cat> --entry "..."`,
   )
 }
 
+// Validate schema of every added fragment (reads the working tree; in CI the
+// head SHA is checked out, so this is the fragment as it will land).
+for (const file of added) {
+  try {
+    parseFragment(readFileSync(file, "utf8"), file)
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error))
+  }
+}
+
 process.stdout.write(
-  `CHANGELOG gate passed: ${added.length} new Unreleased entr${
-    added.length === 1 ? "y" : "ies"
-  } added; ${baseBlocks.length} existing entr${
-    baseBlocks.length === 1 ? "y" : "ies"
-  } preserved.\n`,
+  `CHANGELOG gate passed: ${added.length} fragment${
+    added.length === 1 ? "" : "s"
+  } added under ${FRAGMENT_DIR}/.\n`,
 )

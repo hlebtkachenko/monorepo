@@ -73,8 +73,9 @@ speed.
    main, and its required checks have re-run green on that main-based state.
 
 4. **Preflight locally before pushing.** `pnpm preflight` runs `typecheck` + `lint`
-   on the affected packages, `boundaries`, the docs-link check, and the CHANGELOG
-   `## [Unreleased]` gate (the same one CI's `check` job runs). It pins the
+   on the affected packages, `boundaries`, the docs-link check, and the
+   changelog-fragment gate (the same one CI's `check` job runs — a PR must add a
+   `changelog.d/` fragment). It pins the
    affected base to `origin/main` (and fetches it first) so the set matches what CI
    computes — without that pin turbo compares against your worktree's local `main`,
    which in a Conductor worktree is routinely tens of commits stale and silently
@@ -107,21 +108,22 @@ speed.
 7. **Serialize where parallel worktrees collide.** Agents branch off main in
    separate worktrees, so two PRs can silently edit the same file. Before every
    push, `git fetch origin main` and rebase; never resolve a conflict by
-   merge-clobber. `CHANGELOG.md` (Unreleased) and any `*.generated.*` /
-   `openapi/v1.json` file are conflict magnets — land PRs that touch them fast or
-   serialize them, and always regenerate (never hand-merge) generated files after a
-   rebase. Give each in-flight PR a non-overlapping file/package territory; one
-   concern per PR is necessary but not sufficient.
+   merge-clobber. The changelog is no longer a conflict magnet — each PR adds its
+   own uniquely-named `changelog.d/` fragment, so the old single-file
+   `## [Unreleased]` collision is gone. The remaining magnets are `*.generated.*`
+   / `openapi/v1.json`: land PRs that touch them fast or serialize them, and always
+   regenerate (never hand-merge) generated files after a rebase. Give each
+   in-flight PR a non-overlapping file/package territory; one concern per PR is
+   necessary but not sufficient.
 
-   After merging or rebasing `main`, **re-run `pnpm preflight` before pushing**. A
-   release cut on `main` moves its `## [Unreleased]` entries into a version
-   section, and a 3-way merge silently files _your_ Unreleased bullets into that
-   just-released section, leaving `## [Unreleased]` empty — CI's `check` job then
-   fails. `pnpm preflight` now includes that gate, so it catches the mis-file
-   locally. This matters most on a **merge commit push**: the merge subject is not
+   After merging or rebasing `main`, **re-run `pnpm preflight` before pushing** so
+   the affected set and the fragment gate re-evaluate against fresh `origin/main`.
+   This matters most on a **merge commit push**: the merge subject is not
    conventional, so it needs `git push --no-verify`, which skips every pre-push
-   hook (including the changelog guard) — `pnpm preflight` is the only thing that
-   still runs, so it is mandatory there.
+   hook — `pnpm preflight` is the only thing that still runs, so it is mandatory
+   there. (Fragments removed the old release-cut mis-file trap: because the
+   collector deletes fragments rather than emptying a shared region, a 3-way merge
+   can no longer silently file your entry into a just-released section.)
 
 8. **One branch per PR; start each PR from fresh main.** A branch is one PR is one
    concern. On squash-merge the branch is auto-deleted (remote) and is now behind

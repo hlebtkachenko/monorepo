@@ -31,6 +31,8 @@
     "review:shadcn-upstream": "pnpm --filter @workspace/ui review:shadcn-upstream",
     "check:pr-title": "node scripts/check-pr-title.mjs",
     "changelog:add": "node scripts/governance/add-changelog-entry.mjs",
+    "changelog:preview": "node scripts/governance/collect-changelog.mjs --dry-run",
+    "changelog:collect": "node scripts/governance/collect-changelog.mjs",
     "gen:structure": "tsx scripts/gen-structure.ts",
     "gen:all": "tsx scripts/gen-all.ts",
     "prepare": "lefthook install --force || true"

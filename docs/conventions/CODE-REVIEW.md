@@ -8,7 +8,7 @@ Items that catch repeat nits across PRs. Reviewer skims this before approving. A
 - [ ] Squash-merge title will read cleanly on `main` (no `WIP`, no draft markers, no commit-id leftovers).
 - [ ] PR description has Summary (1-3 bullets), Test plan, Risk Classification (DORA), Rollback Plan if non-trivial.
 - [ ] CI green (or path-filtered checks legitimately skipped).
-- [ ] CHANGELOG.md updated under `[Unreleased]` for every non-release PR; release PRs only move Unreleased into the version section.
+- [ ] Changelog fragment added under `changelog.d/` for every non-release PR; release PRs only run `changelog:collect` to fold fragments into the version section.
 - [ ] No secret-shaped strings in diff (api keys, postgres URLs with creds, JWTs, age keys). `gitleaks` and `check-client-secrets` catch most; eyeball anyway.
 
 ## Code quality

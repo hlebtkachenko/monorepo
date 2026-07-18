@@ -420,7 +420,15 @@ GitHub Milestone per release bucket.
 
 ## Changelog Requirement
 
-Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the changelog gate is skipped on those PRs, and the resulting dependency bumps are recorded at release-cut as a synthesized `### Dependencies` bullet (and `### Security` for CVE-flagged bumps) instead of a per-PR entry.
+Every non-release PR MUST add one **changelog fragment** under `changelog.d/` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Each PR writes its own uniquely-named fragment file, so parallel PRs never touch a shared region and never conflict (this replaced the old single-file `## [Unreleased]` block). Use:
+
+```bash
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--scope web] [--breaking] [--migration] [--note "ship as v0.24 per Hleb"]
+```
+
+Only `--category` (one of Added/Changed/Deprecated/Removed/Fixed/Security/Docs/Dependencies) and `--entry` are required. Optional frontmatter carries greppable release signal: `--bump` (patch|minor|major → drives the suggested version), `--scope`, `--breaking`, `--migration`, and `--note` (an override/instruction the release agent honors without re-asking). Do not delete another PR's fragment — fragments are consumed only at release-cut.
+
+Preview the pending release any time with `pnpm changelog:preview` (renders all fragments + suggested bump + notes). Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception to the add-a-fragment gate: they run `pnpm changelog:collect --version vX.Y.Z`, which folds every fragment into a new `CHANGELOG.md` version section AND writes a machine-readable `releases/vX.Y.Z.json` manifest (for agents/tooling), then deletes the consumed fragments. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the fragment gate is skipped on those PRs, and their dependency bumps are synthesized into the `### Dependencies` section from `chore(deps)` commits at release-cut instead of a per-PR fragment. Full procedure: [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
 
 ## Infrastructure
 

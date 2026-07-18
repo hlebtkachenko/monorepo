@@ -1,41 +1,70 @@
 #!/usr/bin/env node
 /* global process */
 /**
- * Insert one CHANGELOG.md bullet under ## [Unreleased].
+ * Create one CHANGELOG fragment under `changelog.d/`.
  *
- * This helper always preserves existing entries and inserts the new bullet at
- * the top of the requested category so parallel agents do not overwrite each
- * other's release notes.
+ * Each PR writes its own fragment file, so parallel PRs never touch a shared
+ * region and never conflict. The file is named `<figure>-<hex>.md` — a random
+ * economist/mathematician from `changelog-names.txt` (flavour, on-brand for a
+ * finance product) plus a hex suffix that guarantees uniqueness even when the
+ * same name recurs. The name carries no meaning; the suffix does the work.
+ *
+ * Usage:
+ *   node scripts/governance/add-changelog-entry.mjs \
+ *     --category Fixed \
+ *     --entry "Org switcher preserves the current module when switching orgs" \
+ *     [--bump patch|minor|major] [--scope web] [--breaking] [--migration] \
+ *     [--note "ship as v0.24 per Hleb"] [--name custom-slug] [--dir changelog.d]
  */
 
-import { readFileSync, writeFileSync } from "node:fs"
+import { randomBytes } from "node:crypto"
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 
-const DEFAULT_CATEGORY_ORDER = [
-  "Added",
-  "Changed",
-  "Deprecated",
-  "Removed",
-  "Fixed",
-  "Security",
-  "Docs",
-  "Dependencies",
-]
+import {
+  BUMP_ORDER,
+  CATEGORY_ORDER,
+  FRAGMENT_DIR,
+  NAMES_FILE,
+} from "./changelog-fragments.mjs"
 
 function usage() {
   process.stderr.write(
-    "usage: add-changelog-entry.mjs --category <name> --entry <text> [--file CHANGELOG.md]\n",
+    [
+      "usage: add-changelog-entry.mjs --category <name> --entry <text>",
+      "         [--bump patch|minor|major] [--scope <area>] [--breaking]",
+      "         [--migration] [--note <text>] [--name <slug>] [--dir <path>]",
+      `  categories: ${CATEGORY_ORDER.join(", ")}`,
+      "",
+    ].join("\n"),
   )
 }
 
 function parseArgs(argv) {
-  const parsed = { file: "CHANGELOG.md", category: "", entry: "" }
+  const parsed = {
+    category: "",
+    entry: "",
+    bump: "",
+    scope: "",
+    note: "",
+    name: "",
+    dir: FRAGMENT_DIR,
+    breaking: false,
+    migration: false,
+  }
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === "--") continue
-    if (arg === "--file") parsed.file = argv[++i] ?? ""
     else if (arg === "--category") parsed.category = argv[++i] ?? ""
     else if (arg === "--entry") parsed.entry = argv[++i] ?? ""
+    else if (arg === "--bump") parsed.bump = argv[++i] ?? ""
+    else if (arg === "--scope") parsed.scope = argv[++i] ?? ""
+    else if (arg === "--note") parsed.note = argv[++i] ?? ""
+    else if (arg === "--name") parsed.name = argv[++i] ?? ""
+    else if (arg === "--dir") parsed.dir = argv[++i] ?? ""
+    else if (arg === "--breaking") parsed.breaking = true
+    else if (arg === "--migration") parsed.migration = true
     else {
       usage()
       process.stderr.write(`unknown argument: ${arg}\n`)
@@ -43,110 +72,85 @@ function parseArgs(argv) {
     }
   }
 
-  if (!parsed.file || !parsed.category || !parsed.entry) {
+  if (!parsed.category || !parsed.entry) {
     usage()
+    process.exit(2)
+  }
+
+  if (!CATEGORY_ORDER.includes(parsed.category)) {
+    process.stderr.write(
+      `Unknown category "${parsed.category}". Expected one of: ${CATEGORY_ORDER.join(", ")}\n`,
+    )
+    process.exit(2)
+  }
+
+  if (parsed.bump && !BUMP_ORDER.includes(parsed.bump)) {
+    process.stderr.write(
+      `Invalid bump "${parsed.bump}". Expected one of: ${BUMP_ORDER.join(", ")}\n`,
+    )
     process.exit(2)
   }
 
   return parsed
 }
 
-function findUnreleasedRange(lines) {
-  const start = lines.findIndex((line) => line.trim() === "## [Unreleased]")
-  if (start === -1) {
-    throw new Error(
-      "CHANGELOG.md is missing the required ## [Unreleased] section.",
-    )
-  }
-
-  const end = lines.findIndex(
-    (line, index) => index > start && /^## \[[^\]]+\]/.test(line.trim()),
-  )
-
-  return { start, end: end === -1 ? lines.length : end }
+function slugify(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48)
 }
 
-function findCategoryRange(lines, start, end, category) {
-  const heading = `### ${category}`
-  const categoryStart = lines.findIndex(
-    (line, index) =>
-      index > start &&
-      index < end &&
-      line.trim().toLowerCase() === heading.toLowerCase(),
-  )
-
-  if (categoryStart === -1) return null
-
-  const nextCategory = lines.findIndex(
-    (line, index) =>
-      index > categoryStart && index < end && /^###\s+/.test(line.trim()),
-  )
-
-  return {
-    start: categoryStart,
-    end: nextCategory === -1 ? end : nextCategory,
-  }
-}
-
-function categoryInsertIndex(lines, start, end, category) {
-  const targetOrder = DEFAULT_CATEGORY_ORDER.indexOf(category)
-
-  if (targetOrder === -1) {
-    return start + 1
-  }
-
-  for (let i = start + 1; i < end; i += 1) {
-    const match = lines[i].trim().match(/^###\s+(.+)$/)
-    if (!match) continue
-
-    const existingOrder = DEFAULT_CATEGORY_ORDER.indexOf(match[1])
-    if (existingOrder !== -1 && existingOrder > targetOrder) {
-      return i
+function pickName() {
+  try {
+    const names = readFileSync(NAMES_FILE, "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+    if (names.length > 0) {
+      const index = randomBytes(2).readUInt16BE(0) % names.length
+      return names[index]
     }
+  } catch {
+    // Fall through to the generic slug if the list is unreadable.
   }
-
-  return end
+  return "entry"
 }
 
-function insertEntry(markdown, category, entry) {
-  const hadTrailingNewline = markdown.endsWith("\n")
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n")
-  if (lines.at(-1) === "") lines.pop()
-
-  const { start, end } = findUnreleasedRange(lines)
-  const bullet = `- ${entry.trim()}`
-  const categoryRange = findCategoryRange(lines, start, end, category)
-
-  if (categoryRange) {
-    let insertAt = categoryRange.start + 1
-    while (insertAt < categoryRange.end && lines[insertAt].trim() === "") {
-      insertAt += 1
-    }
-    lines.splice(insertAt, 0, bullet)
-  } else {
-    const insertAt = categoryInsertIndex(lines, start, end, category)
-    const block = [`### ${category}`, "", bullet, ""]
-    const needsLeadingBlank =
-      insertAt > 0 && lines[insertAt - 1] && lines[insertAt - 1].trim() !== ""
-    lines.splice(insertAt, 0, ...(needsLeadingBlank ? ["", ...block] : block))
+function uniqueFragmentPath(dir, base) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const suffix = randomBytes(2).toString("hex")
+    const path = join(dir, `${base}-${suffix}.md`)
+    if (!existsSync(path)) return path
   }
-
-  return `${lines.join("\n")}${hadTrailingNewline ? "\n" : ""}`
+  throw new Error("could not allocate a unique fragment filename")
 }
 
-try {
-  const { file, category, entry } = parseArgs(process.argv.slice(2))
-  const current = readFileSync(file, "utf8")
-  const next = insertEntry(current, category, entry)
-  writeFileSync(file, next)
+function buildFragment(options) {
+  const lines = ["---", `category: ${options.category}`]
+  if (options.bump && options.bump !== "patch")
+    lines.push(`bump: ${options.bump}`)
+  if (options.scope) lines.push(`scope: ${options.scope}`)
+  if (options.breaking) lines.push("breaking: true")
+  if (options.migration) lines.push("migration: true")
+  if (options.note) lines.push(`note: ${JSON.stringify(options.note)}`)
+  lines.push("---", "", options.entry.trim(), "")
+  return lines.join("\n")
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2))
+
+  mkdirSync(options.dir, { recursive: true })
+
+  const base = options.name ? slugify(options.name) : slugify(pickName())
+  const path = uniqueFragmentPath(options.dir, base || "entry")
+
+  writeFileSync(path, buildFragment(options))
   process.stdout.write(
-    `Added CHANGELOG.md Unreleased entry under ${category}.\n`,
+    `Created changelog fragment ${path} (category: ${options.category}).\n`,
   )
-} catch (error) {
-  process.stderr.write(
-    `Failed to add changelog entry: ${
-      error instanceof Error ? error.message : String(error)
-    }\n`,
-  )
-  process.exit(1)
 }
+
+main()

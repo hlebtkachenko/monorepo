@@ -46,8 +46,8 @@
 
 ## Changelog
 
-- [ ] Non-release PR: added one bullet under `CHANGELOG.md` `## [Unreleased]`
-- [ ] Release PR only: moved `## [Unreleased]` entries into the new version section
+- [ ] Non-release PR: added one changelog fragment under `changelog.d/` (`pnpm changelog:add`)
+- [ ] Release PR only: ran `pnpm changelog:collect -- --version vX.Y.Z` to fold fragments into the version section
 
 ## Compliance
 

@@ -1,0 +1,181 @@
+import assert from "node:assert/strict"
+import { test } from "node:test"
+
+import {
+  buildManifest,
+  parseFragment,
+  pickBump,
+  renderVersionSection,
+} from "./changelog-fragments.mjs"
+
+test("parses a minimal fragment (category only, defaults applied)", () => {
+  const f = parseFragment(
+    "---\ncategory: Fixed\n---\nOrg switcher preserves module.",
+  )
+  assert.equal(f.category, "Fixed")
+  assert.equal(f.bump, "patch")
+  assert.equal(f.breaking, false)
+  assert.equal(f.migration, false)
+  assert.equal(f.scope, null)
+  assert.equal(f.note, null)
+  assert.equal(f.summary, "Org switcher preserves module.")
+})
+
+test("parses all optional fields", () => {
+  const text = [
+    "---",
+    "category: Added",
+    "bump: minor",
+    "scope: brain",
+    "breaking: true",
+    "migration: true",
+    'note: "ship as v0.24 per Hleb"',
+    "---",
+    "New posting lane behind the approval gate.",
+    "",
+  ].join("\n")
+  const f = parseFragment(text)
+  assert.equal(f.bump, "minor")
+  assert.equal(f.scope, "brain")
+  assert.equal(f.breaking, true)
+  assert.equal(f.migration, true)
+  assert.equal(f.note, "ship as v0.24 per Hleb")
+})
+
+test("collapses a multi-line body into a single summary", () => {
+  const f = parseFragment("---\ncategory: Changed\n---\nline one\nline two")
+  assert.equal(f.summary, "line one line two")
+})
+
+test("rejects missing frontmatter, unknown category, bad bump, bad bool, empty body", () => {
+  assert.throws(
+    () => parseFragment("no frontmatter here"),
+    /missing frontmatter/,
+  )
+  assert.throws(
+    () => parseFragment("---\ncategory: Bogus\n---\nx"),
+    /unknown category/,
+  )
+  assert.throws(
+    () => parseFragment("---\ncategory: Fixed\nbump: huge\n---\nx"),
+    /invalid bump/,
+  )
+  assert.throws(
+    () => parseFragment("---\ncategory: Fixed\nbreaking: yes\n---\nx"),
+    /must be true or false/,
+  )
+  assert.throws(
+    () => parseFragment("---\ncategory: Fixed\n---\n   "),
+    /empty body/,
+  )
+})
+
+test("pickBump takes the strongest lever", () => {
+  assert.equal(pickBump([]), "patch")
+  assert.equal(
+    pickBump([{ bump: "patch" }, { bump: "minor" }, { bump: "patch" }]),
+    "minor",
+  )
+  assert.equal(pickBump([{ bump: "minor" }, { bump: "major" }]), "major")
+})
+
+test("renders categories in fixed order with breaking + migration callouts", () => {
+  const fragments = [
+    {
+      file: "a.md",
+      category: "Fixed",
+      breaking: false,
+      migration: false,
+      summary: "fix a bug",
+    },
+    {
+      file: "b.md",
+      category: "Added",
+      breaking: true,
+      migration: false,
+      summary: "new API",
+    },
+    {
+      file: "c.md",
+      category: "Changed",
+      breaking: false,
+      migration: true,
+      summary: "schema move",
+    },
+  ]
+  const out = renderVersionSection(fragments, {
+    heading: "## [v0.24.0] — 2026-07-18",
+    prByFile: { "a.md": 10, "b.md": 11, "c.md": 12 },
+  })
+
+  assert.match(out, /^## \[v0\.24\.0\] — 2026-07-18/)
+  assert.match(out, /\*\*Breaking changes:\*\*/)
+  assert.match(out, /\*\*Migration required\*\*/)
+  // Added section precedes Changed precedes Fixed.
+  assert.ok(out.indexOf("### Added") < out.indexOf("### Changed"))
+  assert.ok(out.indexOf("### Changed") < out.indexOf("### Fixed"))
+  // PR backlinks appended.
+  assert.match(out, /- new API \(#11\)/)
+})
+
+test("does not double-append a PR ref already present in the body", () => {
+  const fragments = [
+    {
+      file: "a.md",
+      category: "Fixed",
+      breaking: false,
+      migration: false,
+      summary: "fix already tagged (#99)",
+    },
+  ]
+  const out = renderVersionSection(fragments, {
+    heading: "## [v1] — d",
+    prByFile: { "a.md": 99 },
+  })
+  assert.match(out, /- fix already tagged \(#99\)$/m)
+  assert.doesNotMatch(out, /\(#99\) \(#99\)/)
+})
+
+test("buildManifest emits suggested bump, notes, and per-change rows", () => {
+  const fragments = [
+    {
+      file: "a.md",
+      category: "Fixed",
+      bump: "patch",
+      scope: "web",
+      breaking: false,
+      migration: false,
+      note: null,
+      summary: "fix a",
+    },
+    {
+      file: "b.md",
+      category: "Added",
+      bump: "minor",
+      scope: "brain",
+      breaking: false,
+      migration: false,
+      note: "coordinate release",
+      summary: "add b",
+    },
+  ]
+  const manifest = buildManifest(fragments, {
+    version: "v0.24.0",
+    date: "2026-07-18",
+    prByFile: { "a.md": 10, "b.md": 11 },
+  })
+
+  assert.equal(manifest.version, "v0.24.0")
+  assert.equal(manifest.suggestedBump, "minor")
+  assert.deepEqual(manifest.notes, ["coordinate release"])
+  assert.equal(manifest.changes.length, 2)
+  assert.deepEqual(manifest.changes[0], {
+    category: "Fixed",
+    scope: "web",
+    bump: "patch",
+    breaking: false,
+    migration: false,
+    pr: 10,
+    summary: "fix a",
+  })
+})

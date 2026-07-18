@@ -23,9 +23,9 @@ const sections = []
 sections.push({
   title: "Changelog",
   items: [
-    "Non-release PRs add one bullet under `CHANGELOG.md` `## [Unreleased]` before review.",
-    'Use `pnpm changelog:add -- --category Changed --entry "..."` to preserve existing entries.',
-    "Release PRs titled `chore(release): vX.Y.Z` only move Unreleased entries into the new version section.",
+    "Non-release PRs add one fragment under `changelog.d/` before review (unique per PR — no conflicts).",
+    'Use `pnpm changelog:add -- --category Changed --entry "..."`; preview with `pnpm changelog:preview`.',
+    "Release PRs titled `chore(release): vX.Y.Z` run `pnpm changelog:collect` to fold fragments into the new version section.",
   ],
 })
 

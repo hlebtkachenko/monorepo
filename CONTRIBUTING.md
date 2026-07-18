@@ -43,7 +43,7 @@ Before opening a PR:
 3. `pnpm test` full Vitest green.
 4. `pnpm build` succeeds.
 5. Storybook builds if UI changed.
-6. CHANGELOG.md updated under `[Unreleased]` for every non-release PR.
+6. Changelog fragment added under `changelog.d/` (`pnpm changelog:add`) for every non-release PR.
 
 ## Pull Requests
 
@@ -54,7 +54,7 @@ cache-buster isolation, preflight, merge method, grouping related PRs) lives in
 Use `gh pr create` with a clear title and body that includes:
 
 - Summary (1-3 bullets).
-- Changelog entry under `CHANGELOG.md` `## [Unreleased]` for every non-release PR.
+- Changelog fragment under `changelog.d/` (`pnpm changelog:add`) for every non-release PR.
 - Test plan (markdown checklist).
 - Linked issue or ADR if applicable.
 

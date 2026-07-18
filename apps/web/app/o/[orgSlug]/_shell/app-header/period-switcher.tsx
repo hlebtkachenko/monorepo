@@ -36,10 +36,11 @@ function toPeriod(p: HeaderPeriod) {
  * Period switcher for the rebuilt tree. The URL is the single source of truth:
  * the active value reads live from `?period=` (falling back to the server
  * default the layout resolved from the cookie), and selecting a period pushes a
- * new URL that carries `?period=` while preserving the current in-org path. The
- * cookie is updated as a best-effort sticky default via `setPeriodDefault`; it
- * is never authoritative. This removes the old tree's fire-and-forget optimistic
- * state and per-page cookie re-derivation.
+ * new URL that swaps `?period=` while preserving the current in-org path AND all
+ * other existing query params (e.g. `?tab=`, filters). The cookie is updated as
+ * a best-effort sticky default via `setPeriodDefault`; it is never authoritative.
+ * This removes the old tree's fire-and-forget optimistic state and per-page
+ * cookie re-derivation.
  */
 export function PeriodSwitcherClient({
   slug,
@@ -69,8 +70,12 @@ export function PeriodSwitcherClient({
   }
 
   function selectPeriod(id: string) {
+    // Swap only `period`, preserving every other live query param (tab, filters).
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("period", id)
+    const target = `${orgHref(slug, relativePath())}?${params.toString()}`
     startTransition(() => {
-      router.push(orgHref(slug, relativePath(), { period: id }))
+      router.push(target)
     })
     // Persist as the sticky default for a later plain navigation; best-effort.
     void setPeriodDefault(id)

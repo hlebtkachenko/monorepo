@@ -43,38 +43,27 @@ runs:
           echo "turbo remote cache: disabled (TURBO_API or TURBO_TOKEN unset)" >> "$GITHUB_STEP_SUMMARY"
         fi
 
-    - name: Restore turbo cache (read-only)
-      # Per-job key (`github.job`) — the previous run-wide shared key meant
-      # only the first-finishing job saved, every other job restored a stale
-      # entry from a different SHA, and ALL jobs paid a 29-50s Post-Run save
-      # attempt (CICD-04). Content-addressed hash segment keeps cross-branch
-      # sharing; prefix restore-keys warm the `.turbo` directory on a partial
-      # match. Inputs that invalidate: dependency graph (lockfile +
-      # package.json), turbo config (turbo.json, tsconfig.json), eslint
-      # config (lint task inputs).
-      #
-      # Restore-only on every event EXCEPT push to main (PRs, schedules,
-      # dispatches): the Cloudflare remote cache (ADR-0021) is the real
-      # cross-run layer, so paying a save per PR job bought nothing. Main
-      # pushes save below — per-job keys, so there is no cross-job save race
-      # (matrix legs of one job still share a key; loser logs a harmless
-      # "Unable to reserve cache" warning).
-      if: github.event_name != 'push' || github.ref != 'refs/heads/main'
-      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-      with:
-        path: .turbo
-        key: turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-${{ github.sha }}
-        restore-keys: |
-          turbo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json', '**/package.json', '**/tsconfig.json', 'eslint.config.js') }}-
-          turbo-${{ runner.os }}-${{ github.job }}-
-
+    # PR / non-main events do NOT restore a local `.turbo` cache (CICD-06).
+    # Measured: the read-only restore that used to run here cost ~38-50s per
+    # job and almost always MISSED — the exact key carries the unique
+    # `${{ github.sha }}`, and PRs never save (only main-push does), so the
+    # prefix restore-keys only hit when a main-push had already saved this
+    # job's `.turbo` at an identical input hash. The Cloudflare remote cache
+    # (ADR-0021, `vars.TURBO_API` = cache.afframe.com) is the real cross-run
+    # layer and turbo reads it directly per task — so the local layer was
+    # pure latency on PRs. Removed. Fork PRs (no `TURBO_TOKEN`) run fully cold
+    # at both layers, which is correct-but-slower and rare on this repo.
+    #
+    # Main-push STILL saves below so the deploy/release build path stays warm
+    # and populates the remote cache for subsequent PRs.
     - name: Restore + save turbo cache (main push)
-      # Writer side of the layer above. Only push-to-main runs save (post-job
-      # hook), and the per-job key means each job owns its own entry — PR jobs
-      # that also run on main pushes then restore the latest main entry via
-      # restore-keys. Jobs that never run on main (knip, boundaries,
-      # size-limit, schedule-only checks) stay cold at this layer; the remote
-      # Cloudflare cache covers them.
+      # Writer side. Only push-to-main runs save (post-job hook); the per-job
+      # key (`github.job`) means each job owns its own entry, so there is no
+      # cross-job save race (matrix legs of one job share a key; the loser
+      # logs a harmless "Unable to reserve cache" warning). Content-addressed
+      # hash segment keeps cross-branch sharing. Inputs that invalidate:
+      # dependency graph (lockfile + package.json), turbo config (turbo.json,
+      # tsconfig.json), eslint config (lint task inputs).
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:

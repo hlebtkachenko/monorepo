@@ -4,7 +4,7 @@ import { getTranslations } from "@workspace/i18n/server"
 
 import { isFavorited } from "@/lib/org/favorite-actions"
 
-import { FavoritePageHeader } from "../../_components/favorite-page-header"
+import { FavoritePageHeader } from "../../_shell/app-body/app-content/content-header/favorite-page-header"
 
 /**
  * Company module → Periods.

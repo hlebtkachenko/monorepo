@@ -7,8 +7,8 @@ import { isFavorited, listFavorites } from "@/lib/org/favorite-actions"
 import { resolveMembership } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
-import { FavoritePageHeader } from "../_components/favorite-page-header"
-import { FavoritesOverview } from "../_components/favorites-overview"
+import { FavoritePageHeader } from "../_shell/app-body/app-content/content-header/favorite-page-header"
+import { FavoritesOverview } from "../_shell/app-body/app-content/content-body/favorites-overview"
 import { hasDebugModuleAccess } from "./access"
 
 /**

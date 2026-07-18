@@ -1,6 +1,6 @@
 import { listFavorites } from "@/lib/org/favorite-actions"
 
-import { FavoritesOverview } from "./_components/favorites-overview"
+import { FavoritesOverview } from "./_shell/app-body/app-content/content-body/favorites-overview"
 
 /**
  * Company home for the rebuilt tree — the Company module's Overview.

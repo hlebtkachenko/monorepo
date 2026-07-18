@@ -13,6 +13,13 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.23.5] — 2026-07-18
+
+### Changed
+
+- Migrate the changelog workflow to per-PR fragment files under `changelog.d/`, replacing the shared `## [Unreleased]` block that conflicted on every second parallel merge: `changelog:add` writes a uniquely-named fragment, `changelog:preview` renders the pending release with the suggested version bump, and `changelog:collect` folds all fragments into a new `CHANGELOG.md` version section (backfilling each `(#PR)` from git) at release-cut (#812)
+- Raise the web app size-limit budgets (brotli 1.5 MB → 3 MB, raw 6 MB → 12 MB) — current bundle is 1.503 MB, so brotli gets ~2x headroom and the permanent-red advisory size check clears (#812)
+
 ## [v0.23.4] — 2026-07-18
 
 ### Changed

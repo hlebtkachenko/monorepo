@@ -22,9 +22,9 @@ import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
-import { orgBasePath } from "@/lib/org/href"
+import { orgBasePath, orgHref } from "@/lib/org/href"
 
-import { companyNav, orgRailNav } from "../_nav/org-nav"
+import { companyNav, debugNav, orgRailNav } from "../_nav/org-nav"
 
 /**
  * The persistent shell for the rebuilt org tree — mounted once by `layout.tsx`
@@ -41,32 +41,49 @@ export function OrgShell({
   slug,
   header,
   deployment,
+  debugAccess = false,
   children,
 }: {
   slug: string
   header: React.ReactNode
   deployment: DeploymentIdentity
+  /**
+   * Server-resolved allowlist result for the dev/admin-only Debug module —
+   * the seam by which an allowlisted workspace gets the Debug rail entry on
+   * staging / production. Defaults to `false`, so a normal production user
+   * never sees Debug; a dev build always exposes it via the `NODE_ENV` check
+   * below regardless of this prop. `layout.tsx` (owned by another concern)
+   * passes the real `hasDebugModuleAccess(...)` result here once wired.
+   */
+  debugAccess?: boolean
   children: React.ReactNode
 }) {
   const pathname = usePathname() ?? undefined
   const t = useTranslations("org.nav")
+  // Debug rail visibility: dev builds always, otherwise the allowlist seam.
+  const showDebug = process.env.NODE_ENV === "development" || debugAccess
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      orgRailNav(slug).map(({ labelKey, ...rest }) => ({
+      orgRailNav(slug, { debug: showDebug }).map(({ labelKey, ...rest }) => ({
         ...rest,
         label: t(labelKey),
       })),
-    [slug, t],
-  )
-  const nav = React.useMemo<SidebarNavEntry[]>(
-    () =>
-      companyNav(slug).map(({ labelKey, ...rest }) => ({
-        ...rest,
-        label: t(labelKey),
-      })),
-    [slug, t],
+    [slug, t, showDebug],
   )
   const active = activeRailEntry(rail, pathname)
+  // Pick the active module's sidebar tree. Company is the default; the Debug
+  // module has its own single-Overview tree.
+  const isDebugModule = active?.href === orgHref(slug, "debug")
+  const nav = React.useMemo<SidebarNavEntry[]>(
+    () =>
+      (isDebugModule ? debugNav(slug) : companyNav(slug)).map(
+        ({ labelKey, ...rest }) => ({
+          ...rest,
+          label: t(labelKey),
+        }),
+      ),
+    [slug, t, isDebugModule],
+  )
   const title = active?.label ?? t("company")
 
   return (

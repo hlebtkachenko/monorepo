@@ -126,6 +126,50 @@ For a release candidate, pass `--keep` so the fragments survive into the final
 cut (`pnpm changelog:collect -- --version v0.2.0-rc.1 --keep`); drop `--keep`
 only on the final `vX.Y.Z` so each fragment is consumed exactly once.
 
+### Partial cut — release the first N of several already-merged PRs
+
+By default the collector folds in **every** fragment sitting in `changelog.d/`.
+When several PRs are already on `main` but you only want to release the earlier
+ones, pass `--through <ref>`: only fragments whose adding commit is an ancestor
+of `<ref>` are collected and deleted; anything merged after the boundary stays
+pending for the next cut. No file-juggling, no tagging an ancestor.
+
+```bash
+# main tip has PRs #101–#104 merged; release only through #102.
+git log --oneline            # find the squash commit of the last PR you want
+pnpm changelog:preview -- --through <sha-of-#102>     # confirm the subset
+pnpm changelog:collect -- --version v0.2.0 --through <sha-of-#102>
+git add CHANGELOG.md changelog.d/                     # #103/#104 fragments remain
+git commit -m "chore(release): v0.2.0"
+git push origin main                                  # ledger commit lands on main tip
+git tag v0.2.0 <sha-of-#102>                           # tag the boundary — see below
+git push origin v0.2.0
+```
+
+The boundary applies to synthesized Dependabot bullets too (`sinceTag..<ref>`).
+`--through` defaults to `HEAD`, so an unqualified cut is unchanged.
+
+**Where the tag goes — read this, it is the one non-obvious part.** Trunk-based
+flow (no release branches — see the rules at the end of this doc) means the
+`chore(release): v0.2.0` commit — the one that writes the `## [v0.2.0]` section
+and deletes the consumed fragments — always lands on **main tip**, a descendant
+of #104. That is correct and intended: `CHANGELOG.md` is a forward ledger. What
+you then tag/deploy depends on what "release the first half" means for you:
+
+- **First-half _code_ too** (the build must not contain #103/#104): tag the
+  boundary commit's sha (`git tag v0.2.0 <sha-of-#102>`) and deploy that sha.
+  Its tree predates #103/#104, so the artifact matches the bullets. The tagged
+  commit will not itself contain the `## [v0.2.0]` changelog section — that is
+  expected; the section lives on main tip.
+- **Full main-tip build, changelog split only** (all of #101–#104 code ships,
+  but their notes are split across v0.2.0 and the next version): tag main tip.
+  Be aware this means v0.2.0's build contains #103/#104 code whose bullets are
+  deferred — the changelog understates the build. Only do this deliberately.
+
+If a prior tag already sits between `<ref>` and HEAD, pass `--since <that-tag>`
+so the Dependabot range stays `<that-tag>..<ref>` (the default `previousTag()`
+describes from HEAD, not the boundary).
+
 The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 
 1. Validates the tag format (fails fast on typos).

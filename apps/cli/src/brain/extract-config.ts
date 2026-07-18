@@ -227,6 +227,12 @@ export function buildExtractKickoff(
     "consumed verbatim by `brain extract --out`. Money is INTEGER minor-unit values in the `*_minor` fields,",
     'written as strings (e.g. "150000"). Include every required field: record_type, direction, doc_type,',
     "number, issue_date, currency, lines, vat_summary, total_minor.",
+    "",
+    "Also emit an OPTIONAL `supply_kind` (druh plnění) — one of GOODS, MATERIAL, SERVICES, UTILITY, RENT,",
+    "INSURANCE, ASSET, ADVANCE, CREDIT_NOTE, OTHER — read off the document, ONLY when EVERY line of the",
+    "document is the same single unambiguous supply kind. OMIT it entirely if the lines mix supply kinds or",
+    "you are unsure: an omitted supply_kind is held for a human to decide, whereas a WRONG one silently books",
+    "the document to the wrong cost account. Never guess it and never infer it from the amount alone.",
     ...textLayerBlock,
   ].join("\n")
 }

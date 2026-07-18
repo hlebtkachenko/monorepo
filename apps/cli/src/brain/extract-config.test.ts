@@ -189,6 +189,28 @@ describe("buildExtractKickoff (fixed task, injection-resistant)", () => {
     // With no hint it says so explicitly rather than embedding a stray value.
     expect(buildExtractKickoff()).toContain("No supplier hint")
   })
+
+  it("[#779] instructs the model to emit an OPTIONAL supply_kind, conservatively (omit if mixed/unsure)", () => {
+    const kickoff = buildExtractKickoff("27082440")
+    expect(kickoff).toContain("supply_kind")
+    // The value must be read off the document, not guessed, and the whole document must be one kind.
+    expect(kickoff).toContain("OPTIONAL")
+    expect(kickoff).toContain("EVERY line")
+    expect(kickoff).toContain("OMIT")
+    // The safety framing (omit → held; a wrong one books the wrong account) is stated.
+    expect(kickoff.toLowerCase()).toContain("wrong cost account")
+    // Every enum value the extract may emit is named.
+    for (const kind of [
+      "GOODS",
+      "SERVICES",
+      "ASSET",
+      "ADVANCE",
+      "CREDIT_NOTE",
+      "OTHER",
+    ]) {
+      expect(kickoff).toContain(kind)
+    }
+  })
 })
 
 describe("buildExtractKickoff — [M1.5] optional local text-layer context", () => {

@@ -33,7 +33,7 @@ import {
 } from "@workspace/intake"
 import { createAfframeClient } from "@afframe/sdk"
 import type { CreateAccountingEventRequest } from "@workspace/shared/api"
-import { assembleLoginSections } from "@workspace/brain"
+import { assembleLoginSections, BRAIN_SUPPLY_KINDS } from "@workspace/brain"
 import type {
   Invoice,
   LoginContextSections,
@@ -1391,6 +1391,18 @@ export function parseExtractedInvoice(rawJson: string, flag: string): Invoice {
     throw new Error(
       `${flag}: IR Invoice is missing required field(s): ${missing.join(", ")}.`,
     )
+  }
+  // [#779] `supply_kind` is OPTIONAL and document-grounded. Drop an unrecognized (or non-string) value to
+  // undefined — FAIL-SAFE: a null supply_kind makes the booker HOLD the document for human review, whereas a
+  // bogus value would 400 at the strict capture schema. A valid value passes through untouched (the capture
+  // `SUPPLY_KIND` enum is the second backstop). Never throw: an odd supply_kind must not sink an otherwise
+  // valid extraction.
+  if (
+    obj.supply_kind !== undefined &&
+    (typeof obj.supply_kind !== "string" ||
+      !(BRAIN_SUPPLY_KINDS as readonly string[]).includes(obj.supply_kind))
+  ) {
+    delete obj.supply_kind
   }
   return parsed as Invoice
 }

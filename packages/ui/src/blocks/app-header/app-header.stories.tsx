@@ -42,3 +42,14 @@ export const WithActions: Story = {
 export const CustomPlaceholder: Story = {
   render: () => <AppHeader searchPlaceholder="Search documents…" />,
 }
+
+export const NoSearch: Story = {
+  render: () => (
+    <AppHeader
+      search={false}
+      actions={
+        <IconButton icon="Settings" tooltip="Settings" tooltipSide="bottom" />
+      }
+    />
+  ),
+}

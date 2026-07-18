@@ -10,6 +10,12 @@ export interface AppHeaderProps {
   /** Placeholder for the centered search input. */
   searchPlaceholder?: string
   /**
+   * Render the screen-centered search input. Default `true` (the org/admin/
+   * workspace shells all show it). Pass `false` for surfaces that have no
+   * search yet — the center zone is simply omitted, leaving left + actions.
+   */
+  search?: boolean
+  /**
    * Left-zone cluster — context switchers (org, accounting period) that sit
    * at the header's left edge (above the sidebar). Desktop-only chrome: the
    * cluster is hidden below `md` (where the header band is too narrow), same
@@ -44,6 +50,7 @@ export interface AppHeaderProps {
  */
 export function AppHeader({
   searchPlaceholder = "Search…",
+  search = true,
   leftContent,
   actions,
   className,
@@ -69,15 +76,17 @@ export function AppHeader({
         </div>
       )}
 
-      <div className="relative min-w-0 flex-1 md:absolute md:top-1/2 md:left-[calc(50vw-var(--shell-rail-width))] md:w-[clamp(var(--header-search-min),calc(100vw-var(--header-search-gutter)),var(--header-search-max))] md:flex-none md:-translate-x-1/2 md:-translate-y-1/2">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-icon" />
-        <Input
-          type="search"
-          aria-label="Search"
-          placeholder={searchPlaceholder}
-          className="h-7 pl-8 max-md:h-9"
-        />
-      </div>
+      {search && (
+        <div className="relative min-w-0 flex-1 md:absolute md:top-1/2 md:left-[calc(50vw-var(--shell-rail-width))] md:w-[clamp(var(--header-search-min),calc(100vw-var(--header-search-gutter)),var(--header-search-max))] md:flex-none md:-translate-x-1/2 md:-translate-y-1/2">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-icon" />
+          <Input
+            type="search"
+            aria-label="Search"
+            placeholder={searchPlaceholder}
+            className="h-7 pl-8 max-md:h-9"
+          />
+        </div>
+      )}
 
       <div
         data-slot="app-header-actions"

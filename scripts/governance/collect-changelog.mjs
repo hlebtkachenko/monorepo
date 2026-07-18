@@ -129,8 +129,6 @@ function dependencyFragments(sinceTag) {
     file: `synthesized:deps:${index}`,
     category: "Dependencies",
     bump: "patch",
-    breaking: false,
-    migration: false,
     override: false,
     body: bullet,
     summary: bullet.replace(/\s+/g, " ").trim(),
@@ -153,10 +151,15 @@ function insertSection(markdown, section) {
     throw new Error("CHANGELOG.md is missing the ## [Unreleased] section.")
   }
 
-  // Insert the new version section right after `## [Unreleased]`, leaving
-  // Unreleased empty above it. Reuse the blank line that already precedes the
-  // next `## [` section so no double blank is introduced.
-  lines.splice(unreleased + 1, 0, "", section)
+  // Insert the new version section directly above the newest existing version
+  // heading (the first `## [` after Unreleased), so the `## [Unreleased]`
+  // heading and its explainer paragraph stay intact at the top.
+  let insertAt = lines.findIndex(
+    (line, index) => index > unreleased && /^## \[/.test(line.trim()),
+  )
+  if (insertAt === -1) insertAt = lines.length
+
+  lines.splice(insertAt, 0, section, "")
   return `${lines.join("\n")}${hadTrailingNewline ? "\n" : ""}`
 }
 

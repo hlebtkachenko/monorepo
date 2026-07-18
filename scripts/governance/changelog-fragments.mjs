@@ -32,7 +32,7 @@ export const CATEGORY_ORDER = [
 /** Version-bump levers, weakest → strongest. `pickBump` takes the strongest. */
 export const BUMP_ORDER = ["patch", "minor", "major"]
 
-const BOOL_KEYS = new Set(["breaking", "migration", "override"])
+const BOOL_KEYS = new Set(["override"])
 
 /**
  * Parse one fragment (YAML-subset frontmatter + markdown body). Throws with a
@@ -92,8 +92,6 @@ export function parseFragment(text, name = "<fragment>") {
   return {
     category,
     bump,
-    breaking: meta.breaking === true,
-    migration: meta.migration === true,
     // The proposed bump is deliberate — the release agent takes it as final and
     // does not re-derive/argue against a rule-suggested level.
     override: meta.override === true,
@@ -120,7 +118,8 @@ export function loadFragments(dir = FRAGMENT_DIR) {
       (entry) =>
         entry.isFile() &&
         entry.name.endsWith(".md") &&
-        !entry.name.startsWith("."),
+        !entry.name.startsWith(".") &&
+        entry.name !== "README.md",
     )
     .map((entry) => {
       const file = join(dir, entry.name)
@@ -163,29 +162,6 @@ function sortFragments(fragments, prByFile) {
  */
 export function renderVersionSection(fragments, { heading, prByFile = {} }) {
   const lines = [heading, ""]
-
-  const breaking = sortFragments(
-    fragments.filter((f) => f.breaking),
-    prByFile,
-  )
-  if (breaking.length > 0) {
-    lines.push("**Breaking changes:**", "")
-    for (const f of breaking) lines.push(bulletFor(f, prByFile[f.file]))
-    lines.push("")
-  }
-
-  const migrations = sortFragments(
-    fragments.filter((f) => f.migration),
-    prByFile,
-  )
-  if (migrations.length > 0) {
-    lines.push(
-      "**Migration required** (forward-fix only — a squash revert does not undo these):",
-      "",
-    )
-    for (const f of migrations) lines.push(bulletFor(f, prByFile[f.file]))
-    lines.push("")
-  }
 
   for (const category of CATEGORY_ORDER) {
     const inCategory = sortFragments(

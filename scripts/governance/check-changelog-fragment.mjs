@@ -77,7 +77,7 @@ function fragmentLines(stdout) {
   return stdout
     .split("\n")
     .map((line) => line.trim())
-    .filter((line) => line.endsWith(".md"))
+    .filter((line) => line.endsWith(".md") && !line.endsWith("/README.md"))
 }
 
 function fragmentsByStatus(base, head, filter) {

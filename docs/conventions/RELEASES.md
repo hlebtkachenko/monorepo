@@ -57,26 +57,29 @@ a shared region and never conflict — this replaced the old single hand-edited
 merge. Use:
 
 ```bash
-pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override] [--breaking] [--migration]
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override]
 ```
 
-Only `--category` and `--entry` are required. The fragment is named
-`<figure>-<hex>.md` — a random economist/mathematician from
-`scripts/governance/changelog-names.txt` (flavour) plus a hex suffix that
-guarantees uniqueness. The optional fields become YAML frontmatter:
+Only `--category` and `--entry` are required. The `--entry` text becomes the
+fragment body — the exact one-sentence bullet that lands in `CHANGELOG.md`. The
+optional fields become YAML frontmatter:
 
-| Field         | Effect                                                                                                                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--bump`      | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump _level_ (never a concrete version number — the actual `vX.Y.Z` is decided at cut).  |
-| `--override`  | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Tags the preview's suggested-bump line `(override)`. |
-| `--breaking`  | Hoists the entry into a **Breaking changes** callout atop the version section.                                                                                                          |
-| `--migration` | Hoists into a **Migration required** callout (ties to the forward-fix-only rule).                                                                                                       |
+| Field        | Effect                                                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bump`     | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump _level_ (never a concrete version number — the actual `vX.Y.Z` is decided at cut).  |
+| `--override` | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Tags the preview's suggested-bump line `(override)`. |
 
-**Author one fragment per meaningful change** — the gate's floor is one, but a
-PR doing several distinct things writes several `changelog:add` calls, so the
-squashed PR still yields multiple rich bullets. Never scrape raw commit messages
-(that reintroduces `wip` / `fix review` noise); the body is the curated,
-user-facing bullet.
+Categories are the Keep-a-Changelog sections already used in `CHANGELOG.md`:
+`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Docs`,
+`Dependencies`.
+
+**One fragment per commit.** Write the fragment in the same commit as the change
+it documents (`git add changelog.d/… <code> && git commit`). Squash `wip` /
+`fixup` commits before they reach `main`, so every landed commit carries exactly
+one fragment = one bullet. A PR that makes three distinct changes has three
+commits and three fragments; the squashed PR still yields three rich bullets.
+Never scrape raw commit messages — the fragment body is the curated bullet.
+Full authoring reference: [`changelog.d/README.md`](../../changelog.d/README.md).
 
 Preview the pending release at any time (renders every fragment as the next
 version section, prints the suggested bump with an `(override)` tag when set):

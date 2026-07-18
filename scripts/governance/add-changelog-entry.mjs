@@ -13,8 +13,7 @@
  *   node scripts/governance/add-changelog-entry.mjs \
  *     --category Fixed \
  *     --entry "Org switcher preserves the current module when switching orgs" \
- *     [--bump patch|minor|major] [--override] [--breaking] [--migration] \
- *     [--name custom-slug] [--dir changelog.d]
+ *     [--bump patch|minor|major] [--override] [--name custom-slug] [--dir changelog.d]
  *
  * --override marks the --bump as deliberate: the release agent takes it as the
  * final level and does not argue it against a rule-derived default.
@@ -35,8 +34,7 @@ function usage() {
   process.stderr.write(
     [
       "usage: add-changelog-entry.mjs --category <name> --entry <text>",
-      "         [--bump patch|minor|major] [--override] [--breaking]",
-      "         [--migration] [--name <slug>] [--dir <path>]",
+      "         [--bump patch|minor|major] [--override] [--name <slug>] [--dir <path>]",
       `  categories: ${CATEGORY_ORDER.join(", ")}`,
       "",
     ].join("\n"),
@@ -50,8 +48,6 @@ function parseArgs(argv) {
     bump: "",
     name: "",
     dir: FRAGMENT_DIR,
-    breaking: false,
-    migration: false,
     override: false,
   }
 
@@ -63,8 +59,6 @@ function parseArgs(argv) {
     else if (arg === "--bump") parsed.bump = argv[++i] ?? ""
     else if (arg === "--name") parsed.name = argv[++i] ?? ""
     else if (arg === "--dir") parsed.dir = argv[++i] ?? ""
-    else if (arg === "--breaking") parsed.breaking = true
-    else if (arg === "--migration") parsed.migration = true
     else if (arg === "--override") parsed.override = true
     else {
       usage()
@@ -132,8 +126,6 @@ function buildFragment(options) {
   const lines = ["---", `category: ${options.category}`]
   if (options.bump && options.bump !== "patch")
     lines.push(`bump: ${options.bump}`)
-  if (options.breaking) lines.push("breaking: true")
-  if (options.migration) lines.push("migration: true")
   if (options.override) lines.push("override: true")
   lines.push("---", "", options.entry.trim(), "")
   return lines.join("\n")

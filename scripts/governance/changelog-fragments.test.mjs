@@ -13,8 +13,6 @@ test("parses a minimal fragment (category only, defaults applied)", () => {
   )
   assert.equal(f.category, "Fixed")
   assert.equal(f.bump, "patch")
-  assert.equal(f.breaking, false)
-  assert.equal(f.migration, false)
   assert.equal(f.override, false)
   assert.equal(f.summary, "Org switcher preserves module.")
 })
@@ -24,8 +22,6 @@ test("parses all optional fields", () => {
     "---",
     "category: Added",
     "bump: minor",
-    "breaking: true",
-    "migration: true",
     "override: true",
     "---",
     "New posting lane behind the approval gate.",
@@ -33,8 +29,6 @@ test("parses all optional fields", () => {
   ].join("\n")
   const f = parseFragment(text)
   assert.equal(f.bump, "minor")
-  assert.equal(f.breaking, true)
-  assert.equal(f.migration, true)
   assert.equal(f.override, true)
 })
 
@@ -57,7 +51,7 @@ test("rejects missing frontmatter, unknown category, bad bump, bad bool, empty b
     /invalid bump/,
   )
   assert.throws(
-    () => parseFragment("---\ncategory: Fixed\nbreaking: yes\n---\nx"),
+    () => parseFragment("---\ncategory: Fixed\noverride: yes\n---\nx"),
     /must be true or false/,
   )
   assert.throws(
@@ -75,29 +69,11 @@ test("pickBump takes the strongest lever", () => {
   assert.equal(pickBump([{ bump: "minor" }, { bump: "major" }]), "major")
 })
 
-test("renders categories in fixed order with breaking + migration callouts", () => {
+test("renders categories in fixed Keep-a-Changelog order with PR backlinks", () => {
   const fragments = [
-    {
-      file: "a.md",
-      category: "Fixed",
-      breaking: false,
-      migration: false,
-      summary: "fix a bug",
-    },
-    {
-      file: "b.md",
-      category: "Added",
-      breaking: true,
-      migration: false,
-      summary: "new API",
-    },
-    {
-      file: "c.md",
-      category: "Changed",
-      breaking: false,
-      migration: true,
-      summary: "schema move",
-    },
+    { file: "a.md", category: "Fixed", summary: "fix a bug" },
+    { file: "b.md", category: "Added", summary: "new API" },
+    { file: "c.md", category: "Changed", summary: "schema move" },
   ]
   const out = renderVersionSection(fragments, {
     heading: "## [v0.24.0] — 2026-07-18",
@@ -105,8 +81,8 @@ test("renders categories in fixed order with breaking + migration callouts", () 
   })
 
   assert.match(out, /^## \[v0\.24\.0\] — 2026-07-18/)
-  assert.match(out, /\*\*Breaking changes:\*\*/)
-  assert.match(out, /\*\*Migration required\*\*/)
+  // No invented callouts — only the standard category sections.
+  assert.doesNotMatch(out, /Breaking changes|Migration required/)
   // Added section precedes Changed precedes Fixed.
   assert.ok(out.indexOf("### Added") < out.indexOf("### Changed"))
   assert.ok(out.indexOf("### Changed") < out.indexOf("### Fixed"))
@@ -116,13 +92,7 @@ test("renders categories in fixed order with breaking + migration callouts", () 
 
 test("does not double-append a PR ref already present in the body", () => {
   const fragments = [
-    {
-      file: "a.md",
-      category: "Fixed",
-      breaking: false,
-      migration: false,
-      summary: "fix already tagged (#99)",
-    },
+    { file: "a.md", category: "Fixed", summary: "fix already tagged (#99)" },
   ]
   const out = renderVersionSection(fragments, {
     heading: "## [v1] — d",

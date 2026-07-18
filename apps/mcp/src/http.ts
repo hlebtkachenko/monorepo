@@ -6,9 +6,38 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js"
 import { buildClient } from "./client"
-import { registerGeneratedTools } from "./tools/generated"
+import {
+  registerGeneratedTools,
+  TOOL_GROUP_CATALOG,
+  type ToolSelection,
+} from "./tools/generated"
+import { registerMetaTools } from "./tools/meta"
 
 const VERSION = "0.0.1"
+
+/**
+ * Parse the connection-time tool selection from the URL query, so an agent can
+ * load only a relevant subset instead of all tools:
+ *   ?groups=invoices,accounting   register only those tag groups
+ *   ?scope=read|write|all         register only read-only / non-destructive / all
+ * Both are optional and compose. Unknown group names simply match nothing.
+ */
+export function parseSelection(url: URL): ToolSelection {
+  const groupsParam = url.searchParams.get("groups")
+  const parsedGroups = (groupsParam ?? "")
+    .split(",")
+    .map((g) => g.trim())
+    .filter(Boolean)
+  // Normalize "no meaningful group named" (?groups=, ?groups=,) to undefined =
+  // full set, so it never collapses to a zero-tool server.
+  const groups = parsedGroups.length > 0 ? parsedGroups : undefined
+  const scopeParam = url.searchParams.get("scope")
+  const scope: ToolSelection["scope"] =
+    scopeParam === "read" || scopeParam === "write" || scopeParam === "all"
+      ? scopeParam
+      : undefined
+  return { groups, scope }
+}
 
 interface Env {
   /**
@@ -69,7 +98,11 @@ function unauthorized(): Response {
  *
  * Every MCP method — including `initialize` and `tools/list` — requires a
  * bearer, so the (write-capable) tool catalog cannot be enumerated
- * anonymously. Only the unauthenticated `GET /health` liveness probe is open.
+ * anonymously. Only `GET /health` (liveness) and `GET /groups` (the group
+ * catalog — slugs + counts, not the tools themselves) are open.
+ *
+ * Connection-time selection: `?groups=` / `?scope=` (see `parseSelection`)
+ * narrow the registered tool set so an agent loads only what it needs.
  */
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -81,6 +114,12 @@ export default {
         service: "@afframe/mcp",
         transport: "streamable-http",
       })
+    }
+
+    // Unauthenticated discovery: the group catalog is not tenant data, and a
+    // human wiring up a client needs it before they have a session.
+    if (request.method === "GET" && url.pathname === "/groups") {
+      return Response.json(TOOL_GROUP_CATALOG)
     }
 
     const token = bearerToken(request)
@@ -101,7 +140,9 @@ export default {
 
     const client = buildClient(token, env.AFFRAME_API_BASE)
     const server = new McpServer({ name: "@afframe/mcp", version: VERSION })
-    registerGeneratedTools(server, client)
+    registerGeneratedTools(server, client, parseSelection(url))
+    // Discovery tools are always present, even on a narrowed connection.
+    registerMetaTools(server)
 
     const transport = new WebStandardStreamableHTTPServerTransport({
       // Stateless: no session id → one server+transport per request.

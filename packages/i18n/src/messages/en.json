@@ -870,11 +870,13 @@
     "nav": {
       "company": "Company",
       "overview": "Overview",
-      "periods": "Periods"
+      "periods": "Periods",
+      "debug": "Debug"
     },
     "titles": {
       "periods": "Periods",
-      "settings": "Settings"
+      "settings": "Settings",
+      "debug": "Debug"
     },
     "roles": {
       "owner": "Owner",

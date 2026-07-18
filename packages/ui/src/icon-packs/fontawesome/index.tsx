@@ -361,4 +361,5 @@ export const fontawesomeIcons = {
   FileDown: wrap(faFileArrowDown),
   ArrowLeftRight: wrap(faLeftRight),
   Printer: wrap(faPrint),
+  ChevronsLeftRightSquare: wrap(faCode), // no chevrons-square glyph; Code (`</>`) is the closest silhouette
 } satisfies IconMap

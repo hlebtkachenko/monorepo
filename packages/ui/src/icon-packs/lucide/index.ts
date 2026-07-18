@@ -185,9 +185,19 @@ import {
   FileDown,
   ArrowLeftRight,
   Printer,
+  createLucideIcon,
 } from "lucide-react"
+import { chevronsLeftRightSquare } from "@lucide/lab"
 
 import type { IconMap } from "../types"
+
+// Lucide LAB icon: `chevrons-left-right-square` is not in the stable
+// `lucide-react` set, so it's built from the `@lucide/lab` icon node via
+// `createLucideIcon` into a drop-in `LucideIcon` component. Debug rail module.
+const ChevronsLeftRightSquare = createLucideIcon(
+  "ChevronsLeftRightSquare",
+  chevronsLeftRightSquare,
+)
 
 export const lucideIcons = {
   Activity,
@@ -365,4 +375,5 @@ export const lucideIcons = {
   FileDown,
   ArrowLeftRight,
   Printer,
+  ChevronsLeftRightSquare,
 } satisfies IconMap

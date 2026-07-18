@@ -160,6 +160,7 @@ import {
   FlowArrow,
   Sunglasses,
   CreditCard,
+  CodeBlock,
 } from "@phosphor-icons/react"
 
 import type { IconMap } from "../types"
@@ -343,4 +344,5 @@ export const phosphorIcons = {
   FileDown: FileArrowDown,
   ArrowLeftRight: ArrowsLeftRight,
   Printer,
+  ChevronsLeftRightSquare: CodeBlock, // no chevrons-square; CodeBlock is the closest `</>`-in-a-box silhouette
 } satisfies IconMap

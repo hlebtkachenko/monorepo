@@ -870,11 +870,13 @@
     "nav": {
       "company": "Společnost",
       "overview": "Přehled",
-      "periods": "Období"
+      "periods": "Období",
+      "debug": "Ladění"
     },
     "titles": {
       "periods": "Období",
-      "settings": "Nastavení"
+      "settings": "Nastavení",
+      "debug": "Ladění"
     },
     "roles": {
       "owner": "Vlastník",

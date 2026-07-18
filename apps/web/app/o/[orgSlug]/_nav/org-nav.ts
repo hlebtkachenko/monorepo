@@ -19,7 +19,7 @@ import { orgHref } from "@/lib/org/href"
  */
 
 /** i18n key (under `org.nav`) for a nav entry's visible label. */
-export type OrgNavLabelKey = "company" | "overview" | "periods"
+export type OrgNavLabelKey = "company" | "overview" | "periods" | "debug"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
@@ -31,9 +31,30 @@ export type OrgSidebarNavItem = Omit<SidebarNavPage, "label"> & {
   labelKey: OrgNavLabelKey
 }
 
-/** Rail menu — the modules. Grows as each module is rebuilt. */
-export function orgRailNav(slug: string): OrgRailNavItem[] {
-  return [{ labelKey: "company", icon: "Goal", href: orgHref(slug) }]
+/**
+ * Rail menu — the modules. Grows as each module is rebuilt.
+ *
+ * `options.debug` appends the dev/admin-only Debug module. It is pushed AFTER
+ * every real module so its trailing position is STRUCTURAL, not incidental:
+ * whatever modules are added above, Debug stays the last rail entry. Visibility
+ * is decided by the caller (`org-shell.tsx`) — a dev build or an allowlisted
+ * workspace only; a normal production user never gets `debug: true`.
+ */
+export function orgRailNav(
+  slug: string,
+  options: { debug?: boolean } = {},
+): OrgRailNavItem[] {
+  const modules: OrgRailNavItem[] = [
+    { labelKey: "company", icon: "Goal", href: orgHref(slug) },
+  ]
+  if (options.debug) {
+    modules.push({
+      labelKey: "debug",
+      icon: "ChevronsLeftRightSquare",
+      href: orgHref(slug, "debug"),
+    })
+  }
+  return modules
 }
 
 /** Sidebar tree for the Company module. */
@@ -44,6 +65,17 @@ export function companyNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "periods",
       icon: "CalendarClock",
       href: orgHref(slug, "company/periods"),
+    },
+  ]
+}
+
+/** Sidebar tree for the Debug module — a single Overview entry. */
+export function debugNav(slug: string): OrgSidebarNavItem[] {
+  return [
+    {
+      labelKey: "overview",
+      icon: "ChevronsLeftRightSquare",
+      href: orgHref(slug, "debug"),
     },
   ]
 }

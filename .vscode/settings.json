@@ -7,6 +7,14 @@
     "source.fixAll.eslint": "explicit"
   },
   "eslint.workingDirectories": [{ "mode": "auto" }],
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.expand": false,
+  "explorer.fileNesting.patterns": {
+    "package.json": "pnpm-lock.yaml,pnpm-workspace.yaml,turbo.json,tsconfig.json,.npmrc,.nvmrc,mise.toml",
+    "eslint.config.js": "knip.config.ts,commitlint.config.mjs,lefthook.yml,.prettierrc,.prettierignore,.editorconfig,.gitleaks.toml",
+    "README.md": "AGENTS.md,CLAUDE.md,ARCHITECTURE.md,CHANGELOG.md,LICENSE",
+    ".gitignore": ".gitattributes,.dockerignore"
+  },
   "search.exclude": {
     "**/.turbo": true,
     "**/dist": true,

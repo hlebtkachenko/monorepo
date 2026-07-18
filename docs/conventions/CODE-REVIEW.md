@@ -59,5 +59,5 @@ Items that catch repeat nits across PRs. Reviewer skims this before approving. A
 
 - [docs/conventions/typescript.md](../conventions/typescript.md)
 - [docs/conventions/code-naming.md](../conventions/code-naming.md)
-- [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- [CONTRIBUTING.md](../../.github/CONTRIBUTING.md)
 - [.github/pull_request_template.md](../../.github/pull_request_template.md)

@@ -89,6 +89,8 @@ import {
   CreateInvoiceResponseSchema,
   GetInvoiceResponseSchema,
   InvoiceSchema,
+  InvoiceCounterpartySchema,
+  InvoiceCurrencyTotalSchema,
   InvoiceDetailSchema,
   InvoiceIdParamSchema,
   InvoiceLineSchema,
@@ -323,6 +325,8 @@ const ResolveHeldWriteResponse = registry.register(
 )
 registry.register("InvoicePartial", InvoicePartialSchema)
 registry.register("InvoiceLine", InvoiceLineSchema)
+registry.register("InvoiceCounterparty", InvoiceCounterpartySchema)
+registry.register("InvoiceCurrencyTotal", InvoiceCurrencyTotalSchema)
 registry.register("Invoice", InvoiceSchema)
 registry.register("InvoiceDetail", InvoiceDetailSchema)
 const ListInvoicesResponse = registry.register(
@@ -1234,12 +1238,15 @@ registry.registerPath({
   operationId: "listInvoices",
   summary: "List invoices",
   description:
-    "Returns the organization's invoices — `summary_record` rows of type " +
-    "RECEIVED_INVOICE (faktura přijatá) or ISSUED_INVOICE (faktura vydaná) — " +
-    "with rolled-up accounting-currency totals. Organization-scoped (FORCE " +
-    "RLS). Optionally filter by `direction` and `periodId`. An invoice is a " +
-    "voucher header, not a posting; use `GET /v1/accounting/periods/{id}/" +
-    "journal` for the journal bookings.",
+    "Returns a cursor-paginated page of the organization's invoices — " +
+    "`summary_record` rows of type RECEIVED_INVOICE (faktura přijatá) or " +
+    "ISSUED_INVOICE (faktura vydaná) — newest first, with rolled-up " +
+    "accounting-currency totals, the resolved counterparty, and " +
+    "transaction-currency roll-ups. Organization-scoped (FORCE RLS). Page " +
+    "with `limit` (1–100, default 25) + the opaque `cursor` from the previous " +
+    "page's `next_cursor`; optionally filter by `direction` and `periodId`. " +
+    "An invoice is a voucher header, not a posting; use " +
+    "`GET /v1/accounting/periods/{id}/journal` for the journal bookings.",
   tags: ["Invoices"],
   security: [{ [bearerAuth.name]: [] }],
   request: { query: ListInvoicesQuerySchema },

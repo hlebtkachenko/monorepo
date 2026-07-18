@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  type CaptureAccountingDocumentRequest,
   CaptureAccountingDocumentRequestSchema,
   CreateAccountingEventRequestSchema,
 } from "@workspace/shared/api"
-import type { BankTransaction, CashDocument, Invoice } from "@workspace/brain"
-import { BOOKABLE_IR_RECORD_TYPES } from "@workspace/brain"
+import type {
+  BankTransaction,
+  CashDocument,
+  Invoice,
+  SupplyKind,
+} from "@workspace/brain"
+import { BOOKABLE_IR_RECORD_TYPES, BRAIN_SUPPLY_KINDS } from "@workspace/brain"
 
 import * as irToCapture from "./ir-to-capture"
 import {
@@ -232,6 +238,81 @@ describe("invoiceToCapture", () => {
       "role",
     ]) {
       expect(serialized).not.toContain(forbidden)
+    }
+  })
+})
+
+describe("supply_kind threading (#779) — document-grounded, never fabricated", () => {
+  it("stamps the document-grounded supply_kind on the STANDARD partial", () => {
+    const request = invoiceToCapture(invoice({ supply_kind: "SERVICES" }), ctx)
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    expect(request.lines[0]!.partials[0]!.supplyKind).toBe("SERVICES")
+  })
+
+  it("stamps the same supply_kind on every rate bucket of a single-supply invoice", () => {
+    const request = invoiceToCapture(
+      invoice({
+        supply_kind: "GOODS",
+        vat_summary: [
+          { rate: 21, base_minor: 100000n, tax_minor: 21000n },
+          { rate: 12, base_minor: 50000n, tax_minor: 6000n },
+        ],
+      }),
+      ctx,
+    )
+    expect(request.lines[0]!.partials).toHaveLength(2)
+    for (const partial of request.lines[0]!.partials) {
+      expect(partial.supplyKind).toBe("GOODS")
+    }
+  })
+
+  it("omits supplyKind when the IR carries none → null the booker holds (fail-safe to identity)", () => {
+    const request = invoiceToCapture(invoice(), ctx)
+    expect(request.lines[0]!.partials[0]!.supplyKind).toBeUndefined()
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+  })
+
+  it("never stamps supplyKind on a rate-less OUTSIDE_VAT partial, even when the IR has one", () => {
+    // A rate-0 row is held for VAT-regime review and the booker holds it too — it must stay supply-kind-null,
+    // not carry a supply kind that would imply it is a bookable STANDARD partial.
+    const request = invoiceToCapture(
+      invoice({
+        supply_kind: "SERVICES",
+        vat_summary: [{ rate: 0, base_minor: 100000n, tax_minor: 0n }],
+      }),
+      ctx,
+    )
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.supplyKind).toBeUndefined()
+  })
+
+  it("parity: every BRAIN_SUPPLY_KINDS value is accepted by the capture contract (brain ⊆ capture)", () => {
+    // Runtime drift guard: if the Brain IR set gains a value the capture SUPPLY_KIND enum rejects, this fails
+    // loudly here rather than at a live write.
+    for (const kind of BRAIN_SUPPLY_KINDS) {
+      const request = invoiceToCapture(invoice({ supply_kind: kind }), ctx)
+      expect(() =>
+        CaptureAccountingDocumentRequestSchema.parse(request),
+      ).not.toThrow()
+      expect(request.lines[0]!.partials[0]!.supplyKind).toBe(kind)
+    }
+  })
+
+  it("parity: capture-contract SUPPLY_KIND ⊆ Brain SupplyKind (compile-time identity)", () => {
+    // The parameter + return types are a COMPILE-TIME bidirectional identity check: the parameter forces
+    // SupplyKind ⊆ CaptureSupplyKind, the return type forces CaptureSupplyKind ⊆ SupplyKind. If EITHER enum
+    // drifts, this stops type-checking. Calling it keeps it live (no unused symbol) and smoke-tests identity.
+    type CaptureSupplyKind = NonNullable<
+      CaptureAccountingDocumentRequest["lines"][number]["partials"][number]["supplyKind"]
+    >
+    const asBrainSupplyKind = (k: CaptureSupplyKind): SupplyKind => k
+    for (const kind of BRAIN_SUPPLY_KINDS) {
+      expect(asBrainSupplyKind(kind)).toBe(kind)
     }
   })
 })

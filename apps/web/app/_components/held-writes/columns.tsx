@@ -641,8 +641,10 @@ function VatSummaryTable({
  * capture), the account/side/amount/label lines, the Σ(MD)=Σ(Dal) balance
  * check, and any non-blocking caveats about what the preview does NOT model
  * (see `buildMddPreview` in `view-model.ts`). Null `mddPreview` renders
- * nothing — an event, a monetary/cash posting, and an unclassifiable capture
- * have no MD/D to preview.
+ * nothing — an event or a monetary/cash posting has no MD/D to preview. When
+ * `heldWholeDocument` is set the booker would hold the whole document (an
+ * un-bookable partial), so it renders that hold + its reasons instead of a
+ * partial posting.
  */
 function MddPreviewPanel({
   preview,
@@ -651,7 +653,30 @@ function MddPreviewPanel({
   preview: MddPreview | null
   currency: string | null
 }) {
-  if (!preview || preview.lines.length === 0) return null
+  if (!preview) return null
+  // Whole-document hold (#779): the booker books all-or-nothing, so instead of a misleading partial MD/D of
+  // the bookable survivors, show that the whole document will hold + the reason caveats.
+  if (preview.heldWholeDocument) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium text-muted-foreground">
+          Náhled MD/D — celý doklad bude podržen
+        </span>
+        <p className="text-xs text-muted-foreground">
+          Doklad se zaúčtuje celý, nebo vůbec: dokud kteroukoli položku níže
+          nelze bezpečně zaúčtovat, nezaúčtuje se žádná.
+        </p>
+        {preview.caveats.length > 0 ? (
+          <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {preview.caveats.map((caveat) => (
+              <li key={caveat}>{caveat}</li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    )
+  }
+  if (preview.lines.length === 0) return null
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-muted-foreground">

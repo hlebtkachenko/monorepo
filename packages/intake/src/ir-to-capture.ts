@@ -19,6 +19,12 @@
 // rate is 0 — which could be a genuine 0% supply OR a flattened EXEMPT one) is emitted as OUTSIDE_VAT so the
 // server's `unverified_vat_regime` hold routes it to human review instead of auto-applying a guessed regime.
 //
+// SUPPLY KIND (#779): the STANDARD partial carries the DOCUMENT-GROUNDED `supplyKind` the extract vision
+// model read off the invoice (IR `Invoice.supply_kind`), so the booker picks the cost account from a fact
+// rather than failing closed on a null. It is NEVER fabricated here: absent on the IR ⇒ omitted ⇒ persisted
+// null ⇒ the booker holds for human review. This adapter is also the single compile-time parity point where
+// the Brain-owned `SupplyKind` set is checked against the capture contract's `SUPPLY_KIND` enum.
+//
 // Tenancy ([G2-Opus]): the produced object carries NO organization_id / user_id / workspace_id / role —
 // those are server-injected from the API-key principal. This module emits only @workspace/shared request
 // DTOs and never imports @workspace/accounting.
@@ -34,6 +40,7 @@ import type {
   CashDocument,
   Counterparty,
   Invoice,
+  SupplyKind,
   VatSummaryRow,
 } from "@workspace/brain"
 
@@ -92,11 +99,19 @@ function gateEnvelope(ctx: IrToCaptureContext): CaptureGateEnvelope {
  * Map one IR VAT-summary row to a capture partial. `sign` (+1 / -1) flips base + tax for a credit note.
  * `baseAmount` and `vatAmount` come STRAIGHT from the source (`base_minor` / `tax_minor`); never `base *
  * rate`. A row always carries a numeric `rate`, so this is always a valid STANDARD partial.
+ *
+ * `supplyKind` (#779) is the DOCUMENT-GROUNDED druh plnění the extract model read off the invoice — stamped
+ * onto the STANDARD partial so the booker (`bookDocument`) picks the cost account from a real fact instead of
+ * failing closed on a null. It is stamped ONLY on a rate-bearing STANDARD partial: a rate-less / OUTSIDE_VAT
+ * row (`partialWithoutRate`) is already held for VAT-regime review, so it stays supply-kind-null (the booker
+ * holds it too). Absent on the IR ⇒ omitted here ⇒ persisted null ⇒ the booker holds for human review — the
+ * fail-closed identity is preserved; a supply kind is NEVER fabricated.
  */
 function partialFromVatRow(
   row: VatSummaryRow,
   currencyCode: string,
   sign: 1n | -1n,
+  supplyKind?: SupplyKind,
 ): CapturePartial {
   // A reverse-charge row (domestic PDP / §92 — the customer self-assesses, so the source tax is 0 at a real
   // rate) is NOT a STANDARD supply either: booking it STANDARD with a positive rate + 0 tax asserts a regime
@@ -125,6 +140,10 @@ function partialFromVatRow(
     vatAmount: minorToDecimal(row.tax_minor * sign),
     vatJurisdiction: "DOMESTIC",
     currencyCode,
+    // Document-grounded supply kind (#779): stamped when the IR carried one, omitted otherwise (never
+    // fabricated). Assigning the Brain `SupplyKind` here is also the compile-time check that it is a member
+    // of the capture contract's `SUPPLY_KIND` enum — see the parity guard in `ir-to-capture.test.ts`.
+    ...(supplyKind ? { supplyKind } : {}),
   }
 }
 
@@ -157,8 +176,11 @@ export function invoiceToCapture(
   ctx: IrToCaptureContext,
 ): CaptureAccountingDocumentRequest {
   const sign: 1n | -1n = invoice.doc_type === "credit_note" ? -1n : 1n
+  // The document-grounded supply kind (#779) is invoice-level: the extract model emits it ONLY for a
+  // single-supply document (omitted when the lines mix kinds), so every rate-bearing partial derived from the
+  // vat_summary shares it. A mixed document carries no supply_kind ⇒ null ⇒ the booker holds it.
   const partials: CapturePartial[] = invoice.vat_summary.map((row) =>
-    partialFromVatRow(row, invoice.currency, sign),
+    partialFromVatRow(row, invoice.currency, sign, invoice.supply_kind),
   )
 
   return {

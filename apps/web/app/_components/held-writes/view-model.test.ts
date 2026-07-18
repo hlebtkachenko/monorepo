@@ -357,7 +357,11 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     expect(line343?.label).toBe("DPH")
   })
 
-  it("skips an ASSET partial (capitalisation not derivable from a raw capture) with a caveat, but still previews the rest", () => {
+  // #779 follow-up: bookDocument books a document all-or-nothing, so if ANY partial would hold at book time
+  // (null / ASSET / ADVANCE supply_kind, or an unclassifiable row) the WHOLE document holds. The preview must
+  // mirror that — a whole-document hold with the reason, NOT a partial posting of the bookable survivors
+  // (which would over-state what the approve actually books).
+  it("[#779] holds the WHOLE document (no partial posting) when one partial is an ASSET — matches bookDocument", () => {
     const vm = buildHeldWriteViewModel(
       captureFixture({
         input_json: {
@@ -393,16 +397,168 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     )
 
     expect(vm.mddPreview).not.toBeNull()
-    // Only the SERVICES partial's lines — the ASSET partial is skipped, not guessed.
-    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
-      "518",
-      "343",
-      "321",
-    ])
-    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    expect(vm.mddPreview?.heldWholeDocument).toBe(true)
+    // The bookable SERVICES survivor is NOT previewed — the whole document holds, so nothing books.
+    expect(vm.mddPreview?.lines).toEqual([])
     expect(
       vm.mddPreview?.caveats.some((c) => c.includes("Dlouhodobý majetek")),
     ).toBe(true)
+  })
+
+  it("[#779] holds the WHOLE document when one partial has NO supply_kind — never a fabricated 548 posting", () => {
+    // The core defect: an absent supplyKind previously defaulted to OTHER → a confident 548 posting the
+    // approve then threw on. The preview must now mirror bookDocument's whole-document hold.
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "5000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "1050.00",
+                  vatJurisdiction: "DOMESTIC",
+                  // supplyKind deliberately absent
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.heldWholeDocument).toBe(true)
+    // No lines at all — and certainly no fabricated 548 for the supply-kind-less partial.
+    expect(vm.mddPreview?.lines).toEqual([])
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("druh plnění"))).toBe(
+      true,
+    )
+  })
+
+  it("[#779] a lone supply-kind-less partial previews as a whole-document HOLD (never a fabricated 548)", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "5000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "1050.00",
+                  vatJurisdiction: "DOMESTIC",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.heldWholeDocument).toBe(true)
+    expect(vm.mddPreview?.lines).toEqual([])
+  })
+
+  it("[#779] holds the WHOLE document when one partial is an ADVANCE (§37a) — matches bookDocument", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "20000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "4200.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "ADVANCE",
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "1000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "210.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.heldWholeDocument).toBe(true)
+    expect(vm.mddPreview?.lines).toEqual([])
+    expect(vm.mddPreview?.caveats.some((c) => c.includes("Záloha"))).toBe(true)
+  })
+
+  it("[#779] previews the posting (heldWholeDocument false) when EVERY partial is bookable", () => {
+    const vm = buildHeldWriteViewModel(
+      captureFixture({
+        input_json: {
+          type: "RECEIVED_INVOICE",
+          issuedAt: "2026-06-01",
+          lines: [
+            {
+              eventId: "event-1",
+              partials: [
+                {
+                  baseAmount: "10000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "21",
+                  vatAmount: "2100.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+                {
+                  baseAmount: "5000.00",
+                  vatMode: "STANDARD",
+                  vatRate: "12",
+                  vatAmount: "600.00",
+                  vatJurisdiction: "DOMESTIC",
+                  supplyKind: "SERVICES",
+                  currencyCode: "CZK",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(vm.mddPreview).not.toBeNull()
+    expect(vm.mddPreview?.heldWholeDocument).toBe(false)
+    expect(vm.mddPreview?.lines.length).toBeGreaterThan(0)
   })
 
   it("reverses the MD/D sides for a credit note captured with negative amounts (§42 dobropis)", () => {
@@ -454,7 +610,7 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     )
   })
 
-  it("degrades a partial whose derivation throws (implausible vat_rate) to a skip + caveat, never an exception", () => {
+  it("degrades a partial whose derivation throws (implausible vat_rate) to a whole-document hold, never an exception", () => {
     const build = () =>
       buildHeldWriteViewModel(
         captureFixture({
@@ -476,7 +632,8 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
                     currencyCode: "CZK",
                   },
                   {
-                    // A valid partial in the same document still previews.
+                    // A valid partial in the same document — but the doc still holds as a whole (bookDocument
+                    // would throw on the implausible-rate partial and roll back the entire approve).
                     baseAmount: "1000.00",
                     vatMode: "STANDARD",
                     vatRate: "21",
@@ -496,13 +653,9 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
     expect(build).not.toThrow()
     const vm = build()
     expect(vm.mddPreview).not.toBeNull()
-    // Only the valid partial's lines are present; the bad one is skipped.
-    expect(vm.mddPreview?.lines.map((l) => l.account)).toEqual([
-      "518",
-      "343",
-      "321",
-    ])
-    expect(vm.mddPreview?.totalDebit).toBe("1210.00")
+    // The whole document holds — no partial posting of the valid survivor.
+    expect(vm.mddPreview?.heldWholeDocument).toBe(true)
+    expect(vm.mddPreview?.lines).toEqual([])
     expect(
       vm.mddPreview?.caveats.some((c) => c.includes("nebylo možné zařadit")),
     ).toBe(true)
@@ -574,6 +727,7 @@ describe("MD/D preview (buildHeldWriteViewModel.mddPreview)", () => {
       totalDebit: "12100.00",
       totalCredit: "12100.00",
       balanced: true,
+      heldWholeDocument: false,
       caveats: [],
     })
   })

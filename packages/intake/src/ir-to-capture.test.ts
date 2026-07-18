@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  type CaptureAccountingDocumentRequest,
   CaptureAccountingDocumentRequestSchema,
   CreateAccountingEventRequestSchema,
 } from "@workspace/shared/api"
-import type { BankTransaction, CashDocument, Invoice } from "@workspace/brain"
-import { BOOKABLE_IR_RECORD_TYPES } from "@workspace/brain"
+import type {
+  BankTransaction,
+  CashDocument,
+  Invoice,
+  SupplyKind,
+} from "@workspace/brain"
+import { BOOKABLE_IR_RECORD_TYPES, BRAIN_SUPPLY_KINDS } from "@workspace/brain"
 
 import * as irToCapture from "./ir-to-capture"
 import {
@@ -172,6 +178,86 @@ describe("invoiceToCapture", () => {
     expect(partial.baseAmount).toBe("1000.00")
   })
 
+  it("(g2) a reverse-charge summary row (positive rate, 0 tax) routes to OUTSIDE_VAT, never STANDARD", () => {
+    // A domestic PDP / §92 row carries a real rate (21) but 0 tax (the customer self-assesses). Booking it
+    // STANDARD 21% with 0 tax would assert a regime the adapter must not fabricate — it routes to the
+    // OUTSIDE_VAT hold (base preserved) so `classifyAccountingEvent` assigns REVERSE_CHARGE server-side.
+    const request = invoiceToCapture(
+      invoice({
+        vat_summary: [
+          {
+            rate: 21,
+            base_minor: 100000n,
+            tax_minor: 0n,
+            reverse_charge: true,
+          },
+        ],
+      }),
+      ctx,
+    )
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.vatMode).not.toBe("STANDARD")
+    expect(partial.vatRate).toBeUndefined()
+    expect(partial.vatAmount).toBeUndefined()
+    expect(partial.baseAmount).toBe("1000.00")
+  })
+
+  it("(g3) a reverse-charge row on a credit note flips the base sign but stays OUTSIDE_VAT", () => {
+    const request = invoiceToCapture(
+      invoice({
+        doc_type: "credit_note",
+        vat_summary: [
+          {
+            rate: 21,
+            base_minor: 100000n,
+            tax_minor: 0n,
+            reverse_charge: true,
+          },
+        ],
+      }),
+      ctx,
+    )
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.baseAmount).toBe("-1000.00")
+  })
+
+  it("(h) threads a well-formed DUZP (taxPointDate); omits absent, never defaults to issue_date", () => {
+    // The tax point (DUZP/DPPD, §21) drives the VAT-return period and is a DISTINCT legal date from the
+    // §11/1d issue date. When the IR carries it, the capture must too — else the server leaves the VAT
+    // period unresolved.
+    const withDuzp = invoiceToCapture(
+      invoice({ issue_date: "2025-03-14", tax_point_date: "2025-03-20" }),
+      ctx,
+    )
+    expect(withDuzp.issuedAt).toBe("2025-03-14")
+    expect(withDuzp.taxPointDate).toBe("2025-03-20")
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(withDuzp),
+    ).not.toThrow()
+    // Absent in the IR → omitted, NEVER silently defaulted to the issue date (which would assert a wrong DUZP).
+    const without = invoiceToCapture(invoice(), ctx)
+    expect("taxPointDate" in without).toBe(false)
+  })
+
+  it("(h2) DROPS a malformed tax_point_date (datetime / impossible day) — never 400s the whole capture", () => {
+    // The strict schema (`z.iso.date()`) rejects a datetime; the EVENT's occurredAt (lenient) would accept it,
+    // so forwarding a datetime would create the event then 400 the capture, orphaning it. Dropping instead
+    // leaves the DUZP unresolved (a state the server surfaces), and the capture still parses clean. And a date
+    // is NEVER sliced off a datetime (UTC→Prague can shift the legal day ±1).
+    for (const bad of ["2025-03-20T00:00:00Z", "2025-13-40", "2025-2-3", ""]) {
+      const request = invoiceToCapture(invoice({ tax_point_date: bad }), ctx)
+      expect("taxPointDate" in request).toBe(false)
+      expect(() =>
+        CaptureAccountingDocumentRequestSchema.parse(request),
+      ).not.toThrow()
+    }
+  })
+
   it("(f) output carries no tenancy keys", () => {
     const request = invoiceToCapture(invoice(), ctx)
     const serialized = JSON.stringify(request, (_key, value) =>
@@ -184,6 +270,81 @@ describe("invoiceToCapture", () => {
       "role",
     ]) {
       expect(serialized).not.toContain(forbidden)
+    }
+  })
+})
+
+describe("supply_kind threading (#779) — document-grounded, never fabricated", () => {
+  it("stamps the document-grounded supply_kind on the STANDARD partial", () => {
+    const request = invoiceToCapture(invoice({ supply_kind: "SERVICES" }), ctx)
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+    expect(request.lines[0]!.partials[0]!.supplyKind).toBe("SERVICES")
+  })
+
+  it("stamps the same supply_kind on every rate bucket of a single-supply invoice", () => {
+    const request = invoiceToCapture(
+      invoice({
+        supply_kind: "GOODS",
+        vat_summary: [
+          { rate: 21, base_minor: 100000n, tax_minor: 21000n },
+          { rate: 12, base_minor: 50000n, tax_minor: 6000n },
+        ],
+      }),
+      ctx,
+    )
+    expect(request.lines[0]!.partials).toHaveLength(2)
+    for (const partial of request.lines[0]!.partials) {
+      expect(partial.supplyKind).toBe("GOODS")
+    }
+  })
+
+  it("omits supplyKind when the IR carries none → null the booker holds (fail-safe to identity)", () => {
+    const request = invoiceToCapture(invoice(), ctx)
+    expect(request.lines[0]!.partials[0]!.supplyKind).toBeUndefined()
+    expect(() =>
+      CaptureAccountingDocumentRequestSchema.parse(request),
+    ).not.toThrow()
+  })
+
+  it("never stamps supplyKind on a rate-less OUTSIDE_VAT partial, even when the IR has one", () => {
+    // A rate-0 row is held for VAT-regime review and the booker holds it too — it must stay supply-kind-null,
+    // not carry a supply kind that would imply it is a bookable STANDARD partial.
+    const request = invoiceToCapture(
+      invoice({
+        supply_kind: "SERVICES",
+        vat_summary: [{ rate: 0, base_minor: 100000n, tax_minor: 0n }],
+      }),
+      ctx,
+    )
+    const partial = request.lines[0]!.partials[0]!
+    expect(partial.vatMode).toBe("OUTSIDE_VAT")
+    expect(partial.supplyKind).toBeUndefined()
+  })
+
+  it("parity: every BRAIN_SUPPLY_KINDS value is accepted by the capture contract (brain ⊆ capture)", () => {
+    // Runtime drift guard: if the Brain IR set gains a value the capture SUPPLY_KIND enum rejects, this fails
+    // loudly here rather than at a live write.
+    for (const kind of BRAIN_SUPPLY_KINDS) {
+      const request = invoiceToCapture(invoice({ supply_kind: kind }), ctx)
+      expect(() =>
+        CaptureAccountingDocumentRequestSchema.parse(request),
+      ).not.toThrow()
+      expect(request.lines[0]!.partials[0]!.supplyKind).toBe(kind)
+    }
+  })
+
+  it("parity: capture-contract SUPPLY_KIND ⊆ Brain SupplyKind (compile-time identity)", () => {
+    // The parameter + return types are a COMPILE-TIME bidirectional identity check: the parameter forces
+    // SupplyKind ⊆ CaptureSupplyKind, the return type forces CaptureSupplyKind ⊆ SupplyKind. If EITHER enum
+    // drifts, this stops type-checking. Calling it keeps it live (no unused symbol) and smoke-tests identity.
+    type CaptureSupplyKind = NonNullable<
+      CaptureAccountingDocumentRequest["lines"][number]["partials"][number]["supplyKind"]
+    >
+    const asBrainSupplyKind = (k: CaptureSupplyKind): SupplyKind => k
+    for (const kind of BRAIN_SUPPLY_KINDS) {
+      expect(asBrainSupplyKind(kind)).toBe(kind)
     }
   })
 })
@@ -478,7 +639,7 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
     expect(request.description).toBe("FP-2025-0042")
   })
 
-  it("drops a malformed IČO (>8 digits or non-digit) — never coerces, never crashes the CHECK", () => {
+  it("drops a malformed / foreign IČO (>8 digits or a country prefix) — never coerces, never crashes the CHECK", () => {
     const overlong = invoiceToEvent(
       invoice({ supplier: { name: "X GmbH", ico: "123456789" } }),
       eventCtx,
@@ -490,6 +651,21 @@ describe("invoiceToEvent — IR invoice → accounting EVENT with the counterpar
       eventCtx,
     )
     expect(spaced.counterparty?.ico).toBe("12345678")
+    // A prefixed / foreign identifier ("SK12345678") is NOT a bare Czech IČO: the fix REJECTS it rather than
+    // stripping the "SK" and binding the wrong-but-real Czech company that holds "12345678". Falls through
+    // to the DIČ, so the counterparty identity is preserved — just never as a fabricated Czech IČO.
+    const foreign = invoiceToEvent(
+      invoice({
+        supplier: {
+          name: "Slovák s.r.o.",
+          ico: "SK12345678",
+          dic: "SK12345678",
+        },
+      }),
+      eventCtx,
+    )
+    expect(foreign.counterparty?.ico).toBeUndefined()
+    expect(foreign.counterparty?.dic).toBe("SK12345678")
   })
 
   it("drops a non-2-letter country (free-form IR) — never coerces 'Česká republika' to 'CZ'", () => {

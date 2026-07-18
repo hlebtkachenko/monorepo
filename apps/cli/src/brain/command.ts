@@ -33,7 +33,7 @@ import {
 } from "@workspace/intake"
 import { createAfframeClient } from "@afframe/sdk"
 import type { CreateAccountingEventRequest } from "@workspace/shared/api"
-import { assembleLoginSections } from "@workspace/brain"
+import { assembleLoginSections, BRAIN_SUPPLY_KINDS } from "@workspace/brain"
 import type {
   Invoice,
   LoginContextSections,
@@ -182,7 +182,9 @@ export function registerBrainCommand(program: Command): void {
     )
     .requiredOption(
       "--context <path>",
-      "Path to a JSON file: { sections, captureContext } (same shape as `brain run` --inputs, minus invoice)",
+      "Path to a JSON file: { sections, captureContext } (same shape as `brain run` --inputs, minus invoice). " +
+        "Optional `subject`: { ico?, dic? } — the org whose books this folder is; REQUIRED for .isdoc files " +
+        "so issued vs received is certain (an ISDOC e-invoice is identical on both sides).",
     )
     .option(
       "--extracted <path>",
@@ -778,10 +780,19 @@ function readExtractContext(path: string): ExtractContext {
   ) as ExtractContext
 }
 
-/** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */
+/**
+ * Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context,
+ * plus an OPTIONAL `subject` ({ ico?, dic? }) — the org whose books this folder is, used only to orient ISDOC
+ * direction (issued vs received). `subject` is a carry-through optional: absent ⇒ ISDOC files fail closed.
+ */
 function readBookContext(path: string): BookContext {
   return withAssembledSections(
-    readContextFile(path, "--context", ["sections", "captureContext"]),
+    readContextFile(
+      path,
+      "--context",
+      ["sections", "captureContext"],
+      ["subject"],
+    ),
   ) as BookContext
 }
 
@@ -1391,6 +1402,18 @@ export function parseExtractedInvoice(rawJson: string, flag: string): Invoice {
     throw new Error(
       `${flag}: IR Invoice is missing required field(s): ${missing.join(", ")}.`,
     )
+  }
+  // [#779] `supply_kind` is OPTIONAL and document-grounded. Drop an unrecognized (or non-string) value to
+  // undefined — FAIL-SAFE: a null supply_kind makes the booker HOLD the document for human review, whereas a
+  // bogus value would 400 at the strict capture schema. A valid value passes through untouched (the capture
+  // `SUPPLY_KIND` enum is the second backstop). Never throw: an odd supply_kind must not sink an otherwise
+  // valid extraction.
+  if (
+    obj.supply_kind !== undefined &&
+    (typeof obj.supply_kind !== "string" ||
+      !(BRAIN_SUPPLY_KINDS as readonly string[]).includes(obj.supply_kind))
+  ) {
+    delete obj.supply_kind
   }
   return parsed as Invoice
 }

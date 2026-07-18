@@ -47,43 +47,73 @@ For now: **Hleb only**. Tagging is a manual, human-gated act. No automation push
 
 This keeps the release cadence tight and predictable while the product surface is still fluid.
 
-## Changelog discipline
+## Changelog discipline (fragment files)
 
-Every non-release PR must add one bullet under `CHANGELOG.md` `## [Unreleased]`
-before review. This applies to docs, dependencies, CI, infra, and internal
-changes. Use:
+Every non-release PR must add one **fragment** under `changelog.d/` before
+review. This applies to docs, dependencies, CI, infra, and internal changes.
+Each PR writes its own uniquely-named fragment file, so parallel PRs never edit
+a shared region and never conflict — this replaced the old single hand-edited
+`## [Unreleased]` block, whose shared lines conflicted on every second parallel
+merge. Use:
 
 ```bash
-pnpm changelog:add -- --category Changed --entry "..."
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override]
 ```
 
-The helper inserts at the top of the requested category and preserves existing
-entries, which keeps parallel agent work from overwriting another PR's notes.
-Release PRs are the only exception: a PR titled `chore(release): vX.Y.Z` or
-`chore(release): vX.Y.Z-rc.N` moves the current Unreleased bullets into the new
-version section and does not add a new Unreleased bullet.
+Only `--category` and `--entry` are required. The `--entry` text becomes the
+fragment body — the exact one-sentence bullet that lands in `CHANGELOG.md`. The
+optional fields become YAML frontmatter:
+
+| Field        | Effect                                                                                                                                                                                  |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--bump`     | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump _level_ (never a concrete version number — the actual `vX.Y.Z` is decided at cut).  |
+| `--override` | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Tags the preview's suggested-bump line `(override)`. |
+
+Categories are the six canonical Keep-a-Changelog sections plus `Dependencies`:
+`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`,
+`Dependencies`. Documentation-only changes go under `Changed`; `Dependencies` is
+auto-synthesized from Dependabot `chore(deps)` commits at release-cut.
+
+**One fragment per commit.** Write the fragment in the same commit as the change
+it documents (`git add changelog.d/… <code> && git commit`). Squash `wip` /
+`fixup` commits before they reach `main`, so every landed commit carries exactly
+one fragment = one bullet. A PR that makes three distinct changes has three
+commits and three fragments; the squashed PR still yields three rich bullets.
+Never scrape raw commit messages — the fragment body is the curated bullet.
+Full authoring reference: [`changelog.d/README.md`](../../changelog.d/README.md).
+
+Preview the pending release at any time (renders every fragment as the next
+version section, prints the suggested bump with an `(override)` tag when set):
+
+```bash
+pnpm changelog:preview
+```
+
+Release PRs are the only exception to the add-a-fragment gate: a PR titled
+`chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` runs the collector
+(below), which consumes the fragments instead of adding one.
 
 Dependabot PRs are a second exception, gated by author (`dependabot[bot]`)
-rather than by title: the changelog gate is skipped on those PRs. Their
-dependency bumps are not lost, they are recorded at release-cut instead of
-per-PR, see "How to cut a release" below.
+rather than by title: the fragment gate is skipped on those PRs. Their
+dependency bumps are not lost — the collector synthesizes them into the
+`### Dependencies` section from `chore(deps)` commits at release-cut, see below.
 
 ## How to cut a release
 
 ```bash
-# 1. Synthesize the "### Dependencies" section from chore(deps) commits
-#    merged since the last tag (Dependabot PRs skip the per-PR changelog
-#    gate) and merge it into CHANGELOG.md's ## [Unreleased] section.
-node scripts/governance/synthesize-dependency-changelog.mjs --write
+# 1. Collect every changelog.d/ fragment (plus synthesized Dependabot bumps
+#    since the last tag) into a new CHANGELOG.md version section, then delete
+#    the consumed fragments. Backfills each bullet's (#PR) from git.
+#    Preview first with: pnpm changelog:preview
+pnpm changelog:collect -- --version v0.2.0
 
-# 2. Move the [Unreleased] bullets (including the Dependencies section just
-#    merged) into a new version section in CHANGELOG.md, e.g.
-#    ## [v0.2.0] — 2026-05-21. Add a "### Security" bullet by hand if any
-#    dependency bump fixed a CVE.
+# 2. Review the generated section. Add a "### Security" bullet by hand if any
+#    dependency bump fixed a CVE. The suggested bump printed by collect follows
+#    the docs bump rules above.
 $EDITOR CHANGELOG.md
 
-# 3. Stage + commit the changelog
-git add CHANGELOG.md
+# 3. Stage + commit the changelog and the fragment deletions
+git add CHANGELOG.md changelog.d/
 git commit -m "chore(release): v0.2.0"
 
 # 4. Push the commit, then create + push the tag
@@ -91,6 +121,10 @@ git push origin main
 git tag v0.2.0
 git push origin v0.2.0
 ```
+
+For a release candidate, pass `--keep` so the fragments survive into the final
+cut (`pnpm changelog:collect -- --version v0.2.0-rc.1 --keep`); drop `--keep`
+only on the final `vX.Y.Z` so each fragment is consumed exactly once.
 
 The push of the `v*` tag fires `.github/workflows/release.yml`, which:
 
@@ -117,16 +151,14 @@ So in the canonical flow, **no extra flag is needed** — just tag, then deploy.
 ### Production: tag, then deploy
 
 ```bash
-# 1. Synthesize the "### Dependencies" section from chore(deps) commits
-#    merged since the last tag (Dependabot PRs skip the per-PR changelog
-#    gate) and merge it into CHANGELOG.md's ## [Unreleased] section.
-node scripts/governance/synthesize-dependency-changelog.mjs --write
+# 1. Collect fragments + synthesized Dependabot bumps into a new CHANGELOG.md
+#    version section, deleting consumed fragments.
+pnpm changelog:collect -- --version v0.2.0
 
-# 2. Move bullets from [Unreleased] (including the Dependencies section just
-#    merged) to a new version section in CHANGELOG.md. Add a "### Security"
-#    bullet by hand if any dependency bump fixed a CVE.
+# 2. Review the generated section. Add a "### Security" bullet by hand if any
+#    dependency bump fixed a CVE.
 $EDITOR CHANGELOG.md
-git add CHANGELOG.md
+git add CHANGELOG.md changelog.d/
 git commit -m "chore(release): v0.2.0"
 git push origin main
 
@@ -233,7 +265,7 @@ On local dev, `BUILD_VERSION` is unset and the helper falls back to `"dev"`. On 
 - **No Changesets, release-please, or semantic-release.** Manual tagging is fine for a pre-1.0 product with one decider.
 - **No automated `version` field bumps** in `package.json`. The 18 workspace packages stay at `0.0.1`/`0.0.0` until we adopt a tool. The git tag is the source of truth for "what's released".
 - **No release branches.** Trunk-based — tag any commit on `main` you trust.
-- **No automated changelog generation.** Every non-release PR adds its own `CHANGELOG.md` `## [Unreleased]` bullet. The release PR moves those bullets into the new version section. GitHub Release notes auto-fill from commit subjects, separately.
+- **No auto-derived changelog prose.** Bullets stay hand-written (richer than PR titles), but each PR ships them as a `changelog.d/` fragment instead of editing a shared file; the release collector assembles them. We deliberately did NOT adopt Changesets/towncrier/changie — the homegrown fragment scripts already match the single-version, manual-tag, non-npm model without a new runtime or binary to track. GitHub Release notes still auto-fill from commit subjects, separately.
 
 When the team grows or v1 ships, revisit. Until then: simple wins.
 

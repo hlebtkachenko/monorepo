@@ -27,7 +27,7 @@ must pass before merge:
 `shellcheck`, `cdk-synth-strict (staging)`, `cdk-synth-strict (production)`.
 
 `check` is the repo-governance context. It currently runs paired-file rules and
-the changelog Unreleased gate.
+the changelog-fragment gate.
 
 `bypass_actors`: repository Admin role (`actor_id: 5`), bypass `always`.
 

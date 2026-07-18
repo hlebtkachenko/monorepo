@@ -420,7 +420,17 @@ GitHub Milestone per release bucket.
 
 ## Changelog Requirement
 
-Every non-release PR MUST add one bullet under `CHANGELOG.md` `## [Unreleased]` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Use `pnpm changelog:add -- --category Changed --entry "..."` so existing entries are preserved. Do not rewrite, reorder, or remove another Unreleased entry in a normal PR. Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception: they move Unreleased entries into the new version section instead of adding a new bullet. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the changelog gate is skipped on those PRs, and the resulting dependency bumps are recorded at release-cut as a synthesized `### Dependencies` bullet (and `### Security` for CVE-flagged bumps) instead of a per-PR entry.
+Every non-release PR MUST add one **changelog fragment** under `changelog.d/` before the PR is opened. This includes docs, dependencies, CI, infra, and internal changes. Each PR writes its own uniquely-named fragment file, so parallel PRs never touch a shared region and never conflict (this replaced the old single-file `## [Unreleased]` block). Use:
+
+```bash
+pnpm changelog:add -- --category Changed --entry "..." [--bump minor] [--override]
+```
+
+Only `--category` (one of Added/Changed/Deprecated/Removed/Fixed/Security/Dependencies — the six canonical Keep-a-Changelog sections plus Dependencies; docs-only changes go under Changed) and `--entry` are required. The `--entry` text becomes the fragment body: the exact one-sentence bullet that lands in `CHANGELOG.md`. Optional frontmatter: `--bump` (patch|minor|major → the suggested version bump *level*, never a concrete `vX.Y.Z`) and `--override` (marks the bump as deliberate — the release agent honors it without arguing against a rule-derived level). Do not delete another PR's fragment — fragments are consumed only at release-cut.
+
+**One fragment per commit.** Write the fragment in the same commit as the change it documents; squash `wip` / `fixup` commits before they reach `main`, so every landed commit carries exactly one fragment = one bullet. A PR with three distinct changes has three commits and three fragments, so the squashed PR still yields three rich bullets. Never scrape raw commit messages; the fragment body is the curated bullet. Authoring reference: [`changelog.d/README.md`](changelog.d/README.md).
+
+Preview the pending release any time with `pnpm changelog:preview` (renders all fragments + suggested bump). Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N` are the only exception to the add-a-fragment gate: they run `pnpm changelog:collect --version vX.Y.Z`, which folds every fragment into a new `CHANGELOG.md` version section and deletes the consumed fragments. Dependabot PRs are a second exception, gated by author (`dependabot[bot]`) rather than by title: the fragment gate is skipped on those PRs, and their dependency bumps are synthesized into the `### Dependencies` section from `chore(deps)` commits at release-cut instead of a per-PR fragment. Full procedure: [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md).
 
 ## Infrastructure
 

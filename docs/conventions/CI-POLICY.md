@@ -76,12 +76,13 @@ every PR and currently enforces:
 
 - paired-file rules from `.github/related-files.yml`
 - documentation taxonomy, category indexes, H1 structure, and local links
-- the changelog Unreleased rule: every non-release PR must add one bullet under
-  `CHANGELOG.md` `## [Unreleased]` while preserving existing Unreleased entries
+- the changelog-fragment rule: every non-release PR must add one fragment under
+  `changelog.d/` (and delete none), replacing the old shared `## [Unreleased]`
+  block so parallel PRs never conflict
 
 Release PRs titled `chore(release): vX.Y.Z` or `chore(release): vX.Y.Z-rc.N`
-are exempt from adding a new Unreleased bullet because their job is to move the
-existing Unreleased entries into the new version section.
+are exempt from adding a fragment because their job is to run
+`changelog:collect`, which folds the fragments into a new version section.
 
 ## Type-aware linting
 

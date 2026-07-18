@@ -10,6 +10,7 @@ import {
 } from "@workspace/ui/blocks/app-shell"
 import { AppRail, activeRailEntry } from "@workspace/ui/blocks/app-rail"
 import { AppSidebar } from "@workspace/ui/blocks/sidebar-panel"
+import { AssistantPanel } from "@workspace/ui/blocks/assistant-panel"
 import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
@@ -57,6 +58,7 @@ export function OrgShell({
         contentHeader={
           <AppContentHeaderSlot fallback={<ContentHeader title={title} />} />
         }
+        assistant={<AssistantPanel />}
         logoHref={orgBasePath(slug)}
         deployment={deployment}
       >

@@ -6,7 +6,7 @@ import { and, desc, eq, gt, isNull, sql } from "drizzle-orm"
 
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { app_user, impersonation } from "@workspace/db/schema"
+import { app_user, impersonation, organization } from "@workspace/db/schema"
 
 import { auditAdminAction } from "./admin-audit"
 import { requireAdminCapability } from "./admin-capability"
@@ -75,7 +75,12 @@ export async function getActiveImpersonation(): Promise<ImpersonationState | nul
  *   1. Capability check.
  *   2. Validate reason (>= 8 chars after trim).
  *   3. Validate the target user exists.
- *   4. INSERT `impersonation` row with `expected_end_at = now() + 30min`.
+ *   3b. When `organizationId` is set (the "Sign in to this org" flow): require
+ *       the org to have an ACTIVE support-access grant
+ *       (`support_access_expires_at > now()`); refuse otherwise. The grant is
+ *       the org's own consent gate — no grant, no sign-in.
+ *   4. INSERT `impersonation` row with `expected_end_at = now() + 30min`,
+ *      stamping `organization_id` when org-scoped.
  *   5. Best-effort call into Better Auth's admin plugin
  *      (`auth.api.impersonateUser`) to actually swap the live session.
  *      Banner-only flows still work even if the BA call fails — we audit
@@ -110,8 +115,25 @@ export async function startImpersonation(
         throw new Error("target user not found")
       }
 
+      // Org-scoped sign-in precondition: the org must currently consent.
+      if (input.organizationId) {
+        const [org] = await db
+          .select({
+            granted: sql<boolean>`(${organization.support_access_expires_at} > now())`,
+          })
+          .from(organization)
+          .where(eq(organization.id, input.organizationId))
+          .limit(1)
+        if (!org || org.granted !== true) {
+          throw new Error(
+            "organization has not granted support access (no active consent window)",
+          )
+        }
+      }
+
       await db.insert(impersonation).values({
         workspace_id: ctx.workspaceId,
+        organization_id: input.organizationId ?? null,
         actor_user_id: ctx.userId,
         target_user_id: input.targetUserId,
         reason,
@@ -154,7 +176,12 @@ export async function startImpersonation(
 
   await auditAdminAction({
     action: "admin.user.impersonation_started",
-    payload: { target_user_id: input.targetUserId, reason },
+    organizationId: input.organizationId ?? null,
+    payload: {
+      target_user_id: input.targetUserId,
+      reason,
+      organization_id: input.organizationId ?? null,
+    },
   })
 
   return { ok: true }

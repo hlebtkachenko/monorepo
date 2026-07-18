@@ -19,6 +19,14 @@ export interface ImpersonationState {
 export interface StartImpersonationInput {
   targetUserId: string
   reason: string
+  /**
+   * When set, the impersonation is scoped to this org (the "Sign in to this
+   * org" flow). It is stamped onto `impersonation.organization_id` and gated by
+   * a PRECONDITION: the org must have an active support-access consent grant
+   * (`organization.support_access_expires_at > now()`), else the start is
+   * refused. Absent for the plain user-level impersonation flow.
+   */
+  organizationId?: string
 }
 
 export interface ImpersonationMutationResult {

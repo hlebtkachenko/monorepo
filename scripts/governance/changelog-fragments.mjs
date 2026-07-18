@@ -25,7 +25,6 @@ export const CATEGORY_ORDER = [
   "Removed",
   "Fixed",
   "Security",
-  "Docs",
   "Dependencies",
 ]
 

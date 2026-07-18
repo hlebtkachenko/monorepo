@@ -69,9 +69,10 @@ optional fields become YAML frontmatter:
 | `--bump`     | `patch` \| `minor` \| `major`. The strongest bump across all fragments = the suggested version bump _level_ (never a concrete version number — the actual `vX.Y.Z` is decided at cut).  |
 | `--override` | Marks the `--bump` as deliberate. If a rule would suggest a different level, the release agent honors this one and does not argue. Tags the preview's suggested-bump line `(override)`. |
 
-Categories are the Keep-a-Changelog sections already used in `CHANGELOG.md`:
-`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`, `Docs`,
-`Dependencies`.
+Categories are the six canonical Keep-a-Changelog sections plus `Dependencies`:
+`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`,
+`Dependencies`. Documentation-only changes go under `Changed`; `Dependencies` is
+auto-synthesized from Dependabot `chore(deps)` commits at release-cut.
 
 **One fragment per commit.** Write the fragment in the same commit as the change
 it documents (`git add changelog.d/… <code> && git commit`). Squash `wip` /

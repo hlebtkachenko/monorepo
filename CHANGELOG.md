@@ -9,10 +9,9 @@ Tag convention: `v<MAJOR>.<MINOR>.<PATCH>` for stable releases, `v<MAJOR>.<MINOR
 Unreleased changes are not listed here. Each pending change lives as its own
 fragment file under [`changelog.d/`](changelog.d/); run `pnpm changelog:preview`
 to render the pending release. At release-cut, `pnpm changelog:collect --version vX.Y.Z`
-gathers every fragment into a new `## [vX.Y.Z]` section below (grouped by
-category, with each bullet's `(#PR)` backfilled from git and Dependabot bumps
-folded in), then deletes the consumed fragments. See
-[`changelog.d/README.md`](changelog.d/README.md) for the authoring rules.
+gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
+consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
+authoring rules.
 
 ## [v0.23.4] — 2026-07-18
 

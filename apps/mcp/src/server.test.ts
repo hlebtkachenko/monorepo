@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { describe, expect, it } from "vitest"
-import { createAfframeClient } from "@afframe/sdk"
+import { buildClient } from "./client"
 import {
   GENERATED_TOOL_OPERATION_IDS,
   registerGeneratedTools,
@@ -9,9 +9,6 @@ import {
 describe("@afframe/mcp tool registry", () => {
   function buildServer() {
     return new McpServer({ name: "@afframe/mcp", version: "0.0.1-test" })
-  }
-  function buildClient() {
-    return createAfframeClient({ apiKey: "affk_test_fixture" })
   }
 
   it("generated codegen covers every committed operationId", () => {
@@ -28,7 +25,7 @@ describe("@afframe/mcp tool registry", () => {
 
   it("registers every generated tool exactly once", () => {
     const server = buildServer()
-    const client = buildClient()
+    const client = buildClient("affk_test_fixture")
     expect(() => registerGeneratedTools(server, client)).not.toThrow()
     // Re-registering must throw — surfaces accidental dupes.
     expect(() => registerGeneratedTools(server, client)).toThrow()

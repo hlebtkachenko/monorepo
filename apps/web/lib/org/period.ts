@@ -32,27 +32,34 @@ export interface HeaderPeriod {
 }
 
 /**
- * The org's accounting periods, newest first. Runs under `withAdminBypass` with
- * an explicit `organization_id` filter (the org GUC is not bound in the layout,
- * so a `withOrganization` read would have no GUC to scope by — the equality
- * filter is the tenant boundary).
+ * The org's accounting periods, newest first, keyed by the primitive org id so
+ * `React.cache` actually memoizes (a `{ organizationId }` object arg would be a
+ * fresh reference every call, which cache can't dedup). The layout (switcher
+ * list) and each page (period-scoped data) resolve different active periods but
+ * share this one DB read per RSC request.
+ *
+ * Runs under `withAdminBypass` with an explicit `organization_id` filter: the
+ * org GUC is not bound in the layout, so a `withOrganization` read would have no
+ * GUC to scope by — the equality filter is the tenant boundary.
  */
-export async function getHeaderPeriods(input: {
-  organizationId: string
-}): Promise<HeaderPeriod[]> {
-  return await withAdminBypass(async (db) => {
-    return await db
-      .select({
-        id: accounting_period.id,
-        period_start: accounting_period.period_start,
-        period_end: accounting_period.period_end,
-        status: accounting_period.status,
-      })
-      .from(accounting_period)
-      .where(eq(accounting_period.organization_id, input.organizationId))
-      .orderBy(desc(accounting_period.period_start), desc(accounting_period.id))
-  })
-}
+const getPeriods = cache(
+  async (organizationId: string): Promise<HeaderPeriod[]> =>
+    withAdminBypass(async (db) =>
+      db
+        .select({
+          id: accounting_period.id,
+          period_start: accounting_period.period_start,
+          period_end: accounting_period.period_end,
+          status: accounting_period.status,
+        })
+        .from(accounting_period)
+        .where(eq(accounting_period.organization_id, organizationId))
+        .orderBy(
+          desc(accounting_period.period_start),
+          desc(accounting_period.id),
+        ),
+    ),
+)
 
 /**
  * Resolve the active period from a list: the requested id when it names one of
@@ -83,18 +90,6 @@ export interface ActivePeriodState {
   periods: HeaderPeriod[]
   active: HeaderPeriod | null
 }
-
-/**
- * `getHeaderPeriods` keyed by the primitive org id so `React.cache` actually
- * memoizes — the raw reader takes an object literal (fresh reference every
- * call), which cache can't dedup. The layout (switcher list) and each page
- * (period-scoped data) resolve different active periods but share this one DB
- * read per RSC request.
- */
-const getPeriods = cache(
-  async (organizationId: string): Promise<HeaderPeriod[]> =>
-    getHeaderPeriods({ organizationId }),
-)
 
 /**
  * Fetch the org's periods and resolve the active one, memoized per RSC request.

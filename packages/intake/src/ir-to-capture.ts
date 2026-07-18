@@ -98,13 +98,19 @@ function partialFromVatRow(
   currencyCode: string,
   sign: 1n | -1n,
 ): CapturePartial {
-  // A non-positive rate (0% / missing) is NOT an unambiguous STANDARD supply: a 0% row could be a genuine
-  // zero-rated domestic supply OR an EXEMPT / osvobozeno supply the extractor flattened to 0% — and the
+  // A reverse-charge row (domestic PDP / §92 — the customer self-assesses, so the source tax is 0 at a real
+  // rate) is NOT a STANDARD supply either: booking it STANDARD with a positive rate + 0 tax asserts a regime
+  // the adapter must not fabricate. We route it to the OUTSIDE_VAT hold — the base is preserved, and
+  // `classifyAccountingEvent` on the server assigns REVERSE_CHARGE. Checked BEFORE the rate test because a PDP
+  // row carries a positive `rate` (e.g. 21) that would otherwise fall through to the STANDARD branch below.
+  //
+  // A non-positive rate (0% / missing) is likewise NOT an unambiguous STANDARD supply: a 0% row could be a
+  // genuine zero-rated domestic supply OR an EXEMPT / osvobozeno supply the extractor flattened to 0% — and the
   // server veto passes a STANDARD 0% partial (rate 0, no vatAmount) straight through. The adapter does not
-  // guess the regime: it routes a non-positive-rate row to the OUTSIDE_VAT hold so `classifyAccountingEvent`
-  // decides and the server holds it, rather than asserting STANDARD 0%. `!(rate > 0)` (not `rate <= 0`) is
-  // deliberate: it also routes a NaN rate to the hold (`NaN > 0` is false), failing safe on a bad extraction.
-  if (!(row.rate > 0)) {
+  // guess the regime: it routes such a row to the OUTSIDE_VAT hold so `classifyAccountingEvent` decides and the
+  // server holds it, rather than asserting STANDARD 0%. `!(rate > 0)` (not `rate <= 0`) is deliberate: it also
+  // routes a NaN rate to the hold (`NaN > 0` is false), failing safe on a bad extraction.
+  if (row.reverse_charge || !(row.rate > 0)) {
     return partialWithoutRate(row.base_minor * sign, currencyCode)
   }
   // [G1-F4] `vatAmount` comes STRAIGHT from the source tax field (`tax_minor`), NEVER `base * rate` — a

@@ -182,7 +182,9 @@ export function registerBrainCommand(program: Command): void {
     )
     .requiredOption(
       "--context <path>",
-      "Path to a JSON file: { sections, captureContext } (same shape as `brain run` --inputs, minus invoice)",
+      "Path to a JSON file: { sections, captureContext } (same shape as `brain run` --inputs, minus invoice). " +
+        "Optional `subject`: { ico?, dic? } — the org whose books this folder is; REQUIRED for .isdoc files " +
+        "so issued vs received is certain (an ISDOC e-invoice is identical on both sides).",
     )
     .option(
       "--extracted <path>",
@@ -778,10 +780,19 @@ function readExtractContext(path: string): ExtractContext {
   ) as ExtractContext
 }
 
-/** Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context. */
+/**
+ * Read + shallow-validate the operator-supplied `book` context: the login-pack sections + the capture context,
+ * plus an OPTIONAL `subject` ({ ico?, dic? }) — the org whose books this folder is, used only to orient ISDOC
+ * direction (issued vs received). `subject` is a carry-through optional: absent ⇒ ISDOC files fail closed.
+ */
 function readBookContext(path: string): BookContext {
   return withAssembledSections(
-    readContextFile(path, "--context", ["sections", "captureContext"]),
+    readContextFile(
+      path,
+      "--context",
+      ["sections", "captureContext"],
+      ["subject"],
+    ),
   ) as BookContext
 }
 

@@ -20,6 +20,7 @@ import {
   detectFormat,
   invoiceToCapture,
   parseCsv,
+  parseIsdoc,
   parsePohodaDataPack,
   parseXlsx,
   planBrainDryRun,
@@ -52,6 +53,13 @@ export interface BookContext {
   sections: LoginContextSections
   /** The operator-supplied capture context (periodId / seriesId / eventId + confidence + rationale). */
   captureContext: IrToCaptureContext
+  /**
+   * The SUBJECT org's public register identity (IČO / DIČ) — the org whose books this folder is. It orients a
+   * reader-relative document direction (issued vs received) for formats that do not encode it (ISDOC: an
+   * e-invoice is identical on both sides). NOT a tenancy key: the real tenant is server-resolved from the
+   * API-key principal; this only tells the parser which party is "us". Absent ⇒ ISDOC files fail closed.
+   */
+  subject?: { ico?: string; dic?: string }
 }
 
 /** One bookable record, mapped to its capture request + the assembled plan the live run would execute. */
@@ -97,13 +105,11 @@ const PARSERS: Partial<
   csv: parseCsv,
   xlsx: parseXlsx,
   pohoda_xml: parsePohodaDataPack,
+  isdoc: parseIsdoc,
 }
 
 /** A human-readable reason for a format we detect but have no parser for yet (so it is reported, not silent). */
 const UNWIRED_FORMAT_REASON: Record<string, string> = {
-  isdoc:
-    "isdoc: packages/filing can PARSE it (readIsdoc), but the IsdocInvoice → Brain-IR " +
-    "capture adapter is not written yet — no capture plan produced (tracked follow-up)",
   pdf: "pdf has no structured parser (needs OCR intake) — no capture plan produced",
   pohoda_db: "native Pohoda backup — re-export as dataPack XML before booking",
   zip: "nested zip — unpack it and re-run book on the extracted files",
@@ -196,6 +202,10 @@ export function assembleBookPlan(
       orgRef: BOOK_ORG_REF,
       sourcePath: rel,
       ingestedAt,
+      // The subject org's IČO/DIČ orients ISDOC direction (issued vs received). Absent ⇒ the ISDOC parser
+      // fails closed with a warning; other parsers ignore it. NOT a tenancy key (see BookContext.subject).
+      ...(ctx.subject?.ico ? { subjectIco: ctx.subject.ico } : {}),
+      ...(ctx.subject?.dic ? { subjectDic: ctx.subject.dic } : {}),
     }
     const result = parser(bytes, parseContext)
     warnings.push(...result.warnings)

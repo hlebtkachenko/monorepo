@@ -82,5 +82,5 @@ Follow-up work required:
 - [ADR-0018](0018-three-layer-authz.md) — Cerbos + OpenFGA (MCP scope split rides on this)
 - [ADR-0022](0022-unified-opaque-tokens.md) — `affk_` prefix policy
 - [`docs/api/API-REFERENCE.md`](../api/API-REFERENCE.md), [`docs/plans/V1-LAUNCH-GATES.md`](../plans/V1-LAUNCH-GATES.md)
-- [`SECURITY.md`](../../SECURITY.md) and [`CI-POLICY.md`](../conventions/CI-POLICY.md) — current repository hardening controls
+- [`SECURITY.md`](../../.github/SECURITY.md) and [`CI-POLICY.md`](../conventions/CI-POLICY.md) — current repository hardening controls
 - [Standard Webhooks](https://www.standardwebhooks.com/), [RFC 8594 — Sunset](https://www.rfc-editor.org/rfc/rfc8594.html), [RFC 9116 — security.txt](https://www.rfc-editor.org/rfc/rfc9116), [IETF Idempotency-Key](https://datatracker.ietf.org/doc/html/draft-ietf-httpapi-idempotency-key-header)

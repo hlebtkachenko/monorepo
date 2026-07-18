@@ -158,4 +158,4 @@ The platform-level decision behind all of this is [`ADR-0023`](../adr/0023-publi
 - [ADR-0018](../adr/0018-three-layer-authz.md) — three-layer authorization
 - [env-vars.md](../ENVIRONMENT-VARIABLES.md) — all environment variables
 - [AWS-SETUP.md](../runbooks/AWS-SETUP.md) — deploy procedure + tunnel config
-- [SECURITY.md](../../SECURITY.md) — repository security policy
+- [SECURITY.md](../../.github/SECURITY.md) — repository security policy

@@ -14,37 +14,43 @@ pnpm install
 pnpm dev          # Next.js dev server (port 3000)
 ```
 
-## Project Structure
+## Repository Map
 
-```
-apps/
-  web/              # Next.js 16 app (Turbopack)
-  admin/            # admin app
-  api/              # NestJS backend API
-  mcp/              # MCP server for the public API (@afframe/mcp) — also Brain's local stdio bridge (ADR-0025)
-  cli/              # command-line client for the public API (@afframe/cli) — also the `afframe brain` commands
-  bot/              # Telegram dev bot (grammY on Cloudflare Worker)
-packages/
-  ui/               # shadcn/ui component library (120 registry entries)
-  auth/             # Better Auth + session binding + RLS GUC
-  brain/            # Afframe Brain — agent proposing Czech-accounting bookings (docs/brain/README.md)
-  config/           # shared configuration
-  db/               # Drizzle schema + RLS + migrations
-  email/            # React Email templates + transport
-  eslint-config/    # shared ESLint flat configs
-  i18n/             # internationalization
-  notify/           # typed client for the Telegram bot (POSTs to bot /ingest)
-  observability/    # pino + OpenTelemetry helpers
-  pdf/              # PDF/A-3 generation + QR Platba
-  sdk/              # TypeScript SDK for the public API (@afframe/sdk)
-  shared/           # shared utilities, Zod schemas
-  storage/          # org-scoped storage
-  testcontainers/   # integration test containers
-  typescript-config/ # shared tsconfig presets
-  workers/          # pg-boss background job handlers
-docs/
-  runbooks/         # agent instruction documents
-```
+| Area                                                                                               | Purpose                                               |
+| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [`apps/`](apps/)                                                                                   | Deployable web, admin, API, bot, CLI, and MCP apps    |
+| [`packages/`](packages/)                                                                           | Domain code, shared libraries, and reusable tooling   |
+| [`infra/`](infra/)                                                                                 | CDK, Cloudflare, containers, authorization, and ops   |
+| [`docs/`](docs/)                                                                                   | Architecture decisions, runbooks, specs, and policies |
+| [`scripts/`](scripts/)                                                                             | Repository automation and maintenance commands        |
+| [`.github/`](.github/)                                                                             | CI workflows, templates, and community files          |
+| [`.devcontainer/`](.devcontainer/)                                                                 | Containerized development environment                 |
+| [`.vscode/`](.vscode/)                                                                             | Shared Cursor and VS Code workspace settings          |
+| [`.agents/`](.agents/), [`.claude/`](.claude/), [`.codex/`](.codex/), [`.conductor/`](.conductor/) | Agent and workspace tool configuration                |
+
+### Applications
+
+| Path                       | Role                                     |
+| -------------------------- | ---------------------------------------- |
+| [`apps/web`](apps/web)     | Next.js customer application             |
+| [`apps/admin`](apps/admin) | Next.js administration application       |
+| [`apps/api`](apps/api)     | NestJS public API                        |
+| [`apps/mcp`](apps/mcp)     | Public API MCP server and Brain bridge   |
+| [`apps/cli`](apps/cli)     | Public API and Brain command-line client |
+| [`apps/bot`](apps/bot)     | Telegram development control plane       |
+
+### Package Groups
+
+| Group           | Packages                                                                                                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounting      | [`accounting`](packages/accounting), [`accounting-kb`](packages/accounting-kb), [`brain`](packages/brain), [`intake`](packages/intake), [`registries`](packages/registries)                                                         |
+| Platform        | [`auth`](packages/auth), [`db`](packages/db), [`storage`](packages/storage), [`workers`](packages/workers), [`org-provisioning`](packages/org-provisioning), [`observability`](packages/observability), [`notify`](packages/notify) |
+| Product         | [`ui`](packages/ui), [`email`](packages/email), [`i18n`](packages/i18n)                                                                                                                                                             |
+| Developer tools | [`sdk`](packages/sdk), [`shared`](packages/shared), [`config`](packages/config), [`eslint-config`](packages/eslint-config), [`typescript-config`](packages/typescript-config), [`testcontainers`](packages/testcontainers)          |
+
+Root manifests and dotfiles remain at repository root because Git, Docker,
+pnpm, Turborepo, editors, and agent tools discover them there. Cursor and VS
+Code collapse related root files through [`.vscode/settings.json`](.vscode/settings.json).
 
 ## Component Structure
 
@@ -132,7 +138,9 @@ Bump rules, the cut workflow, and the tag → deploy order live in
 
 - [`AGENTS.md`](AGENTS.md): project rules for AI agents and contributors
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): system architecture overview
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): workflow and contribution rules
+- [`.github/CONTRIBUTING.md`](.github/CONTRIBUTING.md): workflow and contribution rules
+- [`.github/SECURITY.md`](.github/SECURITY.md): vulnerability reporting and security posture
+- [`.github/CODE_OF_CONDUCT.md`](.github/CODE_OF_CONDUCT.md): community standards
 - [`CHANGELOG.md`](CHANGELOG.md): release notes
 - [`docs/conventions/RELEASES.md`](docs/conventions/RELEASES.md): version tag format + release cut workflow
 - [`docs/adr/`](docs/adr/): architecture decision records

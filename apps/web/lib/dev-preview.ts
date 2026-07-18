@@ -19,6 +19,12 @@ import { cookies } from "next/headers"
  */
 export const DEV_PREVIEW_COOKIE = "app-dev-preview"
 
+/**
+ * Sentinel email shown in dev-preview mode when no real session email exists.
+ * Never a real address — the preview branch is dead-coded in production.
+ */
+export const PREVIEW_EMAIL = "preview@example.com"
+
 export async function isDevPreview(): Promise<boolean> {
   if (process.env.NODE_ENV === "production") return false
   // Double-gate: the flag previously gated only the cookie-SETTER route, so

@@ -16,7 +16,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Text } from "@workspace/ui/components/text"
 import { ArrowRightIcon, ArrowUpRight } from "@workspace/ui/lib/icons"
 
-import { isDevPreview } from "@/lib/dev-preview"
+import { isDevPreview, PREVIEW_EMAIL } from "@/lib/dev-preview"
 import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
 
 import { readSignupClaims } from "@/lib/auth/signup-cookie"
@@ -87,7 +87,7 @@ export default async function SignupWelcomePage({ searchParams }: PageProps) {
   if (!claims && (await isDevPreview())) {
     claims = {
       kind: "signup" as const,
-      email: "preview@example.com",
+      email: PREVIEW_EMAIL,
       workspace: "Preview Workspace",
     }
   }

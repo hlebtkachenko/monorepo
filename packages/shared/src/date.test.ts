@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { czechToday } from "./czech-today"
+import { czechToday } from "./date"
 
 describe("czechToday", () => {
   it("uses the Czech date across the winter UTC midnight boundary", () => {

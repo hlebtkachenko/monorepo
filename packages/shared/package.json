@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./auth": "./src/auth/index.ts",
     "./api": "./src/api/index.ts",
+    "./date": "./src/date.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

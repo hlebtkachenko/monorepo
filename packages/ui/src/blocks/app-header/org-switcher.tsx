@@ -47,10 +47,10 @@ export interface OrgSwitcherProps {
   currentOrg: OrgSwitcherCurrentOrg
   /** Up to 3 recently-used orgs (excluding the current one). */
   recentOrgs: OrgSwitcherOrg[]
-  /** Org settings page. */
-  settingsHref: string
-  /** Invite-members destination. */
-  inviteHref: string
+  /** Org settings page. Omit to hide the Settings button (no page yet). */
+  settingsHref?: string
+  /** Invite-members destination. Omit to hide the Invite button (no page yet). */
+  inviteHref?: string
   /** "Create new organisation" destination. */
   createOrgHref: string
   /** "Manage in Workspace" (all organisations) destination. */
@@ -173,21 +173,29 @@ export function OrgSwitcher({
             <CheckGlyph className="size-4 shrink-0 text-foreground" />
           </div>
 
-          {/* Settings + Invite — two outline buttons, per the ref. */}
-          <div className="flex gap-2 px-2 py-1.5">
-            <Button asChild variant="outline" size="sm" className="flex-1">
-              <a href={settingsHref}>
-                <SettingsGlyph className="size-4" />
-                Settings
-              </a>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="flex-1">
-              <a href={inviteHref}>
-                <InviteGlyph className="size-4" />
-                Invite members
-              </a>
-            </Button>
-          </div>
+          {/* Settings + Invite — two outline buttons, per the ref. Each renders
+              only when its destination exists; the whole row drops when neither
+              does (a surface with no settings/invite page yet). */}
+          {(settingsHref || inviteHref) && (
+            <div className="flex gap-2 px-2 py-1.5">
+              {settingsHref && (
+                <Button asChild variant="outline" size="sm" className="flex-1">
+                  <a href={settingsHref}>
+                    <SettingsGlyph className="size-4" />
+                    Settings
+                  </a>
+                </Button>
+              )}
+              {inviteHref && (
+                <Button asChild variant="outline" size="sm" className="flex-1">
+                  <a href={inviteHref}>
+                    <InviteGlyph className="size-4" />
+                    Invite members
+                  </a>
+                </Button>
+              )}
+            </div>
+          )}
 
           {recentOrgs.length > 0 && (
             <>

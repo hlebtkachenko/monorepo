@@ -10,6 +10,7 @@ import {
   ContentPanel,
   ContentToolbar,
   SectionTableProvider,
+  useOptimisticFavorite,
   useSectionColumnAnalyze,
   useSectionColumnFilter,
   useSectionInspect,
@@ -21,6 +22,7 @@ import type {
   ContentFooterAction,
   ContentHeaderBackLinkData,
   ContentHeaderBreadcrumbItem,
+  ContentHeaderFavoriteToggle,
   ContentToolbarProps,
   InspectorMode,
   SectionCellCommit,
@@ -85,6 +87,11 @@ export interface ArchetypeTableProps<TData> {
   backTo?: ContentHeaderBackLinkData
   /** Optional views cluster in the header. */
   views?: ArchetypeTableViews
+  /**
+   * Optional self-managing favorite star for this page's header. Omit → no star.
+   * The archetype owns the optimism; the page supplies seed state + persistence.
+   */
+  favorite?: ContentHeaderFavoriteToggle
   /**
    * The page-wide toolbar — a FUNCTION of the Table section's live instance
    * (`null` on the first paint, before the section registers). Build the closed
@@ -209,6 +216,7 @@ function ArchetypeTableChrome<TData>({
   breadcrumb,
   backTo,
   views,
+  favorite,
   toolbar,
   sections,
   selectionActions,
@@ -231,6 +239,7 @@ function ArchetypeTableChrome<TData>({
   onInspectorApprove,
   bodyClassName,
 }: ArchetypeTableProps<TData>) {
+  const favoriteControlled = useOptimisticFavorite(favorite)
   const registration = useSectionTable()
   const table = registration
     ? (registration.table as unknown as Table<TData>)
@@ -374,6 +383,7 @@ function ArchetypeTableChrome<TData>({
           value={views?.value}
           onValueChange={views?.onValueChange}
           onAddView={views?.onAddView}
+          favorite={favoriteControlled}
         />
       </AppPageHeader>
       <ContentPanel

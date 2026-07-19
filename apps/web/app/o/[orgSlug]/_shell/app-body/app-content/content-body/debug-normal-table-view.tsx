@@ -99,7 +99,6 @@ interface State {
   rows: TableSectionRow[]
   history: Record<string, Activity[]>
   attachments: Record<string, InspectorAttachmentFile[]>
-  lastDeleted: TableSectionRow[] | null
   seq: number
 }
 
@@ -112,7 +111,7 @@ type Action =
       when: string
     }
   | { type: "delete"; ids: string[] }
-  | { type: "restoreDeleted" }
+  | { type: "restoreDeleted"; rows: TableSectionRow[] }
   | { type: "addFiles"; rowId: string; files: InspectorAttachmentFile[] }
   | { type: "removeFile"; rowId: string; fileId: string }
 
@@ -145,21 +144,20 @@ function reducer(state: State, action: Action): State {
     }
     case "delete": {
       const ids = new Set(action.ids)
-      const removed = state.rows.filter((row) => ids.has(String(row.id)))
-      if (removed.length === 0) return state
       return {
         ...state,
         rows: state.rows.filter((row) => !ids.has(String(row.id))),
-        lastDeleted: removed,
       }
     }
-    case "restoreDeleted":
-      if (!state.lastDeleted) return state
-      return {
-        ...state,
-        rows: [...state.lastDeleted, ...state.rows],
-        lastDeleted: null,
-      }
+    case "restoreDeleted": {
+      // The batch to restore is carried by the action (from the toast that
+      // deleted it), so each toast's Undo restores its OWN rows even after
+      // several sequential deletes. Skip any that already came back.
+      const present = new Set(state.rows.map((row) => String(row.id)))
+      const missing = action.rows.filter((row) => !present.has(String(row.id)))
+      if (missing.length === 0) return state
+      return { ...state, rows: [...missing, ...state.rows] }
+    }
     case "addFiles":
       return {
         ...state,
@@ -229,13 +227,16 @@ export function DebugNormalTableView({
 }) {
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
-  const [state, dispatch] = React.useReducer(reducer, initialRows, (rows) => ({
-    rows: rows.map((row) => ({ ...row })),
-    history: {},
-    attachments: {},
-    lastDeleted: null,
-    seq: 0,
-  }))
+  const [state, dispatch] = React.useReducer(
+    reducer,
+    initialRows,
+    (rows): State => ({
+      rows: rows.map((row) => ({ ...row })),
+      history: {},
+      attachments: {},
+      seq: 0,
+    }),
+  )
   const { rows, history, attachments } = state
 
   // Deep link: `…?inspect=<row id>` opens that row's Inspector on load — the
@@ -255,16 +256,8 @@ export function DebugNormalTableView({
   )
 
   const onCellEdit: SectionCellCommit = React.useCallback(
-    ({ rowId, columnId, value }) => {
-      dispatch({
-        type: "edit",
-        rowId,
-        field: columnId,
-        value,
-        when: nowLabel(),
-      })
-    },
-    [],
+    ({ rowId, columnId, value }) => commit(rowId, columnId, value),
+    [commit],
   )
 
   const viewRows = React.useMemo(
@@ -344,18 +337,22 @@ export function DebugNormalTableView({
         icon: "Trash2",
         variant: "destructive",
         onSelect: () => {
-          const ids = table
-            ? table
-                .getFilteredSelectedRowModel()
-                .rows.map((row) => String(row.original.id))
-            : []
-          if (ids.length === 0) return
-          dispatch({ type: "delete", ids })
+          const removed = (table?.getFilteredSelectedRowModel().rows ?? []).map(
+            (row) => row.original,
+          )
+          if (removed.length === 0) return
+          dispatch({
+            type: "delete",
+            ids: removed.map((row) => String(row.id)),
+          })
           table?.resetRowSelection()
-          toast.success(`Deleted ${ids.length} row(s)`, {
+          // The toast carries its OWN deleted batch, so Undo restores exactly
+          // these rows even after further deletes.
+          toast.success(`Deleted ${removed.length} row(s)`, {
             action: {
               label: "Undo",
-              onClick: () => dispatch({ type: "restoreDeleted" }),
+              onClick: () =>
+                dispatch({ type: "restoreDeleted", rows: removed }),
             },
           })
         },

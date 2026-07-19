@@ -351,14 +351,14 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   const inspectData = (resolvedRow ?? inspectRow) as TData | null
   const inspectRecordKey = inspectId ?? ""
 
-  // Auto-close the rail once the inspected row can no longer be resolved in a
-  // non-empty list (edited out of the view, or deleted) — so a footer action
-  // (Approve / Reject / Delete) can never fire against stale or absent state.
+  // Auto-close the rail once the inspected row can no longer be resolved (edited
+  // out of the view, or deleted — including a bulk delete that empties the whole
+  // view) so nothing acts against a gone record. `inspectId` is only set while a
+  // row is inspected, and `pageRows` is the descriptor's own list (populated
+  // before the grid registers), so this never fires spuriously on first paint.
   React.useEffect(() => {
-    if (inspectOpen && inspectId && pageRows.length > 0 && !resolvedRow) {
-      setInspectOpen(false)
-    }
-  }, [inspectOpen, inspectId, pageRows.length, resolvedRow, setInspectOpen])
+    if (inspectOpen && inspectId && !resolvedRow) setInspectOpen(false)
+  }, [inspectOpen, inspectId, resolvedRow, setInspectOpen])
 
   // Deep-link: open the Inspector once for `openRowId` as soon as the grid holds
   // that row. Ref-guarded so it fires a single time per id (a subsequent user
@@ -389,16 +389,20 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
     inspectorRowContent && inspectData != null
       ? inspectorRowContent(inspectData)
       : undefined
+  // The footer's mutating actions are gated on the FRESH `resolvedRow`, not the
+  // `inspectData` fallback — so once the inspected row is gone the Approve/Reject
+  // buttons disappear and can never fire against a stale/deleted record, even in
+  // the frame before the auto-close effect runs.
   const inspectFooter: InspectorFooterProps | undefined =
-    (onInspectorDecline || onInspectorApprove) && inspectData != null
+    (onInspectorDecline || onInspectorApprove) && resolvedRow != null
       ? {
           declineLabel: inspectorDeclineLabel ?? "Decline",
           approveLabel: inspectorApproveLabel ?? "Approve",
           onDecline: onInspectorDecline
-            ? () => onInspectorDecline(inspectData)
+            ? () => onInspectorDecline(resolvedRow as TData)
             : undefined,
           onApprove: onInspectorApprove
-            ? () => onInspectorApprove(inspectData)
+            ? () => onInspectorApprove(resolvedRow as TData)
             : undefined,
         }
       : undefined

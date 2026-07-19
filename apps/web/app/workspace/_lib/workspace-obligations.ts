@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, desc, eq, inArray, isNull } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
-import { czechToday } from "@/lib/czech-today"
+import { czechToday } from "@workspace/shared/date"
 import {
   accounting_period,
   organization,

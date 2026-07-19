@@ -6,7 +6,7 @@ import { useState } from "react"
 import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
 
 import { setActivePeriodAction } from "../[orgSlug]/_lib/period-actions"
-import type { HeaderPeriod } from "../[orgSlug]/_lib/header-periods"
+import type { HeaderPeriod } from "@/lib/org/header-periods"
 
 /**
  * Accounting-period switcher surface wrapper — feeds the presentational

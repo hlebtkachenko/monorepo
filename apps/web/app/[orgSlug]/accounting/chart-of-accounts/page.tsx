@@ -6,7 +6,7 @@ import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   fetchChartAccounts,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Chart of accounts" }
 

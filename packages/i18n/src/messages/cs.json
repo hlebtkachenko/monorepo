@@ -893,6 +893,9 @@
       "emptyTitle": "Zatím žádné oblíbené",
       "emptyHint": "Označte stránku hvězdičkou a připne se do tohoto přehledu."
     },
+    "empty": {
+      "title": "Zatím tu nic není"
+    },
     "roles": {
       "owner": "Vlastník",
       "admin": "Správce",

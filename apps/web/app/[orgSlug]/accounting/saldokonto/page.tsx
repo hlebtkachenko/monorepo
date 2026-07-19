@@ -10,7 +10,7 @@ import {
   fetchOpenItems,
   fetchSaldoPerPartner,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Saldokonto" }
 

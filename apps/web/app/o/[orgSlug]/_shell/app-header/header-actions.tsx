@@ -72,7 +72,6 @@ import {
   type IconPackName,
 } from "@workspace/ui/icon-packs"
 
-import { orgHref } from "@/lib/org/href"
 import { setSupportAccess } from "@/lib/org/support-access-actions"
 import { signOutAction } from "@/app/auth/_lib/account-actions"
 import { reportFeedback } from "@/app/_components/report-feedback"
@@ -143,7 +142,6 @@ export function OrgHeaderActions({
   const InfoIcon = icons.Info
   const ProfileIcon = icons.User
   const WorkspaceIcon = icons.Building2
-  const SettingsIcon = icons.Settings
   const ThemeIcon = icons.Sun
   const LanguageIcon = icons.Globe
   const IconsIcon = icons.Shapes
@@ -155,8 +153,6 @@ export function OrgHeaderActions({
     document.cookie = `${LOCALE_COOKIE}=${encodeURIComponent(next)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
     router.refresh()
   }
-
-  const settingsHref = orgHref(slug, "settings")
 
   // "Send feedback" reuses the right-click feedback dialog. There's no clicked
   // element, so capture a page-level context snapshot on open.
@@ -348,12 +344,6 @@ export function OrgHeaderActions({
             <Link href="/workspace">
               <WorkspaceIcon />
               {t("profile.workspace")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href={settingsHref}>
-              <SettingsIcon />
-              {t("profile.settings")}
             </Link>
           </DropdownMenuItem>
 

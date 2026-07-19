@@ -55,10 +55,10 @@ vi.mock("next/headers", () => ({
 }))
 
 // Resolves to the SAME module `accounting-data.ts` AND `settings-data.ts`
-// import via "./request-session" / "../../_lib/request-session"
+// import via "@/lib/org/request-session" / "@/lib/org/request-session"
 // (apps/web/app/[orgSlug]/_lib/request-session.ts) — Vitest mocks by
 // resolved module id, so this relative path lands on that one file for both.
-vi.mock("../_lib/request-session", () => ({
+vi.mock("@/lib/org/request-session", () => ({
   getRequestSession: () =>
     Promise.resolve(sessionUserId ? { user: { id: sessionUserId } } : null),
 }))

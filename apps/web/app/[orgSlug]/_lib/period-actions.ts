@@ -4,7 +4,7 @@ import { cookies, headers } from "next/headers"
 import { revalidatePath } from "next/cache"
 import { auth } from "@workspace/auth/server"
 
-import { PERIOD_COOKIE } from "./header-periods"
+import { PERIOD_COOKIE } from "@/lib/org/header-periods"
 
 // Mirrors the org-slug DB CHECK (see [orgSlug]/layout.tsx) + a uuid shape for
 // the period id — boundary validation so an arbitrary path cannot reach

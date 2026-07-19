@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import {
   fetchLedgerRows,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 import { LedgerBody } from "../../../_components/ledger/ledger-body"
 import { LedgerHeader } from "../../../_components/ledger/ledger-header"
 import { LedgerProvider } from "../../../_components/ledger/context"

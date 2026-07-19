@@ -5,7 +5,7 @@ import { DocumentsTable } from "../../../_components/documents-received/document
 import {
   fetchDocuments,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Interní doklady" }
 

@@ -4,6 +4,7 @@ import { getTranslations } from "@workspace/i18n/server"
 import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
 
 import { getDebugPivotTableRows } from "@/lib/org/debug-demo"
+import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 
 import { DebugPivotTableView } from "../../../_shell/app-body/app-content/content-body/debug-pivot-table-view"
 import { requireDebugAccess } from "../../access"
@@ -32,10 +33,17 @@ export default async function DebugPivotTablePage({
   const { session, membership } = await requireDebugAccess(orgSlug)
 
   const t = await getTranslations("org.titles")
-  const records = await getDebugPivotTableRows({
-    organizationId: membership.organizationId,
-    userId: session.user.id,
-  })
+  const tf = await getTranslations("org.favorite")
+  const title = t("pivotTable")
+  const route = "debug/archetype-table/pivot-table"
+
+  const [records, active] = await Promise.all([
+    getDebugPivotTableRows({
+      organizationId: membership.organizationId,
+      userId: session.user.id,
+    }),
+    isFavorited({ slug: orgSlug, route }),
+  ])
   const rows: readonly TableSectionRow[] = records.map((record) => ({
     id: record.id,
     category: record.category,
@@ -44,7 +52,30 @@ export default async function DebugPivotTablePage({
     amount: record.amount,
   }))
 
+  async function onToggleFavorite() {
+    "use server"
+    const result = await toggleFavorite({
+      slug: orgSlug,
+      route,
+      module: "debug",
+      label: title,
+    })
+    if (!result.ok) throw new Error("favorite toggle failed")
+    return result.favorited
+  }
+
   return (
-    <DebugPivotTableView slug={orgSlug} title={t("pivotTable")} rows={rows} />
+    <DebugPivotTableView
+      slug={orgSlug}
+      title={title}
+      rows={rows}
+      favorite={{
+        initialActive: active,
+        onToggle: onToggleFavorite,
+        tooltip: tf("tooltip"),
+        addLabel: tf("add"),
+        removeLabel: tf("remove"),
+      }}
+    />
   )
 }

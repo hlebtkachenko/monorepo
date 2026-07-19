@@ -4,6 +4,7 @@ import { getTranslations } from "@workspace/i18n/server"
 import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
 
 import { getDebugNormalTableRows } from "@/lib/org/debug-demo"
+import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 
 import { DebugNormalTableView } from "../../../_shell/app-body/app-content/content-body/debug-normal-table-view"
 import { requireDebugAccess } from "../../access"
@@ -32,10 +33,17 @@ export default async function DebugNormalTablePage({
   const { session, membership } = await requireDebugAccess(orgSlug)
 
   const t = await getTranslations("org.titles")
-  const records = await getDebugNormalTableRows({
-    organizationId: membership.organizationId,
-    userId: session.user.id,
-  })
+  const tf = await getTranslations("org.favorite")
+  const title = t("normalTable")
+  const route = "debug/archetype-table/normal-table"
+
+  const [records, active] = await Promise.all([
+    getDebugNormalTableRows({
+      organizationId: membership.organizationId,
+      userId: session.user.id,
+    }),
+    isFavorited({ slug: orgSlug, route }),
+  ])
   const rows: readonly TableSectionRow[] = records.map((record) => ({
     id: record.id,
     document: record.document,
@@ -46,7 +54,30 @@ export default async function DebugNormalTablePage({
     note: record.note,
   }))
 
+  async function onToggleFavorite() {
+    "use server"
+    const result = await toggleFavorite({
+      slug: orgSlug,
+      route,
+      module: "debug",
+      label: title,
+    })
+    if (!result.ok) throw new Error("favorite toggle failed")
+    return result.favorited
+  }
+
   return (
-    <DebugNormalTableView slug={orgSlug} title={t("normalTable")} rows={rows} />
+    <DebugNormalTableView
+      slug={orgSlug}
+      title={title}
+      rows={rows}
+      favorite={{
+        initialActive: active,
+        onToggle: onToggleFavorite,
+        tooltip: tf("tooltip"),
+        addLabel: tf("add"),
+        removeLabel: tf("remove"),
+      }}
+    />
   )
 }

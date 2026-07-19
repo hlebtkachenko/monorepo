@@ -7,10 +7,10 @@ canonical `/[orgSlug]` and the `/o` prefix disappears.
 
 ## The two trees
 
-|                | Path                        | Status                                                                                                       |
-| -------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **NEW** (this) | `apps/web/app/o/[orgSlug]/` | Under active rebuild. Pages composed from Archetypes, wired to real backend.                                 |
-| **OLD**        | `apps/web/app/[orgSlug]/`   | **Frozen.** Broken/bugged, kept only for reference until the new tree is done, then deleted. Do not edit it. |
+|                | Path                        | Status                                                                                                                                  |
+| -------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **NEW** (this) | `apps/web/app/o/[orgSlug]/` | Under active rebuild. Pages composed from Archetypes, wired to real backend.                                                            |
+| **OLD**        | `apps/web/app/[orgSlug]/`   | **Frozen. NOT a reference — never read or copy it.** Broken/bugged, kept only until the new tree is done, then deleted. Do not edit it. |
 
 ## Rules (enforced)
 

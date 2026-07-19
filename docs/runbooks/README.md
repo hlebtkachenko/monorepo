@@ -5,6 +5,7 @@ Choose the narrowest runbook matching the task.
 
 ## Engineering workflows
 
+- [`PAGE-BUILD-START-HERE.md`](PAGE-BUILD-START-HERE.md) — read before building any `/o/[orgSlug]` page; routes to the two deep sub-guides below
 - [`ADDING-X-TO-MONOREPO.md`](ADDING-X-TO-MONOREPO.md)
 - [`APP-SHELL-PANELS.md`](APP-SHELL-PANELS.md)
 - [`ARCHETYPE-PAGE-BUILD-GUIDE.md`](ARCHETYPE-PAGE-BUILD-GUIDE.md)

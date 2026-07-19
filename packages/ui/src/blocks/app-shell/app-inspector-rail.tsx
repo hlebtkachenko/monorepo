@@ -128,6 +128,10 @@ export interface AppInspectorRailProps {
   footer?: InspectorFooterProps
   /** Per-tab body content. The sheet renders the active tab's node. */
   content?: Partial<Record<InspectorTab, React.ReactNode>>
+  /** Open ON this tab (per request): seeded when a record first opens and applied
+   *  when it changes for the same record — e.g. a footer "Open in Inspector ·
+   *  Export". `null`/omitted → the default "details" tab. */
+  initialTab?: InspectorTab | null
   /** Initial flag value for a record not seen before. Defaults to `none`. */
   initialFlag?: InspectorFlagValue
   onPrevious?: () => void
@@ -154,6 +158,7 @@ export function AppInspectorRail({
   badge,
   footer,
   content,
+  initialTab = null,
   initialFlag = DEFAULT_FLAG,
   onPrevious,
   onNext,
@@ -165,16 +170,26 @@ export function AppInspectorRail({
   const publish = React.useContext(PublishCtx)
   const onClose = React.useCallback(() => onOpenChange(false), [onOpenChange])
 
-  const [activeTab, setActiveTab] = React.useState<InspectorTab>("details")
+  const [activeTab, setActiveTab] = React.useState<InspectorTab>(
+    initialTab ?? "details",
+  )
   const [localName, setLocalName] = React.useState(name)
   const [localFlag, setLocalFlag] =
     React.useState<InspectorFlagValue>(initialFlag)
   const [prevRecordKey, setPrevRecordKey] = React.useState(recordKey)
+  const [prevInitialTab, setPrevInitialTab] = React.useState(initialTab)
   if (recordKey !== prevRecordKey) {
+    // A different record opened → reset to its requested tab (or details).
     setPrevRecordKey(recordKey)
-    setActiveTab("details")
+    setPrevInitialTab(initialTab)
+    setActiveTab(initialTab ?? "details")
     setLocalName(name)
     setLocalFlag(initialFlag)
+  } else if (initialTab !== prevInitialTab) {
+    // Same record, a new tab request (e.g. footer "Open · Export" on the
+    // already-inspected row) → honor it; a null request leaves the tab as-is.
+    setPrevInitialTab(initialTab)
+    if (initialTab != null) setActiveTab(initialTab)
   }
 
   const handleNameChange = React.useCallback(

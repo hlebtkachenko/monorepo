@@ -8,6 +8,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
@@ -24,12 +26,20 @@ export type ContentFooterActionVariant =
 
 /** One item in a footer action's split-button dropdown menu (e.g. Export →
  *  "Copy to clipboard"). Plain data — never a node. */
-export interface ContentFooterActionButton {
+export interface ContentFooterActionMenuItem {
   id: string
   label: string
   icon?: IconName
   variant?: ContentFooterActionVariant
   onSelect: () => void
+}
+
+/** A labelled group of split-button menu items (e.g. "Copy" → clipboard/link/id). */
+export interface ContentFooterActionMenuGroup {
+  id: string
+  /** Optional heading rendered above the group; groups are hairline-separated. */
+  label?: string
+  items: ContentFooterActionMenuItem[]
 }
 
 /** One bulk action in selection mode. Plain data — never a node. */
@@ -42,14 +52,15 @@ export interface ContentFooterAction {
   variant?: ContentFooterActionVariant
   disabled?: boolean
   /** Primary click handler — also the primary button of a split action when
-   *  `menu` is set. */
+   *  `menuGroups` is set. */
   onSelect?: () => void
   /**
    * When present, the action is a SPLIT BUTTON (shadcn ButtonGroup + DropdownMenu):
-   * the primary button fires `onSelect`, and an attached chevron opens a dropdown
-   * of these items (e.g. Export as CSV | ▾ → Copy to clipboard).
+   * the primary button fires `onSelect`, and an attached chevron opens a GROUPED
+   * dropdown (e.g. Export | ▾ → "Export as" → CSV · "Copy" → clipboard/link/id).
+   * Empty groups / empty items are skipped, so callers can build them conditionally.
    */
-  menu?: ContentFooterActionButton[]
+  menuGroups?: ContentFooterActionMenuGroup[]
 }
 
 /** Selection surface — bulk actions over the chosen rows. */
@@ -117,21 +128,32 @@ export function ContentFooter({
 
   // While the bar is shown it covers the bottom of the Content Panel, so publish
   // its height as `--app-statusbar-clearance` — toasts (and any other consumer of
-  // the token) lift clear of it, and drop back to the default once it hides. Same
-  // mechanism the workspace status bar uses.
+  // the token) lift clear of it. This token is a SHARED global (a co-mounted
+  // `TableStatusBar` may also own it), so we SAVE the prior value and RESTORE it
+  // on hide/unmount rather than blindly deleting it — and we never touch it while
+  // inactive. A ResizeObserver keeps the height current if the bar wraps.
   React.useEffect(() => {
+    if (!active) return
     const root = document.documentElement
-    if (!active) {
-      root.style.removeProperty("--app-statusbar-clearance")
-      return
+    const previous = root.style.getPropertyValue("--app-statusbar-clearance")
+    const apply = () => {
+      const height = barRef.current?.offsetHeight ?? 52
+      root.style.setProperty(
+        "--app-statusbar-clearance",
+        `calc(var(--shell-bottom-inset, 0px) + ${height}px + 8px)`,
+      )
     }
-    const height = barRef.current?.offsetHeight ?? 52
-    root.style.setProperty(
-      "--app-statusbar-clearance",
-      `calc(var(--shell-bottom-inset, 0px) + ${height}px + 8px)`,
-    )
+    apply()
+    const bar = barRef.current
+    const observer = bar ? new ResizeObserver(apply) : null
+    observer?.observe(bar!)
     return () => {
-      root.style.removeProperty("--app-statusbar-clearance")
+      observer?.disconnect()
+      if (previous) {
+        root.style.setProperty("--app-statusbar-clearance", previous)
+      } else {
+        root.style.removeProperty("--app-statusbar-clearance")
+      }
     }
   }, [active, selection?.count])
 
@@ -179,8 +201,11 @@ export function ContentFooter({
               </Button>
             )
             // A split action (shadcn ButtonGroup + DropdownMenu): the primary
-            // button fires `onSelect`; the attached chevron opens the menu.
-            if (action.menu && action.menu.length > 0) {
+            // button fires `onSelect`; the attached chevron opens a GROUPED menu.
+            const groups = (action.menuGroups ?? []).filter(
+              (group) => group.items.length > 0,
+            )
+            if (groups.length > 0) {
               const Chevron = icons.ChevronDown
               return (
                 <ButtonGroup key={action.id} data-action={action.id}>
@@ -197,19 +222,32 @@ export function ContentFooter({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      {action.menu.map((item) => {
-                        const ItemIcon = item.icon ? icons[item.icon] : null
-                        return (
-                          <DropdownMenuItem
-                            key={item.id}
-                            onSelect={item.onSelect}
-                            className="gap-1.5"
-                          >
-                            {ItemIcon ? <ItemIcon /> : null}
-                            {item.label}
-                          </DropdownMenuItem>
-                        )
-                      })}
+                      {groups.map((group, groupIndex) => (
+                        <React.Fragment key={group.id}>
+                          {groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+                          {group.label ? (
+                            <DropdownMenuLabel>{group.label}</DropdownMenuLabel>
+                          ) : null}
+                          {group.items.map((item) => {
+                            const ItemIcon = item.icon ? icons[item.icon] : null
+                            return (
+                              <DropdownMenuItem
+                                key={item.id}
+                                variant={
+                                  item.variant === "destructive"
+                                    ? "destructive"
+                                    : undefined
+                                }
+                                onSelect={item.onSelect}
+                                className="gap-1.5"
+                              >
+                                {ItemIcon ? <ItemIcon /> : null}
+                                {item.label}
+                              </DropdownMenuItem>
+                            )
+                          })}
+                        </React.Fragment>
+                      ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </ButtonGroup>

@@ -3,6 +3,8 @@
 import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
+import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+
 import type { TableCellValue } from "./section-table"
 import type { SectionPivotDrill } from "./section-pivot-table"
 
@@ -56,10 +58,13 @@ interface SectionTableContextValue {
   readonly register: (registration: SectionTableRegistration | null) => void
   /** The row whose inspector was last requested (kept during the close animation). */
   readonly inspectRow: unknown
+  /** The tab the inspector should open ON for this request (e.g. a footer
+   *  "Open in Inspector · Export"). `null` → the sheet's default. */
+  readonly inspectTab: InspectorTab | null
   /** Whether the inspector Sheet is open. */
   readonly inspectOpen: boolean
-  /** Open the inspector for a row (records the row + flips open). */
-  readonly openInspect: (row: unknown) => void
+  /** Open the inspector for a row (records the row + optional tab + flips open). */
+  readonly openInspect: (row: unknown, tab?: InspectorTab) => void
   /** Drive the inspector open state (the Sheet's `onOpenChange`). */
   readonly setInspectOpen: (open: boolean) => void
   /** The column whose toolbar filter is currently targeted (header "Filter" or the toolbar selector). */
@@ -113,9 +118,11 @@ export function SectionTableProvider({
   // The requested row is kept even after `inspectOpen` flips to false so the
   // Sheet keeps its content through the close animation (cleared on reopen).
   const [inspectRow, setInspectRow] = React.useState<unknown>(null)
+  const [inspectTab, setInspectTab] = React.useState<InspectorTab | null>(null)
   const [inspectOpen, setInspectOpen] = React.useState(false)
-  const openInspect = React.useCallback((row: unknown) => {
+  const openInspect = React.useCallback((row: unknown, tab?: InspectorTab) => {
     setInspectRow(row)
+    setInspectTab(tab ?? null)
     setInspectOpen(true)
   }, [])
   // Per-column toolbar-filter target + open state, shared by the header "Filter"
@@ -142,6 +149,7 @@ export function SectionTableProvider({
       registration,
       register: setRegistration,
       inspectRow,
+      inspectTab,
       inspectOpen,
       openInspect,
       setInspectOpen,
@@ -159,6 +167,7 @@ export function SectionTableProvider({
     [
       registration,
       inspectRow,
+      inspectTab,
       inspectOpen,
       openInspect,
       filterColumnId,
@@ -212,7 +221,8 @@ export function useSectionTable(): SectionTableRegistration | null {
  * maximize affordance. `null` outside a provider (the affordance stays inert when
  * the Table section is rendered without `ArchetypeTable`).
  */
-export function useSectionInspectOpener(): ((row: unknown) => void) | null {
+export function useSectionInspectOpener():
+  ((row: unknown, tab?: InspectorTab) => void) | null {
   return React.useContext(SectionTableContext)?.openInspect ?? null
 }
 
@@ -220,12 +230,14 @@ export function useSectionInspectOpener(): ((row: unknown) => void) | null {
  *  the Sheet. Inert (`inspectOpen: false`) outside a provider. */
 export function useSectionInspect(): {
   inspectRow: unknown
+  inspectTab: InspectorTab | null
   inspectOpen: boolean
   setInspectOpen: (open: boolean) => void
 } {
   const ctx = React.useContext(SectionTableContext)
   return {
     inspectRow: ctx?.inspectRow ?? null,
+    inspectTab: ctx?.inspectTab ?? null,
     inspectOpen: ctx?.inspectOpen ?? false,
     setInspectOpen: ctx?.setInspectOpen ?? (() => {}),
   }

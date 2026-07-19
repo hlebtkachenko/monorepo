@@ -89,6 +89,17 @@ export function resolveHeaderFilterTarget(
   return { property: undefined, routeToStatus: false }
 }
 
+/**
+ * Capabilities the archetype hands to the selection-footer builder — things only
+ * the archetype can do (it owns the Inspector, the page renders from outside the
+ * provider). `openInspectorTab` opens the row of `id` (matched by the Table
+ * section's `rowIdKey`) on a given Inspector tab — e.g. a footer
+ * "Open in Inspector · Export". No-op if the id isn't in the current rows.
+ */
+export interface ArchetypeTableSelectionHelpers {
+  readonly openInspectorTab: (id: string, tab: InspectorTab) => void
+}
+
 export interface ArchetypeTableProps<TData extends TableSectionRow> {
   /** Page title shown in the content header. */
   title: string
@@ -137,7 +148,10 @@ export interface ArchetypeTableProps<TData extends TableSectionRow> {
    * (count + clear from the live instance); it self-hides when nothing is
    * selected. Required so a Table can't ship with a dead selection. NO status bar.
    */
-  selectionActions: (table: Table<TData> | null) => ContentFooterAction[]
+  selectionActions: (
+    table: Table<TData> | null,
+    helpers: ArchetypeTableSelectionHelpers,
+  ) => ContentFooterAction[]
   /**
    * Persist an inline-cell edit. Wired through the `SectionTableProvider` bridge
    * to the Table section's cell editors (the descriptor stays pure data); the
@@ -314,7 +328,8 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   // animation. Adjacent-row navigation walks the table's CURRENT (sorted/
   // filtered/visible) row order, so previous/next always matches what the grid
   // shows — not the raw input rows.
-  const { inspectRow, inspectOpen, setInspectOpen } = useSectionInspect()
+  const { inspectRow, inspectTab, inspectOpen, setInspectOpen } =
+    useSectionInspect()
   const openInspect = useSectionInspectOpener()
   const visibleRows = table?.getRowModel().rows ?? []
 
@@ -490,7 +505,17 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
       )
     : sections
 
-  const resolvedSelectionActions = selectionActions(table) ?? []
+  const selectionHelpers: ArchetypeTableSelectionHelpers = {
+    openInspectorTab: (id, tab) => {
+      if (!openInspect) return
+      const match = visibleRows.find(
+        (row) => String((row.original as TableSectionRow)[rowIdKey]) === id,
+      )
+      if (match) openInspect(match.original, tab)
+    },
+  }
+  const resolvedSelectionActions =
+    selectionActions(table, selectionHelpers) ?? []
   const footer =
     resolvedSelectionActions.length > 0 ? (
       <ContentFooter
@@ -535,6 +560,7 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
           onOpenChange={setInspectOpen}
           breadcrumb={[title, inspectTitle ?? ""]}
           recordKey={inspectRecordKey || (inspectTitle ?? "")}
+          initialTab={inspectTab}
           name={inspectName ?? inspectTitle ?? ""}
           badge={inspectBadge}
           footer={inspectFooter}

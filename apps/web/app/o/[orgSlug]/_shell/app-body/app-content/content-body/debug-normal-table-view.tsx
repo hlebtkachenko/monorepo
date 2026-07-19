@@ -4,6 +4,7 @@ import * as React from "react"
 import type { Table } from "@tanstack/react-table"
 
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
+import type { ArchetypeTableSelectionHelpers } from "@workspace/ui/blocks/archetypes"
 import {
   buildTableFooter,
   buildTableToolbar,
@@ -322,13 +323,32 @@ export function DebugNormalTableView({
   )
 
   // The selection footer shape is owned at the design-system level by
-  // `buildTableFooter` (Export = a segmented ButtonGroup of clipboard | CSV, both
-  // over the selected rows × visible columns). The page only adds Delete — the
-  // one action that needs its own reducer + Undo toast.
+  // `buildTableFooter` (Export split button → Export as CSV, Copy clipboard/link/id,
+  // and a single-select "Open in Inspector · Export" via the archetype helper).
+  // The page supplies the data (selected ids, link/id format) + Delete.
   const selectionActions = React.useCallback(
-    (table: Table<TableSectionRow> | null): ContentFooterAction[] =>
-      buildTableFooter(table, {
+    (
+      table: Table<TableSectionRow> | null,
+      helpers: ArchetypeTableSelectionHelpers,
+    ): ContentFooterAction[] => {
+      const ids = (table?.getFilteredSelectedRowModel().rows ?? []).map((row) =>
+        String(row.original.id),
+      )
+      return buildTableFooter(table, {
         exportFileName: "records",
+        selectedIds: ids,
+        onCopyLink: (linkIds) => {
+          const origin = window.location.origin + window.location.pathname
+          void navigator.clipboard.writeText(
+            linkIds.map((id) => `${origin}?inspect=${id}`).join("\n"),
+          )
+          toast.success(`Copied ${linkIds.length} link(s)`)
+        },
+        onCopyId: (copyIds) => {
+          void navigator.clipboard.writeText(copyIds.join("\n"))
+          toast.success(`Copied ${copyIds.length} ID(s)`)
+        },
+        onOpenInspector: (id) => helpers.openInspectorTab(id, "export"),
         actions: [
           {
             id: "delete",
@@ -357,7 +377,8 @@ export function DebugNormalTableView({
             },
           },
         ],
-      }),
+      })
+    },
     [],
   )
 

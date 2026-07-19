@@ -7,7 +7,8 @@ export {
 export type {
   ContentFooterProps,
   ContentFooterAction,
-  ContentFooterActionButton,
+  ContentFooterActionMenuItem,
+  ContentFooterActionMenuGroup,
   ContentFooterActionVariant,
   ContentFooterSelection,
   ContentFooterSave,

@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import type { Table } from "@tanstack/react-table"
+import type { Row, Table } from "@tanstack/react-table"
 
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import {
   buildTableFooter,
   buildTableToolbar,
+  PIVOT_ROW_LABEL_ID,
   sectionPivotTable,
   useTableFilters,
 } from "@workspace/ui/blocks/content-panel"
@@ -64,14 +65,72 @@ const SOURCE_COLUMNS: TableColumnSpec[] = [
   { id: "amount", header: "Amount", kind: "number", align: "end" },
 ]
 
+// The pivot's row dimensions become REAL CSV columns (not one indented column):
+// col A = Category (repeated on every line), col B = Status or "Total".
+const ROW_DIMENSIONS = [
+  { field: "category", label: "Category" },
+  { field: "status", label: "Status" },
+] as const
+
+/** CSV-escape one cell (quote when it has a comma, quote, or newline). */
+function csvCell(value: unknown): string {
+  const text = String(value ?? "")
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+/**
+ * A PRACTICAL pivot CSV — not the flat default. Two header lines (a month BAND
+ * line above the measure line), the row hierarchy un-pivoted into real dimension
+ * columns (Category repeated per row, Status or "Total"), then the measure values.
+ * Walks each selected group's descendants so the export is the full selected table.
+ */
+function pivotCsv(table: Table<TableSectionRow> | null): string {
+  const valueCols = (table?.getVisibleLeafColumns() ?? []).filter(
+    (column) => column.accessorFn != null && column.id !== PIVOT_ROW_LABEL_ID,
+  )
+  const pad = ROW_DIMENSIONS.map(() => "")
+  const bandRow = [
+    ...pad,
+    ...valueCols.map((column) =>
+      String(column.parent?.columnDef.meta?.label ?? ""),
+    ),
+  ]
+  const measureRow = [
+    ...ROW_DIMENSIONS.map((dimension) => dimension.label),
+    ...valueCols.map((column) =>
+      String(column.columnDef.meta?.label ?? column.id),
+    ),
+  ]
+  const body: string[][] = []
+  const walk = (rows: readonly Row<TableSectionRow>[]) => {
+    for (const row of rows) {
+      const rowValues =
+        (row.original as unknown as { rowValues?: Record<string, string> })
+          .rowValues ?? {}
+      const dimensions = ROW_DIMENSIONS.map(
+        (dimension) => rowValues[dimension.field] ?? "Total",
+      )
+      const values = valueCols.map((column) =>
+        String(row.getValue(column.id) ?? ""),
+      )
+      body.push([...dimensions, ...values])
+      if (row.subRows.length) walk(row.subRows)
+    }
+  }
+  walk(table?.getFilteredSelectedRowModel().rows ?? [])
+  return [bandRow, measureRow, ...body]
+    .map((cells) => cells.map(csvCell).join(","))
+    .join("\n")
+}
+
 // The selection footer is built by the SAME design-system helper the Normal
-// Table uses (`buildTableFooter`), so the Pivot can never ship without the Export
-// affordance — Export = a segmented ButtonGroup "Copy to clipboard" | "Export as
-// CSV" over the selected pivot groups × visible columns.
+// Table uses (`buildTableFooter`), so the Pivot can never ship without Export.
+// It supplies a pivot-aware `toCsv`; a Pivot has no per-row links or inspector,
+// so Copy link / Copy ID / Open-in-Inspector are simply omitted.
 function selectionActions(
   table: Table<TableSectionRow> | null,
 ): ContentFooterAction[] {
-  return buildTableFooter(table, { exportFileName: "pivot" })
+  return buildTableFooter(table, { exportFileName: "pivot", toCsv: pivotCsv })
 }
 
 export function DebugPivotTableView({
@@ -155,10 +214,7 @@ export function DebugPivotTableView({
           // A real nested pivot: TWO row-dimension levels (Category → Status)
           // form an expand/collapse tree, and each Month column bands into two
           // measures (Total + Count) — not a single flat group.
-          rowDimensions: [
-            { field: "category", label: "Category" },
-            { field: "status", label: "Status" },
-          ],
+          rowDimensions: ROW_DIMENSIONS.map((dimension) => ({ ...dimension })),
           columnDimensions: [{ field: "month", label: "Month" }],
           measures: [
             {

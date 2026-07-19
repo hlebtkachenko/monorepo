@@ -33,7 +33,7 @@ describe("ContentFooter — selection", () => {
     expect(onMatch).toHaveBeenCalledTimes(1)
   })
 
-  it("renders a split action (primary button + dropdown menu)", async () => {
+  it("renders a split action (primary button + grouped dropdown menu)", async () => {
     const user = userEvent.setup()
     const onExport = vi.fn()
     const onClipboard = vi.fn()
@@ -46,13 +46,19 @@ describe("ContentFooter — selection", () => {
           actions: [
             {
               id: "export",
-              label: "Export as CSV",
+              label: "Export",
               onSelect: onExport,
-              menu: [
+              menuGroups: [
                 {
-                  id: "clipboard",
-                  label: "Copy to clipboard",
-                  onSelect: onClipboard,
+                  id: "copy",
+                  label: "Copy",
+                  items: [
+                    {
+                      id: "clipboard",
+                      label: "Copy to clipboard",
+                      onSelect: onClipboard,
+                    },
+                  ],
                 },
               ],
             },
@@ -62,15 +68,15 @@ describe("ContentFooter — selection", () => {
     )
 
     // Primary button fires directly.
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }))
+    await user.click(screen.getByRole("button", { name: "Export" }))
     expect(onExport).toHaveBeenCalledTimes(1)
 
-    // The attached chevron opens the dropdown; the menu item is hidden until then.
+    // The attached chevron opens the grouped dropdown; items hidden until then.
     expect(
       screen.queryByRole("menuitem", { name: "Copy to clipboard" }),
     ).not.toBeInTheDocument()
     await user.click(
-      screen.getByRole("button", { name: "More Export as CSV options" }),
+      screen.getByRole("button", { name: "More Export options" }),
     )
     await user.click(
       await screen.findByRole("menuitem", { name: "Copy to clipboard" }),

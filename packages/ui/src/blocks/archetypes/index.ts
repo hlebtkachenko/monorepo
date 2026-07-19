@@ -7,6 +7,7 @@ export { ArchetypeTable } from "./archetype-table"
 export type {
   ArchetypeTableProps,
   ArchetypeTableViews,
+  ArchetypeTableSelectionHelpers,
 } from "./archetype-table"
 export {
   ARCHETYPE_SECTION_POLICY,

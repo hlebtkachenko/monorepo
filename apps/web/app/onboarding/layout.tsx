@@ -15,7 +15,7 @@ import {
   AuthShellChromeFooter,
 } from "@workspace/ui/blocks/auth"
 
-import { isDevPreview } from "@/lib/dev-preview"
+import { isDevPreview, PREVIEW_EMAIL } from "@/lib/dev-preview"
 
 import { LanguagePicker } from "../_components/language-picker"
 import { AuthHeaderLinkProvider } from "../auth/(default)/_components/auth-header-link"
@@ -54,8 +54,7 @@ export default async function OnboardingLayout({
   const ctx = await detectOnboardingRole()
   const preview = await isDevPreview()
   const resolvedCtx =
-    ctx ??
-    (preview ? { role: "owner" as const, email: "preview@example.com" } : null)
+    ctx ?? (preview ? { role: "owner" as const, email: PREVIEW_EMAIL } : null)
   if (!resolvedCtx) {
     // Neither signup-cookie nor invite-cookie present — kick to login.
     // Without one of these, the BA user can't be created at step 3, so

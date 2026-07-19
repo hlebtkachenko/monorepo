@@ -4,7 +4,7 @@ import {
   computeTimelineObligations,
   type ProfileIssue,
 } from "@workspace/accounting"
-import { czechToday } from "@/lib/czech-today"
+import { czechToday } from "@workspace/shared/date"
 
 import { resolvePeriodProfile } from "../../_lib/period-profile"
 import {

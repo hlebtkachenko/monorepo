@@ -1,7 +1,7 @@
 import "server-only"
 
 import { withOrganization } from "@workspace/db"
-import { czechToday } from "@/lib/czech-today"
+import { czechToday } from "@workspace/shared/date"
 import {
   buildDph,
   buildKontrolniHlaseni,

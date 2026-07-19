@@ -13,6 +13,19 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.24.1] — 2026-07-19
+
+### Changed
+
+- CI: parallelize the required gate — shard Storybook a11y/interaction tests 4 ways, split typecheck, ESLint, and apps/web integration tests into their own jobs, drop the unused webkit browser, and scope PR builds to `--affected` (main/release builds stay full-graph). (#837)
+- CI: drop the redundant local `.turbo` cache restore on PR/non-main jobs (it cost ~38-50s per job and almost always missed); rely on the Cloudflare remote turbo cache, which is the real cross-run layer. Main-push still saves for the deploy/release path. (#838)
+- Rework the thermo-review Claude Code workflow into an adaptive, token-efficient code/security/bug reviewer: a cheap scout builds one scoped context packet, harm-category lenses (correctness, security, maintainability) run at routed model tiers, and findings are deduped and adversarially verified before a final gate. (#844)
+- CI: drop the `^build` dependency from turbo `test`/`test:coverage` tasks — workspace packages export source (`./src/index.ts`), so tests never import built dist and the dependency-compile step was pure waste on every test job. (#846)
+- Relocated auth/onboarding shared glue (signup/invite cookies, active-workspace cookie, invite materialization, client error reporter) out of route `_lib` folders into `apps/web/lib/` so cross-tier consumers no longer reach into a route segment's private folder. (#848)
+- Moved the pure `czechToday()` date helper out of `apps/web/lib` into `@workspace/shared/date` so every tier consumes it from the shared package instead of a web-app-local path. (#849)
+- Replaced the six hardcoded `preview@example.com` sentinel literals with a single `PREVIEW_EMAIL` constant in `apps/web/lib/dev-preview.ts`. (#850)
+- Replaced four hand-copied `organization_role` unions (`AuditDetailRole`, `InviteRole`, and two inline uses in `apps/web/lib`) with a single `OrganizationRole` type derived from the existing `organizationRole` pgEnum in `@workspace/db/schema`, so the type can never drift from the DB enum. (#852)
+
 ## [v0.24.0] — 2026-07-18
 
 ### Added

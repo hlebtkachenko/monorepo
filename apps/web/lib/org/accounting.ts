@@ -1,5 +1,7 @@
 import "server-only"
 
+import { getTranslations } from "next-intl/server"
+
 import { withOrganization, withOrgReadonly } from "@workspace/db"
 import type { OrganizationBoundDb } from "@workspace/db"
 import {
@@ -137,8 +139,8 @@ function toChartAccountView(r: ChartAccountRow): ChartAccountView {
 export interface FrameworkAccountView {
   year: number
   code: string
+  /** localized via i18n (`accounting.chartOfAccounts.osnovaNames.<code>`) for the active locale. */
   name: string
-  nameEn: string | null
   nature: DirectiveYearRow["nature"]
   statementClass: StatementClass
   accountType: AccountType
@@ -149,12 +151,14 @@ export interface FrameworkAccountView {
   incomeStatementLine: string | null
 }
 
-function toFrameworkView(r: DirectiveYearRow): FrameworkAccountView {
+function toFrameworkView(
+  r: DirectiveYearRow,
+  name: string,
+): FrameworkAccountView {
   return {
     year: r.year,
     code: r.code,
-    name: r.name_cs,
-    nameEn: r.name_en,
+    name,
     nature: r.nature,
     statementClass: statementClass(r.nature),
     accountType: accountType(r.nature),
@@ -199,10 +203,11 @@ export interface ChartTemplateAccountView {
 
 function toTemplateAccountView(
   r: ChartTemplateAccountRow,
+  name: string,
 ): ChartTemplateAccountView {
   return {
     number: r.number,
-    name: r.name,
+    name,
     nature: r.nature,
     statementClass: statementClass(r.nature),
     accountType: accountType(r.nature),
@@ -238,10 +243,16 @@ export async function getFramework(
   userId: string,
   year: number,
 ): Promise<FrameworkAccountView[]> {
-  const rows = await withOrgReadonly(organizationId, userId, (db) =>
-    listDirectiveYear(db, year),
-  )
-  return rows.map(toFrameworkView)
+  const [rows, t] = await Promise.all([
+    withOrgReadonly(organizationId, userId, (db) =>
+      listDirectiveYear(db, year),
+    ),
+    getTranslations("accounting.chartOfAccounts.osnovaNames"),
+  ])
+  return rows.map((r) => {
+    const key = r.code as Parameters<typeof t>[0]
+    return toFrameworkView(r, t.has(key) ? t(key) : r.name_cs)
+  })
 }
 
 /** @public — read the template picker wires to (UI lands in a follow-up). The prebuilt chart templates offered for a year (the picker). */
@@ -262,10 +273,16 @@ export async function getChartTemplateAccounts(
   userId: string,
   templateId: string,
 ): Promise<ChartTemplateAccountView[]> {
-  const rows = await withOrgReadonly(organizationId, userId, (db) =>
-    listChartTemplateAccounts(db, templateId),
-  )
-  return rows.map(toTemplateAccountView)
+  const [rows, t] = await Promise.all([
+    withOrgReadonly(organizationId, userId, (db) =>
+      listChartTemplateAccounts(db, templateId),
+    ),
+    getTranslations("accounting.chartOfAccounts.templateNames"),
+  ])
+  return rows.map((r) => {
+    const key = r.number as Parameters<typeof t>[0]
+    return toTemplateAccountView(r, t.has(key) ? t(key) : r.name)
+  })
 }
 
 // ─────────────────────────── column descriptors (how the table renders) ───────────────────────────

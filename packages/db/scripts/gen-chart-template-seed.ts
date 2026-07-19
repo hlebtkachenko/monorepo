@@ -97,7 +97,7 @@ const tplAccountRows = template.accounts
   .sort((a, z) => a.number.localeCompare(z.number))
   .map(
     (a) =>
-      `  ('${templateId}'::uuid, ${s(a.number)}, ${s(a.name)}, '${a.nature}', ${a.normal_balance ? `'${a.normal_balance}'` : "NULL"}, ${b(a.tracks_open_items)}, ${nb(a.tax_relevant)}, ${b(a.is_allowance)}, NULL, ${s(a.directive_code)})`,
+      `  ('${templateId}'::uuid, ${s(a.number)}, ${s(a.name)}, ${s(a.nature)}, ${s(a.normal_balance)}, ${b(a.tracks_open_items)}, ${nb(a.tax_relevant)}, ${b(a.is_allowance)}, NULL, ${s(a.directive_code)})`,
   )
 
 const header = `-- 0068_accounting_chart_directive_year_seed.sql
@@ -135,6 +135,117 @@ COMMIT;
 
 writeFileSync(OUT, header)
 console.log(`wrote ${OUT}`)
+
+// ── reference account names → next-intl message catalogs ───────────────────────────────
+// Account names are translations, so they live in the next-intl catalogs
+// (packages/i18n/src/messages/{en,cs}.json) and resolve by key like every other string — never
+// a bespoke catalog or a per-language DB column. GENERATED from the single upstream sources (the
+// vendored template JSON + the frozen reference seed 0026), so the message entries never drift by
+// hand. Two maps, because the same synthetic code can carry a different name in the legal osnova
+// vs the Money template (e.g. 014):
+//   accounting.chartOfAccounts.osnovaNames.<code>   — legal Účetní osnova (directive_account)
+//   accounting.chartOfAccounts.templateNames.<code> — prebuilt Money Účtový rozvrh (this seed)
+type NameMap = { en: Record<string, string>; cs: Record<string, string> }
+const sortByKey = (m: Record<string, string>): Record<string, string> =>
+  Object.fromEntries(Object.entries(m).sort(([a], [z]) => a.localeCompare(z)))
+
+// Template names — from the vendored JSON (name = cs, name_en = en), deduped first-wins to mirror
+// the seed's `ON CONFLICT (template_id, number)` (e.g. 211 Pokladna / CZK / EUR keep the first).
+const missingNames = template.accounts.filter((a) => !a.name || !a.name_en)
+if (missingNames.length > 0) {
+  throw new Error(
+    `gen-chart-template-seed: ${missingNames.length} template account(s) are missing name/name_en ` +
+      `(first: ${missingNames[0]!.number}). Every template account needs both names for the catalog.`,
+  )
+}
+const templateNames: NameMap = { en: {}, cs: {} }
+for (const a of template.accounts) {
+  if (a.number in templateNames.cs) continue // first-wins
+  templateNames.en[a.number] = a.name_en!.trim() // vendored data carries stray trailing spaces
+  templateNames.cs[a.number] = a.name.trim()
+}
+
+// Osnova names — parsed from the frozen reference seed 0026 (the single source of the legal
+// directive_account names). An applied migration, never edited, so the line format is stable.
+const DIRECTIVE_SEED = join(
+  import.meta.dirname,
+  "..",
+  "migrations",
+  "0026_accounting_reference_seed.sql",
+)
+const directiveRow =
+  /^\s*\('([^']+)',\s*'(?:[^']|'')*',\s*'((?:[^']|'')*)',\s*'((?:[^']|'')*)'/
+const unquote = (s: string) => s.replace(/''/g, "'")
+const osnovaNames: NameMap = { en: {}, cs: {} }
+let inDirective = false
+for (const line of readFileSync(DIRECTIVE_SEED, "utf8").split("\n")) {
+  if (/^INSERT INTO directive_account \(/.test(line)) {
+    inDirective = true
+    continue
+  }
+  if (!inDirective) continue
+  // The VALUES block ends at ON CONFLICT / the statement terminator.
+  if (/^\s*(ON CONFLICT|;)/i.test(line) || line.trim() === "") {
+    inDirective = false
+    continue
+  }
+  // A VALUES line that fails the row shape means 0026's format changed — fail loud rather than
+  // silently dropping the rest of the directive rows.
+  const m = directiveRow.exec(line)
+  if (!m) {
+    throw new Error(
+      `gen-chart-template-seed: unparseable directive_account row (0026 format changed?): ${line.trim().slice(0, 70)}`,
+    )
+  }
+  osnovaNames.cs[m[1]!] = unquote(m[2]!).trim()
+  osnovaNames.en[m[1]!] = unquote(m[3]!).trim()
+}
+
+// Every framework year-code the osnova view lists must have a name.
+const uncoveredOsnova = day.accounts
+  .map((r) => r.code)
+  .filter((code) => !(code in osnovaNames.cs))
+if (uncoveredOsnova.length > 0) {
+  throw new Error(
+    `gen-chart-template-seed: ${uncoveredOsnova.length} directive_account_year code(s) missing a ` +
+      `name in 0026 (first: ${uncoveredOsnova[0]}).`,
+  )
+}
+
+// next-intl treats "." as a key-path separator, so an analytic code like "311.001" would nest
+// instead of resolving. Today's reference accounts are synthetic (no dots) — guard the invariant.
+const dottedCodes = [
+  ...Object.keys(osnovaNames.cs),
+  ...Object.keys(templateNames.cs),
+].filter((code) => code.includes("."))
+if (dottedCodes.length > 0) {
+  throw new Error(
+    `gen-chart-template-seed: account code(s) contain a dot, which breaks next-intl key nesting: ` +
+      `${dottedCodes.slice(0, 5).join(", ")}. Use a non-dotted key scheme before adding analytics.`,
+  )
+}
+
+// Write both maps into every live locale's message catalog (sorted, stable, minimal diff).
+const MESSAGES_DIR = join(
+  import.meta.dirname,
+  "..",
+  "..",
+  "i18n",
+  "src",
+  "messages",
+)
+for (const locale of ["en", "cs"] as const) {
+  const file = join(MESSAGES_DIR, `${locale}.json`)
+  const messages = JSON.parse(readFileSync(file, "utf8"))
+  const chart = ((messages.accounting ??= {}).chartOfAccounts ??= {})
+  chart.osnovaNames = sortByKey(osnovaNames[locale])
+  chart.templateNames = sortByKey(templateNames[locale])
+  writeFileSync(file, JSON.stringify(messages, null, 2) + "\n")
+  console.log(
+    `wrote ${file} accounting.chartOfAccounts.{osnovaNames(${Object.keys(osnovaNames[locale]).length}),templateNames(${Object.keys(templateNames[locale]).length})}`,
+  )
+}
+
 console.log(
   `directive_account_year rows: ${dayRows.length}, chart_template_account rows: ${tplAccountRows.length}, template id: ${templateId}`,
 )

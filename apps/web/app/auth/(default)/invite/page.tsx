@@ -12,7 +12,7 @@ import {
 import { isDevPreview } from "@/lib/dev-preview"
 import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
 
-import { readInviteClaims } from "../../../onboarding/_lib/invite-cookie"
+import { readInviteClaims } from "@/lib/auth/invite-cookie"
 import { InviteWelcomeActions } from "./invite-welcome-actions"
 
 interface PageProps {

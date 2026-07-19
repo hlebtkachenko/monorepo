@@ -10,7 +10,7 @@ import {
   type StepKey,
 } from "@workspace/shared/auth"
 
-import { readActiveWorkspaceCookie } from "./active-workspace-cookie"
+import { readActiveWorkspaceCookie } from "@/lib/active-workspace-cookie"
 import type { OnboardingRole } from "./role-types"
 import { projectStepForRole, stepsForRole } from "./steps"
 import { readOnboardingState } from "./state-cookie"

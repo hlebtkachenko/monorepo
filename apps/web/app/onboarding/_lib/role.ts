@@ -2,8 +2,8 @@ import "server-only"
 
 import { isDevPreview } from "@/lib/dev-preview"
 
-import { readInviteClaims } from "./invite-cookie"
-import { readSignupClaims } from "./signup-cookie"
+import { readInviteClaims } from "@/lib/auth/invite-cookie"
+import { readSignupClaims } from "@/lib/auth/signup-cookie"
 import type { OnboardingRole } from "./role-types"
 
 export interface OnboardingRoleContext {

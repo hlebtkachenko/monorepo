@@ -10,7 +10,7 @@ import {
 } from "@workspace/db/schema"
 
 import { presignAvatarRead } from "../../_lib/avatar-storage"
-import { readActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
+import { readActiveWorkspaceCookie } from "@/lib/active-workspace-cookie"
 
 export type WorkspaceRole = "owner" | "admin" | "member"
 

@@ -33,15 +33,15 @@ import { type ActionResult } from "../../lib/action-result"
 import { logServerError } from "../../lib/log-server-error"
 import { isEmailAlreadyRegistered } from "../auth/_lib/email-error"
 import { issueInvite, revokePendingInvites } from "../auth/_lib/issue-invite"
-import { materializeInvite } from "../auth/_lib/materialize-invite"
-import { setActiveWorkspaceCookie } from "./_lib/active-workspace-cookie"
+import { materializeInvite } from "@/lib/auth/materialize-invite"
+import { setActiveWorkspaceCookie } from "@/lib/active-workspace-cookie"
 import {
   clearInviteCookie,
   readInviteClaims,
   readRawInviteToken,
-} from "./_lib/invite-cookie"
+} from "@/lib/auth/invite-cookie"
 import { findOwnerWorkspaceId } from "./_lib/resume"
-import { readSignupClaims, clearSignupCookie } from "./_lib/signup-cookie"
+import { readSignupClaims, clearSignupCookie } from "@/lib/auth/signup-cookie"
 import {
   clearOnboardingState,
   readOnboardingState,

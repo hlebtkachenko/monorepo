@@ -19,7 +19,7 @@ import { ArrowRightIcon, ArrowUpRight } from "@workspace/ui/lib/icons"
 import { isDevPreview } from "@/lib/dev-preview"
 import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
 
-import { readSignupClaims } from "../../../onboarding/_lib/signup-cookie"
+import { readSignupClaims } from "@/lib/auth/signup-cookie"
 import { resolveNextStep, stepPath } from "../../../onboarding/_lib/resume"
 import { signOutForSignupAction } from "./actions"
 

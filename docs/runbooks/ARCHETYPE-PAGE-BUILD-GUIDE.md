@@ -1,5 +1,9 @@
 # Building a governed `/o` archetype page — a field guide
 
+> **Start here first:** [`PAGE-BUILD-START-HERE.md`](PAGE-BUILD-START-HERE.md) is
+> the umbrella helper (respect-the-instruction spine, where the rules live,
+> parallel-agent hygiene, gates). This file is its frontend/archetype deep-dive.
+
 **Status:** guide, not law. It points you AT the rules and shows how we actually
 built the Debug Archetype-Table reference pages (Normal + Pivot) so you can build
 a sibling page for another module without repeating our dead-ends. Where this

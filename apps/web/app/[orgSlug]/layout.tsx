@@ -18,7 +18,7 @@ import { AppContextMenuClient } from "../_components/app-context-menu-client"
 import { OrgHeaderActions } from "../_components/org-header-actions"
 import { OrgSwitcherClient } from "../_components/org-switcher"
 import { PeriodSwitcherClient } from "../_components/period-switcher"
-import { OrgShell } from "../_components/org-shell"
+import { OrgNavShell } from "./_components/org-nav-shell"
 import { presignAvatarRead } from "../_lib/avatar-storage"
 import { getHeaderOrgData } from "./_lib/header-org"
 import {
@@ -166,13 +166,13 @@ export default async function OrgLayout({
       orgSlug={orgSlug}
       user={{ id: session.user.id, email: session.user.email }}
     >
-      <OrgShell
+      <OrgNavShell
         orgSlug={orgSlug}
         header={header}
         deployment={getBuildIdentity()}
       >
         {children}
-      </OrgShell>
+      </OrgNavShell>
     </AppContextMenuClient>
   )
 }

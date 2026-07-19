@@ -58,3 +58,14 @@ export function activeNavTitle(
   )
   return leaves.find((leaf) => leaf.href === best)?.label
 }
+
+/** First path segment of a rail href after the org slug ("" for the index). */
+export function moduleKeyFromHref(
+  href: string | undefined,
+  orgSlug: string,
+): string {
+  if (!href) return ""
+  const prefix = `/${orgSlug}`
+  const rest = href.startsWith(prefix) ? href.slice(prefix.length) : href
+  return rest.replace(/^\//, "").split("/")[0] ?? ""
+}

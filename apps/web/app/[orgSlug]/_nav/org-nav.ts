@@ -121,15 +121,4 @@ export const MODULE_NAV: Record<string, (base: string) => SidebarNavEntry[]> = {
   settings: settingsNav,
 }
 
-/** First path segment of a rail href after the org slug ("" for the index). */
-export function moduleKeyFromHref(
-  href: string | undefined,
-  orgSlug: string,
-): string {
-  if (!href) return ""
-  const prefix = `/${orgSlug}`
-  const rest = href.startsWith(prefix) ? href.slice(prefix.length) : href
-  return rest.replace(/^\//, "").split("/")[0] ?? ""
-}
-
-export { activeNavTitle } from "@workspace/ui/lib/active-path"
+export { moduleKeyFromHref } from "@workspace/ui/lib/active-path"

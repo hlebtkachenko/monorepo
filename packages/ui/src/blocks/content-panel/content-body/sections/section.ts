@@ -39,13 +39,30 @@ export const SECTION_KINDS = [
 export type SectionKind = (typeof SECTION_KINDS)[number]
 
 /**
- * Kinds that can be nested inside a `details-group` — everything EXCEPT the
- * group itself. Groups are one level deep (a group holds leaf sections, never
- * other groups); this is enforced at compile time by typing a group's children
- * as `LeafSectionDescriptor[]`.
+ * `LeafSectionKind` — every section kind EXCEPT the `details-group` container.
+ * These are the RENDERABLE leaf kinds: `SECTION_REGISTRY` keys on this type via
+ * `Record<LeafSectionKind, SectionRenderer>` to force every leaf kind to have
+ * exactly one renderer (a group is composed by `SectionList`, not the registry).
  */
 export type LeafSectionKind = Exclude<SectionKind, "details-group">
-export type LeafSectionDescriptor = SectionDescriptor<LeafSectionKind>
+
+/**
+ * The leaf section kinds that compose a Details archetype BODY — the `details-*`
+ * family (minus the `details-group` container) plus the archetype-agnostic
+ * `space`/`empty`. The SINGLE source of truth that both a `details-group`'s
+ * children AND the archetype `details` policy derive from, so a `table` /
+ * `pivot-table` / `inspector-*` can never be smuggled into a Details body or
+ * group. The policy (archetype layer) imports and spreads this value; the
+ * reverse import is illegal, so the value lives here in the lower section layer.
+ */
+export const DETAILS_BODY_KINDS = [
+  "details-form",
+  "details-tabs",
+  "details-table",
+  "space",
+  "empty",
+] as const satisfies readonly SectionKind[]
+export type DetailsBodySectionKind = (typeof DETAILS_BODY_KINDS)[number]
 
 /** Section-level metadata that every kind shares (not per-kind `props`). */
 export interface SectionMeta {

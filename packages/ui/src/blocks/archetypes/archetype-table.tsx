@@ -337,17 +337,28 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   // edit then re-finds the row by that id.
   const rowIdKey = tablePayload?.rowIdKey ?? "id"
   const pageRows = tablePayload?.rows ?? NO_ROWS
-  const inspectedRow = pageRows.find((row) => row === inspectRow)
-  const inspectIdRef = React.useRef<string | null>(null)
+  // The inspected row's id is stably readable from the bridge object (it only
+  // changes identity via openInspect), so resolve the FRESH row of that id in the
+  // archetype's own list. `resolvedRow` is undefined once the row is edited out
+  // of the active view or deleted.
+  const inspectId =
+    inspectRow != null
+      ? String((inspectRow as TableSectionRow)[rowIdKey] ?? "")
+      : null
+  const resolvedRow = inspectId
+    ? pageRows.find((row) => String(row[rowIdKey]) === inspectId)
+    : undefined
+  const inspectData = (resolvedRow ?? inspectRow) as TData | null
+  const inspectRecordKey = inspectId ?? ""
+
+  // Auto-close the rail once the inspected row can no longer be resolved in a
+  // non-empty list (edited out of the view, or deleted) — so a footer action
+  // (Approve / Reject / Delete) can never fire against stale or absent state.
   React.useEffect(() => {
-    if (inspectedRow) inspectIdRef.current = String(inspectedRow[rowIdKey])
-  })
-  const inspectData = (inspectedRow ??
-    pageRows.find((row) => String(row[rowIdKey]) === inspectIdRef.current) ??
-    inspectRow) as TData | null
-  const inspectRecordKey = inspectData
-    ? String((inspectData as TableSectionRow)[rowIdKey] ?? "")
-    : ""
+    if (inspectOpen && inspectId && pageRows.length > 0 && !resolvedRow) {
+      setInspectOpen(false)
+    }
+  }, [inspectOpen, inspectId, pageRows.length, resolvedRow, setInspectOpen])
 
   // Deep-link: open the Inspector once for `openRowId` as soon as the grid holds
   // that row. Ref-guarded so it fires a single time per id (a subsequent user

@@ -81,12 +81,15 @@ export function groupEdgeIds<TData>(table: Table<TData>): Set<string> {
 }
 
 /**
- * The continuous edge shadow for a pinned column — the SAME float shadow the
- * docked Inspector rail casts over the body (`shadow-muted-foreground/25`), so a
- * frozen column and the Inspector read as one consistent "floating above the
- * table" treatment. Rendered as one `inset-y-0` gradient span per cell: the span
- * has sharp top/bottom edges (no blur), so the per-cell spans stack into a single
- * smooth strip down the whole column instead of a scalloped per-row box-shadow.
+ * The edge shadow for a pinned column — the EXACT `box-shadow` the docked
+ * Inspector rail casts (`shadow-[±3px_0_8px_-6px] shadow-muted-foreground/25`),
+ * mirrored per side (a left-pinned column casts to the RIGHT, a right-pinned
+ * column casts to the LEFT — the inspector, being right-docked, casts left). So a
+ * frozen column and the Inspector are the SAME floating-above-the-table
+ * treatment, not a look-alike gradient. Rendered as one full-height (`inset-y-0`)
+ * hairline per cell at the seam; because the shadow's vertical spread is negative
+ * (`-6px`) the per-cell casts overlap into a single continuous strip with no
+ * per-row scallop.
  *
  * Only shown when there is actually scrolled-under content on that side — a
  * pinned column sitting over empty space (a narrow table, e.g. with the
@@ -104,7 +107,7 @@ export function PinShadow<TData>({
     return (
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 -right-2 z-10 w-2 bg-gradient-to-r from-muted-foreground/25 to-transparent"
+        className="pointer-events-none absolute inset-y-0 right-0 z-10 w-px shadow-[3px_0_8px_-6px] shadow-muted-foreground/25"
       />
     )
   }
@@ -112,7 +115,7 @@ export function PinShadow<TData>({
     return (
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 -left-2 z-10 w-2 bg-gradient-to-l from-muted-foreground/25 to-transparent"
+        className="pointer-events-none absolute inset-y-0 left-0 z-10 w-px shadow-[-3px_0_8px_-6px] shadow-muted-foreground/25"
       />
     )
   }

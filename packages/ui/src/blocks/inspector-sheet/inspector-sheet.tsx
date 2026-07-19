@@ -9,11 +9,17 @@ import type { InspectorBadge } from "./inspector-body-header"
 import type { InspectorFlagValue } from "./inspector-flag-picker"
 import type { InspectorFooterProps } from "./inspector-footer"
 import { InspectorHeader, type InspectorCopyTarget } from "./inspector-header"
-import {
-  INSPECTOR_TAB_ORDER,
-  InspectorRail,
-  type InspectorTab,
-} from "./inspector-rail"
+import { InspectorRail, type InspectorTab } from "./inspector-rail"
+
+/** Shown when the active tab has no content for this record — the rail always
+ *  lists every tab, but a tab a table does not use is simply empty here. */
+function InspectorEmptyTab() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
+      Nothing here for this record.
+    </div>
+  )
+}
 
 export interface InspectorSheetProps {
   /** Exactly two ancestor crumbs shown in the header (root-first). */
@@ -73,17 +79,6 @@ export function InspectorSheet({
   footer,
   className,
 }: InspectorSheetProps) {
-  // Show ONLY the tabs the page supplied content for (in rail order), so an
-  // unpopulated tab is never a dead/blank pane. When `content` is omitted
-  // entirely, fall back to all tabs (legacy behaviour). Clamp the active tab to
-  // an available one so a stale/default `activeTab` can't render blank.
-  const availableTabs = content
-    ? INSPECTOR_TAB_ORDER.filter((tab) => content[tab] != null)
-    : undefined
-  const shownTab =
-    availableTabs && !availableTabs.includes(activeTab)
-      ? (availableTabs[0] ?? activeTab)
-      : activeTab
   return (
     <div
       data-slot="inspector-sheet"
@@ -104,14 +99,10 @@ export function InspectorSheet({
           flag={flag}
           onFlagChange={onFlagChange}
           badge={badge}
-          content={content?.[shownTab]}
+          content={content?.[activeTab] ?? <InspectorEmptyTab />}
           footer={footer}
         />
-        <InspectorRail
-          activeTab={shownTab}
-          onTabChange={onTabChange}
-          tabs={availableTabs}
-        />
+        <InspectorRail activeTab={activeTab} onTabChange={onTabChange} />
       </div>
     </div>
   )

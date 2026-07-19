@@ -1,6 +1,12 @@
 "use client"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { useIcons } from "@workspace/ui/icon-packs"
 import type { IconName } from "@workspace/ui/icon-packs"
@@ -13,6 +19,14 @@ import { cn } from "@workspace/ui/lib/utils"
 export type ContentFooterActionVariant =
   "default" | "secondary" | "ghost" | "destructive"
 
+/** One item in a footer action's dropdown menu. */
+export interface ContentFooterActionOption {
+  id: string
+  label: string
+  icon?: IconName
+  onSelect: () => void
+}
+
 /** One bulk action in selection mode. Plain data — never a node. */
 export interface ContentFooterAction {
   id: string
@@ -22,7 +36,14 @@ export interface ContentFooterAction {
   /** Button treatment. Default `"secondary"`. */
   variant?: ContentFooterActionVariant
   disabled?: boolean
-  onSelect: () => void
+  /** Direct click handler. Ignored when `options` is set (the button opens the
+   *  dropdown instead). */
+  onSelect?: () => void
+  /**
+   * When present, the action is a DROPDOWN: the button opens a menu of these
+   * options instead of firing `onSelect` (e.g. Export → Copy to clipboard / CSV).
+   */
+  options?: ContentFooterActionOption[]
 }
 
 /** Selection surface — bulk actions over the chosen rows. */
@@ -109,18 +130,39 @@ export function ContentFooter({
         <div className="ml-auto flex items-center gap-1.5">
           {selection.actions.map((action) => {
             const Icon = action.icon ? icons[action.icon] : null
-            return (
+            const button = (
               <Button
                 key={action.id}
                 type="button"
                 variant={action.variant ?? "secondary"}
                 disabled={action.disabled}
-                onClick={action.onSelect}
+                onClick={action.options ? undefined : action.onSelect}
                 data-action={action.id}
               >
                 {Icon ? <Icon /> : null}
                 {action.label}
               </Button>
+            )
+            if (!action.options) return button
+            return (
+              <DropdownMenu key={action.id}>
+                <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {action.options.map((option) => {
+                    const OptionIcon = option.icon ? icons[option.icon] : null
+                    return (
+                      <DropdownMenuItem
+                        key={option.id}
+                        onSelect={option.onSelect}
+                        className="gap-1.5"
+                      >
+                        {OptionIcon ? <OptionIcon /> : null}
+                        {option.label}
+                      </DropdownMenuItem>
+                    )
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )
           })}
         </div>

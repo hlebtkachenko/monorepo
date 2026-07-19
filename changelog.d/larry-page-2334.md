@@ -2,4 +2,4 @@
 category: Changed
 ---
 
-Table toolbar: the Add-filter trigger now trails the active filter chips and wraps to the next line together with them; and a frozen (pinned) column casts the same float shadow as the docked Inspector rail.
+Table toolbar: the Add-filter trigger keeps a fixed spot right after the search box and the active filter chips flow after it, wrapping across lines dynamically; and a frozen (pinned) column now casts the EXACT float box-shadow the docked Inspector rail uses (mirrored per side).

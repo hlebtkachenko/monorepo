@@ -1,7 +1,7 @@
 import "server-only"
 import { and, eq } from "drizzle-orm"
 import { consumeToken } from "@workspace/auth/tokens"
-import { withAdminBypass } from "@workspace/db"
+import { withAdminBypass, type OrganizationRole } from "@workspace/db"
 import {
   app_user,
   organization,
@@ -179,7 +179,7 @@ export async function materializeInvite(
         workspace_id: org.workspace_id,
         user_id: input.userId,
         workspace_membership_id: wsMembershipId,
-        role: role as "owner" | "admin" | "member" | "agent" | "guest",
+        role: role as OrganizationRole,
       })
     }
 

@@ -1,5 +1,9 @@
 import { and, eq, sql } from "drizzle-orm"
-import { withAdminBypass, auth_token } from "@workspace/db"
+import {
+  withAdminBypass,
+  auth_token,
+  type OrganizationRole,
+} from "@workspace/db"
 import {
   app_user,
   organization,
@@ -78,7 +82,7 @@ export function isPendingInviteUniqueViolation(err: unknown): boolean {
 }
 
 /** Roles the app accepts on an invite. Mirrors organization_membership.role. */
-export type InviteRole = "owner" | "admin" | "member" | "agent" | "guest"
+export type InviteRole = OrganizationRole
 
 /**
  * Shape returned by `readInviteByRawToken`. Kept compatible with the

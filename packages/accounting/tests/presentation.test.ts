@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   groupByMonth,
-  monthGroupLabel,
   type ObligationWithStatus,
-} from "./closing-shared"
+} from "../src/obligations/presentation"
 
 function makeObligation(
   dueDate: string,
@@ -63,9 +62,6 @@ describe("groupByMonth", () => {
   })
 
   it("re-splits a month if it is not contiguous in the input (pins the engine-sort dependency)", () => {
-    // If computeObligations ever stopped returning dueDate-sorted rows, this
-    // is the behavior change that would surface: the same calendar month
-    // appears twice instead of merging into one group.
     const obligations = [
       makeObligation("2026-01-05"),
       makeObligation("2026-02-05"),
@@ -83,17 +79,5 @@ describe("groupByMonth", () => {
 
   it("returns an empty array for no obligations", () => {
     expect(groupByMonth([])).toEqual([])
-  })
-})
-
-describe("monthGroupLabel", () => {
-  it("formats a YYYY-MM month key as a full month name + year", () => {
-    expect(monthGroupLabel("2026-07")).toBe("July 2026")
-    expect(monthGroupLabel("2026-01")).toBe("January 2026")
-    expect(monthGroupLabel("2026-12")).toBe("December 2026")
-  })
-
-  it("falls back to the raw key for a malformed input", () => {
-    expect(monthGroupLabel("garbage")).toBe("garbage")
   })
 })

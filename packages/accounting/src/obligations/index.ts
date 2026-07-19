@@ -56,3 +56,10 @@ export {
   type Obligation,
   type VatPeriodActivity,
 } from "./obligations"
+export {
+  deriveObligationStatus,
+  groupByMonth,
+  type ClosingObligationStatus,
+  type ClosingObligationsResult,
+  type ObligationWithStatus,
+} from "./presentation"

@@ -1,0 +1,5 @@
+{
+  "extends": "@workspace/typescript-config/cloudflare-worker.json",
+  "include": ["src/http.ts"],
+  "exclude": ["node_modules", "dist"]
+}

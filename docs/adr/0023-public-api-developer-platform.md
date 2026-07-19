@@ -6,6 +6,8 @@
 
 > **Amendment 2026-05-21 — see [ADR-0024](0024-developer-platform-codegen-pipeline.md).** Decision 1's URL layout (`api.afframe.com/docs` + `api.afframe.com/v1/docs`) no longer applies: `apps/docs` has been archived and the Scalar reference is now served at the API root (`api.afframe.com/`). Decision 4's SDK generator (`hey-api/openapi-ts`) has been replaced by `openapi-typescript` + `openapi-fetch`. Decision 3's MCP codegen pass (`cnoe-io/openapi-mcp-codegen`) has been replaced by in-house TypeScript codegen at `apps/mcp/scripts/gen-tools.ts`.
 
+> **Amendment 2026-07-18 — hosted MCP ships bearer-first; OAuth 2.1 deferred.** Decision 3's hosted `mcp.afframe.com` transport ships **bearer-first**: the Cloudflare Worker (`apps/mcp/src/http.ts`) gates on bearer presence and forwards the caller's `Authorization: Bearer` API key to `api.afframe.com`, where `ApiKeyGuard` verifies it and enforces scopes + tenant isolation. This reuses the existing `affk_` key path with zero authorization-server work, unblocking hosted access for dev / CI / agents immediately. OAuth 2.1 device-flow (the original Decision 3 target, for the one-click connector UX) is deferred to a later ADR — consistent with the "OAuth-only API auth for launch" alternative rejected below. Tracked in #829.
+
 ## Context and Problem Statement
 
 [ADR-0020](0020-public-api-foundation.md) shipped the contract layer (`/v1/*`, NestJS + `nestjs-zod` + OpenAPI 3.1). AFF-220 replaced the Swagger UI with Scalar at `/v1/docs`. Two operations are live (`/v1/ping`, `/v1/organization`); domain endpoints (AFF-71), authz (AFF-46), and key management (AFF-73) are in flight.

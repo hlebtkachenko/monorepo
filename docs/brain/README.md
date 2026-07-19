@@ -63,8 +63,10 @@ Key consequences of "client, not server":
 
 - The Brain holds **no DB credentials**. The organization is resolved **server-side** from the API-key
   principal and is **never a tool input**.
-- The only thing deployed on AWS is the ordinary web/API/admin stack. There is **no hosted MCP server**;
-  the MCP transport runs **locally** as a stdio bridge (see §6). Fargate is only the server.
+- The only thing deployed on AWS is the ordinary web/API/admin stack. The MCP transport Brain uses runs
+  **locally** as a stdio bridge (see §6); Fargate is only the server. (A hosted MCP endpoint
+  `mcp.afframe.com` now also exists — #829 — but Brain does **not** use it: Brain is a client of the REST
+  API via the local bridge, so the hosted endpoint is not a Brain dependency.)
 - The agent runs inside a **sandboxed nested session**: a default-deny tool allowlist (only the
   `mcp__afframe__*` accounting tools), no `Read`/`Bash`/`Write`/network — so a hostile document it reads
   cannot steer a filesystem read or an exfiltration.
@@ -211,8 +213,9 @@ through two independent top-tier reviewers (`.claude/workflows/brain-gate.js`) b
   **defaults to `1`** (PR #584), so a deploy that omits it keeps the lane ON instead of silently killing it
   (v0.16.9 was the foot-gun that motivated the fix — it omitted the input and every write 429'd). Revert the
   default to explicit at launch. To force the lane off, deploy with `brain_runtime_active=0`.
-- **No hosted MCP server** exists; the transport is the local stdio bridge. A hosted Streamable-HTTP MCP
-  (`mcp.afframe.com`) is a possible v2, not built.
+- The transport **Brain** uses is the local stdio bridge. A hosted Streamable-HTTP MCP (`mcp.afframe.com`)
+  now exists (#829, bearer-first), but Brain does **not** depend on it — switching Brain to the hosted
+  transport is possible future work, not a launch gate.
 - **Open follow-ups belong in GitHub epic #524.** This document records current
   architecture and operational constraints, not issue status.
 

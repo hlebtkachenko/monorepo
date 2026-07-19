@@ -2,7 +2,8 @@ import { betterAuth } from "better-auth"
 import { APIError, createAuthMiddleware } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
-import { admin, magicLink, twoFactor } from "better-auth/plugins"
+import { admin, jwt, magicLink, twoFactor } from "better-auth/plugins"
+import { oauthProvider } from "@better-auth/oauth-provider"
 import { db } from "@workspace/db/client"
 import * as schema from "@workspace/db/schema"
 import { writeAuditEventGlobal } from "@workspace/db"
@@ -14,6 +15,11 @@ import {
 } from "@workspace/email"
 import { truncateIp, hashUserAgent } from "./tokens/auth-token"
 import { devCookiePrefix } from "./dev-cookie-prefix"
+import {
+  isActiveMember,
+  OAUTH_ORGANIZATION_CLAIM,
+  resolveTokenOrganization,
+} from "./oauth-tenant-binding"
 
 // ---------------------------------------------------------------------------
 // Better Auth version assertion (ADR-0022 / C2).
@@ -66,6 +72,19 @@ export function resolveAuditAction(
       return succeeded
         ? "profile.email_change_requested"
         : "profile.email_change_failed"
+    // OAuth 2.1 authorization server (oauthProvider plugin). Audit the
+    // security-relevant lifecycle events; the read/*-client management paths
+    // are left unaudited (they are covered by the general access log).
+    case "/oauth2/authorize":
+      return succeeded ? "auth.oauth.authorize" : "auth.oauth.authorize_failed"
+    case "/oauth2/token":
+      return succeeded ? "auth.oauth.token_issued" : "auth.oauth.token_failed"
+    case "/oauth2/consent":
+      return "auth.oauth.consent_granted"
+    case "/oauth2/register":
+      return "auth.oauth.client_registered"
+    case "/oauth2/revoke":
+      return "auth.oauth.token_revoked"
     default:
       return null
   }
@@ -246,10 +265,26 @@ export const auth = betterAuth({
       account: schema.auth_account,
       verification: schema.auth_verification,
       twoFactor: schema.two_factor,
+      // OAuth 2.1 authorization server (jwt + oauthProvider plugins). Each BA
+      // model name maps to our snake_case Drizzle table; those tables use
+      // camelCase JS keys matching BA's field vocabulary, so no per-field remap
+      // is needed here (see packages/db/src/schema/jwks.ts for the convention).
+      jwks: schema.jwks,
+      oauthClient: schema.oauth_client,
+      oauthAccessToken: schema.oauth_access_token,
+      oauthRefreshToken: schema.oauth_refresh_token,
+      oauthConsent: schema.oauth_consent,
     },
   }),
   secret: readBetterAuthSecret(),
-  baseURL: readBetterAuthBaseUrl(),
+  // A CONCRETE base URL is required: the oauthProvider plugin derives the
+  // issuer + discovery-metadata URLs at init and throws on an empty base
+  // (`new URL("")`). `readBetterAuthBaseUrl()` is undefined in dev/test (BA
+  // would otherwise infer per-request); fall back to `resolveBaseURL()`, which
+  // is always concrete (localhost:PORT in dev, a build placeholder during next
+  // build) and preserves the production fail-fast (readBetterAuthBaseUrl throws
+  // first when NODE_ENV=production and the env is unset).
+  baseURL: readBetterAuthBaseUrl() ?? resolveBaseURL(),
   trustedOrigins: readTrustedOrigins(),
   user: {
     modelName: "app_user",
@@ -500,6 +535,72 @@ export const auth = betterAuth({
       // account existence, so the login UI's "check your email" copy
       // stays truthful and account existence is not enumerable.
       disableSignUp: true,
+    }),
+    // OAuth 2.1 authorization server. Backs the hosted MCP endpoint
+    // (mcp.afframe.com) OAuth path and any external OAuth client; see ADR-0023.
+    // `jwt()` MUST precede oauthProvider so access tokens are asymmetric JWTs
+    // (verifiable at the API + edge via the /api/auth/jwks JWKS) rather than
+    // opaque HS256 tokens.
+    jwt(),
+    oauthProvider({
+      loginPage: "/auth/login",
+      consentPage: "/auth/consent",
+      // Scopes an OAuth client may request. Beyond the OIDC set, advertise the
+      // coarse API capability scopes so an issued token carries scopes the
+      // API's @RequireScopes checks accept (e.g. `accounting:write`) — without
+      // this a token would carry only openid/profile and be 403'd on scoped
+      // /v1 endpoints. Mirrors the api_key scope vocabulary; the write scope
+      // only ever PROPOSES gated (HELD) writes, enforced server-side.
+      scopes: [
+        "openid",
+        "profile",
+        "email",
+        "offline_access",
+        "accounting:read",
+        "accounting:write",
+      ],
+      // MCP clients (Claude, Cursor, ChatGPT) self-register at connect time per
+      // RFC 7591 with no pre-shared secret, so both dynamic and unauthenticated
+      // registration are required for them to obtain a client_id. This is
+      // bounded: registration mints ONLY a client_id and grants nothing on its
+      // own — issuing a token still requires a full interactive user login +
+      // consent + organization binding, PKCE for public clients, and per-call
+      // enforcement at the API. (BA notes the unauthenticated option will be
+      // deprecated once the MCP protocol standardizes dynamic registration.)
+      allowDynamicClientRegistration: true,
+      allowUnauthenticatedClientRegistration: true,
+      // Bind every issued token to exactly one organization (api_key parity):
+      // choose it at authorize time, re-validated as a live active membership.
+      postLogin: {
+        page: "/auth/select-organization",
+        shouldRedirect: async ({ user }) => {
+          const res = await resolveTokenOrganization(user.id)
+          return !res.ok && res.reason === "select_organization"
+        },
+        consentReferenceId: async ({ user }) => {
+          const res = await resolveTokenOrganization(user.id)
+          if (res.ok) return res.organizationId
+          throw new APIError("BAD_REQUEST", {
+            error:
+              res.reason === "no_organization"
+                ? "no_organization"
+                : "set_organization",
+            error_description:
+              res.reason === "no_organization"
+                ? "This account has no active organization to authorize."
+                : "Select an organization to continue.",
+          })
+        },
+      },
+      // Stamp the bound organization into the access token, but ONLY after a
+      // final re-check that it is still a live active membership. No membership
+      // -> no claim -> the API/edge verifier fails closed (org is never trusted
+      // from an unvalidated source).
+      customAccessTokenClaims: async ({ user, referenceId }) => {
+        if (!user?.id || !referenceId) return {}
+        if (!(await isActiveMember(user.id, referenceId))) return {}
+        return { [OAUTH_ORGANIZATION_CLAIM]: referenceId }
+      },
     }),
     // MUST be last in the plugin chain (per Better Auth docs). nextCookies
     // hooks into outgoing responses and forwards the Set-Cookie BA emits

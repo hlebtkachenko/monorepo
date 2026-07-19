@@ -13,6 +13,53 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.25.0] — 2026-07-19
+
+### Added
+
+- Add a hosted Streamable-HTTP MCP entrypoint (`mcp.afframe.com`) — a stateless Cloudflare Worker that gates on bearer presence and forwards the caller's API key to the public API, reusing the existing generated tool table. (#868)
+- Add a manual deploy workflow for the hosted MCP Worker (`workflow_dispatch`; staging deploys immediately, production behind a required-reviewer Environment). (#868)
+- Add the wrangler config for the hosted MCP Worker with staging (`mcp-staging.afframe.com`) and production (`mcp.afframe.com`) environments. (#868)
+- Emit a tool-group + read/write index in the generated MCP tools so `registerGeneratedTools` can register a selected subset (by OpenAPI-tag group and/or read/write scope) instead of all tools. (#868)
+- Let hosted MCP clients select a tool subset at connect time via `?groups=` / `?scope=` on the Worker URL, expose the group catalog at `GET /groups`, and always register a `list_tool_groups` discovery tool. (#868)
+- Accept OAuth 2.1 access tokens (JWT) as an alternative to API keys on /v1/*, verified against the authorization server JWKS, audience, and issuer and bound to one organization. (#870)
+- Add an OAuth 2.1 authorization server (Better Auth jwt + oauthProvider plugins) binding every issued token to one organization, backing the hosted MCP endpoint OAuth path. (#870)
+- Add the OAuth consent + organization-selection pages and the /.well-known/oauth-authorization-server discovery route for the OAuth 2.1 authorization server. (#870)
+
+### Changed
+
+- Make the @afframe/mcp SDK-client factory request-scoped (`buildClient(apiKey, baseUrl?)`) so the stdio and hosted transports share one factory without a long-lived shared client. (#868)
+- Document the hosted bearer MCP endpoint (`mcp.afframe.com`) and record the bearer-first decision in ADR-0023 (OAuth 2.1 deferred). (#869)
+
+### Dependencies
+
+- Add the Cloudflare Worker toolchain (wrangler + @cloudflare/workers-types) to @afframe/mcp for the hosted Streamable-HTTP endpoint. (#868)
+
+## [v0.24.2] — 2026-07-19
+
+### Added
+
+- ContentHeader block gains a self-managing favorite star (`useOptimisticFavorite` + `ContentHeaderFavoriteToggle`) that the Blank, Table, and Details archetypes forward; OrgSwitcher `settingsHref`/`inviteHref` are now optional so a surface with no settings/invite page hides those buttons. (#853)
+- Added a `/o` nav-drift guard (`scripts/check-org-new-nav.ts`, wired as the `org-new-nav-drift` pre-push hook) that fails when an `orgHref` link targets a nonexistent page (dead link) or a page.tsx is reachable from no nav entry or link (orphan) — so unrequested pages and dead links like the removed settings stub can't silently reappear in the rebuilt org tree. (#858)
+
+### Changed
+
+- Made `apps/web/app/_components/module-page.tsx` the canonical `ModulePage` and turned the `[orgSlug]` copy into a re-export shim, so the workspace tier no longer imports the org route tree for it (orgSlug Track A). (#861)
+- Made the org-slug route segment injectable in the app-context-menu `guessPageFile` helper (`orgSlugSegment`, default `[orgSlug]`) so the `@workspace/ui` block no longer hardcodes the consuming app's route-tree name (orgSlug Track A). (#862)
+- Moved the pure closing helpers out of the `[orgSlug]/closing/_lib/closing-shared.ts` route file: `formatIsoDate`/`monthGroupLabel` to `@workspace/shared/date` and the obligation status/grouping helpers to `@workspace/accounting/obligations`, so the workspace tier no longer imports the org route tree (orgSlug Track A). (#863)
+- Made the shared `OrgShell` nav-agnostic — the rail/bottom-nav/per-module sidebar trees are passed in as props via a new tree-local `OrgNavShell` client wrapper instead of imported from `[orgSlug]/_nav`, so the cross-tier shell no longer reaches into the org route tree (orgSlug Track A). (#864)
+- Relocated the org accounting reads + session/period glue (`accounting-data`, `request-session`, `header-periods`) out of `[orgSlug]/_lib` into `apps/web/lib/org`, so cross-tier consumers (saldokonto vouchers view) no longer import the org route tree (orgSlug Track A). (#865)
+- Relocated the held-write approval action (`resolveHeldWrite`/`markConfidentWrong`) out of `[orgSlug]/accounting/approvals` into `apps/web/app/_components/held-writes`, co-located with its only consumers, so the held-writes UI no longer imports the org route tree (orgSlug Track A). (#866)
+- Relocated the old cookie-based `setActivePeriodAction` out of `[orgSlug]/_lib/period-actions` into `apps/web/lib/org/period-actions-legacy.ts` (distinct name from the new `/o` tree's `period-actions`), so `period-switcher` + `company-card` no longer import the org route tree (orgSlug Track A). (#871)
+
+### Removed
+
+- Removed the unrequested `/o` settings stub page and every link to it (the profile-menu Settings item, plus the org switcher's Settings and Invite buttons that both pointed at the nonexistent settings route); also deleted the now-unused bespoke FavoritePageHeader, superseded by the shared ContentHeader favorite. (#857)
+
+### Fixed
+
+- The `/o` Debug overview no longer shows a favorite star (an overview is a module home and can't be pinned to its own list); the Periods page now renders the Blank archetype with its star threaded through the shared ContentHeader, so it shows a visible empty body instead of a blank void. (#860)
+
 ## [v0.24.1] — 2026-07-19
 
 ### Changed

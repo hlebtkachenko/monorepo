@@ -376,6 +376,7 @@ function emptyElement(): ElementInfo {
 export function guessPageFile(
   pathname: string,
   appBasePath = "apps/web/app",
+  orgSlugSegment = "[orgSlug]",
 ): string {
   if (pathname.startsWith("/auth/")) {
     return `${appBasePath}/auth/(default)${pathname.slice(5)}/page.tsx`
@@ -391,8 +392,8 @@ export function guessPageFile(
   }
   const parts = pathname.split("/").filter(Boolean)
   if (parts.length === 0) return `${appBasePath}/page.tsx`
-  if (parts.length === 1) return `${appBasePath}/[orgSlug]/page.tsx`
-  return `${appBasePath}/[orgSlug]/${parts.slice(1).join("/")}/page.tsx`
+  if (parts.length === 1) return `${appBasePath}/${orgSlugSegment}/page.tsx`
+  return `${appBasePath}/${orgSlugSegment}/${parts.slice(1).join("/")}/page.tsx`
 }
 
 /* ── app config (consumer-supplied) ────────────────────────────────── */
@@ -418,10 +419,19 @@ export interface AppConfig {
   framework?: string
   /** Override for the page-file inference used in "Copy path" payload. */
   pageFileResolver?: (pathname: string) => string
+  /**
+   * Dynamic org-slug route segment used by the default page-file inference
+   * (defaults to `[orgSlug]`). Injected so this UI block never hardcodes the
+   * consuming app's route-tree name.
+   */
+  orgSlugSegment?: string
 }
 
 const DEFAULT_CONFIG: Required<
-  Omit<AppConfig, "workingDirectory" | "framework" | "pageFileResolver">
+  Omit<
+    AppConfig,
+    "workingDirectory" | "framework" | "pageFileResolver" | "orgSlugSegment"
+  >
 > & {
   workingDirectory: string | null
   framework: string | null
@@ -435,6 +445,7 @@ const DEFAULT_CONFIG: Required<
 }
 
 function resolveConfig(config: AppConfig | undefined): typeof DEFAULT_CONFIG {
+  const orgSlugSegment = config?.orgSlugSegment
   return {
     appName: config?.appName ?? DEFAULT_CONFIG.appName,
     repoName: config?.repoName ?? DEFAULT_CONFIG.repoName,
@@ -442,7 +453,11 @@ function resolveConfig(config: AppConfig | undefined): typeof DEFAULT_CONFIG {
       config?.workingDirectory ?? DEFAULT_CONFIG.workingDirectory,
     framework: config?.framework ?? DEFAULT_CONFIG.framework,
     pageFileResolver:
-      config?.pageFileResolver ?? DEFAULT_CONFIG.pageFileResolver,
+      config?.pageFileResolver ??
+      (orgSlugSegment
+        ? (pathname: string) =>
+            guessPageFile(pathname, "apps/web/app", orgSlugSegment)
+        : DEFAULT_CONFIG.pageFileResolver),
   }
 }
 

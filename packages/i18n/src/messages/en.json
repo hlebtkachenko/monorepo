@@ -1463,7 +1463,8 @@
       "overview": "Overview",
       "periods": "Periods",
       "debug": "Debug",
-      "archetypeTable": "Archetype Table"
+      "normalTable": "Normal Table",
+      "pivotTable": "Pivot Table"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1474,7 +1475,8 @@
       "periods": "Periods",
       "settings": "Settings",
       "debug": "Debug",
-      "archetypeTable": "Archetype Table"
+      "normalTable": "Normal Table",
+      "pivotTable": "Pivot Table"
     },
     "favorite": {
       "tooltip": "Favorite",

@@ -73,12 +73,20 @@ export async function seedDevDemoTables(
     const org = orgRows[0]
     if (!org) return { status: "no-org" }
 
-    const existing = await executeRows<{ id: string }>(
+    // Probe BOTH tables so a split state (one seeded, one empty) still fills the
+    // empty one. The inserts below are per-table conditional, so this never
+    // duplicates rows in an already-seeded table.
+    const [normalExisting] = await executeRows<{ id: string }>(
       adminDb,
       sql`SELECT id FROM demo_debug_normal_table_record
             WHERE organization_id = ${org.id}::uuid LIMIT 1`,
     )
-    if (existing[0]) return { status: "exists" }
+    const [pivotExisting] = await executeRows<{ id: string }>(
+      adminDb,
+      sql`SELECT id FROM demo_debug_pivot_table_record
+            WHERE organization_id = ${org.id}::uuid LIMIT 1`,
+    )
+    if (normalExisting && pivotExisting) return { status: "exists" }
 
     const ownerRows = await executeRows<{ id: string }>(
       adminDb,
@@ -113,16 +121,18 @@ export async function seedDevDemoTables(
       org.id,
       ownerUserId,
       async (orgDb) => {
-        await orgDb.insert(demo_debug_normal_table_record).values(normalRows)
-        await orgDb.insert(demo_debug_pivot_table_record).values(pivotRows)
+        if (!normalExisting)
+          await orgDb.insert(demo_debug_normal_table_record).values(normalRows)
+        if (!pivotExisting)
+          await orgDb.insert(demo_debug_pivot_table_record).values(pivotRows)
       },
       adminDb,
     )
 
     return {
       status: "created",
-      normal: normalRows.length,
-      pivot: pivotRows.length,
+      normal: normalExisting ? 0 : normalRows.length,
+      pivot: pivotExisting ? 0 : pivotRows.length,
     }
   })
 }

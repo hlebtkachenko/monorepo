@@ -2,4 +2,4 @@
 category: Added
 ---
 
-Added a Debug "Archetype Table" reference page in the new `/o/[orgSlug]` tree that wires `ArchetypeTable` + the Table Body against real accounting-period data (dev/allowlist-gated) — the first governed consumer proving the Table archetype composes cleanly under the section-library policy.
+Added Debug "Archetype Table" reference pages in the new `/o/[orgSlug]` tree — Normal Table (with a row Inspector) and Pivot Table — wiring `ArchetypeTable` + the Table/Pivot Body + Inspector from the packages/ui blocks, the first governed consumers of the section-library policy. They read dedicated dev-seeded `demo_debug_*` tables (never real product data; empty in prod), so the pages double as clone-ready templates.

@@ -1463,7 +1463,8 @@
       "overview": "Přehled",
       "periods": "Období",
       "debug": "Ladění",
-      "archetypeTable": "Tabulka archetypu"
+      "normalTable": "Běžná tabulka",
+      "pivotTable": "Kontingenční tabulka"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1474,7 +1475,8 @@
       "periods": "Období",
       "settings": "Nastavení",
       "debug": "Ladění",
-      "archetypeTable": "Tabulka archetypu"
+      "normalTable": "Běžná tabulka",
+      "pivotTable": "Kontingenční tabulka"
     },
     "favorite": {
       "tooltip": "Oblíbené",

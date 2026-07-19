@@ -96,6 +96,16 @@ describe("AppStack Fargate hardening", () => {
     // Mirrors web/admin container assertions below.
     expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
+    // OAuth 2.1 resource-server verification. ISSUER + JWKS derive from the web
+    // origin (Better Auth mounts at <app-host>/api/auth); RESOURCE is the hosted
+    // MCP host and derives from envName like PUBLIC_API_URL. TEST_ENV_NAME="test",
+    // so RESOURCE resolves to the staging MCP host. All three MUST be present or
+    // verifyOAuthAccessToken fails closed and OAuth never activates.
+    expect(envByName["OAUTH_ISSUER"]).toBe("https://test.example.com/api/auth")
+    expect(envByName["OAUTH_JWKS_URI"]).toBe(
+      "https://test.example.com/api/auth/jwks",
+    )
+    expect(envByName["OAUTH_RESOURCE"]).toBe("https://mcp-staging.afframe.com")
     const secretNames = (api?.Secrets ?? []).map((s) => s.Name)
     expect(secretNames).toContain("OPENFGA_STORE_ID")
     expect(secretNames).toContain("OPENFGA_MODEL_ID")
@@ -147,6 +157,11 @@ describe("AppStack Fargate hardening", () => {
     )
     expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
+    // The OAuth authorization server runs in the web container; it needs
+    // OAUTH_RESOURCE to set validAudiences and mint the correct `aud`. Must be
+    // the SAME value the api verifier checks (asserted in the api env test) so
+    // minted and verified audiences never drift. TEST_ENV_NAME="test" → staging.
+    expect(envByName["OAUTH_RESOURCE"]).toBe("https://mcp-staging.afframe.com")
     // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")

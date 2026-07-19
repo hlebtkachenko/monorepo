@@ -37,6 +37,7 @@ interface AccountRow {
   nature: string
   normal_balance: "DEBIT" | "CREDIT" | null
   tracks_open_items: boolean
+  tax_relevant: boolean | null
   class: number | null
   group_code: string | null
   synthetic_code: string | null
@@ -53,6 +54,31 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@workspace/auth/api-key-verifier", () => ({
   verifyApiKey: vi.fn(),
+}))
+
+// list() delegates to the @workspace/accounting single-source read; emulate it against the
+// in-memory rows scoped to the callback db's org (get()/patch() keep the drizzle db mock below).
+vi.mock("@workspace/accounting", () => ({
+  listAccounts: (
+    db: { _orgId: string },
+    filter: { periodId?: string; isSynthetic?: boolean; number?: string } = {},
+  ) => {
+    const matched = state.rows
+      .filter((r) => r.organization_id === db._orgId)
+      .filter(
+        (r) =>
+          (filter.periodId === undefined || r.period_id === filter.periodId) &&
+          (filter.isSynthetic === undefined ||
+            r.is_synthetic === filter.isSynthetic) &&
+          (filter.number === undefined || r.number === filter.number),
+      )
+      .sort((a, b) =>
+        a.period_id === b.period_id
+          ? a.number.localeCompare(b.number)
+          : a.period_id.localeCompare(b.period_id),
+      )
+    return Promise.resolve(matched)
+  },
 }))
 
 vi.mock("@workspace/db/schema", () => ({
@@ -111,6 +137,7 @@ vi.mock("@workspace/db", () => {
     const visible = () => state.rows.filter((r) => r.organization_id === orgId)
 
     const db = {
+      _orgId: orgId,
       select(projection: Record<string, string>) {
         let predicate: Pred | null = null
         const chain = {
@@ -191,6 +218,7 @@ function row(over: Partial<AccountRow> & { id: string }): AccountRow {
     nature: "ASSET",
     normal_balance: "DEBIT",
     tracks_open_items: true,
+    tax_relevant: null,
     class: 3,
     group_code: "31",
     synthetic_code: "311",

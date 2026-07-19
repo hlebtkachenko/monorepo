@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:org-new": "eslint app/o --max-warnings 0",
+    "lint:org-orphan": "eslint app lib e2e -c eslint.org-boundary.config.js --no-inline-config --max-warnings 0",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

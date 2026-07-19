@@ -212,16 +212,39 @@ export const DEFAULT_OPEN_ITEM_ACCOUNTS: readonly string[] = [
 ] as const
 
 /**
- * Materialize the směrná účtová osnova (Vyhláška 500/2002 Příloha 1) into a
- * chart as synthetic účty — one INSERT…SELECT over directive_account, NOT 218
- * round-trips. nature/normal_balance are stored on the directive; the account's
- * class/group/synthetic/is_synthetic are GENERATED from number. tracks_open_items
- * is preset for the saldokonto set. specializes_directive_code back-links each
- * account to its 3-digit catalogue row. Returns the count seeded.
+ * Resolve which framework-chart year (Účetní osnova) to seed from: the greatest published
+ * directive_account_year ≤ the requested year (so opening 2027 before its framework is
+ * published falls back to 2026 — the "choose the previous year's framework" rule). Returns
+ * null when no framework is published at or before the year.
+ */
+export async function resolveFrameworkYear(
+  db: RowExecutor,
+  year: number,
+): Promise<number | null> {
+  // Prefer the greatest published framework year ≤ the requested year; if none is published at
+  // or before it (a period opened earlier than the first framework, e.g. a backfill), fall back
+  // to the earliest published year rather than seeding an empty chart. NULL only if none exist.
+  const found = await rows<{ year: number | null }>(
+    db,
+    sql`SELECT COALESCE(
+           (SELECT max(year) FROM directive_account_year WHERE year <= ${year}),
+           (SELECT min(year) FROM directive_account_year)
+         ) AS year`,
+  )
+  return found[0]?.year ?? null
+}
+
+/**
+ * Seed a chart from the year-based Účetní osnova (account directive) — one INSERT…SELECT over
+ * directive_account_year ⨝ directive_account for the given year, NOT hundreds of round-trips.
+ * The osnova is synthetic-only (no analytics, no parent). nature/normal_balance/statement
+ * mapping come from the stable catalogue; the year overlay supplies membership + the
+ * tracks_open_items (saldokonto) + tax_relevant (Daňový) defaults. specializes_directive_code
+ * back-links each account to its 3-digit catalogue row. Returns the count seeded.
  *
- * FOR-PROFIT double-entry ONLY. Spolek/nadace book under Vyhláška 504/2002 (a
- * different osnova, not seeded) — the orchestrator hard-errors before reaching
- * here; this function does not guard legal form.
+ * `openItemAccounts`, when passed, OVERRIDES the overlay's saldo defaults (kept for callers
+ * that pin a specific saldokonto set). FOR-PROFIT double-entry ONLY — the orchestrator
+ * hard-errors before reaching here; this function does not guard legal form.
  */
 export async function seedChartFromDirectives(
   db: RowExecutor,
@@ -229,25 +252,67 @@ export async function seedChartFromDirectives(
   input: {
     chartId: string
     periodId: string
+    year: number
     openItemAccounts?: readonly string[]
   },
 ): Promise<number> {
-  const openItems = input.openItemAccounts ?? DEFAULT_OPEN_ITEM_ACCOUNTS
+  const override = input.openItemAccounts
+  const saldo = override
+    ? sql`(da.code = ANY(${sql`ARRAY[${sql.join(
+        override.map((c) => sql`${c}`),
+        sql`, `,
+      )}]::char(3)[]`}))`
+    : sql`day.tracks_open_items`
   const seeded = await rows<{ id: string }>(
     db,
     sql`INSERT INTO account
           (organization_id, chart_id, period_id, number, name, nature, normal_balance,
-           tracks_open_items, specializes_directive_code)
+           tracks_open_items, tax_relevant, specializes_directive_code)
         SELECT ${ctx.organizationId}::uuid, ${input.chartId}::uuid, ${input.periodId}::uuid,
-               da.code, COALESCE(da.name_cs, da.name_en), da.nature, da.normal_balance,
-               (da.code = ANY(${sql`ARRAY[${sql.join(
-                 openItems.map((c) => sql`${c}`),
-                 sql`, `,
-               )}]::char(3)[]`})),
-               da.code
-        FROM directive_account da
-        WHERE da.deprecated = false
+               da.code, COALESCE(day.name_cs, da.name_cs, da.name_en), da.nature, da.normal_balance,
+               ${saldo}, day.tax_relevant, da.code
+        FROM directive_account_year day
+        JOIN directive_account da ON da.code = day.code
+        WHERE day.year = ${input.year} AND day.deprecated = false
         RETURNING id`,
+  )
+  return seeded.length
+}
+
+/**
+ * Seed a chart from a prebuilt house Účtový rozvrh template (directive + our system accounts).
+ * Two statements: (1) INSERT…SELECT every template account, (2) remap parent_id from
+ * parent_number so analytic účty in future variants point at their synthetic. nature /
+ * normal_balance / tracks_open_items / tax_relevant / specializes_directive_code copy straight
+ * from the template. Returns the count seeded.
+ */
+export async function seedChartFromTemplate(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: { chartId: string; periodId: string; templateId: string },
+): Promise<number> {
+  const seeded = await rows<{ id: string }>(
+    db,
+    sql`INSERT INTO account
+          (organization_id, chart_id, period_id, number, name, nature, normal_balance,
+           tracks_open_items, tax_relevant, specializes_directive_code)
+        SELECT ${ctx.organizationId}::uuid, ${input.chartId}::uuid, ${input.periodId}::uuid,
+               ta.number, ta.name, ta.nature, ta.normal_balance,
+               ta.tracks_open_items, ta.tax_relevant, ta.specializes_directive_code
+        FROM chart_template_account ta
+        WHERE ta.template_id = ${input.templateId}::uuid
+        RETURNING id`,
+  )
+  await rows(
+    db,
+    sql`UPDATE account a
+          SET parent_id = p.id
+        FROM chart_template_account ta
+        JOIN account p ON p.chart_id = ${input.chartId}::uuid AND p.number = ta.parent_number
+        WHERE ta.template_id = ${input.templateId}::uuid
+          AND ta.parent_number IS NOT NULL
+          AND a.chart_id = ${input.chartId}::uuid
+          AND a.number = ta.number`,
   )
   return seeded.length
 }
@@ -270,17 +335,18 @@ export async function createAccount(
     normalBalance?: DebitCredit | null
     parentId?: string | null
     tracksOpenItems?: boolean
+    taxRelevant?: boolean | null
     specializesDirectiveCode?: string | null
   },
 ): Promise<string> {
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO account
-          (organization_id, chart_id, period_id, parent_id, number, name, nature, normal_balance, tracks_open_items, specializes_directive_code)
+          (organization_id, chart_id, period_id, parent_id, number, name, nature, normal_balance, tracks_open_items, tax_relevant, specializes_directive_code)
         VALUES
           (${ctx.organizationId}::uuid, ${input.chartId}::uuid, ${input.periodId}::uuid, ${input.parentId ?? null},
            ${input.number}, ${input.name}, ${input.nature}, ${input.normalBalance ?? null},
-           ${input.tracksOpenItems ?? false}, ${input.specializesDirectiveCode ?? null})
+           ${input.tracksOpenItems ?? false}, ${input.taxRelevant ?? null}, ${input.specializesDirectiveCode ?? null})
         RETURNING id`,
   )
   return r.id

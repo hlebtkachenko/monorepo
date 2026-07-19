@@ -43,6 +43,7 @@ export const account = pgTable(
     nature: accountNature("nature").notNull(),
     normal_balance: debitCredit("normal_balance"), // NULL where sign-flips (431,481,FX)
     tracks_open_items: boolean("tracks_open_items").notNull().default(false), // saldokonto — the ONE stored flag
+    tax_relevant: boolean("tax_relevant"), // Daňový; seeded from osnova/template, editable; NULL for balance/closing
     // structural levels: GENERATED from `number` only (read-only projections)
     class: smallint("class").generatedAlwaysAs(sql`left(number,1)::int`),
     group_code: char("group_code", { length: 2 }).generatedAlwaysAs(

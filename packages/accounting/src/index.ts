@@ -18,6 +18,19 @@ export {
 } from "./number-series"
 export { resolveAccountId, resolveAccountIds } from "./accounts"
 
+// Chart of accounts + Účetní osnova + prebuilt-template reads (the Lists-layer single source)
+export {
+  listAccounts,
+  listDirectiveYear,
+  listChartTemplates,
+  listChartTemplateAccounts,
+  findChartId,
+  type ChartAccountRow,
+  type DirectiveYearRow,
+  type ChartTemplateRow,
+  type ChartTemplateAccountRow,
+} from "./chart-of-accounts"
+
 // Master-data / setup
 export {
   createPeriod,
@@ -27,6 +40,8 @@ export {
   backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,
+  seedChartFromTemplate,
+  resolveFrameworkYear,
   DEFAULT_OPEN_ITEM_ACCOUNTS,
   createAccount,
   createCounterparty,

@@ -34,6 +34,9 @@ export * from "./currency"
 export * from "./business_activity"
 export * from "./account_group"
 export * from "./directive_account"
+export * from "./directive_account_year"
+export * from "./chart_template"
+export * from "./chart_template_account"
 export * from "./depreciation_group"
 
 // v2 accounting — organization reshape + org↔law links + counterparty (0026)

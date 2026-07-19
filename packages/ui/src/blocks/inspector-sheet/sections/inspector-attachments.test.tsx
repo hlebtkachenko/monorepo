@@ -111,6 +111,36 @@ describe("InspectorAttachments", () => {
     ).not.toBeInTheDocument()
   })
 
+  it("disables the open redirect for a link with an unsafe href", () => {
+    renderAttachments({
+      files: [{ id: "x", name: "javascript:alert(1)", kind: "link" }],
+    })
+    expect(
+      screen.getByRole("button", { name: "Open javascript:alert(1)" }),
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole("link", { name: "Open javascript:alert(1)" }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("renames an added link in place (component owns added rows)", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Renamed link")
+    const user = userEvent.setup()
+    renderAttachments()
+
+    await user.click(screen.getByRole("button", { name: "Add link" }))
+    const input = await screen.findByPlaceholderText("https://…")
+    await user.type(input, "https://example.com/x{Enter}")
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "More actions for https://example.com/x",
+      }),
+    )
+    await user.click(await screen.findByRole("menuitem", { name: "Rename" }))
+    expect(screen.getByText("Renamed link")).toBeInTheDocument()
+  })
+
   it("validates the URL before adding a link", async () => {
     const onAddLink = vi.fn()
     const user = userEvent.setup()

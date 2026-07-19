@@ -135,9 +135,14 @@ function AttachmentRow({
   const Undo = icons.RotateCcw
 
   // A link row has no bytes to preview/download — it carries an external URL, so
-  // its primary + menu action is an open-external redirect instead.
+  // its primary + menu action is an open-external redirect instead. Gate the
+  // target to a valid http(s) URL: the interactive add path already validates,
+  // but a row sourced from an untrusted `files` prop must never render a
+  // `javascript:`/`data:` href (defense-in-depth at the render boundary).
   const isLink = file.kind === "link"
-  const href = file.url ?? file.name
+  const href = isValidLinkUrl(file.url ?? file.name)
+    ? (file.url ?? file.name)
+    : undefined
 
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 text-sm">
@@ -170,16 +175,27 @@ function AttachmentRow({
             </span>
           ) : null}
           {isLink ? (
-            <Button
-              asChild
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Open ${file.name}`}
-            >
-              <a href={href} target="_blank" rel="noopener noreferrer">
+            href ? (
+              <Button
+                asChild
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Open ${file.name}`}
+              >
+                <a href={href} target="_blank" rel="noopener noreferrer">
+                  <OpenExternal aria-hidden />
+                </a>
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled
+                aria-label={`Open ${file.name}`}
+              >
                 <OpenExternal aria-hidden />
-              </a>
-            </Button>
+              </Button>
+            )
           ) : (
             <>
               <Button
@@ -212,12 +228,14 @@ function AttachmentRow({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {isLink ? (
-                <DropdownMenuItem asChild>
-                  <a href={href} target="_blank" rel="noopener noreferrer">
-                    <OpenExternal aria-hidden />
-                    Open link
-                  </a>
-                </DropdownMenuItem>
+                href ? (
+                  <DropdownMenuItem asChild>
+                    <a href={href} target="_blank" rel="noopener noreferrer">
+                      <OpenExternal aria-hidden />
+                      Open link
+                    </a>
+                  </DropdownMenuItem>
+                ) : null
               ) : (
                 <>
                   <DropdownMenuItem onSelect={() => onPreview?.(file.id)}>
@@ -416,6 +434,31 @@ export function InspectorAttachments({
     setLinkOpen(false)
   }
 
+  // Rows added in-session (links / linked records) live in `added`, not the
+  // parent `files`, so Copy URL / Rename for them are owned HERE — the parent
+  // callbacks only resolve their own files (and would copy an empty string /
+  // no-op for an `added` id). Parent-owned files still delegate to the callbacks.
+  const copyUrlRow = (id: string) => {
+    const local = added.find((file) => file.id === id)
+    if (local) {
+      void navigator.clipboard.writeText(local.url ?? local.name)
+      return
+    }
+    onCopyUrl?.(id)
+  }
+  const renameRow = (id: string) => {
+    const local = added.find((file) => file.id === id)
+    if (local) {
+      const next = window.prompt("Rename attachment", local.name)?.trim()
+      if (next)
+        setAdded((prev) =>
+          prev.map((file) => (file.id === id ? { ...file, name: next } : file)),
+        )
+      return
+    }
+    onRename?.(id)
+  }
+
   const linkExisting = (record: InspectorExistingRecord) => {
     setAdded((prev) => [
       ...prev,
@@ -459,8 +502,8 @@ export function InspectorAttachments({
               deleted={deleted.has(file.id)}
               onPreview={openPreview}
               onDownload={onDownload}
-              onCopyUrl={onCopyUrl}
-              onRename={onRename}
+              onCopyUrl={copyUrlRow}
+              onRename={renameRow}
               onDelete={() => markDeleted(file.id)}
               onUndo={() => undoDelete(file.id)}
             />

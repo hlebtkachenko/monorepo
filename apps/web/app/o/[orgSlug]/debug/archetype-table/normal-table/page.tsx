@@ -68,6 +68,9 @@ export default async function DebugNormalTablePage({
 
   return (
     <DebugNormalTableView
+      // Re-seed the client-owned rows when the org changes (a soft nav between
+      // two orgs on this same route would otherwise reuse the mounted instance).
+      key={orgSlug}
       slug={orgSlug}
       title={title}
       rows={rows}

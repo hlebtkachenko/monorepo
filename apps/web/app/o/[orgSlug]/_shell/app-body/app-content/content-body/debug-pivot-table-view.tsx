@@ -5,6 +5,7 @@ import type { Table } from "@tanstack/react-table"
 
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import {
+  buildTableToolbar,
   sectionPivotTable,
   useTableFilters,
 } from "@workspace/ui/blocks/content-panel"
@@ -93,6 +94,7 @@ export function DebugPivotTableView({
   favorite: ContentHeaderFavoriteToggle
 }) {
   const [activeTab, setActiveTab] = React.useState("all")
+  const [search, setSearch] = React.useState("")
   const [filters, setFilters] = React.useState<FiltersState>([])
 
   // View narrows the source rows by status (page-owned, coarse); the multi-filter
@@ -128,13 +130,15 @@ export function DebugPivotTableView({
   const buildToolbar = React.useCallback(
     (
       table: Table<TableSectionRow> | null,
-    ): ContentToolbarProps<TableSectionRow> => ({
-      filter,
-      // The pivot grid is a real TanStack instance; keep the columns manager +
-      // sort controls (mandatory Table chrome), same as the Normal view.
-      viewTools: table ? { table } : undefined,
-    }),
-    [filter],
+    ): ContentToolbarProps<TableSectionRow> =>
+      // A Table archetype toolbar ALWAYS has search — the pivot's global filter
+      // runs over the row labels. buildTableToolbar also adds the columns manager
+      // + sort; the source-field filter is threaded in.
+      buildTableToolbar(table, {
+        search: { value: search, onChange: setSearch },
+        filter,
+      }),
+    [search, filter],
   )
 
   return (

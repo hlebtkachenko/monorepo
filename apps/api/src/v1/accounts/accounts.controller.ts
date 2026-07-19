@@ -23,8 +23,10 @@ import type {
 } from "@workspace/shared/api"
 import { NotFoundError, ValidationError } from "@workspace/shared/errors"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
-import { and, eq, sql, withOrganization } from "@workspace/db"
+import { eq, sql, withOrganization } from "@workspace/db"
 import { account } from "@workspace/db/schema"
+import { listAccounts } from "@workspace/accounting"
+import type { ChartAccountRow } from "@workspace/accounting"
 import { ApiKeyGuard } from "../../auth/api-key.guard"
 import { CurrentPrincipal } from "../../auth/principal.decorator"
 import { RequireScopes } from "../../auth/require-scopes.decorator"
@@ -119,25 +121,39 @@ export class AccountsController {
     @CurrentPrincipal() principal: ApiKeyPrincipal,
   ): Promise<ListAccountsResponse> {
     const { periodId, isSynthetic, number } = query
-    const filters = [
-      periodId ? eq(account.period_id, periodId) : undefined,
-      isSynthetic !== undefined
-        ? eq(account.is_synthetic, isSynthetic === "true")
-        : undefined,
-      number ? eq(account.number, number) : undefined,
-    ].filter((f): f is NonNullable<typeof f> => f !== undefined)
-
+    // Single source: the same @workspace/accounting read the web chart-of-accounts page uses.
     const rows = await withOrganization(
       principal.organizationId,
       principal.userId,
       (db) =>
-        db
-          .select(this.projection)
-          .from(account)
-          .where(filters.length ? and(...filters) : undefined)
-          .orderBy(account.period_id, account.number),
+        listAccounts(db, {
+          periodId,
+          isSynthetic:
+            isSynthetic === undefined ? undefined : isSynthetic === "true",
+          number,
+        }),
     )
-    return { accounts: rows.map((r) => this.toAccount(r)) }
+    return { accounts: rows.map((r) => this.fromRow(r)) }
+  }
+
+  /** Maps a snake_case domain `ChartAccountRow` to the public `Account` shape. */
+  private fromRow(r: ChartAccountRow): Account {
+    return this.toAccount({
+      id: r.id,
+      chartId: r.chart_id,
+      periodId: r.period_id,
+      parentId: r.parent_id,
+      number: r.number,
+      name: r.name,
+      nature: r.nature,
+      normalBalance: r.normal_balance,
+      tracksOpenItems: r.tracks_open_items,
+      class: r.class,
+      groupCode: r.group_code,
+      syntheticCode: r.synthetic_code,
+      isSynthetic: r.is_synthetic,
+      specializesDirectiveCode: r.specializes_directive_code,
+    })
   }
 
   @Get(":accountId")

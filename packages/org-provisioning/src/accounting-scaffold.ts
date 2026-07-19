@@ -20,6 +20,7 @@ import {
   createChart,
   createPeriod,
   seedChartFromDirectives,
+  resolveOsnovaYear,
 } from "@workspace/accounting"
 import { deriveRegime, type LegalFormFacts, type Regime } from "./regime"
 import { ScaffoldValidationError } from "./errors"
@@ -247,9 +248,15 @@ export async function scaffoldAccountingPeriod(
   let accountsSeeded = 0
   if (ctx.requiresChart) {
     chartId = await createChart(db, orgCtx, { periodId })
+    // Seed from the Účetní osnova effective for the period's year (falls back to the latest
+    // published prior year if that exact year has none yet).
+    const requestedYear = Number(params.periodStart.slice(0, 4))
+    const osnovaYear =
+      (await resolveOsnovaYear(db, requestedYear)) ?? requestedYear
     accountsSeeded = await seedChartFromDirectives(db, orgCtx, {
       chartId,
       periodId,
+      year: osnovaYear,
     })
   }
 

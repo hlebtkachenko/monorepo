@@ -19,18 +19,25 @@
 
 import type { SQL } from "drizzle-orm"
 import { executeRows } from "@workspace/db"
-import type { OrganizationBoundDb } from "@workspace/db"
+import type { OrganizationBoundDb, OrganizationReadonlyDb } from "@workspace/db"
 
-/** The organization-bound transaction handed in by withOrganization. */
+/** The organization-bound transaction handed in by withOrganization (read + write). */
 export type RowExecutor = OrganizationBoundDb
 
+/**
+ * A read-capable org-bound tx: the read-write handle from `withOrganization` OR the READ ONLY
+ * one from `withOrgReadonly`. Pure reads (list/lookup) type their `db` as this so an RSC page
+ * can hand them a provably-read-only tx; mutating helpers keep the narrower `RowExecutor`.
+ */
+export type ReadExecutor = OrganizationBoundDb | OrganizationReadonlyDb
+
 /** Run a parameterized query and return its rows, typed by the caller. */
-export function rows<T>(db: RowExecutor, query: SQL): Promise<T[]> {
+export function rows<T>(db: ReadExecutor, query: SQL): Promise<T[]> {
   return executeRows<T>(db, query)
 }
 
 /** Run a query expected to return exactly one row; throws if it returns none. */
-export async function one<T>(db: RowExecutor, query: SQL): Promise<T> {
+export async function one<T>(db: ReadExecutor, query: SQL): Promise<T> {
   const result = await rows<T>(db, query)
   const first = result[0]
   if (first === undefined) {

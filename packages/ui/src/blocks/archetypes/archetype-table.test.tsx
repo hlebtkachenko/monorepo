@@ -22,6 +22,17 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 import { ArchetypeTable } from "./archetype-table"
 import { resolveHeaderFilterTarget } from "./archetype-table"
 
+// The Table archetype's mandatory chrome (views / favorite / selection footer)
+// is required by the props type; these are the minimal satisfiers the tests that
+// focus on other behaviour reuse. A test that exercises one of them overrides it.
+const TEST_VIEWS = {
+  tabs: [{ value: "all", label: "All", count: 0 }],
+  value: "all",
+  onValueChange: () => {},
+}
+const TEST_FAVORITE = { initialActive: false, onToggle: async () => {} }
+const TEST_SELECTION = () => []
+
 describe("resolveHeaderFilterTarget", () => {
   const filterCols = ["document", "partner", "amount"]
 
@@ -74,6 +85,9 @@ describe("ArchetypeTable — row inspector", () => {
       <AppShell>
         <ArchetypeTable<TableSectionRow>
           title="Invoices"
+          views={TEST_VIEWS}
+          favorite={TEST_FAVORITE}
+          selectionActions={TEST_SELECTION}
           toolbar={() => ({})}
           inspectorRowTitle={(row) => `Inspector for ${String(row.document)}`}
           inspectorRowContent={(row) => ({
@@ -122,7 +136,7 @@ describe("ArchetypeTable — favorite star", () => {
   // The archetype's header portals through AppPageHeader into the shell's
   // content-header slot, so the star only mounts with the provider + slot in
   // place (a bare AppShell has no portal target).
-  function renderWithHeader(favorite?: {
+  function renderWithHeader(favorite: {
     initialActive: boolean
     onToggle: () => Promise<boolean | void>
   }) {
@@ -131,6 +145,8 @@ describe("ArchetypeTable — favorite star", () => {
         <AppShell contentHeader={<AppContentHeaderSlot fallback={null} />}>
           <ArchetypeTable<TableSectionRow>
             title="Invoices"
+            views={TEST_VIEWS}
+            selectionActions={TEST_SELECTION}
             toolbar={() => ({})}
             favorite={favorite}
             sections={[
@@ -162,15 +178,6 @@ describe("ArchetypeTable — favorite star", () => {
     )
     expect(onToggle).toHaveBeenCalledTimes(1)
   })
-
-  it("renders no star when no favorite is supplied", async () => {
-    renderWithHeader()
-    // Wait for the portalled header to mount, then assert the star is absent.
-    expect(await screen.findByText("Invoices")).toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: /add to favorites/i }),
-    ).not.toBeInTheDocument()
-  })
 })
 
 type Row = TableSectionRow & { document: string; partner: string }
@@ -190,6 +197,9 @@ function NavTestPage() {
   return (
     <ArchetypeTable<Row>
       title="Invoices"
+      views={TEST_VIEWS}
+      favorite={TEST_FAVORITE}
+      selectionActions={TEST_SELECTION}
       toolbar={() => ({})}
       inspectorRowTitle={(row) => `#${row.document}`}
       inspectorRowName={(row) => row.partner}

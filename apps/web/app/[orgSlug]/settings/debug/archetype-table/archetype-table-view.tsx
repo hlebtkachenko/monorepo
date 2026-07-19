@@ -20,6 +20,7 @@ import {
   sectionTable,
 } from "@workspace/ui/blocks/content-panel"
 import type {
+  ContentHeaderFavoriteToggle,
   ContentToolbarProps,
   DetailsTableColumn,
   DetailsTableRow,
@@ -778,7 +779,11 @@ function buildInspectorTabs(
   }
 }
 
-export function ArchetypeTableView() {
+export function ArchetypeTableView({
+  favorite,
+}: {
+  favorite: ContentHeaderFavoriteToggle
+}) {
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
   const [statusOpen, setStatusOpen] = React.useState(false)
@@ -862,6 +867,7 @@ export function ArchetypeTableView() {
     <ArchetypeTable<TableSectionRow>
       title="Archetype Table"
       breadcrumb={[{ label: "Debug", href: "..", icon: "Bug" }]}
+      favorite={favorite}
       views={{
         tabs: VIEW_TABS,
         value: activeTab,

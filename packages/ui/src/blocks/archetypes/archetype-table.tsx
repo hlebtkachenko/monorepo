@@ -16,6 +16,7 @@ import {
   useSectionInspect,
   useSectionInspectOpener,
   useSectionTable,
+  useTableFilters,
 } from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
 import type {
@@ -24,11 +25,14 @@ import type {
   ContentHeaderBreadcrumbItem,
   ContentHeaderFavoriteToggle,
   ContentToolbarProps,
+  FilterDescriptor,
   InspectorMode,
   SectionCellCommit,
   SectionCreateOption,
   SectionDescriptor,
   SectionPivotDrill,
+  TableColumnSpec,
+  TableSectionRow,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type {
@@ -37,7 +41,13 @@ import type {
   InspectorFooterProps,
   InspectorTab,
 } from "@workspace/ui/blocks/inspector-sheet"
+import type { FiltersState } from "@workspace/ui/components/filter-bar"
 import type { IconName } from "@workspace/ui/icon-packs"
+
+/** Stable empty inputs for the auto-filter hook when a body has no flat Table
+ *  section (a Pivot body) — kept module-level so their identity never changes. */
+const NO_COLUMNS: readonly TableColumnSpec[] = []
+const NO_ROWS: readonly TableSectionRow[] = []
 
 import type { AllowedSectionKind } from "./archetype-section-policy"
 import { assertSectionsAllowed } from "./archetype-section-policy"
@@ -88,13 +98,19 @@ export interface ArchetypeTableProps<TData> {
   breadcrumb?: ContentHeaderBreadcrumbItem[]
   /** Optional `‹ Back to {label}` link — for a record opened from a source list. */
   backTo?: ContentHeaderBackLinkData
-  /** Optional views cluster in the header. */
-  views?: ArchetypeTableViews
   /**
-   * Optional self-managing favorite star for this page's header. Omit → no star.
-   * The archetype owns the optimism; the page supplies seed state + persistence.
+   * The header views cluster — MANDATORY for a Table (every dense list page has
+   * views; at minimum a single "All"). A required prop so a page cannot ship a
+   * Table with no views: omitting it is a `tsc` error, not a silently bare page.
    */
-  favorite?: ContentHeaderFavoriteToggle
+  views: ArchetypeTableViews
+  /**
+   * The self-managing favorite star — MANDATORY for a Table page (a content page
+   * is favoritable, per the app's favorites rule). Required so a page cannot ship
+   * a Table with no star. The archetype owns the optimism; the page supplies seed
+   * state + persistence (a bound server action).
+   */
+  favorite: ContentHeaderFavoriteToggle
   /**
    * The page-wide toolbar — a FUNCTION of the Table section's live instance
    * (`null` on the first paint, before the section registers). Build the closed
@@ -113,14 +129,15 @@ export interface ArchetypeTableProps<TData> {
    */
   sections: readonly SectionDescriptor<AllowedSectionKind<"table">>[]
   /**
-   * Bulk actions for the selection footer, as a FUNCTION of the live table (like
+   * Bulk actions for the selection footer — MANDATORY for a Table (the footer is
+   * a required part of the archetype). A FUNCTION of the live table (like
    * `toolbar`) so each action's `onSelect` can close over the current selection
-   * (`table.getFilteredSelectedRowModel().rows`) to do real work. When it returns
-   * a non-empty array the archetype renders a `ContentFooter` auto-wired to the
-   * Table section's selection (count + clear from the live instance); it
-   * self-hides when nothing is selected. NO status bar (legacy).
+   * (`table.getFilteredSelectedRowModel().rows`) to do real work. The archetype
+   * renders the `ContentFooter` auto-wired to the Table section's selection
+   * (count + clear from the live instance); it self-hides when nothing is
+   * selected. Required so a Table can't ship with a dead selection. NO status bar.
    */
-  selectionActions?: (table: Table<TData> | null) => ContentFooterAction[]
+  selectionActions: (table: Table<TData> | null) => ContentFooterAction[]
   /**
    * Persist an inline-cell edit. Wired through the `SectionTableProvider` bridge
    * to the Table section's cell editors (the descriptor stays pure data); the
@@ -203,6 +220,15 @@ export interface ArchetypeTableProps<TData> {
  * TanStack instance and publishes it up, and the toolbar (`viewTools`) + selection
  * footer consume it. The descriptor stays pure data; the instance is minted in the
  * renderer; the chrome drives it through the provider.
+ *
+ * GOVERNANCE — the mandatory chrome is guaranteed, not left to the page:
+ *   - `views`, `favorite`, `selectionActions` are REQUIRED props, so a Table with
+ *     no views / no favorite star / a dead selection footer is a compile error.
+ *   - the per-column FILTER is AUTO-GENERATED from the Table section's own columns
+ *     (see `useTableFilters` above) and the rows are narrowed here — the page never
+ *     wires it, so it can never be forgotten or wired partially. This is the fix
+ *     for a reference page that once shipped as a bare table: the rule "every
+ *     column spawns a filter" is now true by construction, not by convention.
  */
 export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
   return (
@@ -253,6 +279,29 @@ function ArchetypeTableChrome<TData>({
   const table = registration
     ? (registration.table as unknown as Table<TData>)
     : null
+
+  // ── Auto-generated per-column filter — the "every Table column spawns a
+  // filter" rule made true BY CONSTRUCTION, not by page wiring. The archetype
+  // reads the flat Table section's own columns + rows, owns the multi-filter
+  // state, and narrows the rows itself. A page therefore cannot forget the filter
+  // or wire it partially: the filter is derived from the same column specs the
+  // grid renders, so a new column is filterable the instant it is added. A Pivot
+  // body has no flat `table` section, so it keeps its page-supplied source filter.
+  const tableSectionIndex = sections.findIndex(
+    (section) => section.kind === "table",
+  )
+  const tableSection =
+    tableSectionIndex >= 0 ? sections[tableSectionIndex] : undefined
+  const tablePayload = tableSection?.props as
+    | { columns: readonly TableColumnSpec[]; rows: readonly TableSectionRow[] }
+    | undefined
+  const [filters, setFilters] = React.useState<FiltersState>([])
+  const autoFilter = useTableFilters({
+    columns: tablePayload?.columns ?? NO_COLUMNS,
+    rows: tablePayload?.rows ?? NO_ROWS,
+    filters,
+    onFiltersChange: setFilters,
+  })
 
   // Row Inspector: the section renderer's maximize affordance publishes the
   // clicked row through the bridge; the row stays set through the close
@@ -322,10 +371,27 @@ function ArchetypeTableChrome<TData>({
   // selector share a single source of truth.
   const columnFilter = useSectionColumnFilter()
   const toolbarProps = toolbar(table)
+
+  // A flat Table shows the archetype's auto filter (every column, minus any one
+  // the page delegated to the faceted statusFilter — a column is filtered by
+  // exactly one system). A Pivot body has no auto filter, so it shows the page's
+  // own source filter. The auto filter is over the section's `TableSectionRow`s;
+  // the toolbar slot is typed to the page's `TData`, which IS that row type for a
+  // Table page — the cast bridges the generic.
+  const statusColumnId = toolbarProps.statusFilter?.columnId
+  const effectiveFilter: FilterDescriptor<TData> | undefined = tableSection
+    ? ({
+        ...autoFilter.filter,
+        columns: statusColumnId
+          ? autoFilter.filter.columns.filter((c) => c.id !== statusColumnId)
+          : autoFilter.filter.columns,
+      } as unknown as FilterDescriptor<TData>)
+    : toolbarProps.filter
+
   const filterTarget = resolveHeaderFilterTarget(
     columnFilter.filterColumnId,
-    toolbarProps.filter?.columns.map((c) => c.id) ?? [],
-    toolbarProps.statusFilter?.columnId,
+    effectiveFilter?.columns.map((c) => c.id) ?? [],
+    statusColumnId,
   )
   const openStatusFilter = toolbarProps.statusFilter?.onOpenChange
   React.useEffect(() => {
@@ -336,11 +402,11 @@ function ArchetypeTableChrome<TData>({
     columnFilter.setFilterColumnId(undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterTarget.routeToStatus, columnFilter.filterOpen])
-  const wiredToolbar: ContentToolbarProps<TData> = toolbarProps.filter
+  const wiredToolbar: ContentToolbarProps<TData> = effectiveFilter
     ? {
         ...toolbarProps,
         filter: {
-          ...toolbarProps.filter,
+          ...effectiveFilter,
           property: filterTarget.property,
           onPropertyChange: columnFilter.setFilterColumnId,
           // Keep the multi-filter closed while a statusFilter request is in flight.
@@ -368,7 +434,21 @@ function ArchetypeTableChrome<TData>({
 
   // Resolve the selection actions against the live table so each `onSelect` can
   // read the current selection; self-hides when there are none.
-  const resolvedSelectionActions = selectionActions?.(table) ?? []
+  // Feed the AUTO-FILTERED rows to the flat Table section (re-minting only that
+  // one descriptor, same kind+index → the grid instance survives, so sort /
+  // selection / search are kept). A Pivot body is passed through untouched.
+  const renderedSections = tableSection
+    ? sections.map((section, index) =>
+        index === tableSectionIndex
+          ? ({
+              ...section,
+              props: { ...(section.props as object), rows: autoFilter.rows },
+            } as (typeof sections)[number])
+          : section,
+      )
+    : sections
+
+  const resolvedSelectionActions = selectionActions(table) ?? []
   const footer =
     resolvedSelectionActions.length > 0 ? (
       <ContentFooter
@@ -397,7 +477,7 @@ function ArchetypeTableChrome<TData>({
       </AppPageHeader>
       <ContentPanel
         toolbar={<ContentToolbar<TData> {...wiredToolbar} />}
-        sections={sections}
+        sections={renderedSections}
         footer={footer}
         inspector={inspector}
         inspectorOpen={inspectorOpen}

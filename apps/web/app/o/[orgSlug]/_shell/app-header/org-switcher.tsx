@@ -8,7 +8,7 @@ import {
   type OrgSwitcherOrg,
 } from "@workspace/ui/blocks/app-header"
 
-import { ORG_PREFIX, orgHref } from "@/lib/org/href"
+import { ORG_PREFIX } from "@/lib/org/href"
 import { orgSwitchTarget } from "@/lib/org/switch-path"
 
 /**
@@ -48,8 +48,6 @@ export function OrgSwitcherClient({
     <OrgSwitcher
       currentOrg={currentOrg}
       recentOrgs={recentOrgsWithPath}
-      settingsHref={orgHref(slug, "settings")}
-      inviteHref={orgHref(slug, "settings")}
       createOrgHref="/onboarding"
       workspaceHref="/workspace"
     />

@@ -39,6 +39,9 @@ import type {
 } from "@workspace/ui/blocks/inspector-sheet"
 import type { IconName } from "@workspace/ui/icon-packs"
 
+import type { AllowedSectionKind } from "./archetype-section-policy"
+import { assertSectionsAllowed } from "./archetype-section-policy"
+
 /**
  * The header's views cluster — controlled tabs plus the optional configure (⋯)
  * menu. Data, wired to whatever drives the body (a Table page usually has views).
@@ -104,8 +107,11 @@ export interface ArchetypeTableProps<TData> {
   /**
    * The body: branded Sections. Exactly one `sectionTable(...)` is the norm; a
    * `space` above it is common. Rendered via the closed `SECTION_REGISTRY`.
+   * Narrowed to the Table archetype's allowed section kinds (the section-library
+   * policy in `archetype-section-policy.ts`) — a `details-*` / `inspector-*`
+   * section wired here is a `tsc` error, not a runtime surprise.
    */
-  sections: readonly SectionDescriptor[]
+  sections: readonly SectionDescriptor<AllowedSectionKind<"table">>[]
   /**
    * Bulk actions for the selection footer, as a FUNCTION of the live table (like
    * `toolbar`) so each action's `onSelect` can close over the current selection
@@ -239,6 +245,9 @@ function ArchetypeTableChrome<TData>({
   onInspectorApprove,
   bodyClassName,
 }: ArchetypeTableProps<TData>) {
+  // Dev-only belt: the narrowed `sections` type already forbids a wrong-kind
+  // section at compile time; this also catches an `as`-cast bypass at runtime.
+  assertSectionsAllowed("table", sections)
   const favoriteControlled = useOptimisticFavorite(favorite)
   const registration = useSectionTable()
   const table = registration

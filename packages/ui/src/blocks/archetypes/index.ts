@@ -8,3 +8,11 @@ export type {
   ArchetypeTableProps,
   ArchetypeTableViews,
 } from "./archetype-table"
+export {
+  ARCHETYPE_SECTION_POLICY,
+  assertSectionsAllowed,
+} from "./archetype-section-policy"
+export type {
+  ArchetypeKind,
+  AllowedSectionKind,
+} from "./archetype-section-policy"

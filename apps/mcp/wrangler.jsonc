@@ -32,6 +32,10 @@
       ],
       "vars": {
         "AFFRAME_API_BASE": "https://api-staging.afframe.com",
+        // AS issuer advertised in the RFC 9728 protected-resource metadata so an
+        // MCP client auto-discovers where to log in. Better Auth mounts at
+        // <app-host>/api/auth.
+        "OAUTH_ISSUER": "https://app-staging.afframe.com/api/auth",
       },
     },
     "production": {
@@ -39,6 +43,7 @@
       "routes": [{ "pattern": "mcp.afframe.com", "custom_domain": true }],
       "vars": {
         "AFFRAME_API_BASE": "https://api.afframe.com",
+        "OAUTH_ISSUER": "https://app.afframe.com/api/auth",
       },
     },
   },

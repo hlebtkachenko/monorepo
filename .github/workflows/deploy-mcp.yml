@@ -81,4 +81,19 @@ jobs:
             exit 1
           fi
 
-          echo "MCP ${ENVIRONMENT} smoke OK: health 200, unauthenticated gate 401" >> "$GITHUB_STEP_SUMMARY"
+          # RFC 9728 discovery: the protected-resource metadata must be served
+          # unauthenticated and name an authorization server, or MCP clients
+          # cannot auto-discover the OAuth login.
+          prm=$(curl -sS -o /tmp/prm.json -w '%{http_code}' \
+            "https://${host}/.well-known/oauth-protected-resource") || true
+          jq . /tmp/prm.json || true
+          if [ "$prm" != "200" ]; then
+            echo "::error::${host} protected-resource metadata expected 200, got ${prm}"
+            exit 1
+          fi
+          if ! jq -e '.authorization_servers[0]' /tmp/prm.json >/dev/null; then
+            echo "::error::protected-resource metadata missing authorization_servers"
+            exit 1
+          fi
+
+          echo "MCP ${ENVIRONMENT} smoke OK: health 200, unauthenticated gate 401, RFC 9728 metadata 200" >> "$GITHUB_STEP_SUMMARY"

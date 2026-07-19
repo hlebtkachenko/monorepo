@@ -13,6 +13,28 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.25.0] — 2026-07-19
+
+### Added
+
+- Add a hosted Streamable-HTTP MCP entrypoint (`mcp.afframe.com`) — a stateless Cloudflare Worker that gates on bearer presence and forwards the caller's API key to the public API, reusing the existing generated tool table. (#868)
+- Add a manual deploy workflow for the hosted MCP Worker (`workflow_dispatch`; staging deploys immediately, production behind a required-reviewer Environment). (#868)
+- Add the wrangler config for the hosted MCP Worker with staging (`mcp-staging.afframe.com`) and production (`mcp.afframe.com`) environments. (#868)
+- Emit a tool-group + read/write index in the generated MCP tools so `registerGeneratedTools` can register a selected subset (by OpenAPI-tag group and/or read/write scope) instead of all tools. (#868)
+- Let hosted MCP clients select a tool subset at connect time via `?groups=` / `?scope=` on the Worker URL, expose the group catalog at `GET /groups`, and always register a `list_tool_groups` discovery tool. (#868)
+- Accept OAuth 2.1 access tokens (JWT) as an alternative to API keys on /v1/*, verified against the authorization server JWKS, audience, and issuer and bound to one organization. (#870)
+- Add an OAuth 2.1 authorization server (Better Auth jwt + oauthProvider plugins) binding every issued token to one organization, backing the hosted MCP endpoint OAuth path. (#870)
+- Add the OAuth consent + organization-selection pages and the /.well-known/oauth-authorization-server discovery route for the OAuth 2.1 authorization server. (#870)
+
+### Changed
+
+- Make the @afframe/mcp SDK-client factory request-scoped (`buildClient(apiKey, baseUrl?)`) so the stdio and hosted transports share one factory without a long-lived shared client. (#868)
+- Document the hosted bearer MCP endpoint (`mcp.afframe.com`) and record the bearer-first decision in ADR-0023 (OAuth 2.1 deferred). (#869)
+
+### Dependencies
+
+- Add the Cloudflare Worker toolchain (wrangler + @cloudflare/workers-types) to @afframe/mcp for the hosted Streamable-HTTP endpoint. (#868)
+
 ## [v0.24.2] — 2026-07-19
 
 ### Added

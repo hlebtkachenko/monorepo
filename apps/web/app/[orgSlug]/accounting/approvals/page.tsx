@@ -15,7 +15,7 @@ import {
   getOrgAccountingContext,
   summarizeGatedPayload,
   trimGatedTimestamp,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Ke schválení" }
 

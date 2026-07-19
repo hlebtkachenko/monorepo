@@ -10,13 +10,12 @@ export type InspectorTab =
   | "related"
   | "attachments"
   | "export"
-  | "settings"
   | "more"
 
 /**
  * The rail ALWAYS shows every tab (a stable, predictable switcher). A tab a given
  * table does not use simply renders empty content when opened; the four
- * cross-cutting tabs — Details, Activity, Attachments, Settings — are usable on
+ * cross-cutting tabs — Details, Activity, Attachments, More — are usable on
  * any record regardless of its columns.
  */
 const TABS: { tab: InspectorTab; icon: IconName; label: string }[] = [
@@ -26,7 +25,6 @@ const TABS: { tab: InspectorTab; icon: IconName; label: string }[] = [
   { tab: "related", icon: "ArrowLeftRight", label: "Related" },
   { tab: "attachments", icon: "Paperclip", label: "Attachments" },
   { tab: "export", icon: "FileDown", label: "Export" },
-  { tab: "settings", icon: "Settings", label: "Settings" },
   { tab: "more", icon: "Ellipsis", label: "More" },
 ]
 

@@ -54,6 +54,18 @@ export interface InspectorAttachmentFile {
   kind?: InspectorAttachmentKind
   /** Muted right-side hint (size, "2 controls", …). */
   meta?: string
+  /** For `kind: "link"` rows — the external URL the redirect button opens. */
+  url?: string
+}
+
+/** A syntactically valid http(s) URL — the "Add link" gate. */
+function isValidLinkUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    return url.protocol === "http:" || url.protocol === "https:"
+  } catch {
+    return false
+  }
 }
 
 /** A record already in the system, searchable in "Link existing". */
@@ -115,11 +127,17 @@ function AttachmentRow({
   const Icon = icons[KIND_ICON[file.kind ?? "file"]]
   const Preview = icons.Maximize2
   const Download = icons.Download
+  const OpenExternal = icons.ArrowUpRight
   const More = icons.MoreHorizontal
   const Copy = icons.Copy
   const Pencil = icons.Pencil
   const Trash = icons.Trash2
   const Undo = icons.RotateCcw
+
+  // A link row has no bytes to preview/download — it carries an external URL, so
+  // its primary + menu action is an open-external redirect instead.
+  const isLink = file.kind === "link"
+  const href = file.url ?? file.name
 
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 text-sm">
@@ -151,22 +169,37 @@ function AttachmentRow({
               {file.meta}
             </span>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Preview ${file.name}`}
-            onClick={() => onPreview?.(file.id)}
-          >
-            <Preview aria-hidden />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Download ${file.name}`}
-            onClick={() => onDownload?.(file.id)}
-          >
-            <Download aria-hidden />
-          </Button>
+          {isLink ? (
+            <Button
+              asChild
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Open ${file.name}`}
+            >
+              <a href={href} target="_blank" rel="noopener noreferrer">
+                <OpenExternal aria-hidden />
+              </a>
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Preview ${file.name}`}
+                onClick={() => onPreview?.(file.id)}
+              >
+                <Preview aria-hidden />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Download ${file.name}`}
+                onClick={() => onDownload?.(file.id)}
+              >
+                <Download aria-hidden />
+              </Button>
+            </>
+          )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -178,14 +211,25 @@ function AttachmentRow({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => onPreview?.(file.id)}>
-                <Preview aria-hidden />
-                Preview
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => onDownload?.(file.id)}>
-                <Download aria-hidden />
-                Download
-              </DropdownMenuItem>
+              {isLink ? (
+                <DropdownMenuItem asChild>
+                  <a href={href} target="_blank" rel="noopener noreferrer">
+                    <OpenExternal aria-hidden />
+                    Open link
+                  </a>
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem onSelect={() => onPreview?.(file.id)}>
+                    <Preview aria-hidden />
+                    Preview
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onDownload?.(file.id)}>
+                    <Download aria-hidden />
+                    Download
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => onRename?.(file.id)}>
                 <Pencil aria-hidden />
@@ -359,12 +403,13 @@ export function InspectorAttachments({
     onPreview?.(id)
   }
 
+  const linkValid = isValidLinkUrl(linkUrl.trim())
   const addLink = () => {
     const url = linkUrl.trim()
-    if (!url) return
+    if (!isValidLinkUrl(url)) return
     setAdded((prev) => [
       ...prev,
-      { id: `link-${nextId.current++}`, name: url, kind: "link" },
+      { id: `link-${nextId.current++}`, name: url, kind: "link", url },
     ])
     onAddLink?.(url)
     setLinkUrl("")
@@ -477,6 +522,7 @@ export function InspectorAttachments({
               id="attachment-link-url"
               placeholder="https://…"
               value={linkUrl}
+              aria-invalid={linkUrl.trim().length > 0 && !linkValid}
               onChange={(e) => setLinkUrl(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -485,12 +531,17 @@ export function InspectorAttachments({
                 }
               }}
             />
+            {linkUrl.trim().length > 0 && !linkValid ? (
+              <p className="text-xs text-destructive">
+                Enter a valid URL (starting with http:// or https://).
+              </p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setLinkOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={addLink} disabled={!linkUrl.trim()}>
+            <Button onClick={addLink} disabled={!linkValid}>
               Add link
             </Button>
           </DialogFooter>

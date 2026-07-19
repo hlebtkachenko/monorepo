@@ -40,9 +40,15 @@ export { Inspector } from "./inspector"
 export type { InspectorProps, InspectorMode } from "./inspector"
 export * from "./content-body"
 export { ContentFooter } from "./content-footer"
+export {
+  buildTableFooter,
+  selectionCsv,
+  type BuildTableFooterOptions,
+} from "./content-footer"
 export type {
   ContentFooterProps,
   ContentFooterAction,
+  ContentFooterActionButton,
   ContentFooterActionVariant,
   ContentFooterSelection,
   ContentFooterSave,

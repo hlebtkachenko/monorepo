@@ -33,6 +33,41 @@ describe("ContentFooter — selection", () => {
     expect(onMatch).toHaveBeenCalledTimes(1)
   })
 
+  it("renders a segmented action group as inline buttons (no dropdown)", async () => {
+    const user = userEvent.setup()
+    const onClipboard = vi.fn()
+    const onCsv = vi.fn()
+
+    wrap(
+      <ContentFooter
+        selection={{
+          count: 2,
+          onClear: () => {},
+          actions: [
+            {
+              id: "export",
+              label: "Export",
+              group: [
+                {
+                  id: "clipboard",
+                  label: "Copy to clipboard",
+                  onSelect: onClipboard,
+                },
+                { id: "csv", label: "Export as CSV", onSelect: onCsv },
+              ],
+            },
+          ],
+        }}
+      />,
+    )
+
+    // Both buttons are visible inline — no dropdown trigger to open first.
+    await user.click(screen.getByRole("button", { name: "Copy to clipboard" }))
+    await user.click(screen.getByRole("button", { name: "Export as CSV" }))
+    expect(onClipboard).toHaveBeenCalledTimes(1)
+    expect(onCsv).toHaveBeenCalledTimes(1)
+  })
+
   it("renders nothing when the selection count is 0", () => {
     const { container } = wrap(
       <ContentFooter

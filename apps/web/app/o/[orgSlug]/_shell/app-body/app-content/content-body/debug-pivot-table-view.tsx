@@ -5,6 +5,7 @@ import type { Table } from "@tanstack/react-table"
 
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import {
+  buildTableFooter,
   buildTableToolbar,
   sectionPivotTable,
   useTableFilters,
@@ -63,23 +64,14 @@ const SOURCE_COLUMNS: TableColumnSpec[] = [
   { id: "amount", header: "Amount", kind: "number", align: "end" },
 ]
 
+// The selection footer is built by the SAME design-system helper the Normal
+// Table uses (`buildTableFooter`), so the Pivot can never ship without the Export
+// affordance — Export = a segmented ButtonGroup "Copy to clipboard" | "Export as
+// CSV" over the selected pivot groups × visible columns.
 function selectionActions(
   table: Table<TableSectionRow> | null,
 ): ContentFooterAction[] {
-  return [
-    {
-      id: "export",
-      label: "Export",
-      icon: "FileDown",
-      onSelect: () => {
-        const labels = (table?.getFilteredSelectedRowModel().rows ?? []).map(
-          (row) => String(row.original.label ?? row.id),
-        )
-        void navigator.clipboard.writeText(labels.join("\n"))
-        toast.success(`Copied ${labels.length} group(s) to clipboard`)
-      },
-    },
-  ]
+  return buildTableFooter(table, { exportFileName: "pivot" })
 }
 
 export function DebugPivotTableView({

@@ -86,6 +86,46 @@ describe("InspectorAttachments", () => {
     expect(onResolvePreview).toHaveBeenCalledWith("2")
   })
 
+  it("a link row shows an open-external redirect, not preview/download", () => {
+    renderAttachments({
+      files: [
+        {
+          id: "3",
+          name: "https://example.com/doc",
+          kind: "link",
+          url: "https://example.com/doc",
+        },
+      ],
+    })
+    const open = screen.getByRole("link", {
+      name: "Open https://example.com/doc",
+    })
+    expect(open).toHaveAttribute("href", "https://example.com/doc")
+    expect(
+      screen.queryByRole("button", { name: "Preview https://example.com/doc" }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", {
+        name: "Download https://example.com/doc",
+      }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("validates the URL before adding a link", async () => {
+    const onAddLink = vi.fn()
+    const user = userEvent.setup()
+    renderAttachments({ onAddLink })
+
+    await user.click(screen.getByRole("button", { name: "Add link" }))
+    const input = await screen.findByPlaceholderText("https://…")
+    await user.type(input, "not a url{Enter}")
+    expect(onAddLink).not.toHaveBeenCalled()
+
+    await user.clear(input)
+    await user.type(input, "https://example.com{Enter}")
+    expect(onAddLink).toHaveBeenCalledWith("https://example.com")
+  })
+
   it("soft-deletes a row via the menu (strike + Undo) and restores", async () => {
     const onRemove = vi.fn()
     const user = userEvent.setup()

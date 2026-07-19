@@ -1,12 +1,7 @@
 "use client"
 
 import { Button } from "@workspace/ui/components/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@workspace/ui/components/dropdown-menu"
+import { ButtonGroup } from "@workspace/ui/components/button-group"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { useIcons } from "@workspace/ui/icon-packs"
 import type { IconName } from "@workspace/ui/icon-packs"
@@ -19,11 +14,13 @@ import { cn } from "@workspace/ui/lib/utils"
 export type ContentFooterActionVariant =
   "default" | "secondary" | "ghost" | "destructive"
 
-/** One item in a footer action's dropdown menu. */
-export interface ContentFooterActionOption {
+/** One button inside a footer action's segmented `group` (e.g. Export → Copy to
+ *  clipboard | Export as CSV). Plain data — never a node. */
+export interface ContentFooterActionButton {
   id: string
   label: string
   icon?: IconName
+  variant?: ContentFooterActionVariant
   onSelect: () => void
 }
 
@@ -36,14 +33,15 @@ export interface ContentFooterAction {
   /** Button treatment. Default `"secondary"`. */
   variant?: ContentFooterActionVariant
   disabled?: boolean
-  /** Direct click handler. Ignored when `options` is set (the button opens the
-   *  dropdown instead). */
+  /** Direct click handler. Ignored when `group` is set (the action renders a
+   *  segmented ButtonGroup instead of a single button). */
   onSelect?: () => void
   /**
-   * When present, the action is a DROPDOWN: the button opens a menu of these
-   * options instead of firing `onSelect` (e.g. Export → Copy to clipboard / CSV).
+   * When present, the action is a SEGMENTED BUTTON GROUP: each button is shown
+   * inline on one line (e.g. Export → Copy to clipboard | Export as CSV) instead
+   * of a single button. `label`/`icon`/`onSelect` on the action are ignored.
    */
-  options?: ContentFooterActionOption[]
+  group?: ContentFooterActionButton[]
 }
 
 /** Selection surface — bulk actions over the chosen rows. */
@@ -129,40 +127,43 @@ export function ContentFooter({
         />
         <div className="ml-auto flex items-center gap-1.5">
           {selection.actions.map((action) => {
+            // A segmented action: every button visible inline in one ButtonGroup
+            // (e.g. Export → Copy to clipboard | Export as CSV). No dropdown.
+            if (action.group) {
+              return (
+                <ButtonGroup key={action.id} data-action={action.id}>
+                  {action.group.map((item) => {
+                    const ItemIcon = item.icon ? icons[item.icon] : null
+                    return (
+                      <Button
+                        key={item.id}
+                        type="button"
+                        variant={item.variant ?? "secondary"}
+                        disabled={action.disabled}
+                        onClick={item.onSelect}
+                        data-action={`${action.id}:${item.id}`}
+                      >
+                        {ItemIcon ? <ItemIcon /> : null}
+                        {item.label}
+                      </Button>
+                    )
+                  })}
+                </ButtonGroup>
+              )
+            }
             const Icon = action.icon ? icons[action.icon] : null
-            const button = (
+            return (
               <Button
                 key={action.id}
                 type="button"
                 variant={action.variant ?? "secondary"}
                 disabled={action.disabled}
-                onClick={action.options ? undefined : action.onSelect}
+                onClick={action.onSelect}
                 data-action={action.id}
               >
                 {Icon ? <Icon /> : null}
                 {action.label}
               </Button>
-            )
-            if (!action.options) return button
-            return (
-              <DropdownMenu key={action.id}>
-                <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {action.options.map((option) => {
-                    const OptionIcon = option.icon ? icons[option.icon] : null
-                    return (
-                      <DropdownMenuItem
-                        key={option.id}
-                        onSelect={option.onSelect}
-                        className="gap-1.5"
-                      >
-                        {OptionIcon ? <OptionIcon /> : null}
-                        {option.label}
-                      </DropdownMenuItem>
-                    )
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
             )
           })}
         </div>

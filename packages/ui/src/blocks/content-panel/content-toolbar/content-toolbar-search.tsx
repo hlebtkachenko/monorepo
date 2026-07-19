@@ -22,7 +22,7 @@ export function ContentToolbarSearch({
   const hasValue = value.length > 0
 
   return (
-    <div className="relative flex h-8 max-w-80 min-w-0 flex-1 items-center">
+    <div className="relative flex h-8 w-80 shrink-0 items-center">
       <SearchIcon className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
       <Input
         placeholder={placeholder}

@@ -5,10 +5,12 @@ import type { Table } from "@tanstack/react-table"
 
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import {
+  buildTableFooter,
   buildTableToolbar,
   SectionList,
   sectionInspectorActivityLog,
   sectionInspectorAttachments,
+  sectionInspectorExport,
   sectionInspectorKeyDetails,
   sectionInspectorMoneyTotals,
   sectionTable,
@@ -28,6 +30,8 @@ import type {
   InspectorAttachmentFile,
   InspectorTab,
 } from "@workspace/ui/blocks/inspector-sheet"
+import { Button } from "@workspace/ui/components/button"
+import { Separator } from "@workspace/ui/components/separator"
 import { toast } from "@workspace/ui/components/sonner"
 
 import { orgHref } from "@/lib/org/href"
@@ -41,9 +45,11 @@ import { orgHref } from "@/lib/org/href"
  *     Issued, Note) save through one commit and are reflected in the grid;
  *   - each save appends a REAL entry to the Activity tab, with a working Undo;
  *   - Approve / Reject set the row's status;
- *   - the selection footer Delete removes rows (with an Undo to restore) and the
- *     Export dropdown copies or downloads the selected rows × visible columns;
- *   - the Attachments tab accepts uploads on any row; Settings is always present.
+ *   - the selection footer is built by `buildTableFooter` (Export = a segmented
+ *     ButtonGroup "Copy to clipboard" | "Export as CSV") + a page Delete (Undo);
+ *   - the Attachments tab uploads, previews (images), downloads, renames, copies,
+ *     and adds validated links (redirect) — all wired; the Export tab exports this
+ *     record; the More tab duplicates / archives / deletes it.
  * State is session-scoped (resets on reload / org switch) — never a write to the
  * seeded demo table — so the reference stays a clean, re-seedable template.
  */
@@ -112,7 +118,9 @@ type Action =
     }
   | { type: "delete"; ids: string[] }
   | { type: "restoreDeleted"; rows: TableSectionRow[] }
+  | { type: "duplicate"; rowId: string }
   | { type: "addFiles"; rowId: string; files: InspectorAttachmentFile[] }
+  | { type: "renameFile"; rowId: string; fileId: string; name: string }
   | { type: "removeFile"; rowId: string; fileId: string }
 
 function reducer(state: State, action: Action): State {
@@ -158,6 +166,19 @@ function reducer(state: State, action: Action): State {
       if (missing.length === 0) return state
       return { ...state, rows: [...missing, ...state.rows] }
     }
+    case "duplicate": {
+      const idx = state.rows.findIndex((row) => String(row.id) === action.rowId)
+      if (idx < 0) return state
+      const src = state.rows[idx]!
+      const copy: TableSectionRow = {
+        ...src,
+        id: `${String(src.id)}-copy-${state.seq}`,
+        document: `${String(src.document ?? "")}-COPY`,
+      }
+      const rows = [...state.rows]
+      rows.splice(idx + 1, 0, copy)
+      return { ...state, rows, seq: state.seq + 1 }
+    }
     case "addFiles":
       return {
         ...state,
@@ -167,6 +188,16 @@ function reducer(state: State, action: Action): State {
             ...(state.attachments[action.rowId] ?? []),
             ...action.files,
           ],
+        },
+      }
+    case "renameFile":
+      return {
+        ...state,
+        attachments: {
+          ...state.attachments,
+          [action.rowId]: (state.attachments[action.rowId] ?? []).map((file) =>
+            file.id === action.fileId ? { ...file, name: action.name } : file,
+          ),
         },
       }
     case "removeFile":
@@ -196,22 +227,21 @@ function csvCell(value: unknown): string {
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
-/**
- * Build a CSV of the SELECTED rows × the VISIBLE data columns, both in their
- * current on-screen order — the whole selected range, exactly as placed.
- */
-function selectionCsv(table: Table<TableSectionRow> | null): string {
-  const columns = (table?.getVisibleLeafColumns() ?? []).filter(
-    (column) => column.id !== "select" && column.id !== "actions",
-  )
-  const rows = table?.getFilteredSelectedRowModel().rows ?? []
-  const header = columns.map((column) =>
-    csvCell(column.columnDef.meta?.label ?? column.id),
-  )
-  const body = rows.map((row) =>
-    columns.map((column) => csvCell(row.original[column.id])),
-  )
-  return [header, ...body].map((cells) => cells.join(",")).join("\n")
+/** Pick an attachment kind from a File's MIME type (drives its icon + preview). */
+function kindForFile(file: File): InspectorAttachmentFile["kind"] {
+  if (file.type.startsWith("image/")) return "image"
+  if (file.type === "application/pdf") return "pdf"
+  return "file"
+}
+
+/** Trigger a browser download of `content` under `filename`. */
+function download(content: string, filename: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }))
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
 }
 
 export function DebugNormalTableView({
@@ -291,95 +321,101 @@ export function DebugNormalTableView({
     [search],
   )
 
+  // The selection footer shape is owned at the design-system level by
+  // `buildTableFooter` (Export = a segmented ButtonGroup of clipboard | CSV, both
+  // over the selected rows × visible columns). The page only adds Delete — the
+  // one action that needs its own reducer + Undo toast.
   const selectionActions = React.useCallback(
-    (table: Table<TableSectionRow> | null): ContentFooterAction[] => [
-      {
-        id: "export",
-        label: "Export",
-        icon: "FileDown",
-        // Dropdown: pick the format; both export the selected rows × visible
-        // columns in on-screen order.
-        options: [
+    (table: Table<TableSectionRow> | null): ContentFooterAction[] =>
+      buildTableFooter(table, {
+        exportFileName: "records",
+        actions: [
           {
-            id: "clipboard",
-            label: "Copy to clipboard",
-            icon: "Copy",
+            id: "delete",
+            label: "Delete",
+            icon: "Trash2",
+            variant: "destructive",
             onSelect: () => {
-              const csv = selectionCsv(table)
-              void navigator.clipboard.writeText(csv)
-              toast.success(
-                `Copied ${table?.getFilteredSelectedRowModel().rows.length ?? 0} row(s)`,
-              )
-            },
-          },
-          {
-            id: "csv",
-            label: "Export CSV",
-            icon: "FileDown",
-            onSelect: () => {
-              const csv = selectionCsv(table)
-              const url = URL.createObjectURL(
-                new Blob([csv], { type: "text/csv" }),
-              )
-              const anchor = document.createElement("a")
-              anchor.href = url
-              anchor.download = "records.csv"
-              anchor.click()
-              URL.revokeObjectURL(url)
-              toast.success("Exported CSV")
+              const removed = (
+                table?.getFilteredSelectedRowModel().rows ?? []
+              ).map((row) => row.original)
+              if (removed.length === 0) return
+              dispatch({
+                type: "delete",
+                ids: removed.map((row) => String(row.id)),
+              })
+              table?.resetRowSelection()
+              // The toast carries its OWN deleted batch, so Undo restores exactly
+              // these rows even after further deletes.
+              toast.success(`Deleted ${removed.length} row(s)`, {
+                action: {
+                  label: "Undo",
+                  onClick: () =>
+                    dispatch({ type: "restoreDeleted", rows: removed }),
+                },
+              })
             },
           },
         ],
-      },
-      {
-        id: "delete",
-        label: "Delete",
-        icon: "Trash2",
-        variant: "destructive",
-        onSelect: () => {
-          const removed = (table?.getFilteredSelectedRowModel().rows ?? []).map(
-            (row) => row.original,
-          )
-          if (removed.length === 0) return
-          dispatch({
-            type: "delete",
-            ids: removed.map((row) => String(row.id)),
-          })
-          table?.resetRowSelection()
-          // The toast carries its OWN deleted batch, so Undo restores exactly
-          // these rows even after further deletes.
-          toast.success(`Deleted ${removed.length} row(s)`, {
-            action: {
-              label: "Undo",
-              onClick: () =>
-                dispatch({ type: "restoreDeleted", rows: removed }),
-            },
-          })
-        },
-      },
-    ],
+      }),
     [],
   )
 
   const inspectorContent = React.useCallback(
-    (row: TableSectionRow) =>
-      buildInspectorTabs(row, commit, {
-        activity: history[String(row.id)] ?? [],
-        files: attachments[String(row.id)] ?? [],
-        onUpload: (files) =>
+    (row: TableSectionRow) => {
+      const rowId = String(row.id)
+      const files = attachments[rowId] ?? []
+      const findFile = (id: string) => files.find((file) => file.id === id)
+      return buildInspectorTabs(row, commit, {
+        activity: history[rowId] ?? [],
+        files,
+        onUpload: (picked) =>
           dispatch({
             type: "addFiles",
-            rowId: String(row.id),
-            files: files.map((file, i) => ({
-              id: `${String(row.id)}-${Date.now()}-${i}`,
+            rowId,
+            files: picked.map((file, i) => ({
+              id: `${rowId}-${Date.now()}-${i}`,
               name: file.name,
-              kind: "file",
+              kind: kindForFile(file),
               meta: `${Math.round(file.size / 1024)} KB`,
+              url: URL.createObjectURL(file),
             })),
           }),
-        onRemoveFile: (fileId) =>
-          dispatch({ type: "removeFile", rowId: String(row.id), fileId }),
-      }),
+        onResolvePreview: (id) => Promise.resolve(findFile(id)?.url ?? null),
+        onDownload: (id) => {
+          const file = findFile(id)
+          if (!file?.url) return
+          const anchor = document.createElement("a")
+          anchor.href = file.url
+          anchor.download = file.name
+          anchor.click()
+        },
+        onRename: (id) => {
+          const file = findFile(id)
+          if (!file) return
+          const next = window.prompt("Rename attachment", file.name)?.trim()
+          if (next)
+            dispatch({ type: "renameFile", rowId, fileId: id, name: next })
+        },
+        onCopyUrl: (id) => {
+          const file = findFile(id)
+          void navigator.clipboard.writeText(file?.url ?? file?.name ?? "")
+          toast.success("URL copied")
+        },
+        onRemoveFile: (id) =>
+          dispatch({ type: "removeFile", rowId, fileId: id }),
+        onDuplicate: () => {
+          dispatch({ type: "duplicate", rowId })
+          toast.success(`Duplicated #${String(row.document ?? "")}`)
+        },
+        onArchive: () =>
+          toast.success(`Archived #${String(row.document ?? "")} (demo)`),
+        onDelete: () => {
+          dispatch({ type: "delete", ids: [rowId] })
+          toast.success(`Deleted #${String(row.document ?? "")}`)
+        },
+      })
+    },
     [commit, history, attachments],
   )
 
@@ -447,9 +483,10 @@ export function DebugNormalTableView({
 /**
  * The row Inspector. `details` fields commit back into the row; `activity` shows
  * the REAL edit history for this row (each entry's Undo reverts the change);
- * `attachments` accepts uploads on any row; `settings` is a cross-cutting tab
- * present on every record. Tabs not returned here render an empty pane (the rail
- * always lists every tab).
+ * `attachments` uploads / previews / downloads / renames / links; `export`
+ * exports this record; `more` holds the record actions (duplicate / archive /
+ * delete). Tabs not returned here render an empty pane (the rail always lists
+ * every tab).
  */
 function buildInspectorTabs(
   row: TableSectionRow,
@@ -458,7 +495,14 @@ function buildInspectorTabs(
     activity: Activity[]
     files: InspectorAttachmentFile[]
     onUpload: (files: File[]) => void
-    onRemoveFile: (fileId: string) => void
+    onResolvePreview: (id: string) => Promise<string | null>
+    onDownload: (id: string) => void
+    onRename: (id: string) => void
+    onCopyUrl: (id: string) => void
+    onRemoveFile: (id: string) => void
+    onDuplicate: () => void
+    onArchive: () => void
+    onDelete: () => void
   },
 ): Partial<Record<InspectorTab, React.ReactNode>> {
   const id = String(row.id)
@@ -564,28 +608,81 @@ function buildInspectorTabs(
           sectionInspectorAttachments({
             files: extras.files,
             onUpload: extras.onUpload,
+            onResolvePreview: extras.onResolvePreview,
+            onDownload: extras.onDownload,
+            onRename: extras.onRename,
+            onCopyUrl: extras.onCopyUrl,
             onRemove: extras.onRemoveFile,
           }),
         ]}
       />
     ),
-    settings: (
+    export: (
       <SectionList
         sections={[
-          sectionInspectorKeyDetails({
-            title: "Record settings",
-            lines: [
-              { label: "Record ID", value: id, icon: "IdCard", readOnly: true },
+          sectionInspectorExport({
+            fields: [
+              { id: "details", label: "Details" },
+              { id: "totals", label: "Totals & VAT" },
+              { id: "activity", label: "Activity", defaultChecked: false },
               {
-                label: "Note",
-                value: String(row.note ?? ""),
-                icon: "TextInitialIcon",
-                onChange: (next) => commit(id, "note", next),
+                id: "attachments",
+                label: "Attachments",
+                defaultChecked: false,
               },
             ],
+            defaultEmail: "",
+            onPrint: () => toast.success(`Printing #${doc} (demo)`),
+            // Wire the footer's export here: build a CSV of THIS record's fields
+            // and download it, so the Export tab actually produces a file.
+            onExport: (format) => {
+              const csv = [
+                ["Field", "Value"],
+                ["Document", doc],
+                ["Partner", partner],
+                ["Status", status],
+                ["Amount", String(amount)],
+                ["Issued", String(row.issuedOn ?? "")],
+                ["Note", String(row.note ?? "")],
+              ]
+                .map((cells) => cells.map(csvCell).join(","))
+                .join("\n")
+              download(csv, `${doc || "record"}.csv`, "text/csv")
+              toast.success(`Exported #${doc} as ${format.toUpperCase()}`)
+            },
+            onSendEmail: (email, format) =>
+              toast.success(`Sent ${format.toUpperCase()} to ${email} (demo)`),
           }),
         ]}
       />
+    ),
+    more: (
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            className="justify-start"
+            onClick={extras.onDuplicate}
+          >
+            Duplicate
+          </Button>
+          <Button
+            variant="ghost"
+            className="justify-start"
+            onClick={extras.onArchive}
+          >
+            Archive
+          </Button>
+        </div>
+        <Separator className="-mx-4 w-auto bg-border-subtle" />
+        <Button
+          variant="ghost"
+          className="justify-start text-destructive hover:text-destructive"
+          onClick={extras.onDelete}
+        >
+          Delete
+        </Button>
+      </div>
     ),
   }
 }

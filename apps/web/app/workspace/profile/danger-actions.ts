@@ -25,7 +25,7 @@ import {
 import { accountDangerOtpEmail, sendEmail } from "@workspace/email"
 
 import { deleteAvatar } from "../../_lib/avatar-storage"
-import { clearActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
+import { clearActiveWorkspaceCookie } from "@/lib/active-workspace-cookie"
 import { logServerError } from "../../../lib/log-server-error"
 import { getWorkspaceContext } from "../_lib/workspace-context"
 import { createDangerOtpValue, verifyDangerOtpValue } from "./danger-otp"

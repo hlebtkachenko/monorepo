@@ -4,7 +4,7 @@ import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { auth } from "@workspace/auth/server"
 
-import { clearActiveWorkspaceCookie } from "../../onboarding/_lib/active-workspace-cookie"
+import { clearActiveWorkspaceCookie } from "@/lib/active-workspace-cookie"
 
 /**
  * Global sign-out — clears the Better Auth session cookie + the

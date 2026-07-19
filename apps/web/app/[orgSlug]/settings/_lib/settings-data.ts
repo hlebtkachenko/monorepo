@@ -18,7 +18,7 @@ import {
   type VatFilingPeriod,
   type VatRegime,
 } from "@workspace/accounting"
-import { getRequestSession } from "../../_lib/request-session"
+import { getRequestSession } from "@/lib/org/request-session"
 import { resolveOrgContext, type OrgContext } from "../../_lib/org-authz"
 import { collectOrgUpdates, type OrgSettingsUpdate } from "./org-update"
 

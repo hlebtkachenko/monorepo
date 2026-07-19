@@ -25,8 +25,8 @@ import {
   getHeaderPeriods,
   PERIOD_COOKIE,
   resolveActivePeriodId,
-} from "./_lib/header-periods"
-import { getRequestSession } from "./_lib/request-session"
+} from "@/lib/org/header-periods"
+import { getRequestSession } from "@/lib/org/request-session"
 
 // DB role enum → human-readable label rendered verbatim in the org switcher.
 const ROLE_LABELS: Record<ResolvedMembership["role"], string> = {

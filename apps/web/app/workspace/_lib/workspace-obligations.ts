@@ -24,7 +24,7 @@ import {
   type VatRegime,
 } from "@workspace/accounting"
 
-import type { ObligationWithStatus } from "../../[orgSlug]/closing/_lib/closing-shared"
+import type { ObligationWithStatus } from "@workspace/accounting/obligations"
 
 export interface WorkspaceObligation extends ObligationWithStatus {
   organizationId: string

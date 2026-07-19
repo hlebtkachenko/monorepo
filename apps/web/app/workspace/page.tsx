@@ -3,7 +3,7 @@ import { redirect } from "next/navigation"
 import { and, desc, eq, inArray, isNull, isNotNull } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { czechToday } from "@workspace/shared/date"
+import { czechToday, formatIsoDate } from "@workspace/shared/date"
 import {
   accounting_period,
   app_user,
@@ -12,7 +12,6 @@ import {
   vat_status,
 } from "@workspace/db/schema"
 
-import { formatIsoDate } from "../[orgSlug]/closing/_lib/closing-shared"
 import { CompaniesView } from "../_components/workspace/companies/companies-view"
 import { CompaniesProvider } from "../_components/workspace/companies/context"
 import {

@@ -1,10 +1,10 @@
 /**
- * gen-chart-template-seed.ts — generate the 0067 seed migration for the year-based
+ * gen-chart-template-seed.ts — generate the 0068 seed migration for the year-based
  * Účetní osnova overlay + the prebuilt house Účtový rozvrh template.
  *
  * Reads the vendored JSON in packages/db/seeds/ (derived from the Money S3 2026 export +
  * the advisor-verified directive_account catalogue) and emits
- * packages/db/migrations/0067_accounting_chart_directive_year_seed.sql:
+ * packages/db/migrations/0068_accounting_chart_directive_year_seed.sql:
  *   - directive_account_year (year 2026)  <- directive_account_year.2026.json
  *   - chart_template + chart_template_account (MONEY_2026) <- chart_template.2026.money.json
  *

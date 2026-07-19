@@ -1,7 +1,7 @@
 /**
  * directive_account_year — per-YEAR overlay on the stable directive_account catalogue.
  *
- * Mirrors: packages/db/migrations/0066_accounting_chart_directive_year.sql
+ * Mirrors: packages/db/migrations/0067_accounting_chart_directive_year.sql
  *
  * Reference (config) table — shared, NOT tenant-scoped, no RLS. THIS is the year-based
  * Účetní osnova (account directive): the framework a user browses + seeds a chart from.

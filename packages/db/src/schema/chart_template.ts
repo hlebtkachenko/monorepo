@@ -1,7 +1,7 @@
 /**
  * chart_template — a prebuilt Účtový rozvrh (our house default) per year + variant.
  *
- * Mirrors: packages/db/migrations/0066_accounting_chart_directive_year.sql
+ * Mirrors: packages/db/migrations/0067_accounting_chart_directive_year.sql
  *
  * Reference (config) table — shared, NOT tenant-scoped, no RLS. Built on top of the osnova +
  * our system accounts; a user forks it to start their entity chart. Separate store from

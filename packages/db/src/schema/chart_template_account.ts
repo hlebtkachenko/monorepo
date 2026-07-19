@@ -1,7 +1,7 @@
 /**
  * chart_template_account — the účty of a prebuilt Účtový rozvrh template.
  *
- * Mirrors: packages/db/migrations/0066_accounting_chart_directive_year.sql
+ * Mirrors: packages/db/migrations/0067_accounting_chart_directive_year.sql
  *
  * Reference (config) table — shared, NOT tenant-scoped, no RLS. number is the synthetic code
  * ('311'); analytics ('311.001') are allowed for future house variants via parent_number.

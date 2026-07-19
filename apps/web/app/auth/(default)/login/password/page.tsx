@@ -2,7 +2,7 @@ import { Suspense } from "react"
 import { redirect } from "next/navigation"
 import { getTranslations } from "@workspace/i18n/server"
 
-import { isDevPreview } from "@/lib/dev-preview"
+import { isDevPreview, PREVIEW_EMAIL } from "@/lib/dev-preview"
 import { safeNext } from "@/lib/safe-next"
 
 import { readLoginEmail } from "../actions"
@@ -20,7 +20,7 @@ export default async function LoginPasswordPage({
 }) {
   const email = await readLoginEmail()
   const preview = await isDevPreview()
-  const resolvedEmail = email ?? (preview ? "preview@example.com" : null)
+  const resolvedEmail = email ?? (preview ? PREVIEW_EMAIL : null)
   if (!resolvedEmail) {
     // Carry the in-flight deep link forward so an expired login session
     // returns the user to the page they were signing in to reach.

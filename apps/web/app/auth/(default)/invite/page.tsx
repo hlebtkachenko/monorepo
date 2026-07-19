@@ -9,7 +9,7 @@ import {
   AuthTokenInvalidCard,
 } from "@workspace/ui/blocks/auth"
 
-import { isDevPreview } from "@/lib/dev-preview"
+import { isDevPreview, PREVIEW_EMAIL } from "@/lib/dev-preview"
 import { checkSignupRateLimit } from "@/lib/signup-rate-limit"
 
 import { readInviteClaims } from "@/lib/auth/invite-cookie"
@@ -71,7 +71,7 @@ export default async function InviteWelcomePage({ searchParams }: PageProps) {
   if (!claims && (await isDevPreview())) {
     claims = {
       id: "preview",
-      email: "preview@example.com",
+      email: PREVIEW_EMAIL,
       organizationId: "preview",
       workspaceId: "preview",
       role: "member",

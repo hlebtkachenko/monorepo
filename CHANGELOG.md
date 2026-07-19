@@ -13,6 +13,18 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.25.1] — 2026-07-19
+
+### Added
+
+- Org-tree ESLint boundary now bans `outside → old` imports (any file outside both org trees importing the frozen `app/[orgSlug]` tree), enforced by a warning-immune `lint:org-orphan` CI gate — machine-proof the old tree deletes clean once Track A emptied its inbound consumers (scripts/* generators exempt until the flip). (#873)
+- Wire the OAuth 2.1 env into the deployed containers so OAuth activates: the API verifier gets `OAUTH_ISSUER`/`OAUTH_JWKS_URI`/`OAUTH_RESOURCE` to accept OAuth access tokens on `/v1/*` alongside API keys, and the web container's authorization server gets the shared `OAUTH_RESOURCE` so it mints tokens with the correct MCP audience. (#878)
+- Serve RFC 9728 OAuth protected-resource metadata from the hosted MCP Worker (`/.well-known/oauth-protected-resource`) and point 401s at it, so MCP clients auto-discover the authorization server and complete an OAuth login. (#879)
+
+### Fixed
+
+- Configure the OAuth authorization server's `validAudiences` from `OAUTH_RESOURCE` so it accepts a client's RFC 8707 `resource` and mints a JWT stamped with the hosted MCP audience — without it every OAuth token request failed `invalid_request` or produced an opaque token the API rejected. (#880)
+
 ## [v0.25.0] — 2026-07-19
 
 ### Added

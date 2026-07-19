@@ -1981,6 +1981,40 @@ CREATE TABLE public.currency (
 );
 
 --
+-- Name: demo_debug_normal_table_record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.demo_debug_normal_table_record (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    document text NOT NULL,
+    partner text NOT NULL,
+    status text NOT NULL,
+    amount numeric(19,4) NOT NULL,
+    issued_on date NOT NULL,
+    note text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.demo_debug_normal_table_record FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: demo_debug_pivot_table_record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.demo_debug_pivot_table_record (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    category text NOT NULL,
+    month text NOT NULL,
+    status text NOT NULL,
+    amount numeric(19,4) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.demo_debug_pivot_table_record FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: depreciation_group; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3447,6 +3481,20 @@ ALTER TABLE ONLY public.currency
     ADD CONSTRAINT currency_pkey PRIMARY KEY (code);
 
 --
+-- Name: demo_debug_normal_table_record demo_debug_normal_table_record_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_debug_normal_table_record
+    ADD CONSTRAINT demo_debug_normal_table_record_pkey PRIMARY KEY (id);
+
+--
+-- Name: demo_debug_pivot_table_record demo_debug_pivot_table_record_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_debug_pivot_table_record
+    ADD CONSTRAINT demo_debug_pivot_table_record_pkey PRIMARY KEY (id);
+
+--
 -- Name: depreciation_group depreciation_group_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4307,6 +4355,18 @@ CREATE UNIQUE INDEX counterparty_workspace_ico_unique ON public.counterparty USI
 --
 
 CREATE UNIQUE INDEX counterparty_workspace_tax_id_unique ON public.counterparty USING btree (workspace_id, tax_id) WHERE ((tax_id IS NOT NULL) AND (self_of_organization_id IS NULL));
+
+--
+-- Name: demo_debug_normal_table_record_org_issued_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX demo_debug_normal_table_record_org_issued_idx ON public.demo_debug_normal_table_record USING btree (organization_id, issued_on);
+
+--
+-- Name: demo_debug_pivot_table_record_org_category_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX demo_debug_pivot_table_record_org_category_idx ON public.demo_debug_pivot_table_record USING btree (organization_id, category);
 
 --
 -- Name: depreciation_plan_asset_idx; Type: INDEX; Schema: public; Owner: -
@@ -5442,6 +5502,20 @@ ALTER TABLE ONLY public.counterparty
     ADD CONSTRAINT counterparty_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
 
 --
+-- Name: demo_debug_normal_table_record demo_debug_normal_table_record_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_debug_normal_table_record
+    ADD CONSTRAINT demo_debug_normal_table_record_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: demo_debug_pivot_table_record demo_debug_pivot_table_record_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.demo_debug_pivot_table_record
+    ADD CONSTRAINT demo_debug_pivot_table_record_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
 -- Name: depreciation_plan depreciation_plan_asset_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6438,6 +6512,18 @@ CREATE POLICY counterparty_select ON public.counterparty FOR SELECT USING ((work
 CREATE POLICY counterparty_update ON public.counterparty FOR UPDATE USING (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND ((self_of_organization_id IS NULL) OR (self_of_organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)))) WITH CHECK (((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid) AND ((self_of_organization_id IS NULL) OR (self_of_organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid))));
 
 --
+-- Name: demo_debug_normal_table_record; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.demo_debug_normal_table_record ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: demo_debug_pivot_table_record; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.demo_debug_pivot_table_record ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: depreciation_plan; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6694,6 +6780,18 @@ CREATE POLICY organization_isolation ON public.category USING ((organization_id 
 --
 
 CREATE POLICY organization_isolation ON public.chart_of_accounts USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: demo_debug_normal_table_record organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.demo_debug_normal_table_record USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: demo_debug_pivot_table_record organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.demo_debug_pivot_table_record USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: depreciation_plan organization_isolation; Type: POLICY; Schema: public; Owner: -

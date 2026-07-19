@@ -112,6 +112,11 @@ export * from "./brain_admission_slot"
 // Org favorites — per-user, per-org starred pages, org-scoped FORCE RLS (0064)
 export * from "./favorite_page"
 
+// Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the
+// Debug → Archetype Table reference pages; never real product data.
+export * from "./demo_debug_normal_table_record"
+export * from "./demo_debug_pivot_table_record"
+
 // OAuth 2.1 authorization server — Better Auth jwt() + oauthProvider() plugins,
 // global-tier / NO RLS (BA-owned), plus our own tenant-binding pending table (0066)
 export * from "./jwks"

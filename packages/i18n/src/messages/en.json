@@ -556,6 +556,37 @@
           "contactSupport": "Contact support"
         }
       }
+    },
+    "oauth": {
+      "consent": {
+        "metaTitle": "Authorize access",
+        "title": "Authorize access",
+        "description": "{client} wants to access your {brand} account.",
+        "scopesLabel": "This will let it:",
+        "authorize": "Authorize",
+        "authorizing": "Authorizing…",
+        "deny": "Deny",
+        "denying": "Denying…",
+        "failed": "Something went wrong. Please try again.",
+        "clientFallback": "An application",
+        "scopeFallback": "Access: {scope}",
+        "scope": {
+          "openid": "Verify your identity",
+          "profile": "Read your basic profile",
+          "email": "Read your email address",
+          "offlineAccess": "Stay signed in while you are away",
+          "accountingRead": "Read your accounting data",
+          "accountingWrite": "Propose accounting entries for your approval"
+        }
+      },
+      "selectOrganization": {
+        "metaTitle": "Select organization",
+        "title": "Select organization",
+        "description": "Choose the organization this authorization applies to.",
+        "continuing": "Continuing…",
+        "empty": "This account has no active organization to authorize.",
+        "failed": "Something went wrong. Please try again."
+      }
     }
   },
   "onboarding": {

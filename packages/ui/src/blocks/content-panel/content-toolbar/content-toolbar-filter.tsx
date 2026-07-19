@@ -17,11 +17,13 @@ const TOOLBAR_FILTER_STRINGS = {
 }
 
 /**
- * The toolbar filter band (left #3) — the "Add filter" selector, the active
- * filter chips, and the Clear action, all in ONE inline flex-wrap group. The
- * whole band wraps to the next line as a unit when it no longer fits between the
- * search box and the toolbar's right cluster; the chips then wrap within it.
- * Default-size trigger, design-system tokens — no separate always-open band.
+ * The toolbar filter band (left #3) — the active filter chips, the "Add filter"
+ * selector, and the Clear action, all in ONE inline flex-wrap group. The active
+ * chips lead; the "Add filter" trigger TRAILS them, so as chips fill the line the
+ * trigger flows onto the next line together with the overflow chips (it is not
+ * pinned to the front). The whole band still wraps as a unit when it no longer
+ * fits between the search box and the toolbar's right cluster. Default-size
+ * trigger, design-system tokens — no separate always-open band.
  */
 export function ContentToolbarFilter<TData>({
   columns,
@@ -38,6 +40,13 @@ export function ContentToolbarFilter<TData>({
       data-slot="content-toolbar-filter"
       className="flex min-w-0 flex-wrap items-center gap-1.5"
     >
+      <ActiveFilters
+        columns={columns}
+        filters={filters}
+        actions={actions}
+        strategy={strategy}
+        strings={TOOLBAR_FILTER_STRINGS}
+      />
       <FilterSelector
         columns={columns}
         filters={filters}
@@ -50,13 +59,6 @@ export function ContentToolbarFilter<TData>({
         onPropertyChange={onPropertyChange}
         size="default"
         alwaysShowLabel
-      />
-      <ActiveFilters
-        columns={columns}
-        filters={filters}
-        actions={actions}
-        strategy={strategy}
-        strings={TOOLBAR_FILTER_STRINGS}
       />
       <FilterActions
         hasFilters={filters.length > 0}

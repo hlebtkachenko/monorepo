@@ -81,10 +81,12 @@ export function groupEdgeIds<TData>(table: Table<TData>): Set<string> {
 }
 
 /**
- * The continuous edge shadow for a pinned column. Rendered as one `inset-y-0`
- * gradient span per cell — because the span has sharp top/bottom edges (no
- * blur), the per-cell spans stack into a single smooth strip down the whole
- * column, instead of a scalloped per-row box-shadow.
+ * The continuous edge shadow for a pinned column — the SAME float shadow the
+ * docked Inspector rail casts over the body (`shadow-muted-foreground/25`), so a
+ * frozen column and the Inspector read as one consistent "floating above the
+ * table" treatment. Rendered as one `inset-y-0` gradient span per cell: the span
+ * has sharp top/bottom edges (no blur), so the per-cell spans stack into a single
+ * smooth strip down the whole column instead of a scalloped per-row box-shadow.
  *
  * Only shown when there is actually scrolled-under content on that side — a
  * pinned column sitting over empty space (a narrow table, e.g. with the
@@ -102,7 +104,7 @@ export function PinShadow<TData>({
     return (
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 -right-2.5 z-10 w-2.5 bg-gradient-to-r from-black/10 to-transparent dark:from-black/25"
+        className="pointer-events-none absolute inset-y-0 -right-2 z-10 w-2 bg-gradient-to-r from-muted-foreground/25 to-transparent"
       />
     )
   }
@@ -110,7 +112,7 @@ export function PinShadow<TData>({
     return (
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-0 -left-2.5 z-10 w-2.5 bg-gradient-to-l from-black/10 to-transparent dark:from-black/25"
+        className="pointer-events-none absolute inset-y-0 -left-2 z-10 w-2 bg-gradient-to-l from-muted-foreground/25 to-transparent"
       />
     )
   }

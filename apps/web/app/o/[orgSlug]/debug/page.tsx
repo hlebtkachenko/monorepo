@@ -1,14 +1,11 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import { getTranslations } from "@workspace/i18n/server"
 
 import { listFavorites } from "@/lib/org/favorite-actions"
-import { resolveMembership } from "@/lib/org/resolve"
-import { getRequestSession } from "@/lib/org/session"
 
 import { FavoritesOverview } from "../_shell/app-body/app-content/content-body/favorites-overview"
-import { hasDebugModuleAccess } from "./access"
+import { requireDebugAccess } from "./access"
 
 /**
  * Debug module → Overview.
@@ -36,15 +33,9 @@ export default async function DebugOverviewPage({
 }) {
   const { orgSlug } = await params
 
-  // The layout already guarantees a session + org membership; re-resolve here
-  // only to read the workspace id the allowlist gate keys on, and fail closed.
-  const session = await getRequestSession()
-  const membership = session
-    ? await resolveMembership({ slug: orgSlug, userId: session.user.id })
-    : null
-  if (!membership || !(await hasDebugModuleAccess(membership.workspaceId))) {
-    notFound()
-  }
+  // The layout already guarantees a session + org membership; the shared gate
+  // re-resolves here to check the allowlist and fail closed.
+  await requireDebugAccess(orgSlug)
 
   const favorites = await listFavorites({ slug: orgSlug, module: "debug" })
 

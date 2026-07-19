@@ -128,6 +128,13 @@ export interface AppInspectorRailProps {
   footer?: InspectorFooterProps
   /** Per-tab body content. The sheet renders the active tab's node. */
   content?: Partial<Record<InspectorTab, React.ReactNode>>
+  /** Open ON this tab for the current open request — e.g. a footer "Open in
+   *  Inspector · Export". `null`/omitted → the default "details" tab. Applied on
+   *  every `openNonce` bump (so a repeat request for the same row/tab still
+   *  re-applies it, and a plain open with no tab resets to details). */
+  initialTab?: InspectorTab | null
+  /** Bumped by the opener on every open request; drives the `initialTab` apply. */
+  openNonce?: number
   /** Initial flag value for a record not seen before. Defaults to `none`. */
   initialFlag?: InspectorFlagValue
   onPrevious?: () => void
@@ -154,6 +161,8 @@ export function AppInspectorRail({
   badge,
   footer,
   content,
+  initialTab = null,
+  openNonce = 0,
   initialFlag = DEFAULT_FLAG,
   onPrevious,
   onNext,
@@ -165,14 +174,24 @@ export function AppInspectorRail({
   const publish = React.useContext(PublishCtx)
   const onClose = React.useCallback(() => onOpenChange(false), [onOpenChange])
 
-  const [activeTab, setActiveTab] = React.useState<InspectorTab>("details")
+  const [activeTab, setActiveTab] = React.useState<InspectorTab>(
+    initialTab ?? "details",
+  )
   const [localName, setLocalName] = React.useState(name)
   const [localFlag, setLocalFlag] =
     React.useState<InspectorFlagValue>(initialFlag)
   const [prevRecordKey, setPrevRecordKey] = React.useState(recordKey)
+  const [prevOpenNonce, setPrevOpenNonce] = React.useState(openNonce)
+  if (openNonce !== prevOpenNonce) {
+    // Every open request re-applies the requested tab (a repeat "Open · Export"
+    // on the already-inspected row still jumps to Export), and a plain open with
+    // no requested tab (a maximize / prev-next) resets to Details.
+    setPrevOpenNonce(openNonce)
+    setActiveTab(initialTab ?? "details")
+  }
   if (recordKey !== prevRecordKey) {
+    // A different record opened → reset its editable name + flag.
     setPrevRecordKey(recordKey)
-    setActiveTab("details")
     setLocalName(name)
     setLocalFlag(initialFlag)
   }

@@ -41,7 +41,12 @@ const TREE = join(here, "..", "apps", "web", "app", "o", "[orgSlug]")
  * route here (with a one-line reason) only for a page reached purely
  * dynamically (e.g. a future detail/editor page opened from data, not nav).
  */
-const ALLOWLIST = new Set<string>([])
+const ALLOWLIST = new Set<string>([
+  // Redirect-only parent: the Archetype Table reference lives in its two
+  // subpages (normal-table, pivot-table), which the nav links directly. The
+  // bare route just `redirect()`s to normal-table, so it is link-less by design.
+  "debug/archetype-table",
+])
 
 /** Walk the route tree: a directory with a `page.tsx` is a route; "" = index. */
 function routePaths(dir: string, prefix = ""): string[] {

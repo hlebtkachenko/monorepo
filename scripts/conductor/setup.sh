@@ -90,6 +90,9 @@ if [ -n "$DOCKER_OK" ]; then
   # Open acme's first účetní období (2026) so /o/acme resolves to a bookable org.
   DATABASE_URL="$APPURL" pnpm exec tsx apps/web/scripts/seed-dev-period.ts \
     || echo "WARN: seeding acme 2026 period failed." >&2
+  # Fill the demo tables backing the Debug → Archetype Table reference pages.
+  DATABASE_URL="$APPURL" pnpm exec tsx apps/web/scripts/seed-dev-demo-tables.ts \
+    || echo "WARN: seeding acme demo tables failed." >&2
 
   echo "==> generate apps/admin/.env.local (port $((WEB_PORT + 2)))"
   # Admin gates on the seeded workspace id; the fresh DB has exactly one.

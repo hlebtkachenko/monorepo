@@ -33,6 +33,57 @@ describe("ContentFooter — selection", () => {
     expect(onMatch).toHaveBeenCalledTimes(1)
   })
 
+  it("renders a split action (primary button + grouped dropdown menu)", async () => {
+    const user = userEvent.setup()
+    const onExport = vi.fn()
+    const onClipboard = vi.fn()
+
+    wrap(
+      <ContentFooter
+        selection={{
+          count: 2,
+          onClear: () => {},
+          actions: [
+            {
+              id: "export",
+              label: "Export",
+              onSelect: onExport,
+              menuGroups: [
+                {
+                  id: "copy",
+                  label: "Copy",
+                  items: [
+                    {
+                      id: "clipboard",
+                      label: "Copy to clipboard",
+                      onSelect: onClipboard,
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        }}
+      />,
+    )
+
+    // Primary button fires directly.
+    await user.click(screen.getByRole("button", { name: "Export" }))
+    expect(onExport).toHaveBeenCalledTimes(1)
+
+    // The attached chevron opens the grouped dropdown; items hidden until then.
+    expect(
+      screen.queryByRole("menuitem", { name: "Copy to clipboard" }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole("button", { name: "More Export options" }),
+    )
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Copy to clipboard" }),
+    )
+    expect(onClipboard).toHaveBeenCalledTimes(1)
+  })
+
   it("renders nothing when the selection count is 0", () => {
     const { container } = wrap(
       <ContentFooter

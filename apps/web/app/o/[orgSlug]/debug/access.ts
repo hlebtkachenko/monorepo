@@ -1,8 +1,12 @@
 import "server-only"
 
+import { notFound } from "next/navigation"
 import { eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import { admin_workspace_allowlist } from "@workspace/db/schema"
+
+import { resolveMembership } from "@/lib/org/resolve"
+import { getRequestSession } from "@/lib/org/session"
 
 /**
  * Server-side gate for the dev/admin-only Debug module.
@@ -30,4 +34,25 @@ export async function hasDebugModuleAccess(
       .limit(1),
   )
   return row != null
+}
+
+/**
+ * The SINGLE fail-closed gate for every Debug-module page: requires an
+ * authenticated session, an org membership for `orgSlug`, and Debug-module
+ * access — `notFound()`s (404) on any missing/failing step. Do not re-inline
+ * this per page: a security gate duplicated across pages drifts, and a page can
+ * silently open up when one copy is edited and the others aren't. Returns the
+ * resolved session + membership for the page to use.
+ */
+export async function requireDebugAccess(orgSlug: string) {
+  const session = await getRequestSession()
+  if (!session) notFound()
+  const membership = await resolveMembership({
+    slug: orgSlug,
+    userId: session.user.id,
+  })
+  if (!membership || !(await hasDebugModuleAccess(membership.workspaceId))) {
+    notFound()
+  }
+  return { session, membership }
 }

@@ -358,7 +358,9 @@ export function SectionPivotTableRenderer({
         size: labelWidth,
         minSize: 160,
         enableHiding: false,
-        meta: { disableReorder: true },
+        // `label` feeds the CSV/clipboard export header (and column manager); without
+        // it the export falls back to the internal id `__rowlabel`.
+        meta: { disableReorder: true, label: rowLabelHeader },
         cell: ({ row }) => <PivotLabelCell row={row} />,
       },
       ...pivot.columnTree.map(buildColumnDef),

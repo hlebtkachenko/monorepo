@@ -49,6 +49,7 @@ import {
   commitCenter,
   commitPinnedGroup,
   getCenterIds,
+  isSameHeaderGroup,
 } from "./data-grid-view-column-header"
 import { SortableHeaderCell } from "./data-grid-view-sortable-header"
 import {
@@ -240,11 +241,14 @@ export function DataGridView<TData>({
       if (!over || active.id === over.id) return
       const activeId = String(active.id)
       const overId = String(over.id)
-      // Reorder WITHIN a group only — each group is its own SortableContext, so
-      // `over` is always a sibling of `active`. Centre writes `columnOrder`
-      // (shared with the Columns manager); a pinned column writes its
-      // `columnPinning` slice (left/right), which the section's pin invariant
-      // then re-anchors (select first, actions last).
+      // Reorder WITHIN a group only. Each group is its own SortableContext, but
+      // the shared DndContext's collision can still resolve `over` to a column in
+      // ANOTHER banded group — so a same-parent check (below, for the centre
+      // branch) is what actually keeps a leaf in its group; `over` is NOT
+      // guaranteed to be a sibling. Centre writes `columnOrder` (shared with the
+      // Columns manager); a pinned column writes its `columnPinning` slice
+      // (left/right), which the section's pin invariant then re-anchors (select
+      // first, actions last).
       const pinned = table.getColumn(activeId)?.getIsPinned()
       if (pinned === "left" || pinned === "right") {
         const group = (table.getState().columnPinning[pinned] ?? []).slice()
@@ -254,6 +258,10 @@ export function DataGridView<TData>({
         commitPinnedGroup(table, pinned, arrayMove(group, from, to))
         return
       }
+      // A leaf must reorder ONLY among same-parent siblings — a cross-group drop
+      // (a banded/pivot header) would relocate the leaf under another band and
+      // drag its whole group. Reject it (no-op for a flat table: one root parent).
+      if (!isSameHeaderGroup(table, activeId, overId)) return
       const center = getCenterIds(table)
       const from = center.indexOf(activeId)
       const to = center.indexOf(overId)

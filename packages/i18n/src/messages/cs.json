@@ -1462,7 +1462,9 @@
       "company": "Společnost",
       "overview": "Přehled",
       "periods": "Období",
-      "debug": "Ladění"
+      "debug": "Ladění",
+      "normalTable": "Běžná tabulka",
+      "pivotTable": "Kontingenční tabulka"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1472,7 +1474,9 @@
     "titles": {
       "periods": "Období",
       "settings": "Nastavení",
-      "debug": "Ladění"
+      "debug": "Ladění",
+      "normalTable": "Běžná tabulka",
+      "pivotTable": "Kontingenční tabulka"
     },
     "favorite": {
       "tooltip": "Oblíbené",

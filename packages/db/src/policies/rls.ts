@@ -83,6 +83,9 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "dppo_annual_taxpayer_category",
   // org favorites — per-user starred pages (0064_favorite_page.sql)
   "favorite_page",
+  // debug/reference demo tables — dev-seeded (0067_demo_debug_tables.sql)
+  "demo_debug_normal_table_record",
+  "demo_debug_pivot_table_record",
 ] as const
 
 export type OrganizationScopedTable =

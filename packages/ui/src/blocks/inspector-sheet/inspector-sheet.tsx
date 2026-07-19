@@ -11,6 +11,16 @@ import type { InspectorFooterProps } from "./inspector-footer"
 import { InspectorHeader, type InspectorCopyTarget } from "./inspector-header"
 import { InspectorRail, type InspectorTab } from "./inspector-rail"
 
+/** Shown when the active tab has no content for this record — the rail always
+ *  lists every tab, but a tab a table does not use is simply empty here. */
+function InspectorEmptyTab() {
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
+      Nothing here for this record.
+    </div>
+  )
+}
+
 export interface InspectorSheetProps {
   /** Exactly two ancestor crumbs shown in the header (root-first). */
   breadcrumb: readonly [string, string]
@@ -89,7 +99,7 @@ export function InspectorSheet({
           flag={flag}
           onFlagChange={onFlagChange}
           badge={badge}
-          content={content?.[activeTab]}
+          content={content?.[activeTab] ?? <InspectorEmptyTab />}
           footer={footer}
         />
         <InspectorRail activeTab={activeTab} onTabChange={onTabChange} />

@@ -21,7 +21,8 @@ import { orgHref } from "@/lib/org/href"
 
 /** i18n key (under `org.nav`) for a nav entry's visible label. Local to this
  * module — only the `Org*NavItem` aliases below are consumed elsewhere. */
-type OrgNavLabelKey = "company" | "overview" | "periods" | "debug"
+type OrgNavLabelKey =
+  "company" | "overview" | "periods" | "debug" | "normalTable" | "pivotTable"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
@@ -93,13 +94,24 @@ export function companyNav(slug: string): OrgSidebarNavItem[] {
   ]
 }
 
-/** Sidebar tree for the Debug module — a single Overview entry. */
+/** Sidebar tree for the Debug module — Overview + the Archetype Table reference
+ *  subpages (Normal Table, Pivot Table). */
 export function debugNav(slug: string): OrgSidebarNavItem[] {
   return [
     {
       labelKey: "overview",
       icon: "ChevronsLeftRightSquare",
       href: orgHref(slug, "debug"),
+    },
+    {
+      labelKey: "normalTable",
+      icon: "TableProperties",
+      href: orgHref(slug, "debug/archetype-table/normal-table"),
+    },
+    {
+      labelKey: "pivotTable",
+      icon: "Calculator",
+      href: orgHref(slug, "debug/archetype-table/pivot-table"),
     },
   ]
 }

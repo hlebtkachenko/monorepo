@@ -12,6 +12,12 @@ export type InspectorTab =
   | "export"
   | "more"
 
+/**
+ * The rail ALWAYS shows every tab (a stable, predictable switcher). A tab a given
+ * table does not use simply renders empty content when opened; the four
+ * cross-cutting tabs — Details, Activity, Attachments, More — are usable on
+ * any record regardless of its columns.
+ */
 const TABS: { tab: InspectorTab; icon: IconName; label: string }[] = [
   { tab: "details", icon: "TextInitialIcon", label: "Details" },
   { tab: "items", icon: "TableProperties", label: "Items" },

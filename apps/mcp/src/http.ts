@@ -19,22 +19,6 @@ const VERSION = "0.0.1"
 const PROTECTED_RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource"
 
 /**
- * Scopes this resource server understands, surfaced in the RFC 9728 metadata so
- * a client knows what it may request. Mirrors the authorization server's
- * advertised set (`oauthProvider({ scopes })` in `@workspace/auth`): the OIDC
- * set plus the coarse API capability scopes the `/v1` `@RequireScopes` checks
- * accept. Advisory only — the real grant is enforced per call at the API.
- */
-const OAUTH_SCOPES_SUPPORTED = [
-  "openid",
-  "profile",
-  "email",
-  "offline_access",
-  "accounting:read",
-  "accounting:write",
-] as const
-
-/**
  * Parse the connection-time tool selection from the URL query, so an agent can
  * load only a relevant subset instead of all tools:
  *   ?groups=invoices,accounting   register only those tag groups
@@ -91,14 +75,17 @@ interface Env {
  * which the client echoes back as the RFC 8707 `resource` at authorize/token
  * time so the AS stamps a matching `aud`. `authorization_servers` points the
  * client at our AS, whose own `/.well-known/oauth-authorization-server` then
- * yields the authorize/token/registration endpoints.
+ * yields the authorize/token/registration endpoints. `scopes_supported` is
+ * deliberately omitted: the authorization server is the single source of truth
+ * for the scope vocabulary and already advertises it in its own
+ * `/.well-known/oauth-authorization-server`, so duplicating the list here would
+ * only risk drift.
  */
 function protectedResourceMetadata(resource: string, issuer: string) {
   return {
     resource,
     authorization_servers: [issuer],
     bearer_methods_supported: ["header"],
-    scopes_supported: [...OAUTH_SCOPES_SUPPORTED],
   }
 }
 

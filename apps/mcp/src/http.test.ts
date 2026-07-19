@@ -104,13 +104,11 @@ describe("hosted MCP Worker auth gate", () => {
     const meta = (await res.json()) as {
       resource: string
       authorization_servers: string[]
-      scopes_supported: string[]
     }
     // resource is the Worker's own origin (the canonical audience the client
     // echoes as RFC 8707 `resource` so the AS stamps a matching `aud`).
     expect(meta.resource).toBe("https://mcp.afframe.com")
     expect(meta.authorization_servers).toEqual([env.OAUTH_ISSUER])
-    expect(meta.scopes_supported).toContain("accounting:read")
   })
 
   it("points a 401 at the protected-resource metadata (RFC 9728 §5.1)", async () => {

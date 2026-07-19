@@ -157,6 +157,11 @@ describe("AppStack Fargate hardening", () => {
     )
     expect(envByName["EMAIL_FROM"]).toBe("no-reply@mail.example.org")
     expect(envByName["EMAIL_TRANSPORT"]).toBe("resend")
+    // The OAuth authorization server runs in the web container; it needs
+    // OAUTH_RESOURCE to set validAudiences and mint the correct `aud`. Must be
+    // the SAME value the api verifier checks (asserted in the api env test) so
+    // minted and verified audiences never drift. TEST_ENV_NAME="test" → staging.
+    expect(envByName["OAUTH_RESOURCE"]).toBe("https://mcp-staging.afframe.com")
     // Hard-coded loopback path to the pgBouncer sidecar — same pattern as api.
     expect(envByName["DB_HOST"]).toBe("localhost")
     expect(envByName["DB_PORT"]).toBe("6432")

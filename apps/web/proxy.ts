@@ -3,6 +3,7 @@ import { getSessionCookie } from "better-auth/cookies"
 import { devCookiePrefix } from "@workspace/auth/dev-cookie-prefix"
 
 import { publicOrigin } from "./lib/request-origin"
+import { pathWithScrubbedQuery } from "./lib/scrub-query"
 import { safeNext } from "./lib/safe-next"
 
 /**
@@ -21,10 +22,11 @@ import { safeNext } from "./lib/safe-next"
  *    - `Referrer-Policy: no-referrer` (#3) — prevents the raw token query
  *      parameter leaking into the Referer header on any subsequent
  *      navigation.
- *    - Token log scrubbing (#4) — injects `x-scrubbed-path` so upstream
- *      loggers (Sentry, Next.js telemetry) record the path with `?token=`
- *      stripped. The original URL stays intact so route handlers can still
- *      read searchParams.
+ *    - Credential log scrubbing (#4) — injects `x-scrubbed-path` so upstream
+ *      loggers (Sentry, Next.js telemetry) record the path with credential
+ *      params (`token`, `code`, `state`, …) stripped (see `scrub-query.ts`).
+ *      The original URL stays intact so route handlers can still read
+ *      searchParams.
  *
  * IMPORTANT: cookie presence is a check, not a proof. Better Auth signs
  * the session cookie, but `getSessionCookie` here only confirms the
@@ -43,13 +45,15 @@ export function proxy(request: NextRequest): NextResponse {
   if (pathname.startsWith("/auth/") || pathname.startsWith("/onboarding/")) {
     const response = NextResponse.next()
     response.headers.set("Referrer-Policy", "no-referrer")
-    if (request.nextUrl.searchParams.has("token")) {
-      const scrubbed = request.nextUrl.clone()
-      scrubbed.searchParams.delete("token")
-      response.headers.set(
-        "x-scrubbed-path",
-        scrubbed.pathname + scrubbed.search,
-      )
+    // Log scrubbing (#4): if any credential-bearing param is present, publish a
+    // scrubbed path so upstream loggers record `?token=` / `?code=` / `?state=`
+    // etc. stripped. The original URL stays intact for route handlers.
+    const scrubbedPath = pathWithScrubbedQuery(
+      pathname,
+      request.nextUrl.searchParams,
+    )
+    if (scrubbedPath !== pathname + request.nextUrl.search) {
+      response.headers.set("x-scrubbed-path", scrubbedPath)
     }
     return response
   }
@@ -72,23 +76,30 @@ export function proxy(request: NextRequest): NextResponse {
   )
   if (!sessionCookie) {
     const loginUrl = new URL("/auth/login", publicOrigin(request))
-    // Pass ONLY the pathname through `safeNext`. We deliberately drop
-    // the original query string so a sensitive deep link
-    // (`/auth/reset-password?token=…`) never round-trips through the
-    // login URL as `?next=`. Sanitization defends the consumer side
-    // even though the matcher excludes `/auth/*` from the protected set.
-    const intended = safeNext(pathname, "/")
+    // Preserve the requested path AND its benign query through login so a deep
+    // link like `/o/acme/…/normal-table?inspect=<uuid>` returns to the exact
+    // view. Credential-bearing keys (`token`, `code`, `state`, …) are stripped
+    // first so a sensitive deep link never round-trips as `?next=`, and
+    // `safeNext` still defends the consumer side against off-origin targets.
+    const intended = safeNext(
+      pathWithScrubbedQuery(pathname, request.nextUrl.searchParams),
+      "/",
+    )
     if (intended !== "/") {
       loginUrl.searchParams.set("next", intended)
     }
     return NextResponse.redirect(loginUrl)
   }
-  // Forward the requested path to Node-runtime layouts. The optimistic gate
-  // above only checks cookie presence; a layout that runs the real session
-  // check (e.g. `app/[orgSlug]/layout.tsx`) needs the full pathname to bounce
-  // a stale-cookie visitor back to the exact deep link after re-login.
+  // Forward the requested path (+ benign query) to Node-runtime layouts. The
+  // optimistic gate above only checks cookie presence; a layout that runs the
+  // real session check (e.g. `app/[orgSlug]/layout.tsx`) needs the full path to
+  // bounce a stale-cookie visitor back to the exact deep link after re-login.
+  // Credential-bearing query keys are scrubbed so they never reach the header.
   const requestHeaders = new Headers(request.headers)
-  requestHeaders.set("x-pathname", pathname)
+  requestHeaders.set(
+    "x-pathname",
+    pathWithScrubbedQuery(pathname, request.nextUrl.searchParams),
+  )
   return NextResponse.next({ request: { headers: requestHeaders } })
 }
 

@@ -13,9 +13,11 @@
  *   - protocol-relative URLs (`//evil.com`, `/\\evil.com`)
  *   - paths that don't start with a single `/`
  *
- * Open redirects via `?next=` are exactly this category of bug — the
- * matcher in `apps/web/proxy.ts` excludes `/auth/*` so the login form
- * consumer-side guard is load-bearing alongside the proxy-side strip.
+ * Open redirects via `?next=` are exactly this category of bug. `apps/web/proxy.ts`
+ * matches `/auth/*` for request hygiene (not the protected-route gate), so this
+ * consumer-side guard is load-bearing alongside the proxy-side query scrub in
+ * `scrub-query.ts`: the proxy strips credential-bearing keys, `safeNext` rejects
+ * off-origin targets.
  */
 export function safeNext(
   raw: string | null | undefined,

@@ -6,7 +6,7 @@ import {
   statutoryVatEnvelope,
 } from "@workspace/accounting"
 import { withOrganization } from "@workspace/db"
-import { czechToday } from "@/lib/czech-today"
+import { czechToday } from "@workspace/shared/date"
 
 import { resolvePeriodProfile } from "./period-profile"
 import {

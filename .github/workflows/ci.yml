@@ -169,6 +169,17 @@ jobs:
       - name: Org tree boundary (new /o tree)
         run: pnpm --filter web lint:org-new
 
+      # Deletion-safety gate for the FROZEN old tree: no file outside both org
+      # trees may import app/[orgSlug]/** (scripts/* generators exempt until the
+      # flip). Track A extracted every domain consumer out by hand; this keeps
+      # that inbound list empty so the old tree can be deleted without breaking
+      # any consumer. Runs a dedicated warning-immune config (the rule is
+      # onlyWarn-downgraded in the base config, so error severity + a clean
+      # standalone config is what makes outside->old blocking). Every run, not
+      # --affected. Advisory until Hleb flips it required.
+      - name: Org tree boundary (frozen old tree — no inbound imports)
+        run: pnpm --filter web lint:org-orphan
+
       # `cdk synth` coverage moved to `workflow-lint / cdk-synth-strict` —
       # per-env + --strict mode + offline. See .github/workflows/workflow-lint.yml.
 

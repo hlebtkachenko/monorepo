@@ -86,6 +86,19 @@ const nextConfig = {
       },
     ]
   },
+  async rewrites() {
+    return [
+      // OAuth 2.1 authorization-server discovery (RFC 8414) must be reachable at
+      // the root `/.well-known/oauth-authorization-server` URL. The oauthProvider
+      // plugin already serves this metadata under Better Auth's base path, so
+      // expose it at the canonical root URL by rewriting to that endpoint (no
+      // dotfolder route needed, which TypeScript's include globs cannot see).
+      {
+        source: "/.well-known/oauth-authorization-server",
+        destination: "/api/auth/.well-known/oauth-authorization-server",
+      },
+    ]
+  },
 }
 
 // withSentryConfig stays the outermost wrapper so that source-map uploads see

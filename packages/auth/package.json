@@ -10,6 +10,7 @@
     "./tokens": "./src/tokens/index.ts",
     "./invite-issuer": "./src/invite-issuer.ts",
     "./api-key-verifier": "./src/api-key-verifier.ts",
+    "./oauth-tenant-binding": "./src/oauth-tenant-binding.ts",
     "./env": "./src/env.ts",
     "./test-support": "./src/test-support.ts",
     "./login-flow": "./src/login-flow.ts",

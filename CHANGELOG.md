@@ -13,6 +13,35 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.25.3] — 2026-07-19
+
+### Added
+
+- Chart-of-accounts column headers and enum cell labels now resolve through packages/i18n (EN + CS `accounting.chartOfAccounts.*` messages), completing the app-edge labelKey refactor. (#875)
+- Daňový (tax-relevant) flag on chart-of-accounts accounts, seeded from the osnova/template and carried forward each period. (#875)
+- Year-based chart of accounts: a per-year Účetní osnova (account directive) and prebuilt house Účtový rozvrh templates, with the ability to start a period's chart from the osnova or by forking a template. (#875)
+- Archetype bodies now type-govern which section kinds they may host: `ArchetypeTable` / `ArchetypeDetails` `sections` props (and `details-group` children) are narrowed via a single `ARCHETYPE_SECTION_POLICY` source of truth, so wiring a section into the wrong archetype body is a `tsc` error, with a dev-only runtime guard as a cast-bypass belt. (#876)
+- Added Debug "Archetype Table" reference pages in the new `/o/[orgSlug]` tree — a FULLY interactive Normal Table (views, favorite, auto-generated per-column filter, inline + inspector editing that saves back into the row, a working selection footer with Delete/Export, and a multi-tab row Inspector with Approve/Reject) and a real nested Pivot Table (two-level Category → Status row tree, Total + Count measures) — the first governed consumers of the section-library policy, wiring `ArchetypeTable` + the Table/Pivot Body + Inspector entirely from the packages/ui blocks. They read dedicated dev-seeded `demo_debug_*` tables (never real product data; empty in prod), so the pages double as clone-ready templates. (#877)
+- The Debug reference Table gained a real per-row Activity log (each edit logged with a working Undo), an Export dropdown (Copy to clipboard / CSV of the selected rows x visible columns in order), a Delete with Undo, per-row Attachments and a Settings tab, and a shareable ?inspect= deep-link; the Pivot page gained its search box. (#877)
+- Add the reference-data localization runbook (docs/runbooks/I18N-REFERENCE-DATA-LOCALIZATION.md): a navigation guide for localizing an accounting page via i18n + adopting SQL tables, with the source-of-truth map, the instruction-respect / stop-and-ask rule, and the CI blockers. (#882)
+- Localize chart-of-accounts reference names through the existing next-intl catalogs: the Účetní osnova (`accounting.chartOfAccounts.osnovaNames.*`) and prebuilt-template (`accounting.chartOfAccounts.templateNames.*`) account names are generated into `messages/{en,cs}.json` from the vendored seed and the reference migration, and the app edge resolves them by code with `getTranslations` like every other string — no bespoke catalog, no per-language DB column. (#882)
+- OAuth authorize now shows a brief branded "Connected — returning you to <app>…" hand-off in the Afframe auth shell before redirecting to the client callback, instead of a bare flash. Refs #829 (#886)
+
+### Changed
+
+- The /v1 accounts list now reads through the single @workspace/accounting source shared with the web chart-of-accounts page (no duplicated SELECT). (#875)
+- Add docs/runbooks/ARCHETYPE-PAGE-BUILD-GUIDE.md — a field guide (advisor-rechecked) for building governed /o archetype pages: rule-navigation, the archetype/builder patterns, verification gates, parallel-agent hygiene, and respect-the-instruction discipline. (#877)
+- ArchetypeTable now guarantees the Table archetype's mandatory chrome: views, the favorite star, and the selection footer are required props, and the per-column toolbar filter is auto-generated from the table's own columns (a page can no longer ship a bare table). (#877)
+- Debug Archetype Table reference (#877): the selection footer is a shared buildTableFooter split button — primary "Export" downloads CSV, and a grouped dropdown offers Export as (CSV), Copy (clipboard / link / id), and a single-select "Open in Inspector · Export"; a Pivot passes a practical CSV (a month band header line above real Category/Status dimension columns, not one indented column). The row Inspector wires real Attachments (preview/download/rename/copy) and validated link attachments with an open-external redirect, plus a working Export tab and a More tab (Duplicate/Archive/Delete). The toolbar search shrinks gracefully instead of overlapping the toolbar, Inspector sections use a 32px rhythm, selection-footer toasts lift clear of the footer (restoring any co-mounted status-bar clearance), and the rail drops the never-shipped Settings tab in favour of More. (#877)
+- Table toolbar: the Add-filter trigger keeps a fixed spot right after the search box and the active filter chips flow after it, wrapping across lines dynamically; and a frozen (pinned) column now casts the EXACT float box-shadow the docked Inspector rail uses (mirrored per side). (#877)
+
+### Fixed
+
+- Correct the migration number in the chart/directive-year schema doc-comments (mirror 0067 DDL, generator emits the 0068 seed). (#875)
+- Fixed pivot/banded table headers so dragging a leaf value column reorders only within its group instead of dragging the whole parent header band with it. (#877)
+- The row Inspector rail always lists every tab (Details, Activity, Attachments and Settings are usable on any record; unused tabs render an empty pane), and an edit committed from a cell, an inspector field, or Approve/Reject is reflected immediately in both the grid and the inspector. (#877)
+- OAuth consent and organization-selection now complete: the forms read the `url` field Better Auth's /oauth2/consent and /oauth2/continue actually return (it responds with `{ redirect: true, url }`, not `redirect_uri`), so authorizing no longer dead-ends on "Something went wrong". Refs #829 (#886)
+
 ## [v0.25.2] — 2026-07-19
 
 ### Changed

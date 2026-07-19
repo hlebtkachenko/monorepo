@@ -58,14 +58,26 @@ export interface InspectorAttachmentFile {
   url?: string
 }
 
-/** A syntactically valid http(s) URL — the "Add link" gate. */
-function isValidLinkUrl(value: string): boolean {
+/**
+ * The safe external href for a value, or `undefined` if it is not an http(s) URL.
+ * Returns the PARSED `URL.href` from inside the protocol allowlist — so the value
+ * reaching an anchor `href` is a URL-API output guarded by the scheme check, never
+ * raw text (a `javascript:` / `data:` URL parses but fails the allowlist). This
+ * shape is what lets both us and static analysis treat the link as sanitized.
+ */
+function safeExternalHref(value: string): string | undefined {
   try {
     const url = new URL(value)
-    return url.protocol === "http:" || url.protocol === "https:"
+    if (url.protocol === "http:" || url.protocol === "https:") return url.href
   } catch {
-    return false
+    // not a parseable URL
   }
+  return undefined
+}
+
+/** A syntactically valid http(s) URL — the "Add link" gate. */
+function isValidLinkUrl(value: string): boolean {
+  return safeExternalHref(value) !== undefined
 }
 
 /** A record already in the system, searchable in "Link existing". */
@@ -140,9 +152,10 @@ function AttachmentRow({
   // but a row sourced from an untrusted `files` prop must never render a
   // `javascript:`/`data:` href (defense-in-depth at the render boundary).
   const isLink = file.kind === "link"
-  const href = isValidLinkUrl(file.url ?? file.name)
-    ? (file.url ?? file.name)
-    : undefined
+  // `href` is the PARSED, protocol-checked URL (or undefined) — never the raw
+  // `file.url`/`file.name` text — so a `javascript:`/`data:` value can never reach
+  // the anchor, even from an untrusted `files` prop.
+  const href = isLink ? safeExternalHref(file.url ?? file.name) : undefined
 
   return (
     <div className="flex items-center gap-2.5 px-3 py-2 text-sm">

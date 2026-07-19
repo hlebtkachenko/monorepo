@@ -6,7 +6,13 @@ import { and, eq, isNull, sql } from "drizzle-orm"
 import { z } from "zod"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { api_key, app_user, audit_event } from "@workspace/db/schema"
+import {
+  api_key,
+  app_user,
+  audit_event,
+  oauth_consent,
+  oauth_refresh_token,
+} from "@workspace/db/schema"
 
 import { type ActionResult } from "../../../lib/action-result"
 import { logServerError } from "../../../lib/log-server-error"
@@ -261,6 +267,81 @@ export async function revokeOwnApiKeyAction(
   } catch (err) {
     logServerError("workspace/profile API key revoke failed", err)
     return { ok: false, errorKey: "revokeApiKeyFailed" }
+  }
+
+  revalidatePath("/workspace/profile/security")
+  return { ok: true }
+}
+
+/**
+ * Disconnect an OAuth application — an MCP / third-party client the signed-in
+ * user authorized (one `oauth_consent` grant). Revokes every refresh token the
+ * grant issued (the provider rejects a refresh token whose `revoked` is set, so
+ * the app can no longer mint fresh access tokens) and deletes the consent, so a
+ * reconnect requires explicit re-approval. An already-issued access token is a
+ * stateless JWT and lapses on its own (<= 1h). Scoped to the caller's own
+ * grants — the user id comes from the session, never the client.
+ */
+export async function revokeOwnOAuthGrantAction(
+  consentId: string,
+): Promise<ActionResult> {
+  const parsed = z.string().uuid().safeParse(consentId)
+  if (!parsed.success) return { ok: false, errorKey: "invalidInput" }
+
+  const session = await auth.api.getSession({ headers: await headers() })
+  if (!session) return { ok: false, errorKey: "sessionExpired" }
+
+  try {
+    const revoked = await withAdminBypass(async (db) => {
+      const consent = (
+        await db
+          .select({
+            clientId: oauth_consent.clientId,
+            referenceId: oauth_consent.referenceId,
+          })
+          .from(oauth_consent)
+          .where(
+            and(
+              eq(oauth_consent.id, parsed.data),
+              eq(oauth_consent.userId, session.user.id),
+            ),
+          )
+          .limit(1)
+      )[0]
+      if (!consent) return false
+
+      await db
+        .update(oauth_refresh_token)
+        .set({ revoked: sql`now()` })
+        .where(
+          and(
+            eq(oauth_refresh_token.userId, session.user.id),
+            eq(oauth_refresh_token.clientId, consent.clientId),
+            isNull(oauth_refresh_token.revoked),
+          ),
+        )
+
+      await db
+        .delete(oauth_consent)
+        .where(
+          and(
+            eq(oauth_consent.id, parsed.data),
+            eq(oauth_consent.userId, session.user.id),
+          ),
+        )
+
+      await db.insert(audit_event).values({
+        organization_id: consent.referenceId,
+        actor_user_id: session.user.id,
+        action: "profile.oauth_grant_revoked",
+        payload: { client_id: consent.clientId },
+      })
+      return true
+    })
+    if (!revoked) return { ok: false, errorKey: "oauthGrantNotFound" }
+  } catch (err) {
+    logServerError("workspace/profile OAuth grant revoke failed", err)
+    return { ok: false, errorKey: "revokeOAuthGrantFailed" }
   }
 
   revalidatePath("/workspace/profile/security")

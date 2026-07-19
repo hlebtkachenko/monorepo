@@ -12,11 +12,15 @@ import {
 } from "@workspace/ui/blocks/content-panel"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { revokeOwnApiKeyAction } from "../../../workspace/profile/actions"
+import {
+  revokeOwnApiKeyAction,
+  revokeOwnOAuthGrantAction,
+} from "../../../workspace/profile/actions"
 import type { DangerPurpose } from "../../../workspace/profile/danger-actions"
 import { DangerDialogs } from "./danger-zone"
 
 const REVOKE_API_KEY = "profile.api-key.revoke"
+const REVOKE_OAUTH_GRANT = "profile.oauth-grant.revoke"
 const LEAVE_WORKSPACE = "profile.danger.leave"
 const DELETE_ACCOUNT = "profile.danger.delete"
 
@@ -38,6 +42,14 @@ export interface ProfileSecurityApiKey {
   revoked: boolean
 }
 
+export interface ProfileConnectedApp {
+  id: string
+  name: string
+  organization: string
+  scopes: string[]
+  authorizedAt: string
+}
+
 export interface ProfileDangerAvailability {
   workspaceName: string | null
   leaveBlockedByOwnership: boolean
@@ -48,11 +60,13 @@ export function ProfileSecurity({
   twoFactorEnabled,
   sessions,
   apiKeys,
+  connectedApps,
   danger,
 }: {
   twoFactorEnabled: boolean
   sessions: ProfileSession[]
   apiKeys: ProfileSecurityApiKey[]
+  connectedApps: ProfileConnectedApp[]
   danger: ProfileDangerAvailability
 }) {
   const router = useRouter()
@@ -72,6 +86,18 @@ export function ProfileSecurity({
     }
   }
 
+  async function disconnectApp(id: string) {
+    setRevoking(id)
+    const result = await revokeOwnOAuthGrantAction(id)
+    setRevoking(null)
+    if (result.ok) {
+      toast.success("Application disconnected")
+      router.refresh()
+    } else {
+      toast.error("Could not disconnect application")
+    }
+  }
+
   function onSectionAction(action: SectionAction) {
     if (action.id === LEAVE_WORKSPACE) {
       setDangerPurpose("leave_workspace")
@@ -81,14 +107,18 @@ export function ProfileSecurity({
       setDangerPurpose("delete_account")
       return
     }
-    if (
-      action.id === REVOKE_API_KEY &&
+    const rowId =
       typeof action.payload === "object" &&
       action.payload !== null &&
       "rowId" in action.payload &&
       typeof action.payload.rowId === "string"
-    ) {
-      void revoke(action.payload.rowId)
+        ? action.payload.rowId
+        : null
+    if (!rowId) return
+    if (action.id === REVOKE_API_KEY) {
+      void revoke(rowId)
+    } else if (action.id === REVOKE_OAUTH_GRANT) {
+      void disconnectApp(rowId)
     }
   }
 
@@ -235,6 +265,57 @@ export function ProfileSecurity({
                   confirmDescription:
                     "Integrations using this key lose access immediately. This cannot be undone.",
                   confirmLabel: "Revoke key",
+                },
+              }),
+              sectionDetailsTable({
+                title: "Connected applications",
+                description:
+                  "External apps (Claude, Cursor, MCP clients) you authorized to act for an organization on your behalf. Disconnecting stops future access immediately; the app must be re-authorized to reconnect.",
+                mode: "readonly",
+                emptyText: "No applications are connected.",
+                columns: [
+                  {
+                    id: "application",
+                    header: "Application",
+                    span: 2,
+                    control: { kind: "text" },
+                  },
+                  {
+                    id: "organization",
+                    header: "Organization",
+                    control: { kind: "text" },
+                  },
+                  {
+                    id: "scopes",
+                    header: "Scopes",
+                    control: { kind: "text" },
+                  },
+                  {
+                    id: "authorized",
+                    header: "Authorized",
+                    control: { kind: "text" },
+                  },
+                ],
+                rows: connectedApps.map((app) => ({
+                  id: app.id,
+                  actionBusy: revoking === app.id,
+                  cells: {
+                    application: app.name,
+                    organization: app.organization,
+                    scopes: app.scopes.join(", ") || "No scopes",
+                    authorized: app.authorizedAt,
+                  },
+                })),
+                rowAction: {
+                  label: "Disconnect",
+                  busyLabel: "Disconnecting…",
+                  actionId: REVOKE_OAUTH_GRANT,
+                  variant: "destructive",
+                  header: "Action",
+                  confirmTitle: "Disconnect this application?",
+                  confirmDescription:
+                    "It loses access immediately and must be re-authorized to reconnect. This cannot be undone.",
+                  confirmLabel: "Disconnect",
                 },
               }),
             ],

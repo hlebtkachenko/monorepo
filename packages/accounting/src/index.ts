@@ -41,7 +41,7 @@ export {
   createChart,
   seedChartFromDirectives,
   seedChartFromTemplate,
-  resolveOsnovaYear,
+  resolveFrameworkYear,
   DEFAULT_OPEN_ITEM_ACCOUNTS,
   createAccount,
   createCounterparty,

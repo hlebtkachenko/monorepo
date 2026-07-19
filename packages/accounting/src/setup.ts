@@ -212,18 +212,18 @@ export const DEFAULT_OPEN_ITEM_ACCOUNTS: readonly string[] = [
 ] as const
 
 /**
- * Resolve which Účetní osnova year to seed from: the greatest published
- * directive_account_year ≤ the requested year (so opening 2027 before its osnova is
- * published falls back to 2026 — Hleb's "choose the previous year's osnova"). Returns
- * null when no osnova is published at or before the year.
+ * Resolve which framework-chart year (Účetní osnova) to seed from: the greatest published
+ * directive_account_year ≤ the requested year (so opening 2027 before its framework is
+ * published falls back to 2026 — the "choose the previous year's framework" rule). Returns
+ * null when no framework is published at or before the year.
  */
-export async function resolveOsnovaYear(
+export async function resolveFrameworkYear(
   db: RowExecutor,
   year: number,
 ): Promise<number | null> {
-  // Prefer the greatest published osnova ≤ the requested year; if none is published at or
-  // before it (a period opened earlier than the first osnova, e.g. a backfill), fall back to
-  // the earliest published osnova rather than seeding an empty chart. NULL only if none exist.
+  // Prefer the greatest published framework year ≤ the requested year; if none is published at
+  // or before it (a period opened earlier than the first framework, e.g. a backfill), fall back
+  // to the earliest published year rather than seeding an empty chart. NULL only if none exist.
   const found = await rows<{ year: number | null }>(
     db,
     sql`SELECT COALESCE(

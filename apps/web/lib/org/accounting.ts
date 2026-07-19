@@ -10,7 +10,7 @@ import {
   listChartTemplateAccounts,
   listChartTemplates,
   listDirectiveYear,
-  resolveOsnovaYear,
+  resolveFrameworkYear,
   seedChartFromDirectives,
   seedChartFromTemplate,
   type ChartAccountRow,
@@ -20,58 +20,67 @@ import {
 } from "@workspace/accounting"
 
 /**
- * Chart of accounts (Účtový rozvrh) app-edge for the rebuilt org tree.
+ * Chart-of-accounts app-edge for the rebuilt org tree.
  *
  * Owned by the new tree (`apps/web/lib/org/`) — imports only `@workspace/*`, never the frozen
  * old tree. Reads run under `withOrgReadonly` (org FORCE-RLS + READ ONLY); writes under
  * `withOrganization`. Snake_case domain rows are camelCased into view models the UI consumes,
- * and each account view carries the DERIVED presentation columns the reference platforms show
- * (druh / typ) so the UI never re-derives them. The SELECTs + seeds live once in
- * `@workspace/accounting`; this is only the tenancy wrapper + presentation shape + the button
- * action seam (the UI table wires to these — no rendering here).
+ * and each account view carries the DERIVED presentation columns (statement class + account
+ * type) so the UI never re-derives them. All display strings are i18n keys — this layer holds
+ * no user-facing text. The SELECTs + seeds live once in `@workspace/accounting`; this is only
+ * the tenancy wrapper + presentation shape + the button action seam (no rendering here).
  */
 
 // ─────────────────────────── derived presentation dimensions ───────────────────────────
 
-/** Druh účtu — the statement class every Czech platform shows (Rozvahový / Výsledkový / …). */
-export type AccountDruh =
-  | "ROZVAHOVY" // balance sheet (ASSET / LIABILITY / EQUITY)
-  | "VYSLEDKOVY" // P&L (EXPENSE / REVENUE)
-  | "ZAVERKOVY" // closing (701/702/710)
-  | "PODROZVAHOVY" // off-balance (75x)
+/**
+ * Which financial statement an account belongs to. Derived from `nature`; the UI localizes the
+ * value via i18n (`accounting.chartOfAccounts.statementClass.<VALUE>`).
+ */
+export type StatementClass =
+  | "BALANCE_SHEET" // ASSET / LIABILITY / EQUITY
+  | "INCOME_STATEMENT" // EXPENSE / REVENUE
+  | "CLOSING" // 701 / 702 / 710
+  | "OFF_BALANCE" // 75x
 
-/** Typ účtu — Aktivní / Pasivní / Nákladový / Výnosový (null for closing/off-balance). */
-export type AccountTyp = "AKTIVNI" | "PASIVNI" | "NAKLADOVY" | "VYNOSOVY" | null
+/**
+ * The account-type dimension (asset-side / liability-side / cost / revenue). Derived from
+ * `nature`; null for closing/off-balance accounts. The UI localizes it via i18n
+ * (`accounting.chartOfAccounts.accountType.<VALUE>`).
+ */
+export type AccountType = "ACTIVE" | "PASSIVE" | "EXPENSE" | "REVENUE" | null
 
-/** Derive Druh from the stored account nature. */
-export function accountDruh(nature: ChartAccountRow["nature"]): AccountDruh {
+/** Derive the statement class from the stored account nature. */
+export function statementClass(
+  nature: ChartAccountRow["nature"],
+): StatementClass {
   switch (nature) {
     case "ASSET":
     case "LIABILITY":
     case "EQUITY":
-      return "ROZVAHOVY"
+      return "BALANCE_SHEET"
     case "EXPENSE":
     case "REVENUE":
-      return "VYSLEDKOVY"
+      return "INCOME_STATEMENT"
     case "CLOSING":
-      return "ZAVERKOVY"
+      return "CLOSING"
     case "OFF_BALANCE":
-      return "PODROZVAHOVY"
+      return "OFF_BALANCE"
   }
 }
 
-/** Derive Typ from the stored account nature. */
-export function accountTyp(nature: ChartAccountRow["nature"]): AccountTyp {
+/** Derive the account type from the stored account nature. */
+export function accountType(nature: ChartAccountRow["nature"]): AccountType {
   switch (nature) {
     case "ASSET":
-      return "AKTIVNI"
+      return "ACTIVE"
     case "LIABILITY":
     case "EQUITY":
-      return "PASIVNI"
+      return "PASSIVE"
     case "EXPENSE":
-      return "NAKLADOVY"
+      return "EXPENSE"
     case "REVENUE":
-      return "VYNOSOVY"
+      return "REVENUE"
     default:
       return null
   }
@@ -79,22 +88,22 @@ export function accountTyp(nature: ChartAccountRow["nature"]): AccountTyp {
 
 // ─────────────────────────────────── view models ───────────────────────────────────
 
-/** @public — app-edge seam the chart-of-accounts UI wires to (UI lands in a follow-up). One row of the Účtový rozvrh table as the UI consumes it. */
+/** @public — app-edge seam the chart-of-accounts UI wires to (UI lands in a follow-up). One row of the chart-of-accounts table as the UI consumes it. */
 export interface ChartAccountView {
   id: string
   /** '31' | '311' | '311.001' */
   number: string
   name: string
   nature: ChartAccountRow["nature"]
-  /** derived — balance / P&L / closing / off-balance. */
-  druh: AccountDruh
+  /** derived — which statement (balance sheet / income statement / closing / off-balance). */
+  statementClass: StatementClass
   /** derived — active / passive / expense / revenue. */
-  typ: AccountTyp
-  /** DEBIT | CREDIT | null (sign-flip accounts 431/481/FX). */
+  accountType: AccountType
+  /** DEBIT | CREDIT | null (sign-flip accounts 431 / 481 / FX). */
   normalBalance: ChartAccountRow["normal_balance"]
-  /** saldokonto — one of the two editable flags. */
+  /** open-items tracking (saldokonto) — one of the two editable flags. */
   tracksOpenItems: boolean
-  /** Daňový — the other editable flag; null for balance/closing účty. */
+  /** tax relevance (Daňový) — the other editable flag; null for balance/closing accounts. */
   taxRelevant: boolean | null
   parentId: string | null
   class: number
@@ -110,8 +119,8 @@ function toChartAccountView(r: ChartAccountRow): ChartAccountView {
     number: r.number,
     name: r.name,
     nature: r.nature,
-    druh: accountDruh(r.nature),
-    typ: accountTyp(r.nature),
+    statementClass: statementClass(r.nature),
+    accountType: accountType(r.nature),
     normalBalance: r.normal_balance,
     tracksOpenItems: r.tracks_open_items,
     taxRelevant: r.tax_relevant,
@@ -124,15 +133,15 @@ function toChartAccountView(r: ChartAccountRow): ChartAccountView {
   }
 }
 
-/** @public — app-edge seam the osnova subpage wires to (UI lands in a follow-up). One row of the Účetní osnova (framework) as the read-only subpage consumes it. */
-export interface OsnovaAccountView {
+/** @public — app-edge seam the framework (Účetní osnova) subpage wires to (UI lands in a follow-up). One row of the year-based framework chart as the read-only subpage consumes it. */
+export interface FrameworkAccountView {
   year: number
   code: string
   name: string
   nameEn: string | null
   nature: DirectiveYearRow["nature"]
-  druh: AccountDruh
-  typ: AccountTyp
+  statementClass: StatementClass
+  accountType: AccountType
   normalBalance: DirectiveYearRow["normal_balance"]
   tracksOpenItems: boolean
   taxRelevant: boolean | null
@@ -140,15 +149,15 @@ export interface OsnovaAccountView {
   incomeStatementLine: string | null
 }
 
-function toOsnovaView(r: DirectiveYearRow): OsnovaAccountView {
+function toFrameworkView(r: DirectiveYearRow): FrameworkAccountView {
   return {
     year: r.year,
     code: r.code,
     name: r.name_cs,
     nameEn: r.name_en,
     nature: r.nature,
-    druh: accountDruh(r.nature),
-    typ: accountTyp(r.nature),
+    statementClass: statementClass(r.nature),
+    accountType: accountType(r.nature),
     normalBalance: r.normal_balance,
     tracksOpenItems: r.tracks_open_items,
     taxRelevant: r.tax_relevant,
@@ -157,7 +166,7 @@ function toOsnovaView(r: DirectiveYearRow): OsnovaAccountView {
   }
 }
 
-/** @public — app-edge seam the template picker wires to (UI lands in a follow-up). A prebuilt house rozvrh template (the picker option). */
+/** @public — app-edge seam the template picker wires to (UI lands in a follow-up). A prebuilt chart-of-accounts template (a picker option). */
 export interface ChartTemplateView {
   id: string
   year: number
@@ -181,8 +190,8 @@ export interface ChartTemplateAccountView {
   number: string
   name: string
   nature: ChartTemplateAccountRow["nature"]
-  druh: AccountDruh
-  typ: AccountTyp
+  statementClass: StatementClass
+  accountType: AccountType
   tracksOpenItems: boolean
   taxRelevant: boolean | null
   isAllowance: boolean
@@ -195,8 +204,8 @@ function toTemplateAccountView(
     number: r.number,
     name: r.name,
     nature: r.nature,
-    druh: accountDruh(r.nature),
-    typ: accountTyp(r.nature),
+    statementClass: statementClass(r.nature),
+    accountType: accountType(r.nature),
     tracksOpenItems: r.tracks_open_items,
     taxRelevant: r.tax_relevant,
     isAllowance: r.is_allowance,
@@ -208,9 +217,9 @@ function toTemplateAccountView(
 /**
  * @public — table-data read the chart-of-accounts page wires to (UI lands in a follow-up).
  *
- * The period's Účtový rozvrh, sorted by číslo účtu. `periodId` is the active period the page
- * resolved via `getActivePeriod`; a period with no chart yet (a fresh org) returns []
- * and the page offers the "start from osnova / template" buttons.
+ * The period's chart of accounts, sorted by account number. `periodId` is the active period the
+ * page resolved via `getActivePeriod`; a period with no chart yet (a fresh org) returns [] and
+ * the page offers the "start from framework / template" buttons.
  */
 export async function getChartAccounts(
   organizationId: string,
@@ -223,19 +232,19 @@ export async function getChartAccounts(
   return rows.map(toChartAccountView)
 }
 
-/** @public — read the osnova subpage wires to (UI lands in a follow-up). The read-only Účetní osnova (framework) for a year — the subpage + the "fill from osnova" source. */
-export async function getOsnova(
+/** @public — read the framework subpage wires to (UI lands in a follow-up). The read-only framework chart (Účetní osnova) for a year — the subpage + the "fill from framework" source. */
+export async function getFramework(
   organizationId: string,
   userId: string,
   year: number,
-): Promise<OsnovaAccountView[]> {
+): Promise<FrameworkAccountView[]> {
   const rows = await withOrgReadonly(organizationId, userId, (db) =>
     listDirectiveYear(db, year),
   )
-  return rows.map(toOsnovaView)
+  return rows.map(toFrameworkView)
 }
 
-/** @public — read the template picker wires to (UI lands in a follow-up). The prebuilt house rozvrh templates offered for a year (the picker). */
+/** @public — read the template picker wires to (UI lands in a follow-up). The prebuilt chart templates offered for a year (the picker). */
 export async function getChartTemplates(
   organizationId: string,
   userId: string,
@@ -247,7 +256,7 @@ export async function getChartTemplates(
   return rows.map(toTemplateView)
 }
 
-/** @public — read the template preview wires to (UI lands in a follow-up). The účty of one prebuilt template (preview before forking). */
+/** @public — read the template preview wires to (UI lands in a follow-up). The accounts of one prebuilt template (preview before forking). */
 export async function getChartTemplateAccounts(
   organizationId: string,
   userId: string,
@@ -261,39 +270,41 @@ export async function getChartTemplateAccounts(
 
 // ─────────────────────────── column descriptors (how the table renders) ───────────────────────────
 
-/** How a chart-of-accounts column renders. The UI table maps `key` → cell + `kind` → widget. */
+/**
+ * How a chart-of-accounts column renders. The UI table maps `key` → cell + `kind` → widget and
+ * resolves `labelKey` through i18n (English + Czech messages live in `packages/i18n`). No literal
+ * header text lives here — everything user-facing is a message key.
+ */
 export interface ChartAccountColumn {
   key:
     | "number"
     | "name"
-    | "druh"
-    | "typ"
+    | "statementClass"
+    | "accountType"
     | "normalBalance"
     | "tracksOpenItems"
     | "taxRelevant"
-  /** i18n message key the header resolves (cs/en live in packages/i18n). */
-  headerKey: string
-  /** literal cs/en fallback headers (until the i18n keys land). */
-  header: { cs: string; en: string }
+  /** i18n message key the header resolves. */
+  labelKey: string
   kind: "code" | "text" | "enum" | "boolean"
   align: "start" | "end"
   /** true = the value is GENERATED / derived, read-only in an editor. */
   derived: boolean
-  /** true = editable on the account (only name / saldo / daňový are). */
+  /** true = editable on the account (only name / open-items / tax-relevant are). */
   editable: boolean
 }
 
 /**
- * The column set for the Účtový rozvrh table (order = display order). The UI wires each cell to
- * `ChartAccountView[key]`; enum cells (`druh` / `typ` / `normalBalance`) localize the code, boolean
- * cells (`tracksOpenItems` / `taxRelevant`) render a checkbox/badge. Only `name`, `tracksOpenItems`
- * and `taxRelevant` are editable — everything else is GENERATED or derived.
+ * The column set for the chart-of-accounts table (order = display order). The UI wires each cell
+ * to `ChartAccountView[key]`; enum cells (`statementClass` / `accountType` / `normalBalance`)
+ * localize the code, boolean cells (`tracksOpenItems` / `taxRelevant`) render a checkbox/badge.
+ * Only `name`, `tracksOpenItems` and `taxRelevant` are editable — everything else is GENERATED or
+ * derived. Bilingual header + value labels are catalogued in `.context/ui-column-names.md`.
  */
 export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
   {
     key: "number",
-    headerKey: "accounting.chart.col.number",
-    header: { cs: "Účet", en: "Account" },
+    labelKey: "accounting.chartOfAccounts.columns.number",
     kind: "code",
     align: "start",
     derived: false,
@@ -301,26 +312,23 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
   },
   {
     key: "name",
-    headerKey: "accounting.chart.col.name",
-    header: { cs: "Název", en: "Name" },
+    labelKey: "accounting.chartOfAccounts.columns.name",
     kind: "text",
     align: "start",
     derived: false,
     editable: true,
   },
   {
-    key: "druh",
-    headerKey: "accounting.chart.col.druh",
-    header: { cs: "Druh", en: "Kind" },
+    key: "statementClass",
+    labelKey: "accounting.chartOfAccounts.columns.statementClass",
     kind: "enum",
     align: "start",
     derived: true,
     editable: false,
   },
   {
-    key: "typ",
-    headerKey: "accounting.chart.col.typ",
-    header: { cs: "Typ", en: "Type" },
+    key: "accountType",
+    labelKey: "accounting.chartOfAccounts.columns.accountType",
     kind: "enum",
     align: "start",
     derived: true,
@@ -328,8 +336,7 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
   },
   {
     key: "normalBalance",
-    headerKey: "accounting.chart.col.normalBalance",
-    header: { cs: "Strana", en: "Side" },
+    labelKey: "accounting.chartOfAccounts.columns.normalBalance",
     kind: "enum",
     align: "start",
     derived: true,
@@ -337,8 +344,7 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
   },
   {
     key: "tracksOpenItems",
-    headerKey: "accounting.chart.col.saldo",
-    header: { cs: "Saldo", en: "Open items" },
+    labelKey: "accounting.chartOfAccounts.columns.tracksOpenItems",
     kind: "boolean",
     align: "end",
     derived: false,
@@ -346,8 +352,7 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
   },
   {
     key: "taxRelevant",
-    headerKey: "accounting.chart.col.danovy",
-    header: { cs: "Daňový", en: "Tax-relevant" },
+    labelKey: "accounting.chartOfAccounts.columns.taxRelevant",
     kind: "boolean",
     align: "end",
     derived: false,
@@ -360,12 +365,12 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
 /**
  * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
  *
- * Start a period's chart from the Účetní osnova (the "Naplnit z osnovy" button, #3). Resolves the
- * osnova year effective for `year` (falls back to the latest published prior year), creates the
- * chart if the period has none, then seeds. Throws if the chart already has účty (never
- * double-seeds). Returns the number of účty seeded.
+ * Start a period's chart from the framework chart (the "fill from framework" button). Resolves
+ * the framework year effective for `year` (falls back to the latest published prior year),
+ * creates the chart if the period has none, then seeds. Throws if the chart already has accounts
+ * (never double-seeds). Returns the number of accounts seeded.
  */
-export async function startChartFromOsnova(
+export async function startChartFromFramework(
   organizationId: string,
   workspaceId: string,
   userId: string,
@@ -378,11 +383,11 @@ export async function startChartFromOsnova(
       workspaceId,
       periodId,
     })
-    const osnovaYear = (await resolveOsnovaYear(db, year)) ?? year
+    const frameworkYear = (await resolveFrameworkYear(db, year)) ?? year
     return seedChartFromDirectives(
       db,
       { organizationId, workspaceId },
-      { chartId, periodId, year: osnovaYear },
+      { chartId, periodId, year: frameworkYear },
     )
   })
 }
@@ -390,8 +395,8 @@ export async function startChartFromOsnova(
 /**
  * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
  *
- * Start a period's chart by forking a prebuilt house rozvrh template (the "Použít předlohu"
- * button, #4). Same empty-chart guard as {@link startChartFromOsnova}. Returns účty seeded.
+ * Start a period's chart by forking a prebuilt template (the "use template" button). Same
+ * empty-chart guard as {@link startChartFromFramework}. Returns the number of accounts seeded.
  */
 export async function startChartFromTemplate(
   organizationId: string,
@@ -417,9 +422,9 @@ export async function startChartFromTemplate(
 /**
  * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
  *
- * Add one účet to the period's chart (the "Přidat účet" button). The chart must already exist
- * (start it from an osnova/template first). `nature` drives druh/typ; the caller passes the
- * saldo/daňový flags.
+ * Add one account to the period's chart (the "add account" button). The chart must already exist
+ * (start it from a framework/template first). `nature` drives the derived statement class + type;
+ * the caller passes the open-items / tax-relevant flags.
  */
 export async function addChartAccount(
   organizationId: string,
@@ -477,7 +482,7 @@ async function requireChartId(
   const chartId = await findChartId(db, periodId)
   if (!chartId) {
     throw new Error(
-      "accounting: the period has no chart of accounts yet — start it from an osnova or template first",
+      "accounting: the period has no chart of accounts yet — start it from a framework or template first",
     )
   }
   return chartId

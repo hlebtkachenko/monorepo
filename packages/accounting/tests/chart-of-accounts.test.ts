@@ -17,7 +17,7 @@ import {
   listChartTemplates,
   listChartTemplateAccounts,
   listDirectiveYear,
-  resolveOsnovaYear,
+  resolveFrameworkYear,
   seedChartFromDirectives,
   seedChartFromTemplate,
 } from "../src/index"
@@ -72,12 +72,12 @@ describe("listAccounts — the tenant Účtový rozvrh single-source read", () =
 })
 
 describe("Účetní osnova (account directive) — year-based reference read", () => {
-  it("lists the 2026 osnova: synthetic-only, deprecated excluded, tax + statement lines present", async () => {
+  it("lists the 2026 framework: synthetic-only, deprecated excluded, tax + statement lines present", async () => {
     const rows = await withOrgReadonly(orgA, userA, (db) =>
       listDirectiveYear(db, 2026),
     )
     expect(rows.length).toBeGreaterThan(200)
-    // #6: the osnova NEVER holds analytics — every code is a 3-digit synthetic (no dot)
+    // #6: the framework NEVER holds analytics — every code is a 3-digit synthetic (no dot)
     expect(rows.every((r) => /^\d{3}$/.test(r.code))).toBe(true)
     // deprecated (e.g. 011 Zřizovací výdaje) excluded by default
     expect(rows.some((r) => r.code === "011")).toBe(false)
@@ -89,20 +89,20 @@ describe("Účetní osnova (account directive) — year-based reference read", (
     expect(exp?.income_statement_line).toBeTruthy()
   })
 
-  it("resolveOsnovaYear falls back to the nearest published osnova", async () => {
+  it("resolveFrameworkYear falls back to the nearest published framework", async () => {
     const future = await withOrganization(orgA, userA, (db) =>
-      resolveOsnovaYear(db, 2099),
+      resolveFrameworkYear(db, 2099),
     )
     expect(future).toBe(2026)
     const past = await withOrganization(orgA, userA, (db) =>
-      resolveOsnovaYear(db, 2000),
+      resolveFrameworkYear(db, 2000),
     )
     expect(past).toBe(2026) // earliest-published fallback
   })
 })
 
-describe("seedChartFromDirectives — start a chart from the osnova (#3)", () => {
-  it("seeds the 2026 osnova into a bare chart with saldo + tax carried", async () => {
+describe("seedChartFromDirectives — start a chart from the framework (#3)", () => {
+  it("seeds the 2026 framework into a bare chart with saldo + tax carried", async () => {
     const ctx: OrgCtx = { organizationId: orgB, workspaceId }
     const { periodId, count, rows } = await withOrganization(
       orgB,

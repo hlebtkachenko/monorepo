@@ -20,7 +20,7 @@ import {
   createChart,
   createPeriod,
   seedChartFromDirectives,
-  resolveOsnovaYear,
+  resolveFrameworkYear,
 } from "@workspace/accounting"
 import { deriveRegime, type LegalFormFacts, type Regime } from "./regime"
 import { ScaffoldValidationError } from "./errors"
@@ -251,12 +251,12 @@ export async function scaffoldAccountingPeriod(
     // Seed from the Účetní osnova effective for the period's year (falls back to the latest
     // published prior year if that exact year has none yet).
     const requestedYear = Number(params.periodStart.slice(0, 4))
-    const osnovaYear =
-      (await resolveOsnovaYear(db, requestedYear)) ?? requestedYear
+    const frameworkYear =
+      (await resolveFrameworkYear(db, requestedYear)) ?? requestedYear
     accountsSeeded = await seedChartFromDirectives(db, orgCtx, {
       chartId,
       periodId,
-      year: osnovaYear,
+      year: frameworkYear,
     })
   }
 

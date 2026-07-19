@@ -1,34 +1,34 @@
 /**
- * Chart-of-accounts app-edge — the derived presentation columns (Druh / Typ) and the table
- * column descriptors the UI renders from. Pure logic; the DB reads are covered in
+ * Chart-of-accounts app-edge — the derived presentation columns (statement class / account type)
+ * and the table column descriptors the UI renders from. Pure logic; the DB reads are covered in
  * @workspace/accounting. Dynamic import so the @workspace/db singletons bind after globalSetup.
  */
 import { describe, expect, it } from "vitest"
 
 const mod = await import("./accounting")
-const { accountDruh, accountTyp, CHART_ACCOUNT_COLUMNS } = mod
+const { statementClass, accountType, CHART_ACCOUNT_COLUMNS } = mod
 
-describe("accountDruh — derived statement class", () => {
-  it("maps balance / P&L / closing / off-balance natures", () => {
-    expect(accountDruh("ASSET")).toBe("ROZVAHOVY")
-    expect(accountDruh("LIABILITY")).toBe("ROZVAHOVY")
-    expect(accountDruh("EQUITY")).toBe("ROZVAHOVY")
-    expect(accountDruh("EXPENSE")).toBe("VYSLEDKOVY")
-    expect(accountDruh("REVENUE")).toBe("VYSLEDKOVY")
-    expect(accountDruh("CLOSING")).toBe("ZAVERKOVY")
-    expect(accountDruh("OFF_BALANCE")).toBe("PODROZVAHOVY")
+describe("statementClass — derived statement membership", () => {
+  it("maps balance-sheet / income-statement / closing / off-balance natures", () => {
+    expect(statementClass("ASSET")).toBe("BALANCE_SHEET")
+    expect(statementClass("LIABILITY")).toBe("BALANCE_SHEET")
+    expect(statementClass("EQUITY")).toBe("BALANCE_SHEET")
+    expect(statementClass("EXPENSE")).toBe("INCOME_STATEMENT")
+    expect(statementClass("REVENUE")).toBe("INCOME_STATEMENT")
+    expect(statementClass("CLOSING")).toBe("CLOSING")
+    expect(statementClass("OFF_BALANCE")).toBe("OFF_BALANCE")
   })
 })
 
-describe("accountTyp — derived account type", () => {
+describe("accountType — derived account type", () => {
   it("maps active / passive / expense / revenue, null for closing/off-balance", () => {
-    expect(accountTyp("ASSET")).toBe("AKTIVNI")
-    expect(accountTyp("LIABILITY")).toBe("PASIVNI")
-    expect(accountTyp("EQUITY")).toBe("PASIVNI")
-    expect(accountTyp("EXPENSE")).toBe("NAKLADOVY")
-    expect(accountTyp("REVENUE")).toBe("VYNOSOVY")
-    expect(accountTyp("CLOSING")).toBeNull()
-    expect(accountTyp("OFF_BALANCE")).toBeNull()
+    expect(accountType("ASSET")).toBe("ACTIVE")
+    expect(accountType("LIABILITY")).toBe("PASSIVE")
+    expect(accountType("EQUITY")).toBe("PASSIVE")
+    expect(accountType("EXPENSE")).toBe("EXPENSE")
+    expect(accountType("REVENUE")).toBe("REVENUE")
+    expect(accountType("CLOSING")).toBeNull()
+    expect(accountType("OFF_BALANCE")).toBeNull()
   })
 })
 
@@ -40,29 +40,29 @@ describe("CHART_ACCOUNT_COLUMNS — the table render spec", () => {
       expect.arrayContaining([
         "number",
         "name",
-        "druh",
-        "typ",
+        "statementClass",
+        "accountType",
         "tracksOpenItems",
         "taxRelevant",
       ]),
     )
   })
 
-  it("marks only name / saldo / daňový editable, and derived columns as read-only", () => {
+  it("carries an i18n labelKey (no literal header text) on every column", () => {
+    for (const c of CHART_ACCOUNT_COLUMNS) {
+      expect(c.labelKey).toMatch(/^accounting\.chartOfAccounts\.columns\./)
+      // no hardcoded user-facing strings leaked onto the descriptor
+      expect(c).not.toHaveProperty("header")
+    }
+  })
+
+  it("marks only name / open-items / tax-relevant editable, derived columns read-only", () => {
     const editable = CHART_ACCOUNT_COLUMNS.filter((c) => c.editable).map(
       (c) => c.key,
     )
     expect(editable.sort()).toEqual(["name", "taxRelevant", "tracksOpenItems"])
-    // derived columns are never editable
     expect(CHART_ACCOUNT_COLUMNS.every((c) => !(c.derived && c.editable))).toBe(
       true,
     )
-  })
-
-  it("every column carries both cs and en headers", () => {
-    for (const c of CHART_ACCOUNT_COLUMNS) {
-      expect(c.header.cs.length).toBeGreaterThan(0)
-      expect(c.header.en.length).toBeGreaterThan(0)
-    }
   })
 })

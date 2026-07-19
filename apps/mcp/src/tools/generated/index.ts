@@ -45,50 +45,103 @@ import { registerMatchBookingTemplate } from "./matchBookingTemplate"
 import { registerListAccountingPeriods } from "./listAccountingPeriods"
 import { registerCreateAccountingPeriod } from "./createAccountingPeriod"
 
-export function registerGeneratedTools(server: McpServer, client: AfframeClient): void {
-  registerPing(server, client)
-  registerGetOrganization(server, client)
-  registerGetStatus(server, client)
-  registerCreateFeedback(server, client)
-  registerGetStructure(server, client)
-  registerListArchetypes(server, client)
-  registerGetAccountingJournal(server, client)
-  registerGetAccountingLedger(server, client)
-  registerGetAccountingOpenItems(server, client)
-  registerGetAccountingSaldokonto(server, client)
-  registerGetAccountingVatReturn(server, client)
-  registerGetAccountingCorporateIncomeTax(server, client)
-  registerGetAccountingEcSalesList(server, client)
-  registerGetAccountingControlStatement(server, client)
-  registerGetAccountingFinancialStatements(server, client)
-  registerGetAccountingStatementLayout(server, client)
-  registerClassifyAccountingEvent(server, client)
-  registerListAccountingNumberSeries(server, client)
-  registerCreateNumberSeries(server, client)
-  registerCreateAccountingEvent(server, client)
-  registerCaptureAccountingDocument(server, client)
-  registerCreateAccountingPosting(server, client)
-  registerCreateAsset(server, client)
-  registerCreateDepreciationPlan(server, client)
-  registerCreateInventoryCount(server, client)
-  registerListAccountingHeldWrites(server, client)
-  registerResolveAccountingHeldWrite(server, client)
-  registerListInvoices(server, client)
-  registerCreateInvoice(server, client)
-  registerGetInvoice(server, client)
-  registerListAccounts(server, client)
-  registerGetAccount(server, client)
-  registerListDocuments(server, client)
-  registerGetDocumentDownloadUrl(server, client)
-  registerListOcrTemplates(server, client)
-  registerCreateOcrTemplate(server, client)
-  registerConfirmOcrTemplate(server, client)
-  registerListBookingTemplates(server, client)
-  registerCreateBookingTemplate(server, client)
-  registerConfirmBookingTemplate(server, client)
-  registerMatchBookingTemplate(server, client)
-  registerListAccountingPeriods(server, client)
-  registerCreateAccountingPeriod(server, client)
+type Registrar = (server: McpServer, client: AfframeClient) => void
+
+interface ToolEntry {
+  register: Registrar
+  /** Slugified first OpenAPI tag — the group an agent can select by. */
+  group: string
+  readOnly: boolean
+  destructive: boolean
+}
+
+/** Per-operation registrar + group/read/destructive metadata (spec order). */
+const TOOLS: Record<string, ToolEntry> = {
+  ping: { register: registerPing, group: "meta", readOnly: true, destructive: false },
+  getOrganization: { register: registerGetOrganization, group: "organization", readOnly: true, destructive: false },
+  getStatus: { register: registerGetStatus, group: "status", readOnly: true, destructive: false },
+  createFeedback: { register: registerCreateFeedback, group: "feedback", readOnly: false, destructive: false },
+  getStructure: { register: registerGetStructure, group: "structure", readOnly: true, destructive: false },
+  listArchetypes: { register: registerListArchetypes, group: "structure", readOnly: true, destructive: false },
+  getAccountingJournal: { register: registerGetAccountingJournal, group: "accounting", readOnly: true, destructive: false },
+  getAccountingLedger: { register: registerGetAccountingLedger, group: "accounting", readOnly: true, destructive: false },
+  getAccountingOpenItems: { register: registerGetAccountingOpenItems, group: "accounting", readOnly: true, destructive: false },
+  getAccountingSaldokonto: { register: registerGetAccountingSaldokonto, group: "accounting", readOnly: true, destructive: false },
+  getAccountingVatReturn: { register: registerGetAccountingVatReturn, group: "accounting", readOnly: true, destructive: false },
+  getAccountingCorporateIncomeTax: { register: registerGetAccountingCorporateIncomeTax, group: "accounting", readOnly: true, destructive: false },
+  getAccountingEcSalesList: { register: registerGetAccountingEcSalesList, group: "accounting", readOnly: true, destructive: false },
+  getAccountingControlStatement: { register: registerGetAccountingControlStatement, group: "accounting", readOnly: true, destructive: false },
+  getAccountingFinancialStatements: { register: registerGetAccountingFinancialStatements, group: "accounting", readOnly: true, destructive: false },
+  getAccountingStatementLayout: { register: registerGetAccountingStatementLayout, group: "accounting", readOnly: true, destructive: false },
+  classifyAccountingEvent: { register: registerClassifyAccountingEvent, group: "accounting", readOnly: false, destructive: false },
+  listAccountingNumberSeries: { register: registerListAccountingNumberSeries, group: "accounting", readOnly: true, destructive: false },
+  createNumberSeries: { register: registerCreateNumberSeries, group: "accounting", readOnly: false, destructive: false },
+  createAccountingEvent: { register: registerCreateAccountingEvent, group: "accounting", readOnly: false, destructive: false },
+  captureAccountingDocument: { register: registerCaptureAccountingDocument, group: "accounting", readOnly: false, destructive: false },
+  createAccountingPosting: { register: registerCreateAccountingPosting, group: "accounting", readOnly: false, destructive: false },
+  createAsset: { register: registerCreateAsset, group: "accounting", readOnly: false, destructive: false },
+  createDepreciationPlan: { register: registerCreateDepreciationPlan, group: "accounting", readOnly: false, destructive: false },
+  createInventoryCount: { register: registerCreateInventoryCount, group: "accounting", readOnly: false, destructive: false },
+  listAccountingHeldWrites: { register: registerListAccountingHeldWrites, group: "accounting", readOnly: true, destructive: false },
+  resolveAccountingHeldWrite: { register: registerResolveAccountingHeldWrite, group: "accounting", readOnly: false, destructive: false },
+  listInvoices: { register: registerListInvoices, group: "invoices", readOnly: true, destructive: false },
+  createInvoice: { register: registerCreateInvoice, group: "invoices", readOnly: false, destructive: false },
+  getInvoice: { register: registerGetInvoice, group: "invoices", readOnly: true, destructive: false },
+  listAccounts: { register: registerListAccounts, group: "accounts", readOnly: true, destructive: false },
+  getAccount: { register: registerGetAccount, group: "accounts", readOnly: true, destructive: false },
+  listDocuments: { register: registerListDocuments, group: "documents", readOnly: true, destructive: false },
+  getDocumentDownloadUrl: { register: registerGetDocumentDownloadUrl, group: "documents", readOnly: true, destructive: false },
+  listOcrTemplates: { register: registerListOcrTemplates, group: "ocr-templates", readOnly: true, destructive: false },
+  createOcrTemplate: { register: registerCreateOcrTemplate, group: "ocr-templates", readOnly: false, destructive: false },
+  confirmOcrTemplate: { register: registerConfirmOcrTemplate, group: "ocr-templates", readOnly: false, destructive: false },
+  listBookingTemplates: { register: registerListBookingTemplates, group: "booking-templates", readOnly: true, destructive: false },
+  createBookingTemplate: { register: registerCreateBookingTemplate, group: "booking-templates", readOnly: false, destructive: false },
+  confirmBookingTemplate: { register: registerConfirmBookingTemplate, group: "booking-templates", readOnly: false, destructive: false },
+  matchBookingTemplate: { register: registerMatchBookingTemplate, group: "booking-templates", readOnly: false, destructive: false },
+  listAccountingPeriods: { register: registerListAccountingPeriods, group: "accounting", readOnly: true, destructive: false },
+  createAccountingPeriod: { register: registerCreateAccountingPeriod, group: "accounting", readOnly: false, destructive: false },
+}
+
+/** Catalog of selectable tool groups (slug, description, tool count). */
+export const TOOL_GROUP_CATALOG = [
+  { slug: "accounting", description: "accounting", count: 23 },
+  { slug: "accounts", description: "accounts", count: 2 },
+  { slug: "booking-templates", description: "booking-templates", count: 4 },
+  { slug: "documents", description: "documents", count: 2 },
+  { slug: "feedback", description: "Send bug reports, requests, and questions", count: 1 },
+  { slug: "invoices", description: "invoices", count: 3 },
+  { slug: "meta", description: "Service metadata and auth smoke tests", count: 1 },
+  { slug: "ocr-templates", description: "Workspace-shared Brain OCR extraction templates (learned supplier invoice layouts)", count: 3 },
+  { slug: "organization", description: "The API key's own organization", count: 1 },
+  { slug: "status", description: "Service status and component health", count: 1 },
+  { slug: "structure", description: "Application information architecture — modules, pages, and layout archetypes for agent discovery", count: 2 },
+] as const
+
+export interface ToolSelection {
+  /** Register only tools in these groups. Undefined = every group. */
+  groups?: readonly string[]
+  /** "read" = read-only tools; "write" = non-destructive mutating (== all today, no destructive tools); "all" = everything. */
+  scope?: "read" | "write" | "all"
+}
+
+/**
+ * Register generated tools onto an McpServer. With no selection, registers
+ * every tool (backward-compatible with the stdio entrypoint). A selection
+ * gates registration by group and/or scope, so the hosted Worker exposes a
+ * smaller, relevant surface and never builds the unselected tools.
+ */
+export function registerGeneratedTools(
+  server: McpServer,
+  client: AfframeClient,
+  selection: ToolSelection = {},
+): void {
+  const { groups, scope = "all" } = selection
+  for (const tool of Object.values(TOOLS)) {
+    if (groups && !groups.includes(tool.group)) continue
+    if (scope === "read" && !tool.readOnly) continue
+    if (scope === "write" && tool.destructive) continue
+    tool.register(server, client)
+  }
 }
 
 export const GENERATED_TOOL_OPERATION_IDS = [

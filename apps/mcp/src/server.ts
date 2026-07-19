@@ -17,15 +17,23 @@ const VERSION = "0.0.1"
  * registration except for curation entries.
  *
  * Transport is STDIO for the npx-install path; the hosted Streamable HTTP
- * server (mcp.afframe.com, once deployed) is a separate process backed by
- * the same generated table.
+ * server (mcp.afframe.com) is a separate entrypoint (`src/http.ts`) backed by
+ * the same generated table and the same `buildClient` factory.
  *
- * Auth: `AFFRAME_API_KEY` env var (Bearer). Validated lazily — the first
- * tool call surfaces an `UnauthorizedError` if the key is rejected; the
- * server itself boots offline.
+ * Auth: `AFFRAME_API_KEY` env var (Bearer), read here at boot — the server
+ * fails fast with a one-line stderr message if it is missing. Key *validity*
+ * is checked lazily: the first tool call surfaces an `UnauthorizedError` if
+ * the API rejects the key; the server itself boots offline.
  */
 async function main(): Promise<void> {
-  const client = buildClient()
+  const apiKey = process.env.AFFRAME_API_KEY
+  if (!apiKey) {
+    process.stderr.write(
+      "@afframe/mcp: AFFRAME_API_KEY is required (set in claude_desktop_config.json env)\n",
+    )
+    process.exit(1)
+  }
+  const client = buildClient(apiKey, process.env.AFFRAME_API_BASE)
   const server = new McpServer({
     name: "@afframe/mcp",
     version: VERSION,

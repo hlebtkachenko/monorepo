@@ -45,6 +45,13 @@ const config: KnipConfig = {
       // documented in the root CLAUDE.md, never imported.
       ignore: ["scripts/*.ts"],
     },
+    "apps/mcp": {
+      // Types-only package consumed solely by the Worker build (tsconfig.worker.json
+      // `types` + wrangler/esbuild bundling of src/http.ts), which knip's default
+      // tsconfig.json graph (node stdio entrypoint) does not traverse. wrangler
+      // itself is seen via the deploy scripts, so only the types package needs this.
+      ignoreDependencies: ["@cloudflare/workers-types"],
+    },
     "apps/admin": {
       // Storybook binary resolves by cd-ing into packages/ui (a real devDep there).
       ignoreBinaries: ["storybook"],

@@ -1,13 +1,12 @@
 import "server-only"
 import { and, eq } from "drizzle-orm"
 import { consumeToken } from "@workspace/auth/tokens"
-import { withAdminBypass } from "@workspace/db"
+import { withAdminBypass, type OrganizationRole } from "@workspace/db"
 import {
   app_user,
   organization,
   organization_membership,
   workspace_membership,
-  type OrganizationRole,
 } from "@workspace/db/schema"
 
 /**

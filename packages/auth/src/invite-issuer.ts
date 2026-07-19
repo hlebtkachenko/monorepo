@@ -1,11 +1,14 @@
 import { and, eq, sql } from "drizzle-orm"
-import { withAdminBypass, auth_token } from "@workspace/db"
+import {
+  withAdminBypass,
+  auth_token,
+  type OrganizationRole,
+} from "@workspace/db"
 import {
   app_user,
   organization,
   organization_membership,
   workspace,
-  type OrganizationRole,
 } from "@workspace/db/schema"
 import { sendEmail, inviteEmail } from "@workspace/email"
 

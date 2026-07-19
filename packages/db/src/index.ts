@@ -43,6 +43,9 @@ export { money } from "./columns"
 // Schema (all tables + enums)
 export * from "./schema/index"
 
+// Derived role unions (TS-only, no SQL migration)
+export type { OrganizationRole } from "./roles"
+
 // RLS policy helpers
 export {
   ORGANIZATION_SCOPED_TABLES,

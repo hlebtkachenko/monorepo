@@ -124,6 +124,16 @@ pre-push:
       glob:
         - "apps/web/app/**"
       run: pnpm exec tsx scripts/check-nav.ts
+    org-new-nav-drift:
+      # /o clean-room tree parity guard — kept SEPARATE from nav-drift (which
+      # imports the frozen old nav and must not be touched during coexistence).
+      # Fails if an orgHref link has no route folder (a dead link, including the
+      # hardcoded shell chrome links nav-drift can't see) or a page.tsx is linked
+      # from nowhere (an orphan — the class of the unrequested settings page).
+      # Self-contained fs+regex; sub-second. See scripts/check-org-new-nav.ts.
+      glob:
+        - "apps/web/app/o/**"
+      run: pnpm exec tsx scripts/check-org-new-nav.ts
     sitemap-drift:
       # Sitemap-doc drift guard — companion to nav-drift. Fails if an org nav
       # label is missing from docs/specs/SITEMAP.md, so the doc (the hand-

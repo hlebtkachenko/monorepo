@@ -3,11 +3,10 @@ import { notFound } from "next/navigation"
 
 import { getTranslations } from "@workspace/i18n/server"
 
-import { isFavorited, listFavorites } from "@/lib/org/favorite-actions"
+import { listFavorites } from "@/lib/org/favorite-actions"
 import { resolveMembership } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
-import { FavoritePageHeader } from "../_shell/app-body/app-content/content-header/favorite-page-header"
 import { FavoritesOverview } from "../_shell/app-body/app-content/content-body/favorites-overview"
 import { hasDebugModuleAccess } from "./access"
 
@@ -19,9 +18,11 @@ import { hasDebugModuleAccess } from "./access"
  * production user who deep-links here fails closed to a 404 — the same decision
  * the rail uses to hide the module.
  *
- * Body carries no demo content: it renders the Debug module's favorited pages
- * as cards (REAL favorites, read under `withOrgReadonly`) or an empty state. The
- * content header carries a favorite star for this overview (`module_key='debug'`).
+ * An Overview is a module home, so it carries NO favorite star (a star would pin
+ * the overview onto its own favorites list). Its body renders the Debug module's
+ * favorited pages as cards (REAL favorites, read under `withOrgReadonly`) or an
+ * empty state — no demo content. The title comes from the shell's nav-derived
+ * header fallback.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("org.titles")
@@ -45,22 +46,7 @@ export default async function DebugOverviewPage({
     notFound()
   }
 
-  const t = await getTranslations("org.titles")
-  const [active, favorites] = await Promise.all([
-    isFavorited({ slug: orgSlug, route: "debug" }),
-    listFavorites({ slug: orgSlug, module: "debug" }),
-  ])
+  const favorites = await listFavorites({ slug: orgSlug, module: "debug" })
 
-  return (
-    <>
-      <FavoritePageHeader
-        slug={orgSlug}
-        title={t("debug")}
-        route="debug"
-        module="debug"
-        initialActive={active}
-      />
-      <FavoritesOverview slug={orgSlug} favorites={favorites} />
-    </>
-  )
+  return <FavoritesOverview slug={orgSlug} favorites={favorites} />
 }

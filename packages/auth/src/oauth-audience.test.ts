@@ -1,16 +1,44 @@
 import { describe, expect, it } from "vitest"
-import { resolveOAuthAudiences } from "./oauth-audience"
+import { oauthAudienceVariants, resolveOAuthAudiences } from "./oauth-audience"
+
+describe("oauthAudienceVariants", () => {
+  it("returns both slash spellings for a no-slash resource", () => {
+    expect(oauthAudienceVariants("https://mcp.afframe.com")).toEqual([
+      "https://mcp.afframe.com",
+      "https://mcp.afframe.com/",
+    ])
+  })
+
+  it("normalizes a trailing slash to the same pair (order-stable)", () => {
+    expect(oauthAudienceVariants("https://mcp.afframe.com/")).toEqual([
+      "https://mcp.afframe.com",
+      "https://mcp.afframe.com/",
+    ])
+  })
+
+  it("collapses repeated trailing slashes", () => {
+    expect(oauthAudienceVariants("https://mcp.afframe.com///")).toEqual([
+      "https://mcp.afframe.com",
+      "https://mcp.afframe.com/",
+    ])
+  })
+})
 
 describe("resolveOAuthAudiences", () => {
-  it("advertises the mcp resource as a valid audience when OAUTH_RESOURCE is set", () => {
+  it("advertises both slash spellings so a client's trailing-slash resource is accepted", () => {
+    // Claude Code registers `https://mcp.afframe.com/` and sends
+    // `resource=https://mcp.afframe.com/`; the AS must accept it (and the
+    // no-slash canonical) or `checkResource` throws `requested resource invalid`.
     expect(resolveOAuthAudiences("https://mcp.afframe.com")).toEqual([
       "https://mcp.afframe.com",
+      "https://mcp.afframe.com/",
     ])
   })
 
   it("trims surrounding whitespace", () => {
     expect(resolveOAuthAudiences("  https://mcp.afframe.com  ")).toEqual([
       "https://mcp.afframe.com",
+      "https://mcp.afframe.com/",
     ])
   })
 

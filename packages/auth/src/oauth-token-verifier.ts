@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose"
 
 import type { ApiKeyPrincipal } from "./api-key-verifier"
+import { oauthAudienceVariants } from "./oauth-audience"
 import {
   OAUTH_ORGANIZATION_CLAIM,
   resolveActiveMembershipContext,
@@ -112,7 +113,11 @@ export async function verifyOAuthAccessToken(
   try {
     const verified = await jwtVerify(token, getJwks(jwksUri), {
       issuer,
-      audience,
+      // Accept both slash spellings of the resource: the AS stamps the client's
+      // requested `resource` verbatim into `aud`, and MCP clients derive it from
+      // the registered server URL (e.g. Claude Code sends `.../` with a trailing
+      // slash). See `oauthAudienceVariants`.
+      audience: oauthAudienceVariants(audience),
     })
     payload = verified.payload
   } catch {

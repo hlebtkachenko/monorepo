@@ -4,10 +4,12 @@ import {
   ContentFooter,
   ContentHeader,
   ContentPanel,
+  useOptimisticFavorite,
 } from "@workspace/ui/blocks/content-panel"
 import type {
   ContentFooterSave,
   ContentHeaderBreadcrumbItem,
+  ContentHeaderFavoriteToggle,
   SectionDescriptor,
   SectionAction,
 } from "@workspace/ui/blocks/content-panel"
@@ -19,6 +21,11 @@ export interface ArchetypeDetailsProps {
   title: string
   /** Optional ancestor trail left of the title. */
   breadcrumb?: ContentHeaderBreadcrumbItem[]
+  /**
+   * Optional self-managing favorite star for this page's header. Omit → no star.
+   * The archetype owns the optimism; the page supplies seed state + persistence.
+   */
+  favorite?: ContentHeaderFavoriteToggle
   /**
    * The body: any number of branded Sections (e.g. `sectionDetailsForm(...)`,
    * `sectionSpace(...)`), rendered in order and stacked; the body scrolls.
@@ -50,11 +57,17 @@ export function ArchetypeDetails({
   sections,
   onSectionAction,
   save,
+  favorite,
 }: ArchetypeDetailsProps) {
+  const favoriteControlled = useOptimisticFavorite(favorite)
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title={title} breadcrumb={breadcrumb} />
+        <ContentHeader
+          title={title}
+          breadcrumb={breadcrumb}
+          favorite={favoriteControlled}
+        />
       </AppPageHeader>
       <ContentPanel
         sections={sections}

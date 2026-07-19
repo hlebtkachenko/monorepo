@@ -104,4 +104,50 @@ describe("OrgSwitcher", () => {
     )
     expect(screen.queryByText(/recent organisations/i)).not.toBeInTheDocument()
   })
+
+  it("hides the Settings/Invite row entirely when neither href is given", async () => {
+    const user = userEvent.setup()
+    render(
+      <OrgSwitcher
+        currentOrg={CURRENT}
+        recentOrgs={RECENT}
+        createOrgHref="/onboarding"
+        workspaceHref="/workspace"
+      />,
+      { wrapper: IconProvider },
+    )
+    await user.click(
+      screen.getByRole("button", { name: /switch organisation/i }),
+    )
+    expect(
+      screen.queryByRole("link", { name: /settings/i }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /invite members/i }),
+    ).not.toBeInTheDocument()
+  })
+
+  it("shows only the Settings button when invite has no destination", async () => {
+    const user = userEvent.setup()
+    render(
+      <OrgSwitcher
+        currentOrg={CURRENT}
+        recentOrgs={RECENT}
+        settingsHref="/acme/settings"
+        createOrgHref="/onboarding"
+        workspaceHref="/workspace"
+      />,
+      { wrapper: IconProvider },
+    )
+    await user.click(
+      screen.getByRole("button", { name: /switch organisation/i }),
+    )
+    expect(screen.getByRole("link", { name: /settings/i })).toHaveAttribute(
+      "href",
+      "/acme/settings",
+    )
+    expect(
+      screen.queryByRole("link", { name: /invite members/i }),
+    ).not.toBeInTheDocument()
+  })
 })

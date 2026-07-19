@@ -10,7 +10,7 @@ import {
   getHeaderPeriods,
   PERIOD_COOKIE,
   resolveActivePeriod,
-} from "../../_lib/header-periods"
+} from "@/lib/org/header-periods"
 import {
   DppoAdjustmentInputSchema,
   toDppoSaveInput,

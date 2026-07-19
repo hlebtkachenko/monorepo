@@ -42,10 +42,10 @@ vi.mock("next/headers", () => ({
     }),
 }))
 
-// Resolves to the SAME module `accounting-data.ts` imports via "./request-session"
+// Resolves to the SAME module `accounting-data.ts` imports via "@/lib/org/request-session"
 // (apps/web/app/[orgSlug]/_lib/request-session.ts) — Vitest mocks by resolved
 // module id, so this cross-directory relative path lands on that file.
-vi.mock("../../_lib/request-session", () => ({
+vi.mock("@/lib/org/request-session", () => ({
   getRequestSession: () =>
     Promise.resolve(sessionUserId ? { user: { id: sessionUserId } } : null),
 }))
@@ -297,11 +297,7 @@ describe("getClosingObligations", () => {
     ).toHaveLength(0)
     // Every row carries a derived display status.
     for (const o of result.obligations) {
-      expect([
-        "Past due date",
-        "Due soon",
-        "Upcoming",
-      ]).toContain(o.status)
+      expect(["Past due date", "Due soon", "Upcoming"]).toContain(o.status)
     }
   }, 30_000)
 

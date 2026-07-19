@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import {
   fetchJournalRows,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 import { DenikBody } from "../../../_components/denik/denik-body"
 import { DenikHeader } from "../../../_components/denik/denik-header"
 import { DenikProvider } from "../../../_components/denik/context"

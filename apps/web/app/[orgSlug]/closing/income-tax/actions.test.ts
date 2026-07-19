@@ -25,9 +25,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../_lib/org-authz", () => ({
   authorizeOrgAdmin: mocks.authorizeOrgAdmin,
 }))
-vi.mock("../../_lib/header-periods", async (importActual) => {
-  const actual =
-    await importActual<typeof import("../../_lib/header-periods")>()
+vi.mock("@/lib/org/header-periods", async (importActual) => {
+  const actual = await importActual<typeof import("@/lib/org/header-periods")>()
   // Keep resolveActivePeriod + PERIOD_COOKIE real; only stub the DB read.
   return { ...actual, getHeaderPeriods: mocks.getHeaderPeriods }
 })

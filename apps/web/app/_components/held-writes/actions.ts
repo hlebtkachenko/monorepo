@@ -21,10 +21,7 @@ import {
 import { INBOX_STAMPED_OPERATION_IDS } from "@workspace/shared/api"
 
 import { getOrgAccountingContext } from "@/lib/org/accounting-data"
-import {
-  applyHeldWriteEdit,
-  HeldWriteEditSchema,
-} from "../../../_components/held-writes/edit-model"
+import { applyHeldWriteEdit, HeldWriteEditSchema } from "./edit-model"
 
 const ResolveSchema = z.object({
   orgSlug: z.string().min(1).max(100),

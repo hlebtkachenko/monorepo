@@ -5,7 +5,7 @@ import { useState } from "react"
 
 import { PeriodSwitcher } from "@workspace/ui/blocks/app-header"
 
-import { setActivePeriodAction } from "../[orgSlug]/_lib/period-actions"
+import { setActivePeriodAction } from "@/lib/org/period-actions-legacy"
 import type { HeaderPeriod } from "@/lib/org/header-periods"
 
 /**

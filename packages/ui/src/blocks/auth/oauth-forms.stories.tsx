@@ -9,6 +9,7 @@ import {
   type OAuthSelectOrganizationMessages,
   type OAuthSelectOrganizationOption,
 } from "./oauth-select-organization-form"
+import { OAuthRedirectNotice } from "./oauth-redirect-notice"
 
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Verify your identity",
@@ -110,6 +111,21 @@ export const SelectOrganizationEmpty: Story = {
       organizations={[]}
       onSelect={noopDecide}
       messages={SELECT_ORG_MESSAGES}
+    />
+  ),
+}
+
+// --- OAuthRedirectNotice ---
+
+export const RedirectNotice: Story = {
+  render: () => (
+    <OAuthRedirectNotice
+      messages={{
+        title: "Connected",
+        description: "Returning you to Cursor…",
+      }}
+      onRedirect={() => {}}
+      delayMs={1_000_000}
     />
   ),
 }

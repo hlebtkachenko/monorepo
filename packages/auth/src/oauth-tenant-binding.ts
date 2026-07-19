@@ -1,7 +1,9 @@
 import { and, eq } from "drizzle-orm"
 import { withAdminBypass } from "@workspace/db"
 import {
+  oauth_client,
   oauth_pending_reference,
+  organization,
   organization_membership,
 } from "@workspace/db/schema"
 
@@ -123,5 +125,79 @@ export async function isActiveMember(
       )
       .limit(1)
     return rows.length > 0
+  })
+}
+
+export interface ActiveOrganizationOption {
+  readonly id: string
+  readonly legalName: string
+  readonly slug: string
+}
+
+/**
+ * The user's active organizations (id + display name + slug) for the
+ * `/auth/select-organization` picker. Cross-org read via `withAdminBypass`
+ * (the authorize flow has no tenant GUC set).
+ */
+export async function listActiveOrganizationsForUser(
+  userId: string,
+): Promise<ActiveOrganizationOption[]> {
+  return withAdminBypass(async (db) => {
+    return db
+      .select({
+        id: organization.id,
+        legalName: organization.legal_name,
+        slug: organization.slug,
+      })
+      .from(organization_membership)
+      .innerJoin(
+        organization,
+        eq(organization_membership.organization_id, organization.id),
+      )
+      .where(
+        and(
+          eq(organization_membership.user_id, userId),
+          eq(organization_membership.active, true),
+        ),
+      )
+  })
+}
+
+/**
+ * Persist the organization the user chose on `/auth/select-organization`, so
+ * `postLogin.consentReferenceId` reads it back. Upsert (one row per user,
+ * last-choice-wins). The caller MUST have verified the choice is a live active
+ * membership (`isActiveMember`) first; `consentReferenceId` re-validates it
+ * regardless, so a stale row can never bind a token to a non-member org.
+ */
+export async function writePendingReference(
+  userId: string,
+  organizationId: string,
+): Promise<void> {
+  await withAdminBypass(async (db) => {
+    await db
+      .insert(oauth_pending_reference)
+      .values({ user_id: userId, organization_id: organizationId })
+      .onConflictDoUpdate({
+        target: oauth_pending_reference.user_id,
+        set: { organization_id: organizationId, updated_at: new Date() },
+      })
+  })
+}
+
+/**
+ * Display info for an OAuth client, for the consent screen. Returns null for an
+ * unknown client_id (the consent page then falls back to showing the id).
+ */
+export async function findOAuthClientDisplay(
+  clientId: string,
+): Promise<{ name: string | null; uri: string | null } | null> {
+  return withAdminBypass(async (db) => {
+    const rows = await db
+      .select({ name: oauth_client.name, uri: oauth_client.uri })
+      .from(oauth_client)
+      .where(eq(oauth_client.clientId, clientId))
+      .limit(1)
+    return rows[0] ?? null
   })
 }

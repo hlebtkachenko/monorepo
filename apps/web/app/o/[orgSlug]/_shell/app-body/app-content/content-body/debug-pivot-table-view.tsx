@@ -65,13 +65,18 @@ const SOURCE_COLUMNS: TableColumnSpec[] = [
 function selectionActions(
   table: Table<TableSectionRow> | null,
 ): ContentFooterAction[] {
-  const count = () => table?.getFilteredSelectedRowModel().rows.length ?? 0
   return [
     {
       id: "export",
       label: "Export",
       icon: "FileDown",
-      onSelect: () => toast.success(`Export ${count()} group(s) (demo)`),
+      onSelect: () => {
+        const labels = (table?.getFilteredSelectedRowModel().rows ?? []).map(
+          (row) => String(row.original.label ?? row.id),
+        )
+        void navigator.clipboard.writeText(labels.join("\n"))
+        toast.success(`Copied ${labels.length} group(s) to clipboard`)
+      },
     },
   ]
 }
@@ -151,7 +156,13 @@ export function DebugPivotTableView({
         sectionPivotTable({
           anchor: "pivot",
           rows: sourceRows,
-          rowDimensions: [{ field: "category", label: "Category" }],
+          // A real nested pivot: TWO row-dimension levels (Category → Status)
+          // form an expand/collapse tree, and each Month column bands into two
+          // measures (Total + Count) — not a single flat group.
+          rowDimensions: [
+            { field: "category", label: "Category" },
+            { field: "status", label: "Status" },
+          ],
           columnDimensions: [{ field: "month", label: "Month" }],
           measures: [
             {
@@ -161,8 +172,9 @@ export function DebugPivotTableView({
               field: "amount",
               format: { style: "currency", currency: "CZK" },
             },
+            { id: "count", label: "Count", agg: "count" },
           ],
-          rowLabelHeader: "Category",
+          rowLabelHeader: "Category / Status",
           subtotalRows: true,
           emptyText: "No demo records — seed the dev org first.",
         }),

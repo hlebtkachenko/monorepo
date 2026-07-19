@@ -12,6 +12,7 @@ import {
   verifyApiKey,
   type ApiKeyPrincipal,
 } from "@workspace/auth/api-key-verifier"
+import { verifyOAuthAccessToken } from "@workspace/auth/oauth-token-verifier"
 
 import { REQUIRED_SCOPES_KEY } from "./require-scopes.decorator"
 import { REQUIRE_HUMAN_ACTOR_KEY } from "./require-human-actor.decorator"
@@ -47,9 +48,14 @@ export class ApiKeyGuard implements CanActivate {
       throw new UnauthorizedException("Missing API key")
     }
     const rawKey = header.slice("Bearer ".length).trim()
-    const principal = await verifyApiKey(rawKey)
+    // Two credential types authenticate /v1/*: an Afframe API key (`affk_` /
+    // legacy `afk_`) or an OAuth 2.1 access-token JWT. `verifyApiKey` returns
+    // null for anything without the api-key prefix, so fall through to the
+    // OAuth verifier; both resolve to the same ApiKeyPrincipal shape.
+    const principal =
+      (await verifyApiKey(rawKey)) ?? (await verifyOAuthAccessToken(rawKey))
     if (!principal) {
-      throw new UnauthorizedException("Invalid or expired API key")
+      throw new UnauthorizedException("Invalid or expired credential")
     }
     this.enforceScopes(context, principal)
     this.enforceHumanActor(context, principal)

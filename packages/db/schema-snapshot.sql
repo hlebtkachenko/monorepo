@@ -2195,6 +2195,18 @@ CREATE TABLE public.inventory_count_line (
 ALTER TABLE ONLY public.inventory_count_line FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: jwks; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.jwks (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    public_key text NOT NULL,
+    private_key text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone
+);
+
+--
 -- Name: legal_form; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2250,6 +2262,102 @@ CREATE TABLE public.number_series (
 );
 
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: oauth_access_token; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_access_token (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    token text,
+    client_id text NOT NULL,
+    session_id uuid,
+    user_id uuid,
+    reference_id text,
+    refresh_id uuid,
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    scopes text[] NOT NULL
+);
+
+--
+-- Name: oauth_client; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_client (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    client_id text NOT NULL,
+    client_secret text,
+    disabled boolean DEFAULT false NOT NULL,
+    skip_consent boolean,
+    enable_end_session boolean,
+    subject_type text,
+    scopes text[],
+    user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    name text,
+    uri text,
+    icon text,
+    contacts text[],
+    tos text,
+    policy text,
+    software_id text,
+    software_version text,
+    software_statement text,
+    redirect_uris text[] NOT NULL,
+    post_logout_redirect_uris text[],
+    token_endpoint_auth_method text,
+    grant_types text[],
+    response_types text[],
+    is_public boolean,
+    type text,
+    require_pkce boolean,
+    reference_id text,
+    metadata jsonb
+);
+
+--
+-- Name: oauth_consent; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_consent (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    client_id text NOT NULL,
+    user_id uuid,
+    reference_id text,
+    scopes text[] NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: oauth_pending_reference; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_pending_reference (
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: oauth_refresh_token; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.oauth_refresh_token (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    token text NOT NULL,
+    client_id text NOT NULL,
+    session_id uuid,
+    user_id uuid NOT NULL,
+    reference_id text,
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoked timestamp with time zone,
+    auth_time timestamp with time zone,
+    scopes text[] NOT NULL
+);
 
 --
 -- Name: ocr_extraction_template; Type: TABLE; Schema: public; Owner: -
@@ -3426,6 +3534,13 @@ ALTER TABLE ONLY public.inventory_count
     ADD CONSTRAINT inventory_count_pkey PRIMARY KEY (id);
 
 --
+-- Name: jwks jwks_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.jwks
+    ADD CONSTRAINT jwks_pkey PRIMARY KEY (id);
+
+--
 -- Name: legal_form_allowed_regime legal_form_allowed_regime_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3473,6 +3588,62 @@ ALTER TABLE ONLY public.number_series
 
 ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_pkey PRIMARY KEY (id);
+
+--
+-- Name: oauth_access_token oauth_access_token_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_pkey PRIMARY KEY (id);
+
+--
+-- Name: oauth_access_token oauth_access_token_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_token_key UNIQUE (token);
+
+--
+-- Name: oauth_client oauth_client_client_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_client
+    ADD CONSTRAINT oauth_client_client_id_key UNIQUE (client_id);
+
+--
+-- Name: oauth_client oauth_client_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_client
+    ADD CONSTRAINT oauth_client_pkey PRIMARY KEY (id);
+
+--
+-- Name: oauth_consent oauth_consent_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_consent
+    ADD CONSTRAINT oauth_consent_pkey PRIMARY KEY (id);
+
+--
+-- Name: oauth_pending_reference oauth_pending_reference_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_pending_reference
+    ADD CONSTRAINT oauth_pending_reference_pkey PRIMARY KEY (user_id);
+
+--
+-- Name: oauth_refresh_token oauth_refresh_token_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_refresh_token
+    ADD CONSTRAINT oauth_refresh_token_pkey PRIMARY KEY (id);
+
+--
+-- Name: oauth_refresh_token oauth_refresh_token_token_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_refresh_token
+    ADD CONSTRAINT oauth_refresh_token_token_key UNIQUE (token);
 
 --
 -- Name: ocr_extraction_template ocr_extraction_template_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4127,6 +4298,66 @@ CREATE INDEX inventory_count_line_asset_idx ON public.inventory_count_line USING
 --
 
 CREATE INDEX inventory_count_line_count_idx ON public.inventory_count_line USING btree (inventory_count_id);
+
+--
+-- Name: oauth_access_token_client_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_access_token_client_id_idx ON public.oauth_access_token USING btree (client_id);
+
+--
+-- Name: oauth_access_token_refresh_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_access_token_refresh_id_idx ON public.oauth_access_token USING btree (refresh_id);
+
+--
+-- Name: oauth_access_token_session_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_access_token_session_id_idx ON public.oauth_access_token USING btree (session_id);
+
+--
+-- Name: oauth_access_token_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_access_token_user_id_idx ON public.oauth_access_token USING btree (user_id);
+
+--
+-- Name: oauth_client_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_client_user_id_idx ON public.oauth_client USING btree (user_id);
+
+--
+-- Name: oauth_consent_client_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_consent_client_id_idx ON public.oauth_consent USING btree (client_id);
+
+--
+-- Name: oauth_consent_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_consent_user_id_idx ON public.oauth_consent USING btree (user_id);
+
+--
+-- Name: oauth_refresh_token_client_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_refresh_token_client_id_idx ON public.oauth_refresh_token USING btree (client_id);
+
+--
+-- Name: oauth_refresh_token_session_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_refresh_token_session_id_idx ON public.oauth_refresh_token USING btree (session_id);
+
+--
+-- Name: oauth_refresh_token_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX oauth_refresh_token_user_id_idx ON public.oauth_refresh_token USING btree (user_id);
 
 --
 -- Name: open_item_account_idx; Type: INDEX; Schema: public; Owner: -
@@ -5331,6 +5562,90 @@ ALTER TABLE ONLY public.monetary_period_summary
 
 ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: oauth_access_token oauth_access_token_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth_client(client_id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_access_token oauth_access_token_refresh_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_refresh_id_fkey FOREIGN KEY (refresh_id) REFERENCES public.oauth_refresh_token(id) ON DELETE SET NULL;
+
+--
+-- Name: oauth_access_token oauth_access_token_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.auth_session(id) ON DELETE SET NULL;
+
+--
+-- Name: oauth_access_token oauth_access_token_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_access_token
+    ADD CONSTRAINT oauth_access_token_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_client oauth_client_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_client
+    ADD CONSTRAINT oauth_client_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_consent oauth_consent_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_consent
+    ADD CONSTRAINT oauth_consent_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth_client(client_id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_consent oauth_consent_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_consent
+    ADD CONSTRAINT oauth_consent_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_pending_reference oauth_pending_reference_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_pending_reference
+    ADD CONSTRAINT oauth_pending_reference_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_pending_reference oauth_pending_reference_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_pending_reference
+    ADD CONSTRAINT oauth_pending_reference_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_refresh_token oauth_refresh_token_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_refresh_token
+    ADD CONSTRAINT oauth_refresh_token_client_id_fkey FOREIGN KEY (client_id) REFERENCES public.oauth_client(client_id) ON DELETE CASCADE;
+
+--
+-- Name: oauth_refresh_token oauth_refresh_token_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_refresh_token
+    ADD CONSTRAINT oauth_refresh_token_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.auth_session(id) ON DELETE SET NULL;
+
+--
+-- Name: oauth_refresh_token oauth_refresh_token_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.oauth_refresh_token
+    ADD CONSTRAINT oauth_refresh_token_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 --
 -- Name: ocr_extraction_template ocr_extraction_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

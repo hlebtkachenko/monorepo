@@ -556,6 +556,37 @@
           "contactSupport": "Kontaktovat podporu"
         }
       }
+    },
+    "oauth": {
+      "consent": {
+        "metaTitle": "Autorizovat přístup",
+        "title": "Autorizovat přístup",
+        "description": "{client} žádá o přístup k vašemu účtu {brand}.",
+        "scopesLabel": "To mu umožní:",
+        "authorize": "Autorizovat",
+        "authorizing": "Autorizuji…",
+        "deny": "Odmítnout",
+        "denying": "Odmítám…",
+        "failed": "Něco se pokazilo. Zkuste to prosím znovu.",
+        "clientFallback": "Aplikace",
+        "scopeFallback": "Přístup: {scope}",
+        "scope": {
+          "openid": "Ověřit vaši totožnost",
+          "profile": "Číst váš základní profil",
+          "email": "Číst vaši e-mailovou adresu",
+          "offlineAccess": "Zůstat přihlášen, když jste pryč",
+          "accountingRead": "Číst vaše účetní data",
+          "accountingWrite": "Navrhovat účetní zápisy ke schválení"
+        }
+      },
+      "selectOrganization": {
+        "metaTitle": "Vybrat organizaci",
+        "title": "Vybrat organizaci",
+        "description": "Vyberte organizaci, které se tato autorizace týká.",
+        "continuing": "Pokračuji…",
+        "empty": "Tento účet nemá žádnou aktivní organizaci k autorizaci.",
+        "failed": "Něco se pokazilo. Zkuste to prosím znovu."
+      }
     }
   },
   "onboarding": {

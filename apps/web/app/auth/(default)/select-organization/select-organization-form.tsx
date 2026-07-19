@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { useTranslations } from "@workspace/i18n/client"
 import type { ActiveOrganizationOption } from "@workspace/auth/oauth-tenant-binding"
-import { Button } from "@workspace/ui/components/button"
+import { OAuthSelectOrganizationForm } from "@workspace/ui/blocks/auth"
 
 import { selectOrganizationAction } from "./actions"
 
@@ -12,6 +12,9 @@ import { selectOrganizationAction } from "./actions"
  * active organization pick which one the issued token binds to. The choice is
  * persisted server-side (re-validated as a live membership), then we resume the
  * authorize flow via /oauth2/continue and follow the returned redirect_uri.
+ *
+ * Presentational shell + copy come from `OAuthSelectOrganizationForm` + i18n;
+ * this wrapper owns the persistence + resume round-trip only.
  */
 export function SelectOrganizationForm({
   organizations,
@@ -19,82 +22,45 @@ export function SelectOrganizationForm({
   organizations: ActiveOrganizationOption[]
 }) {
   const search = useSearchParams()
-  const [busy, setBusy] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
+  const t = useTranslations("auth.oauth.selectOrganization")
 
-  async function choose(organizationId: string) {
-    setBusy(organizationId)
-    setFailed(false)
-    try {
-      const stored = await selectOrganizationAction(organizationId)
-      if (!stored.ok) {
-        setFailed(true)
-        setBusy(null)
-        return
-      }
-      const res = await fetch("/api/auth/oauth2/continue", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          postLogin: true,
-          oauth_query: search.toString(),
-        }),
-      })
-      const data = (await res.json().catch(() => ({}))) as {
-        redirect_uri?: string
-      }
-      if (data.redirect_uri) {
-        window.location.href = data.redirect_uri
-        return
-      }
-      setFailed(true)
-      setBusy(null)
-    } catch {
-      setFailed(true)
-      setBusy(null)
+  async function select(organizationId: string): Promise<boolean> {
+    const stored = await selectOrganizationAction(organizationId)
+    if (!stored.ok) return false
+    const res = await fetch("/api/auth/oauth2/continue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        postLogin: true,
+        oauth_query: search.toString(),
+      }),
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      redirect_uri?: string
     }
+    if (data.redirect_uri) {
+      window.location.href = data.redirect_uri
+      return true
+    }
+    return false
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-sm flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-xl font-semibold">Select organization</h1>
-        <p className="text-sm text-muted-foreground">
-          Choose the organization this authorization applies to.
-        </p>
-      </div>
-
-      {organizations.length === 0 ? (
-        <p role="alert" className="text-sm text-destructive">
-          This account has no active organization to authorize.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {organizations.map((org) => (
-            <li key={org.id}>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-auto w-full flex-col items-start gap-0.5 py-3 text-left"
-                disabled={busy !== null}
-                onClick={() => void choose(org.id)}
-              >
-                <span className="font-medium">{org.legalName}</span>
-                <span className="text-xs text-muted-foreground">
-                  {busy === org.id ? "Continuing…" : org.slug}
-                </span>
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {failed ? (
-        <p role="alert" className="text-sm text-destructive">
-          Something went wrong. Please try again.
-        </p>
-      ) : null}
-    </div>
+    <OAuthSelectOrganizationForm
+      organizations={organizations.map((org) => ({
+        id: org.id,
+        legalName: org.legalName,
+        slug: org.slug,
+      }))}
+      onSelect={select}
+      messages={{
+        title: t("title"),
+        description: t("description"),
+        continuing: t("continuing"),
+        empty: t("empty"),
+        failed: t("failed"),
+      }}
+    />
   )
 }

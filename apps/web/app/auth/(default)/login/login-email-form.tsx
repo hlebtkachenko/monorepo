@@ -5,6 +5,7 @@ import { useTranslations } from "@workspace/i18n/client"
 import { LoginEmailForm as LoginEmailFormBlock } from "@workspace/ui/blocks/auth"
 
 import { identifyEmailAction } from "./actions"
+import { oauthContinuationNext } from "./oauth-continuation"
 
 export function LoginEmailForm() {
   const router = useRouter()
@@ -18,10 +19,15 @@ export function LoginEmailForm() {
 
   const brandName = tBrand("name")
 
+  // An inbound OAuth authorize hand-off (BA appends the signed authorize query
+  // to /auth/login) wins over any plain ?next=, so login continues back to the
+  // authorize endpoint instead of landing on /workspace.
+  const next = oauthContinuationNext(search) ?? search.get("next") ?? undefined
+
   return (
     <LoginEmailFormBlock
       defaultNext="/workspace"
-      next={search.get("next") ?? undefined}
+      next={next}
       initialErrorCode={search.get("error")}
       showSso
       showContactSales

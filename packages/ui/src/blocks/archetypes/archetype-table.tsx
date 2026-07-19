@@ -295,7 +295,11 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   const tableSection =
     tableSectionIndex >= 0 ? sections[tableSectionIndex] : undefined
   const tablePayload = tableSection?.props as
-    | { columns: readonly TableColumnSpec[]; rows: readonly TableSectionRow[] }
+    | {
+        columns: readonly TableColumnSpec[]
+        rows: readonly TableSectionRow[]
+        rowIdKey: string
+      }
     | undefined
   const [filters, setFilters] = React.useState<FiltersState>([])
   const autoFilter = useTableFilters({
@@ -313,16 +317,37 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   const { inspectRow, inspectOpen, setInspectOpen } = useSectionInspect()
   const openInspect = useSectionInspectOpener()
   const visibleRows = table?.getRowModel().rows ?? []
-  const inspectIndex = visibleRows.findIndex(
-    (row) => row.original === inspectRow,
-  )
-  const currentRow = inspectIndex >= 0 ? visibleRows[inspectIndex] : undefined
-  const previousRow =
-    inspectIndex > 0 ? visibleRows[inspectIndex - 1] : undefined
+
+  // Adjacent-row navigation (prev/next) walks the live grid's CURRENT visible
+  // order, so it always matches what the user sees.
+  const navIndex = visibleRows.findIndex((row) => row.original === inspectRow)
+  const previousRow = navIndex > 0 ? visibleRows[navIndex - 1] : undefined
   const nextRow =
-    inspectIndex >= 0 && inspectIndex < visibleRows.length - 1
-      ? visibleRows[inspectIndex + 1]
+    navIndex >= 0 && navIndex < visibleRows.length - 1
+      ? visibleRows[navIndex + 1]
       : undefined
+
+  // Inspector CONTENT is sourced from the archetype's OWN fresh row list
+  // (`tablePayload.rows` — the page rebuilds it every render because it owns the
+  // rows) keyed by the inspected row's id, NOT from the live TanStack model which
+  // lags a render behind its child renderer. So an edit committed from a cell, an
+  // inspector field, or Approve/Reject shows in the inspector immediately. The
+  // bridge publishes the clicked row object; on open that is an identity of a
+  // `tablePayload.rows` entry (record its id in an effect), and a row-replacing
+  // edit then re-finds the row by that id.
+  const rowIdKey = tablePayload?.rowIdKey ?? "id"
+  const pageRows = tablePayload?.rows ?? NO_ROWS
+  const inspectedRow = pageRows.find((row) => row === inspectRow)
+  const inspectIdRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (inspectedRow) inspectIdRef.current = String(inspectedRow[rowIdKey])
+  })
+  const inspectData = (inspectedRow ??
+    pageRows.find((row) => String(row[rowIdKey]) === inspectIdRef.current) ??
+    inspectRow) as TData | null
+  const inspectRecordKey = inspectData
+    ? String((inspectData as TableSectionRow)[rowIdKey] ?? "")
+    : ""
 
   // Deep-link: open the Inspector once for `openRowId` as soon as the grid holds
   // that row. Ref-guarded so it fires a single time per id (a subsequent user
@@ -338,31 +363,31 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   }, [openRowId, visibleRows, openInspect])
 
   const inspectTitle =
-    inspectorRowTitle && inspectRow != null
-      ? inspectorRowTitle(inspectRow as TData)
+    inspectorRowTitle && inspectData != null
+      ? inspectorRowTitle(inspectData)
       : null
   const inspectName =
-    inspectRow != null
-      ? (inspectorRowName ?? inspectorRowTitle)?.(inspectRow as TData)
+    inspectData != null
+      ? (inspectorRowName ?? inspectorRowTitle)?.(inspectData)
       : undefined
   const inspectBadge =
-    inspectorRowBadge && inspectRow != null
-      ? inspectorRowBadge(inspectRow as TData)
+    inspectorRowBadge && inspectData != null
+      ? inspectorRowBadge(inspectData)
       : undefined
   const inspectContent =
-    inspectorRowContent && inspectRow != null
-      ? inspectorRowContent(inspectRow as TData)
+    inspectorRowContent && inspectData != null
+      ? inspectorRowContent(inspectData)
       : undefined
   const inspectFooter: InspectorFooterProps | undefined =
-    (onInspectorDecline || onInspectorApprove) && inspectRow != null
+    (onInspectorDecline || onInspectorApprove) && inspectData != null
       ? {
           declineLabel: inspectorDeclineLabel ?? "Decline",
           approveLabel: inspectorApproveLabel ?? "Approve",
           onDecline: onInspectorDecline
-            ? () => onInspectorDecline(inspectRow as TData)
+            ? () => onInspectorDecline(inspectData)
             : undefined,
           onApprove: onInspectorApprove
-            ? () => onInspectorApprove(inspectRow as TData)
+            ? () => onInspectorApprove(inspectData)
             : undefined,
         }
       : undefined
@@ -494,7 +519,7 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
           open={inspectOpen}
           onOpenChange={setInspectOpen}
           breadcrumb={[title, inspectTitle ?? ""]}
-          recordKey={currentRow?.id ?? inspectTitle ?? ""}
+          recordKey={inspectRecordKey || (inspectTitle ?? "")}
           name={inspectName ?? inspectTitle ?? ""}
           badge={inspectBadge}
           footer={inspectFooter}
@@ -510,13 +535,13 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
               : undefined
           }
           onCopy={
-            onInspectorCopy && inspectRow != null
-              ? (what) => onInspectorCopy(inspectRow as TData, what)
+            onInspectorCopy && inspectData != null
+              ? (what) => onInspectorCopy(inspectData, what)
               : undefined
           }
           onSwitchLayout={
-            onInspectorSwitchLayout && inspectRow != null
-              ? () => onInspectorSwitchLayout(inspectRow as TData)
+            onInspectorSwitchLayout && inspectData != null
+              ? () => onInspectorSwitchLayout(inspectData)
               : undefined
           }
         />

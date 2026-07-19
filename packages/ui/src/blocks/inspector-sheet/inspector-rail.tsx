@@ -22,19 +22,36 @@ const TABS: { tab: InspectorTab; icon: IconName; label: string }[] = [
   { tab: "more", icon: "Ellipsis", label: "More" },
 ]
 
+/** The canonical rail tab order — the single source both the rail and the sheet
+ *  use to pick which tabs to show and which is first. */
+export const INSPECTOR_TAB_ORDER: readonly InspectorTab[] = TABS.map(
+  (entry) => entry.tab,
+)
+
 export interface InspectorRailProps {
   activeTab: InspectorTab
   onTabChange?: (tab: InspectorTab) => void
+  /**
+   * The tabs to render, in rail order. Omit to show ALL tabs. A page drives this
+   * from the tabs it actually supplies content for, so an unpopulated tab is
+   * never shown as a dead/blank pane.
+   */
+  tabs?: readonly InspectorTab[]
 }
 
 /** InspectorRail — the fixed w-12 tab switcher on the right edge of the sheet. */
-export function InspectorRail({ activeTab, onTabChange }: InspectorRailProps) {
+export function InspectorRail({
+  activeTab,
+  onTabChange,
+  tabs,
+}: InspectorRailProps) {
+  const visible = tabs ? TABS.filter((entry) => tabs.includes(entry.tab)) : TABS
   return (
     <div
       data-slot="inspector-rail"
       className="flex w-12 shrink-0 flex-col items-center gap-1 border-l border-border-subtle py-2"
     >
-      {TABS.map(({ tab, icon, label }) => (
+      {visible.map(({ tab, icon, label }) => (
         <IconButton
           key={tab}
           size="sm"

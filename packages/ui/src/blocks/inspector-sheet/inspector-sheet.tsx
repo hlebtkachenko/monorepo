@@ -9,7 +9,11 @@ import type { InspectorBadge } from "./inspector-body-header"
 import type { InspectorFlagValue } from "./inspector-flag-picker"
 import type { InspectorFooterProps } from "./inspector-footer"
 import { InspectorHeader, type InspectorCopyTarget } from "./inspector-header"
-import { InspectorRail, type InspectorTab } from "./inspector-rail"
+import {
+  INSPECTOR_TAB_ORDER,
+  InspectorRail,
+  type InspectorTab,
+} from "./inspector-rail"
 
 export interface InspectorSheetProps {
   /** Exactly two ancestor crumbs shown in the header (root-first). */
@@ -69,6 +73,17 @@ export function InspectorSheet({
   footer,
   className,
 }: InspectorSheetProps) {
+  // Show ONLY the tabs the page supplied content for (in rail order), so an
+  // unpopulated tab is never a dead/blank pane. When `content` is omitted
+  // entirely, fall back to all tabs (legacy behaviour). Clamp the active tab to
+  // an available one so a stale/default `activeTab` can't render blank.
+  const availableTabs = content
+    ? INSPECTOR_TAB_ORDER.filter((tab) => content[tab] != null)
+    : undefined
+  const shownTab =
+    availableTabs && !availableTabs.includes(activeTab)
+      ? (availableTabs[0] ?? activeTab)
+      : activeTab
   return (
     <div
       data-slot="inspector-sheet"
@@ -89,10 +104,14 @@ export function InspectorSheet({
           flag={flag}
           onFlagChange={onFlagChange}
           badge={badge}
-          content={content?.[activeTab]}
+          content={content?.[shownTab]}
           footer={footer}
         />
-        <InspectorRail activeTab={activeTab} onTabChange={onTabChange} />
+        <InspectorRail
+          activeTab={shownTab}
+          onTabChange={onTabChange}
+          tabs={availableTabs}
+        />
       </div>
     </div>
   )

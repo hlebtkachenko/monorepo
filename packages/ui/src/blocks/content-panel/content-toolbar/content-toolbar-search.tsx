@@ -22,10 +22,7 @@ export function ContentToolbarSearch({
   const hasValue = value.length > 0
 
   return (
-    // `min-w-40`, not `min-w-0`: the search keeps a usable floor (≈160px) so a
-    // wide filter band wraps to a second line (the toolbar's intent) instead of
-    // shrinking the search away to just its icon.
-    <div className="relative flex h-8 max-w-80 min-w-40 flex-1 items-center">
+    <div className="relative flex h-8 max-w-80 min-w-0 flex-1 items-center">
       <SearchIcon className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
       <Input
         placeholder={placeholder}

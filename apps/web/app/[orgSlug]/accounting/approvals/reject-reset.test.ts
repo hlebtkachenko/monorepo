@@ -8,7 +8,7 @@
  * the server veto until a human re-confirms via POST /v1/ocr-templates/:id/confirm.
  *
  * The reject-reset lives in `resolveHeldWrite`
- * (app/[orgSlug]/accounting/approvals/actions.ts) inside its `withOrganization`
+ * (apps/web/app/_components/held-writes/actions.ts) inside its `withOrganization`
  * transaction, delegating the trust-state write to the SHARED
  * `unconfirmTemplateOnReject` helper (`@workspace/db`) — the same helper the
  * public API held-writes reject branch calls, so the two surfaces cannot diverge.

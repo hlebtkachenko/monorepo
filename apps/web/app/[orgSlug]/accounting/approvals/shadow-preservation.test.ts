@@ -13,7 +13,7 @@
  *
  * Following the repo convention (see the sibling `reject-reset.test.ts`), this
  * test exercises the exact primitives `resolveHeldWrite`
- * (app/[orgSlug]/accounting/approvals/actions.ts) runs — the SELECT that now
+ * (apps/web/app/_components/held-writes/actions.ts) runs — the SELECT that now
  * also reads `output_json->'serverGate'` and the `updateToolCallLogOutput` call
  * that now forwards it — inside a real `withOrganization` tx against the PG18
  * testcontainer, rather than driving the full Server Action (which would need a

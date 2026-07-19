@@ -128,6 +128,34 @@ export async function isActiveMember(
   })
 }
 
+/**
+ * Resolve the tenant context for an active membership, or null if the user is
+ * not a live active member of the organization. Used by the OAuth token
+ * verifier at API-call time: it both re-validates membership (so a revoked
+ * membership invalidates the token immediately, not only at refresh) AND
+ * resolves the workspace the org belongs to for the principal.
+ */
+export async function resolveActiveMembershipContext(
+  userId: string,
+  organizationId: string,
+): Promise<{ workspaceId: string } | null> {
+  return withAdminBypass(async (db) => {
+    const rows = await db
+      .select({ workspaceId: organization_membership.workspace_id })
+      .from(organization_membership)
+      .where(
+        and(
+          eq(organization_membership.user_id, userId),
+          eq(organization_membership.organization_id, organizationId),
+          eq(organization_membership.active, true),
+        ),
+      )
+      .limit(1)
+    const row = rows[0]
+    return row ? { workspaceId: row.workspaceId } : null
+  })
+}
+
 export interface ActiveOrganizationOption {
   readonly id: string
   readonly legalName: string

@@ -504,6 +504,19 @@ export class AppStack extends Stack {
     const publicOrigin = `https://${props.domain}`
     const trustedOrigins = [publicOrigin].join(",")
 
+    // Hosted MCP resource identifier for this env — the canonical OAuth
+    // audience (RFC 8707). The WEB container's authorization server mints access
+    // tokens with this `aud` (`oauthProvider({ validAudiences })`) and the API
+    // container's verifier checks the token's `aud` against it; the two MUST be
+    // byte-identical or every OAuth call fails, so both containers read this one
+    // value. Derived from envName like `PUBLIC_API_URL`: production is live;
+    // staging points at the (not-yet-provisioned) MCP host and is exercised on
+    // production.
+    const oauthResource =
+      props.envName === "production"
+        ? "https://mcp.afframe.com"
+        : "https://mcp-staging.afframe.com"
+
     // Next.js standalone server writes to /app/.next/cache, which a readonly
     // rootfs blocks. Until a custom cacheHandler + Dockerfile copy is in
     // place, the web container keeps a writable root. capDrop ALL still
@@ -607,6 +620,13 @@ export class AppStack extends Stack {
         // SDK fell back through the credential/region chain on Fargate today,
         // but wiring it explicitly removes that fragility.
         AWS_REGION: this.region,
+        // OAuth 2.1 authorization server lives in THIS (web) container — Better
+        // Auth's `oauthProvider` reads OAUTH_RESOURCE to set `validAudiences`, so
+        // it accepts a client's RFC 8707 `resource=<mcp host>` and mints a JWT
+        // stamped with that `aud`. Unset here → the AS defaults to `[baseURL]`,
+        // rejects the MCP resource, and OAuth is dead on arrival. Same const the
+        // api verifier uses, so the minted and checked audiences can never drift.
+        OAUTH_RESOURCE: oauthResource,
         // Telegram dev-bot ingest (DEV-60 error capture + DEV-51 pings).
         // notifierFromEnv() no-ops if BOT_INGEST_URL / NOTIFY_SHARED_SECRET unset.
         BOT_INGEST_URL: "https://bot.afframe.com/ingest",
@@ -772,6 +792,20 @@ export class AppStack extends Stack {
         // from the code fallback (100 req/60s) so the throttler isn't the
         // binding constraint now that the admission caps above are higher.
         V1_THROTTLE_LIMIT: "300",
+        // OAuth 2.1 resource-server verification (ADR-0023; packages/auth
+        // oauth-token-verifier). The API accepts OAuth access tokens (asymmetric
+        // JWTs minted by our Better Auth AS) on /v1/* alongside `affk_` keys.
+        // `verifyOAuthAccessToken` fails CLOSED unless ALL THREE are present, so
+        // OAuth stays dark until wired here — api keys are unaffected either way.
+        // ISSUER + JWKS derive from the web origin (Better Auth is mounted at
+        // `<app-host>/api/auth`, which also serves the JWKS the API + edge use to
+        // verify signatures). RESOURCE is the shared `oauthResource` — the
+        // canonical audience the web AS stamps into the token `aud` (RFC 8707)
+        // and the value this verifier checks it against; they read one const so
+        // they can never drift.
+        OAUTH_ISSUER: `${publicOrigin}/api/auth`,
+        OAUTH_JWKS_URI: `${publicOrigin}/api/auth/jwks`,
+        OAUTH_RESOURCE: oauthResource,
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),

@@ -160,7 +160,7 @@ export const registry: Record<string, ComponentMeta> = {
     source: "src/blocks/auth",
     sourceType: "custom",
     description:
-      "Block — shared login / forgot-password / reset-password form components (LoginEmailForm, LoginPasswordForm, LoginMfaForm, ForgotPasswordForm, ResetPasswordForm) plus AuthHeaderLinkProvider / AuthHeaderLinkOverride context. Accepts translated message-map props for i18n; afterSignInGate prop threads the admin allowlist check without coupling the block to Next.js. Composes Field, Heading, Input, PasswordInput, PasswordChecklist, Checkbox, InputOTP, Button, Text.",
+      "Block — shared login / forgot-password / reset-password form components (LoginEmailForm, LoginPasswordForm, LoginMfaForm, ForgotPasswordForm, ResetPasswordForm) plus the OAuth authorize steps (OAuthConsentForm, OAuthSelectOrganizationForm) and AuthHeaderLinkProvider / AuthHeaderLinkOverride context. Accepts translated message-map props for i18n; afterSignInGate prop threads the admin allowlist check without coupling the block to Next.js. Composes Field, Heading, Input, PasswordInput, PasswordChecklist, Checkbox, InputOTP, Button, Text.",
     categories: ["block", "auth", "forms"],
     dependencies: [
       "button",

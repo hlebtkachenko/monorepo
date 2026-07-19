@@ -15,6 +15,9 @@ import { registerMetaTools } from "./tools/meta"
 
 const VERSION = "0.0.1"
 
+/** RFC 9728 protected-resource metadata discovery path (relative to origin). */
+const PROTECTED_RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource"
+
 /**
  * Parse the connection-time tool selection from the URL query, so an agent can
  * load only a relevant subset instead of all tools:
@@ -56,6 +59,34 @@ interface Env {
    * caller's key to the SDK's production default.
    */
   AFFRAME_API_BASE: string
+  /**
+   * OAuth 2.1 authorization-server issuer this resource trusts — the Better
+   * Auth AS mounted at `<app-host>/api/auth` (e.g.
+   * https://app.afframe.com/api/auth). Advertised in the RFC 9728
+   * protected-resource metadata so an MCP client auto-discovers where to log
+   * in. Set per wrangler environment in `wrangler.jsonc` `vars`.
+   */
+  OAUTH_ISSUER: string
+}
+
+/**
+ * RFC 9728 protected-resource metadata for this MCP endpoint. `resource` is the
+ * canonical audience (the Worker's own origin, e.g. https://mcp.afframe.com),
+ * which the client echoes back as the RFC 8707 `resource` at authorize/token
+ * time so the AS stamps a matching `aud`. `authorization_servers` points the
+ * client at our AS, whose own `/.well-known/oauth-authorization-server` then
+ * yields the authorize/token/registration endpoints. `scopes_supported` is
+ * deliberately omitted: the authorization server is the single source of truth
+ * for the scope vocabulary and already advertises it in its own
+ * `/.well-known/oauth-authorization-server`, so duplicating the list here would
+ * only risk drift.
+ */
+function protectedResourceMetadata(resource: string, issuer: string) {
+  return {
+    resource,
+    authorization_servers: [issuer],
+    bearer_methods_supported: ["header"],
+  }
 }
 
 /**
@@ -73,7 +104,7 @@ function bearerToken(request: Request): string | null {
   return token ? token : null
 }
 
-function unauthorized(): Response {
+function unauthorized(resourceMetadataUrl: string): Response {
   return new Response(
     JSON.stringify({
       jsonrpc: "2.0",
@@ -88,7 +119,9 @@ function unauthorized(): Response {
       status: 401,
       headers: {
         "content-type": "application/json",
-        "www-authenticate": 'Bearer realm="afframe-mcp"',
+        // RFC 9728 §5.1: point the client at the protected-resource metadata so
+        // an MCP client can auto-discover the authorization server from a 401.
+        "www-authenticate": `Bearer realm="afframe-mcp", resource_metadata="${resourceMetadataUrl}"`,
       },
     },
   )
@@ -107,8 +140,11 @@ function unauthorized(): Response {
  *
  * Every MCP method — including `initialize` and `tools/list` — requires a
  * bearer, so the (write-capable) tool catalog cannot be enumerated
- * anonymously. Only `GET /health` (liveness) and `GET /groups` (the group
- * catalog — slugs + counts, not the tools themselves) are open.
+ * anonymously. Only three unauthenticated GETs are open, none of them tenant
+ * data: `/health` (liveness), `/groups` (the group catalog — slugs + counts),
+ * and `/.well-known/oauth-protected-resource` (RFC 9728 discovery). The 401 on
+ * every other request carries a `resource_metadata` pointer to that last one so
+ * an MCP client can find the authorization server and log in.
  *
  * Connection-time selection: `?groups=` / `?scope=` (see `parseSelection`)
  * narrow the registered tool set so an agent loads only what it needs.
@@ -116,6 +152,7 @@ function unauthorized(): Response {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
+    const resourceMetadataUrl = `${url.origin}${PROTECTED_RESOURCE_METADATA_PATH}`
 
     if (request.method === "GET" && url.pathname === "/health") {
       return Response.json({
@@ -125,6 +162,26 @@ export default {
       })
     }
 
+    // RFC 9728 protected-resource metadata. Unauthenticated by design: it is
+    // public discovery data (no tenant info) that lets an MCP client find the
+    // authorization server and complete an OAuth login before it has any token.
+    if (
+      request.method === "GET" &&
+      url.pathname === PROTECTED_RESOURCE_METADATA_PATH
+    ) {
+      if (!env.OAUTH_ISSUER) {
+        // Deploy misconfiguration — advertising an empty AS would strand every
+        // client mid-discovery; fail loudly instead.
+        return new Response(
+          JSON.stringify({ error: "Server misconfigured." }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        )
+      }
+      return Response.json(
+        protectedResourceMetadata(url.origin, env.OAUTH_ISSUER),
+      )
+    }
+
     // Unauthenticated discovery: the group catalog is not tenant data, and a
     // human wiring up a client needs it before they have a session.
     if (request.method === "GET" && url.pathname === "/groups") {
@@ -132,7 +189,7 @@ export default {
     }
 
     const token = bearerToken(request)
-    if (!token) return unauthorized()
+    if (!token) return unauthorized(resourceMetadataUrl)
 
     if (!env.AFFRAME_API_BASE) {
       // Deploy misconfiguration — fail closed rather than let the SDK forward

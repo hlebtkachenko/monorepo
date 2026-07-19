@@ -20,6 +20,7 @@ import {
   OAUTH_ORGANIZATION_CLAIM,
   resolveTokenOrganization,
 } from "./oauth-tenant-binding"
+import { resolveOAuthAudiences } from "./oauth-audience"
 
 // ---------------------------------------------------------------------------
 // Better Auth version assertion (ADR-0022 / C2).
@@ -559,6 +560,15 @@ export const auth = betterAuth({
         "accounting:read",
         "accounting:write",
       ],
+      // Audiences the AS will mint access tokens for. Without this the library
+      // defaults to `[baseURL]`, which rejects a client's RFC 8707
+      // `resource=https://mcp.afframe.com` (invalid_request) and, if the client
+      // omits `resource`, mints an OPAQUE token instead of a JWT — either way the
+      // API verifier (`aud === OAUTH_RESOURCE`) fails closed and OAuth on the
+      // hosted MCP endpoint never works. Advertising the MCP resource lets the AS
+      // accept it and stamp a matching `aud`. Unset (dev/test) → `undefined` →
+      // the library keeps its `[baseURL]` default. See `resolveOAuthAudiences`.
+      validAudiences: resolveOAuthAudiences(process.env.OAUTH_RESOURCE),
       // MCP clients (Claude, Cursor, ChatGPT) self-register at connect time per
       // RFC 7591 with no pre-shared secret, so both dynamic and unauthenticated
       // registration are required for them to obtain a client_id. This is

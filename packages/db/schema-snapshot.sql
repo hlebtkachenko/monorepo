@@ -1491,6 +1491,7 @@ END) STORED,
     specializes_directive_code character(3),
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    tax_relevant boolean,
     CONSTRAINT account_not_self_parent_chk CHECK ((parent_id <> id)),
     CONSTRAINT account_number_shape_chk CHECK ((number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$'::text))
 );
@@ -1917,6 +1918,38 @@ CREATE TABLE public.chart_of_accounts (
 ALTER TABLE ONLY public.chart_of_accounts FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: chart_template; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.chart_template (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    year smallint NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    source text,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
+-- Name: chart_template_account; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.chart_template_account (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    template_id uuid NOT NULL,
+    number text NOT NULL,
+    name text NOT NULL,
+    nature public.account_nature NOT NULL,
+    normal_balance public.debit_credit,
+    tracks_open_items boolean DEFAULT false NOT NULL,
+    tax_relevant boolean,
+    is_allowance boolean DEFAULT false NOT NULL,
+    parent_number text,
+    specializes_directive_code character(3)
+);
+
+--
 -- Name: counterparty; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2004,6 +2037,19 @@ CREATE TABLE public.directive_account (
     balance_sheet_line_when_debit text,
     balance_sheet_line_when_credit text,
     income_statement_line text,
+    deprecated boolean DEFAULT false NOT NULL
+);
+
+--
+-- Name: directive_account_year; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.directive_account_year (
+    year smallint NOT NULL,
+    code character(3) NOT NULL,
+    name_cs text,
+    tracks_open_items boolean DEFAULT false NOT NULL,
+    tax_relevant boolean,
     deprecated boolean DEFAULT false NOT NULL
 );
 
@@ -3338,6 +3384,34 @@ ALTER TABLE ONLY public.chart_of_accounts
     ADD CONSTRAINT chart_one_per_period UNIQUE (period_id);
 
 --
+-- Name: chart_template_account chart_template_account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template_account
+    ADD CONSTRAINT chart_template_account_pkey PRIMARY KEY (id);
+
+--
+-- Name: chart_template_account chart_template_account_template_id_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template_account
+    ADD CONSTRAINT chart_template_account_template_id_number_key UNIQUE (template_id, number);
+
+--
+-- Name: chart_template chart_template_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template
+    ADD CONSTRAINT chart_template_pkey PRIMARY KEY (id);
+
+--
+-- Name: chart_template chart_template_year_code_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template
+    ADD CONSTRAINT chart_template_year_code_key UNIQUE (year, code);
+
+--
 -- Name: counterparty counterparty_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -3399,6 +3473,13 @@ ALTER TABLE ONLY public.depreciation_plan
 
 ALTER TABLE ONLY public.directive_account
     ADD CONSTRAINT directive_account_pkey PRIMARY KEY (code);
+
+--
+-- Name: directive_account_year directive_account_year_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.directive_account_year
+    ADD CONSTRAINT directive_account_year_pkey PRIMARY KEY (year, code);
 
 --
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -5333,6 +5414,20 @@ ALTER TABLE ONLY public.chart_of_accounts
     ADD CONSTRAINT chart_period_regime_fk FOREIGN KEY (period_id, organization_id, regime_code) REFERENCES public.accounting_period(id, organization_id, regime_code);
 
 --
+-- Name: chart_template_account chart_template_account_specializes_directive_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template_account
+    ADD CONSTRAINT chart_template_account_specializes_directive_code_fkey FOREIGN KEY (specializes_directive_code) REFERENCES public.directive_account(code);
+
+--
+-- Name: chart_template_account chart_template_account_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.chart_template_account
+    ADD CONSTRAINT chart_template_account_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.chart_template(id) ON DELETE CASCADE;
+
+--
 -- Name: counterparty counterparty_self_of_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5373,6 +5468,13 @@ ALTER TABLE ONLY public.depreciation_plan
 
 ALTER TABLE ONLY public.directive_account
     ADD CONSTRAINT directive_account_group_code_fkey FOREIGN KEY (group_code) REFERENCES public.account_group(code);
+
+--
+-- Name: directive_account_year directive_account_year_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.directive_account_year
+    ADD CONSTRAINT directive_account_year_code_fkey FOREIGN KEY (code) REFERENCES public.directive_account(code);
 
 --
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

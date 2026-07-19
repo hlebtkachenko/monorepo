@@ -1,4 +1,33 @@
 {
+  "accounting": {
+    "chartOfAccounts": {
+      "columns": {
+        "number": "Account",
+        "name": "Name",
+        "statementClass": "Statement",
+        "accountType": "Type",
+        "normalBalance": "Normal side",
+        "tracksOpenItems": "Open items",
+        "taxRelevant": "Tax-relevant"
+      },
+      "statementClass": {
+        "BALANCE_SHEET": "Balance sheet",
+        "INCOME_STATEMENT": "Income statement",
+        "CLOSING": "Closing",
+        "OFF_BALANCE": "Off-balance"
+      },
+      "accountType": {
+        "ACTIVE": "Active",
+        "PASSIVE": "Passive",
+        "EXPENSE": "Expense",
+        "REVENUE": "Revenue"
+      },
+      "normalBalance": {
+        "DEBIT": "Debit",
+        "CREDIT": "Credit"
+      }
+    }
+  },
   "brand": {
     "name": "Afframe",
     "tagline": "Agent-native accounting platform",

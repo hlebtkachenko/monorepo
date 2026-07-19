@@ -86,8 +86,9 @@ const config: KnipConfig = {
       ignore: ["scripts/*.ts"],
     },
     "packages/db": {
-      // Codegen source for the accounting reference seed migration, run manually.
-      ignore: ["scripts/*.ts"],
+      // Codegen source for the accounting reference seed migrations, run manually, plus the
+      // vendored JSON those generators read (Money export + osnova overlay).
+      ignore: ["scripts/*.ts", "seeds/**"],
     },
     "packages/sdk": {
       // openapi-typescript output ("Do not make direct changes.") — never hand-edited.

@@ -1,4 +1,33 @@
 {
+  "accounting": {
+    "chartOfAccounts": {
+      "columns": {
+        "number": "Účet",
+        "name": "Název",
+        "statementClass": "Druh",
+        "accountType": "Typ",
+        "normalBalance": "Strana",
+        "tracksOpenItems": "Saldokonto",
+        "taxRelevant": "Daňový"
+      },
+      "statementClass": {
+        "BALANCE_SHEET": "Rozvahový",
+        "INCOME_STATEMENT": "Výsledkový",
+        "CLOSING": "Závěrkový",
+        "OFF_BALANCE": "Podrozvahový"
+      },
+      "accountType": {
+        "ACTIVE": "Aktivní",
+        "PASSIVE": "Pasivní",
+        "EXPENSE": "Nákladový",
+        "REVENUE": "Výnosový"
+      },
+      "normalBalance": {
+        "DEBIT": "Má dáti",
+        "CREDIT": "Dal"
+      }
+    }
+  },
   "brand": {
     "name": "Afframe",
     "tagline": "Účetní platforma navržená pro AI agenty",

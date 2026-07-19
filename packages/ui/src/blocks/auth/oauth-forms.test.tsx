@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { describe, it, expect, vi } from "vitest"
+import { afterEach, describe, it, expect, vi } from "vitest"
 
 import {
   OAuthConsentForm,
@@ -10,6 +10,7 @@ import {
   OAuthSelectOrganizationForm,
   type OAuthSelectOrganizationMessages,
 } from "./oauth-select-organization-form"
+import { OAuthRedirectNotice } from "./oauth-redirect-notice"
 
 const CONSENT_MESSAGES: OAuthConsentFormMessages = {
   title: "Authorize access",
@@ -136,5 +137,45 @@ describe("OAuthSelectOrganizationForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "This account has no active organization to authorize.",
     )
+  })
+})
+
+// --- OAuthRedirectNotice ---
+
+describe("OAuthRedirectNotice", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("renders the branded connected message", () => {
+    render(
+      <OAuthRedirectNotice
+        messages={{
+          title: "Connected",
+          description: "Returning you to Cursor…",
+        }}
+        onRedirect={() => {}}
+        delayMs={1_000_000}
+      />,
+    )
+    expect(
+      screen.getByRole("heading", { name: "Connected" }),
+    ).toBeInTheDocument()
+    expect(screen.getByText("Returning you to Cursor…")).toBeInTheDocument()
+  })
+
+  it("fires onRedirect once the delay elapses", () => {
+    vi.useFakeTimers()
+    const onRedirect = vi.fn()
+    render(
+      <OAuthRedirectNotice
+        messages={{ title: "Connected", description: "Returning you…" }}
+        onRedirect={onRedirect}
+        delayMs={1200}
+      />,
+    )
+    expect(onRedirect).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1200)
+    expect(onRedirect).toHaveBeenCalledTimes(1)
   })
 })

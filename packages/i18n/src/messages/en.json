@@ -1142,6 +1142,10 @@
         "continuing": "Continuing…",
         "empty": "This account has no active organization to authorize.",
         "failed": "Something went wrong. Please try again."
+      },
+      "redirecting": {
+        "title": "Connected",
+        "description": "Returning you to {client}…"
       }
     }
   },

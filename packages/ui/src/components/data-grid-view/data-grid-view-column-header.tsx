@@ -44,6 +44,28 @@ export function getCenterIds<TData>(table: Table<TData>): string[] {
   return getFullOrder(table).filter((id) => !table.getColumn(id)?.getIsPinned())
 }
 
+/**
+ * Whether two centre columns may reorder relative to each other — true only when
+ * they share the SAME parent header group. Banded (pivot) headers scope each
+ * group to its own `SortableContext`, but the shared `DndContext`'s
+ * `closestCenter` collision can still report an `over` in a DIFFERENT group; a
+ * leaf dragged there would be arrayMove'd across the group boundary and, because
+ * a single-measure group has one leaf, drag its whole banded header with it. This
+ * guard rejects that cross-group drop, keeping a leaf drag WITHIN its group — the
+ * within-group reorder the pivot renderer intends. A flat table's columns all
+ * share the (undefined) root parent, so this is always true there.
+ */
+export function isSameHeaderGroup<TData>(
+  table: Table<TData>,
+  activeId: string,
+  overId: string,
+): boolean {
+  return (
+    table.getColumn(activeId)?.parent?.id ===
+    table.getColumn(overId)?.parent?.id
+  )
+}
+
 /** Re-emit the column order with the center group changed, pins kept at edges. */
 export function commitCenter<TData>(
   table: Table<TData>,

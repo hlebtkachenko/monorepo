@@ -14,7 +14,11 @@ import { Checkbox } from "@workspace/ui/components/checkbox"
 
 import { useDataTable } from "../data-table/use-data-table"
 import { DataGridView, type DataGridSummaryRow } from "./data-grid-view"
-import { commitCenter, getCenterIds } from "./data-grid-view-column-header"
+import {
+  commitCenter,
+  getCenterIds,
+  isSameHeaderGroup,
+} from "./data-grid-view-column-header"
 
 interface Row {
   id: string
@@ -239,6 +243,67 @@ describe("column reorder (shared columnOrder helpers)", () => {
     // Centre reordered, pinned `select` still leads the full order.
     expect(getCenterIds(result.current.table)).toEqual(["age", "name"])
     expect(result.current.table.getState().columnOrder[0]).toBe("select")
+  })
+})
+
+describe("isSameHeaderGroup (banded-header reorder scope)", () => {
+  // Two banded groups, each spanning ONE leaf value column — the pivot shape
+  // where the leaf-drag coupling bug appeared.
+  const bandedColumns: ColumnDef<Row>[] = [
+    {
+      id: "grp-name",
+      header: "Group N",
+      columns: [
+        {
+          accessorKey: "name",
+          header: "Name",
+          size: 160,
+          meta: { label: "Name" },
+        },
+      ],
+    },
+    {
+      id: "grp-age",
+      header: "Group A",
+      columns: [
+        {
+          accessorKey: "age",
+          header: "Age",
+          size: 120,
+          meta: { label: "Age" },
+        },
+      ],
+    },
+  ]
+
+  it("rejects a leaf drag across banded groups, allows within a group", () => {
+    const { result } = renderHook(() =>
+      useDataTable<Row>({
+        data: seed,
+        columns: bandedColumns,
+        getRowId: (row) => row.id,
+        columnResizeMode: "onChange",
+      }),
+    )
+    const table = result.current.table
+    // Leaves in DIFFERENT banded groups → a drag between them is rejected (the
+    // bug: it would have dragged the parent band with the single-leaf group).
+    expect(isSameHeaderGroup(table, "name", "age")).toBe(false)
+    // A leaf against itself (same parent) is allowed.
+    expect(isSameHeaderGroup(table, "name", "name")).toBe(true)
+  })
+
+  it("is always true for a flat table (shared root parent)", () => {
+    const { result } = renderHook(() =>
+      useDataTable<Row>({
+        data: seed,
+        columns,
+        getRowId: (row) => row.id,
+        columnResizeMode: "onChange",
+      }),
+    )
+    // Flat columns share the (undefined) root parent, so the guard never blocks.
+    expect(isSameHeaderGroup(result.current.table, "name", "age")).toBe(true)
   })
 })
 

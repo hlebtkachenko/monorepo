@@ -772,6 +772,24 @@ export class AppStack extends Stack {
         // from the code fallback (100 req/60s) so the throttler isn't the
         // binding constraint now that the admission caps above are higher.
         V1_THROTTLE_LIMIT: "300",
+        // OAuth 2.1 resource-server verification (ADR-0023; packages/auth
+        // oauth-token-verifier). The API accepts OAuth access tokens (asymmetric
+        // JWTs minted by our Better Auth AS) on /v1/* alongside `affk_` keys.
+        // `verifyOAuthAccessToken` fails CLOSED unless ALL THREE are present, so
+        // OAuth stays dark until wired here — api keys are unaffected either way.
+        // ISSUER + JWKS derive from the web origin (Better Auth is mounted at
+        // `<app-host>/api/auth`, which also serves the JWKS the API + edge use to
+        // verify signatures). RESOURCE is this env's hosted MCP host — the
+        // canonical audience the AS stamps into the token `aud` (RFC 8707) and
+        // the value the verifier checks it against. Staging points at the
+        // (not-yet-provisioned) mcp-staging host by convention; OAuth is
+        // exercised on production, where mcp.afframe.com is live.
+        OAUTH_ISSUER: `${publicOrigin}/api/auth`,
+        OAUTH_JWKS_URI: `${publicOrigin}/api/auth/jwks`,
+        OAUTH_RESOURCE:
+          props.envName === "production"
+            ? "https://mcp.afframe.com"
+            : "https://mcp-staging.afframe.com",
       },
       secrets: {
         DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),

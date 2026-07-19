@@ -28,7 +28,16 @@ export function LoginMfaForm({ email }: Props) {
         authClient.twoFactor.verifyBackupCode({ code })
       }
       onClearLoginEmail={clearLoginEmailAction}
-      onNavigate={(href) => router.push(href)}
+      onNavigate={(href) => {
+        // The OAuth continuation target is an /api/* route (a 302, not an RSC
+        // navigation) — router.push won't hard-navigate to it, so the MFA hop
+        // would silently stall. Force a full browser navigation for those.
+        if (href.startsWith("/api/")) {
+          window.location.assign(href)
+        } else {
+          router.push(href)
+        }
+      }}
       messages={{
         title: t("title"),
         description: (e) => t("description", { email: e }),

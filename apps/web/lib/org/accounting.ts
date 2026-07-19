@@ -79,7 +79,7 @@ export function accountTyp(nature: ChartAccountRow["nature"]): AccountTyp {
 
 // ─────────────────────────────────── view models ───────────────────────────────────
 
-/** One row of the Účtový rozvrh table as the UI consumes it. */
+/** @public — app-edge seam the chart-of-accounts UI wires to (UI lands in a follow-up). One row of the Účtový rozvrh table as the UI consumes it. */
 export interface ChartAccountView {
   id: string
   /** '31' | '311' | '311.001' */
@@ -124,7 +124,7 @@ function toChartAccountView(r: ChartAccountRow): ChartAccountView {
   }
 }
 
-/** One row of the Účetní osnova (framework) as the read-only subpage consumes it. */
+/** @public — app-edge seam the osnova subpage wires to (UI lands in a follow-up). One row of the Účetní osnova (framework) as the read-only subpage consumes it. */
 export interface OsnovaAccountView {
   year: number
   code: string
@@ -157,7 +157,7 @@ function toOsnovaView(r: DirectiveYearRow): OsnovaAccountView {
   }
 }
 
-/** A prebuilt house rozvrh template (the picker option). */
+/** @public — app-edge seam the template picker wires to (UI lands in a follow-up). A prebuilt house rozvrh template (the picker option). */
 export interface ChartTemplateView {
   id: string
   year: number
@@ -176,7 +176,7 @@ function toTemplateView(r: ChartTemplateRow): ChartTemplateView {
   }
 }
 
-/** One account inside a prebuilt template (preview before forking). */
+/** @public — app-edge seam the template preview wires to (UI lands in a follow-up). One account inside a prebuilt template (preview before forking). */
 export interface ChartTemplateAccountView {
   number: string
   name: string
@@ -206,6 +206,8 @@ function toTemplateAccountView(
 // ─────────────────────────────────── reads (table data) ───────────────────────────────────
 
 /**
+ * @public — table-data read the chart-of-accounts page wires to (UI lands in a follow-up).
+ *
  * The period's Účtový rozvrh, sorted by číslo účtu. `periodId` is the active period the page
  * resolved via `getActivePeriod`; a period with no chart yet (a fresh org) returns []
  * and the page offers the "start from osnova / template" buttons.
@@ -221,7 +223,7 @@ export async function getChartAccounts(
   return rows.map(toChartAccountView)
 }
 
-/** The read-only Účetní osnova (framework) for a year — the subpage + the "fill from osnova" source. */
+/** @public — read the osnova subpage wires to (UI lands in a follow-up). The read-only Účetní osnova (framework) for a year — the subpage + the "fill from osnova" source. */
 export async function getOsnova(
   organizationId: string,
   userId: string,
@@ -233,7 +235,7 @@ export async function getOsnova(
   return rows.map(toOsnovaView)
 }
 
-/** The prebuilt house rozvrh templates offered for a year (the picker). */
+/** @public — read the template picker wires to (UI lands in a follow-up). The prebuilt house rozvrh templates offered for a year (the picker). */
 export async function getChartTemplates(
   organizationId: string,
   userId: string,
@@ -245,7 +247,7 @@ export async function getChartTemplates(
   return rows.map(toTemplateView)
 }
 
-/** The účty of one prebuilt template (preview before forking). */
+/** @public — read the template preview wires to (UI lands in a follow-up). The účty of one prebuilt template (preview before forking). */
 export async function getChartTemplateAccounts(
   organizationId: string,
   userId: string,
@@ -356,6 +358,8 @@ export const CHART_ACCOUNT_COLUMNS: readonly ChartAccountColumn[] = [
 // ─────────────────────────── actions (button seam — no UI here) ───────────────────────────
 
 /**
+ * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
+ *
  * Start a period's chart from the Účetní osnova (the "Naplnit z osnovy" button, #3). Resolves the
  * osnova year effective for `year` (falls back to the latest published prior year), creates the
  * chart if the period has none, then seeds. Throws if the chart already has účty (never
@@ -384,6 +388,8 @@ export async function startChartFromOsnova(
 }
 
 /**
+ * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
+ *
  * Start a period's chart by forking a prebuilt house rozvrh template (the "Použít předlohu"
  * button, #4). Same empty-chart guard as {@link startChartFromOsnova}. Returns účty seeded.
  */
@@ -409,6 +415,8 @@ export async function startChartFromTemplate(
 }
 
 /**
+ * @public — button-action seam the chart-of-accounts UI wires to (UI lands in a follow-up).
+ *
  * Add one účet to the period's chart (the "Přidat účet" button). The chart must already exist
  * (start it from an osnova/template first). `nature` drives druh/typ; the caller passes the
  * saldo/daňový flags.

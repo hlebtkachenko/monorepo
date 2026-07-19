@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest"
 import worker, { parseSelection } from "./http"
 
-const env = { AFFRAME_API_BASE: "https://api.example.test" }
+const env = {
+  AFFRAME_API_BASE: "https://api.example.test",
+  OAUTH_ISSUER: "https://app.example.test/api/auth",
+}
 
 describe("hosted MCP Worker auth gate", () => {
   it("serves an unauthenticated health probe", async () => {
@@ -55,7 +58,7 @@ describe("hosted MCP Worker auth gate", () => {
         method: "POST",
         headers: { authorization: "Bearer affk_test" },
       }),
-      { AFFRAME_API_BASE: "" },
+      { AFFRAME_API_BASE: "", OAUTH_ISSUER: env.OAUTH_ISSUER },
     )
     expect(res.status).toBe(500)
   })
@@ -88,5 +91,46 @@ describe("hosted MCP Worker auth gate", () => {
     const catalog = (await res.json()) as { slug: string; count: number }[]
     expect(Array.isArray(catalog)).toBe(true)
     expect(catalog.some((g) => g.slug === "invoices")).toBe(true)
+  })
+
+  it("serves RFC 9728 protected-resource metadata unauthenticated", async () => {
+    const res = await worker.fetch(
+      new Request(
+        "https://mcp.afframe.com/.well-known/oauth-protected-resource",
+      ),
+      env,
+    )
+    expect(res.status).toBe(200)
+    const meta = (await res.json()) as {
+      resource: string
+      authorization_servers: string[]
+      scopes_supported: string[]
+    }
+    // resource is the Worker's own origin (the canonical audience the client
+    // echoes as RFC 8707 `resource` so the AS stamps a matching `aud`).
+    expect(meta.resource).toBe("https://mcp.afframe.com")
+    expect(meta.authorization_servers).toEqual([env.OAUTH_ISSUER])
+    expect(meta.scopes_supported).toContain("accounting:read")
+  })
+
+  it("points a 401 at the protected-resource metadata (RFC 9728 §5.1)", async () => {
+    const res = await worker.fetch(
+      new Request("https://mcp.afframe.com/", { method: "POST" }),
+      env,
+    )
+    expect(res.status).toBe(401)
+    expect(res.headers.get("www-authenticate")).toContain(
+      'resource_metadata="https://mcp.afframe.com/.well-known/oauth-protected-resource"',
+    )
+  })
+
+  it("fails closed (500) on metadata when OAUTH_ISSUER is unset", async () => {
+    const res = await worker.fetch(
+      new Request(
+        "https://mcp.afframe.com/.well-known/oauth-protected-resource",
+      ),
+      { AFFRAME_API_BASE: env.AFFRAME_API_BASE, OAUTH_ISSUER: "" },
+    )
+    expect(res.status).toBe(500)
   })
 })

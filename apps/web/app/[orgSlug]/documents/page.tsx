@@ -4,7 +4,7 @@ import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 import {
   fetchDocuments,
   getOrgAccountingContext,
-} from "../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Records" }
 

@@ -18,7 +18,7 @@ import {
   type VatRegime,
 } from "@workspace/accounting"
 
-import type { OrgAccountingContext } from "../../../_lib/accounting-data"
+import type { OrgAccountingContext } from "@/lib/org/accounting-data"
 import { resolvePeriodProfile } from "../../_lib/period-profile"
 
 /**

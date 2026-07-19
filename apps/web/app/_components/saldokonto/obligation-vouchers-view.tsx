@@ -8,7 +8,7 @@ import {
   fetchOpenItems,
   fetchSaldoPerPartner,
   getOrgAccountingContext,
-} from "../../[orgSlug]/_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 /**
  * Shared server view for the obligation-voucher routes (all / payable / receivable). The `open_item`

@@ -33,10 +33,10 @@ describe("ContentFooter — selection", () => {
     expect(onMatch).toHaveBeenCalledTimes(1)
   })
 
-  it("renders a segmented action group as inline buttons (no dropdown)", async () => {
+  it("renders a split action (primary button + dropdown menu)", async () => {
     const user = userEvent.setup()
+    const onExport = vi.fn()
     const onClipboard = vi.fn()
-    const onCsv = vi.fn()
 
     wrap(
       <ContentFooter
@@ -46,14 +46,14 @@ describe("ContentFooter — selection", () => {
           actions: [
             {
               id: "export",
-              label: "Export",
-              group: [
+              label: "Export as CSV",
+              onSelect: onExport,
+              menu: [
                 {
                   id: "clipboard",
                   label: "Copy to clipboard",
                   onSelect: onClipboard,
                 },
-                { id: "csv", label: "Export as CSV", onSelect: onCsv },
               ],
             },
           ],
@@ -61,11 +61,21 @@ describe("ContentFooter — selection", () => {
       />,
     )
 
-    // Both buttons are visible inline — no dropdown trigger to open first.
-    await user.click(screen.getByRole("button", { name: "Copy to clipboard" }))
+    // Primary button fires directly.
     await user.click(screen.getByRole("button", { name: "Export as CSV" }))
+    expect(onExport).toHaveBeenCalledTimes(1)
+
+    // The attached chevron opens the dropdown; the menu item is hidden until then.
+    expect(
+      screen.queryByRole("menuitem", { name: "Copy to clipboard" }),
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole("button", { name: "More Export as CSV options" }),
+    )
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Copy to clipboard" }),
+    )
     expect(onClipboard).toHaveBeenCalledTimes(1)
-    expect(onCsv).toHaveBeenCalledTimes(1)
   })
 
   it("renders nothing when the selection count is 0", () => {

@@ -21,8 +21,12 @@ export function ContentToolbarSearch({
   const ClearIcon = icons.X
   const hasValue = value.length > 0
 
+  // `w-80` = a stable 320px preferred width that still shrinks (default
+  // flex-shrink) when the toolbar is cramped (e.g. inspector open), so it never
+  // overlaps the right cluster — the original pre-#761 behaviour. It does NOT
+  // grow past 320 (no flex-1), so it doesn't jitter as the filter band changes.
   return (
-    <div className="relative flex h-8 w-80 shrink-0 items-center">
+    <div className="relative flex h-8 w-80 items-center">
       <SearchIcon className="pointer-events-none absolute inset-y-0 left-2.5 my-auto size-4 text-muted-foreground" />
       <Input
         placeholder={placeholder}

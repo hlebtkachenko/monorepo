@@ -1,7 +1,15 @@
 "use client"
 
+import * as React from "react"
+
 import { Button } from "@workspace/ui/components/button"
 import { ButtonGroup } from "@workspace/ui/components/button-group"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { useIcons } from "@workspace/ui/icon-packs"
 import type { IconName } from "@workspace/ui/icon-packs"
@@ -14,8 +22,8 @@ import { cn } from "@workspace/ui/lib/utils"
 export type ContentFooterActionVariant =
   "default" | "secondary" | "ghost" | "destructive"
 
-/** One button inside a footer action's segmented `group` (e.g. Export → Copy to
- *  clipboard | Export as CSV). Plain data — never a node. */
+/** One item in a footer action's split-button dropdown menu (e.g. Export →
+ *  "Copy to clipboard"). Plain data — never a node. */
 export interface ContentFooterActionButton {
   id: string
   label: string
@@ -33,15 +41,15 @@ export interface ContentFooterAction {
   /** Button treatment. Default `"secondary"`. */
   variant?: ContentFooterActionVariant
   disabled?: boolean
-  /** Direct click handler. Ignored when `group` is set (the action renders a
-   *  segmented ButtonGroup instead of a single button). */
+  /** Primary click handler — also the primary button of a split action when
+   *  `menu` is set. */
   onSelect?: () => void
   /**
-   * When present, the action is a SEGMENTED BUTTON GROUP: each button is shown
-   * inline on one line (e.g. Export → Copy to clipboard | Export as CSV) instead
-   * of a single button. `label`/`icon`/`onSelect` on the action are ignored.
+   * When present, the action is a SPLIT BUTTON (shadcn ButtonGroup + DropdownMenu):
+   * the primary button fires `onSelect`, and an attached chevron opens a dropdown
+   * of these items (e.g. Export as CSV | ▾ → Copy to clipboard).
    */
-  group?: ContentFooterActionButton[]
+  menu?: ContentFooterActionButton[]
 }
 
 /** Selection surface — bulk actions over the chosen rows. */
@@ -98,6 +106,34 @@ export function ContentFooter({
   className,
 }: ContentFooterProps) {
   const icons = useIcons()
+  const barRef = React.useRef<HTMLDivElement>(null)
+
+  const selectionActive = !!selection && selection.count > 0
+  const saveActive =
+    !!save &&
+    (save.dirty || !!save.persistentLink || !!save.persistentAction) &&
+    !selection
+  const active = selectionActive || saveActive
+
+  // While the bar is shown it covers the bottom of the Content Panel, so publish
+  // its height as `--app-statusbar-clearance` — toasts (and any other consumer of
+  // the token) lift clear of it, and drop back to the default once it hides. Same
+  // mechanism the workspace status bar uses.
+  React.useEffect(() => {
+    const root = document.documentElement
+    if (!active) {
+      root.style.removeProperty("--app-statusbar-clearance")
+      return
+    }
+    const height = barRef.current?.offsetHeight ?? 52
+    root.style.setProperty(
+      "--app-statusbar-clearance",
+      `calc(var(--shell-bottom-inset, 0px) + ${height}px + 8px)`,
+    )
+    return () => {
+      root.style.removeProperty("--app-statusbar-clearance")
+    }
+  }, [active, selection?.count])
 
   if (selection && save && process.env.NODE_ENV !== "production") {
     throw new Error(
@@ -109,6 +145,7 @@ export function ContentFooter({
   if (selection && selection.count > 0) {
     return (
       <div
+        ref={barRef}
         data-slot="content-footer"
         role="group"
         aria-label="Actions"
@@ -127,36 +164,12 @@ export function ContentFooter({
         />
         <div className="ml-auto flex items-center gap-1.5">
           {selection.actions.map((action) => {
-            // A segmented action: every button visible inline in one ButtonGroup
-            // (e.g. Export → Copy to clipboard | Export as CSV). No dropdown.
-            if (action.group) {
-              return (
-                <ButtonGroup key={action.id} data-action={action.id}>
-                  {action.group.map((item) => {
-                    const ItemIcon = item.icon ? icons[item.icon] : null
-                    return (
-                      <Button
-                        key={item.id}
-                        type="button"
-                        variant={item.variant ?? "secondary"}
-                        disabled={action.disabled}
-                        onClick={item.onSelect}
-                        data-action={`${action.id}:${item.id}`}
-                      >
-                        {ItemIcon ? <ItemIcon /> : null}
-                        {item.label}
-                      </Button>
-                    )
-                  })}
-                </ButtonGroup>
-              )
-            }
             const Icon = action.icon ? icons[action.icon] : null
-            return (
+            const variant = action.variant ?? "secondary"
+            const primary = (
               <Button
-                key={action.id}
                 type="button"
-                variant={action.variant ?? "secondary"}
+                variant={variant}
                 disabled={action.disabled}
                 onClick={action.onSelect}
                 data-action={action.id}
@@ -165,6 +178,44 @@ export function ContentFooter({
                 {action.label}
               </Button>
             )
+            // A split action (shadcn ButtonGroup + DropdownMenu): the primary
+            // button fires `onSelect`; the attached chevron opens the menu.
+            if (action.menu && action.menu.length > 0) {
+              const Chevron = icons.ChevronDown
+              return (
+                <ButtonGroup key={action.id} data-action={action.id}>
+                  {primary}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant={variant}
+                        disabled={action.disabled}
+                        aria-label={`More ${action.label} options`}
+                      >
+                        <Chevron />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {action.menu.map((item) => {
+                        const ItemIcon = item.icon ? icons[item.icon] : null
+                        return (
+                          <DropdownMenuItem
+                            key={item.id}
+                            onSelect={item.onSelect}
+                            className="gap-1.5"
+                          >
+                            {ItemIcon ? <ItemIcon /> : null}
+                            {item.label}
+                          </DropdownMenuItem>
+                        )
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </ButtonGroup>
+              )
+            }
+            return <React.Fragment key={action.id}>{primary}</React.Fragment>
           })}
         </div>
       </div>
@@ -178,6 +229,7 @@ export function ContentFooter({
   ) {
     return (
       <div
+        ref={barRef}
         data-slot="content-footer"
         role="group"
         aria-label={save.dirty ? "Unsaved changes" : "Page actions"}

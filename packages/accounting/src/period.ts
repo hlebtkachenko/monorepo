@@ -173,10 +173,11 @@ export async function copyChartForward(
     nature: string
     normal_balance: string | null
     tracks_open_items: boolean
+    tax_relevant: boolean | null
     specializes_directive_code: string | null
   }>(
     db,
-    sql`SELECT id, parent_id, number, name, nature, normal_balance, tracks_open_items, specializes_directive_code
+    sql`SELECT id, parent_id, number, name, nature, normal_balance, tracks_open_items, tax_relevant, specializes_directive_code
           FROM account
          WHERE period_id = ${fromPeriodId}::uuid
          ORDER BY length(replace(number, '.', '')), number`,
@@ -189,10 +190,10 @@ export async function copyChartForward(
     const inserted = await rows<{ id: string }>(
       db,
       sql`INSERT INTO account
-            (organization_id, chart_id, period_id, parent_id, number, name, nature, normal_balance, tracks_open_items, specializes_directive_code)
+            (organization_id, chart_id, period_id, parent_id, number, name, nature, normal_balance, tracks_open_items, tax_relevant, specializes_directive_code)
           VALUES
             (${ctx.organizationId}::uuid, ${chartId}::uuid, ${toPeriodId}::uuid, ${newParent}, ${a.number}, ${a.name},
-             ${a.nature}, ${a.normal_balance}, ${a.tracks_open_items}, ${a.specializes_directive_code})
+             ${a.nature}, ${a.normal_balance}, ${a.tracks_open_items}, ${a.tax_relevant}, ${a.specializes_directive_code})
           RETURNING id`,
     )
     const newId = (inserted[0] as { id: string }).id

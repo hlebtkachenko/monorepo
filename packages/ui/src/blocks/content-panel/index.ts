@@ -1,6 +1,12 @@
-export { ContentHeader, ContentHeaderActions } from "./content-header"
+export {
+  ContentHeader,
+  ContentHeaderActions,
+  useOptimisticFavorite,
+} from "./content-header"
 export type {
   ContentHeaderProps,
+  ContentHeaderFavorite,
+  ContentHeaderFavoriteToggle,
   ViewTab,
   ViewTabsConfigure,
   ContentHeaderBreadcrumbItem,

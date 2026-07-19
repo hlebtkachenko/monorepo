@@ -4,8 +4,12 @@ import {
   ContentHeader,
   ContentPanel,
   sectionEmpty,
+  useOptimisticFavorite,
 } from "@workspace/ui/blocks/content-panel"
-import type { ContentHeaderBreadcrumbItem } from "@workspace/ui/blocks/content-panel"
+import type {
+  ContentHeaderBreadcrumbItem,
+  ContentHeaderFavoriteToggle,
+} from "@workspace/ui/blocks/content-panel"
 
 import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
@@ -16,6 +20,12 @@ export interface ArchetypeBlankProps {
   breadcrumb?: ContentHeaderBreadcrumbItem[]
   /** Copy for the single full-height `Empty` section that fills the body. */
   emptyTitle?: string
+  /**
+   * Optional self-managing favorite star for this page's header. Omit → no star.
+   * The archetype owns the optimism (via `useOptimisticFavorite`); the page
+   * supplies only the seed state + how to persist.
+   */
+  favorite?: ContentHeaderFavoriteToggle
 }
 
 /**
@@ -33,11 +43,17 @@ export function ArchetypeBlank({
   title,
   breadcrumb,
   emptyTitle,
+  favorite,
 }: ArchetypeBlankProps) {
+  const favoriteControlled = useOptimisticFavorite(favorite)
   return (
     <>
       <AppPageHeader>
-        <ContentHeader title={title} breadcrumb={breadcrumb} />
+        <ContentHeader
+          title={title}
+          breadcrumb={breadcrumb}
+          favorite={favoriteControlled}
+        />
       </AppPageHeader>
       <ContentPanel sections={[sectionEmpty({ title: emptyTitle })]} />
     </>

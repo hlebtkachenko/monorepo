@@ -5,9 +5,13 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
-import { AppShell } from "@workspace/ui/blocks/app-shell"
+import {
+  AppShell,
+  AppContentHeaderSlot,
+  AppPageHeaderProvider,
+} from "@workspace/ui/blocks/app-shell"
 import { sectionTable } from "@workspace/ui/blocks/content-panel"
 import type {
   TableColumnSpec,
@@ -111,6 +115,61 @@ describe("ArchetypeTable — row inspector", () => {
   it("has no Open inspector button when inspect is off", () => {
     renderArchetype(false)
     expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
+  })
+})
+
+describe("ArchetypeTable — favorite star", () => {
+  // The archetype's header portals through AppPageHeader into the shell's
+  // content-header slot, so the star only mounts with the provider + slot in
+  // place (a bare AppShell has no portal target).
+  function renderWithHeader(favorite?: {
+    initialActive: boolean
+    onToggle: () => Promise<boolean | void>
+  }) {
+    return render(
+      <AppPageHeaderProvider>
+        <AppShell contentHeader={<AppContentHeaderSlot fallback={null} />}>
+          <ArchetypeTable<TableSectionRow>
+            title="Invoices"
+            toolbar={() => ({})}
+            favorite={favorite}
+            sections={[
+              sectionTable({
+                rowIdKey: "id",
+                columns: [
+                  {
+                    id: "document",
+                    header: "Document",
+                    kind: "text",
+                    role: "id",
+                  },
+                ],
+                rows: [],
+              }),
+            ]}
+          />
+        </AppShell>
+      </AppPageHeaderProvider>,
+      { wrapper: IconProvider },
+    )
+  }
+
+  it("forwards the favorite toggle to the header (renders + fires)", async () => {
+    const onToggle = vi.fn().mockResolvedValue(true)
+    renderWithHeader({ initialActive: false, onToggle })
+    fireEvent.click(
+      await screen.findByRole("button", { name: /add to favorites/i }),
+    )
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders no star when no favorite is supplied", async () => {
+    renderWithHeader()
+    // Wait for the portalled header to mount, then assert the star is absent.
+    expect(await screen.findByText("Invoices")).toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /add to favorites/i }),
+    ).not.toBeInTheDocument()
   })
 })
 

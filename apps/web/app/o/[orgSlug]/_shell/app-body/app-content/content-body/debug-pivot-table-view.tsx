@@ -121,7 +121,14 @@ export function DebugPivotTableView({
   )
 
   const buildToolbar = React.useCallback(
-    (): ContentToolbarProps<TableSectionRow> => ({ filter }),
+    (
+      table: Table<TableSectionRow> | null,
+    ): ContentToolbarProps<TableSectionRow> => ({
+      filter,
+      // The pivot grid is a real TanStack instance; keep the columns manager +
+      // sort controls (mandatory Table chrome), same as the Normal view.
+      viewTools: table ? { table } : undefined,
+    }),
     [filter],
   )
 

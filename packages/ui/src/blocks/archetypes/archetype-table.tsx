@@ -89,7 +89,7 @@ export function resolveHeaderFilterTarget(
   return { property: undefined, routeToStatus: false }
 }
 
-export interface ArchetypeTableProps<TData> {
+export interface ArchetypeTableProps<TData extends TableSectionRow> {
   /** Page title shown in the content header. */
   title: string
   /** Optional decorative leading icon (closed `IconName`). */
@@ -230,7 +230,9 @@ export interface ArchetypeTableProps<TData> {
  *     for a reference page that once shipped as a bare table: the rule "every
  *     column spawns a filter" is now true by construction, not by convention.
  */
-export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
+export function ArchetypeTable<TData extends TableSectionRow>(
+  props: ArchetypeTableProps<TData>,
+) {
   return (
     <SectionTableProvider
       onCellCommit={props.onCellEdit}
@@ -242,7 +244,7 @@ export function ArchetypeTable<TData>(props: ArchetypeTableProps<TData>) {
   )
 }
 
-function ArchetypeTableChrome<TData>({
+function ArchetypeTableChrome<TData extends TableSectionRow>({
   title,
   titleIcon,
   breadcrumb,
@@ -375,9 +377,9 @@ function ArchetypeTableChrome<TData>({
   // A flat Table shows the archetype's auto filter (every column, minus any one
   // the page delegated to the faceted statusFilter — a column is filtered by
   // exactly one system). A Pivot body has no auto filter, so it shows the page's
-  // own source filter. The auto filter is over the section's `TableSectionRow`s;
-  // the toolbar slot is typed to the page's `TData`, which IS that row type for a
-  // Table page — the cast bridges the generic.
+  // own source filter. The auto filter is over `TableSectionRow` (the section's
+  // row type); `TData extends TableSectionRow`, so a `FilterDescriptor` over the
+  // base row narrows to the page's `TData` with a single, sound cast.
   const statusColumnId = toolbarProps.statusFilter?.columnId
   const effectiveFilter: FilterDescriptor<TData> | undefined = tableSection
     ? ({
@@ -385,7 +387,7 @@ function ArchetypeTableChrome<TData>({
         columns: statusColumnId
           ? autoFilter.filter.columns.filter((c) => c.id !== statusColumnId)
           : autoFilter.filter.columns,
-      } as unknown as FilterDescriptor<TData>)
+      } as FilterDescriptor<TData>)
     : toolbarProps.filter
 
   const filterTarget = resolveHeaderFilterTarget(

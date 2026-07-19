@@ -4,7 +4,7 @@ import { ContentHeader } from "@workspace/ui/blocks/content-panel"
 import {
   fetchLedgerRows,
   getOrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 import { LedgerBody } from "../../../_components/ledger/ledger-body"
 import { LedgerProvider } from "../../../_components/ledger/context"
 import type { LedgerRow } from "../../../_components/ledger/data"

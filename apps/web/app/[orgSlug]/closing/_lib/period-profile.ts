@@ -17,7 +17,7 @@ import {
 import {
   getOrgAccountingContext,
   type OrgAccountingContext,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 import { formatIsoDate } from "./closing-shared"
 
 /**

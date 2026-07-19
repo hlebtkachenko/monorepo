@@ -11,7 +11,7 @@ import {
   summarizeGatedPayload,
   trimGatedTimestamp,
   type IngestionInboxRow,
-} from "../../_lib/accounting-data"
+} from "@/lib/org/accounting-data"
 
 export const metadata = { title: "Inbox" }
 

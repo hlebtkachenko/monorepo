@@ -20,7 +20,7 @@ import {
 } from "@workspace/accounting"
 import { INBOX_STAMPED_OPERATION_IDS } from "@workspace/shared/api"
 
-import { getOrgAccountingContext } from "../../_lib/accounting-data"
+import { getOrgAccountingContext } from "@/lib/org/accounting-data"
 import {
   applyHeldWriteEdit,
   HeldWriteEditSchema,

@@ -893,6 +893,9 @@
       "emptyTitle": "No favorites yet",
       "emptyHint": "Star a page to pin it to this overview."
     },
+    "empty": {
+      "title": "Nothing here yet"
+    },
     "roles": {
       "owner": "Owner",
       "admin": "Admin",

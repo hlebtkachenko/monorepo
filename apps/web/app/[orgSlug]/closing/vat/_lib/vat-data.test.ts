@@ -49,8 +49,8 @@ vi.mock("next/headers", () => ({
 }))
 
 // Resolves to the SAME module `accounting-data.ts` imports via
-// "./request-session" (apps/web/app/[orgSlug]/_lib/request-session.ts).
-vi.mock("../../../_lib/request-session", () => ({
+// "@/lib/org/request-session" (apps/web/app/[orgSlug]/_lib/request-session.ts).
+vi.mock("@/lib/org/request-session", () => ({
   getRequestSession: () =>
     Promise.resolve(sessionUserId ? { user: { id: sessionUserId } } : null),
 }))

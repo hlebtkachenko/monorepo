@@ -42,7 +42,7 @@ import { toast } from "@workspace/ui/components/sonner"
 import { cn } from "@workspace/ui/lib/utils"
 import { useIcons } from "@workspace/ui/icon-packs"
 
-import { setActivePeriodAction } from "../../../[orgSlug]/_lib/period-actions"
+import { setActivePeriodAction } from "@/lib/org/period-actions-legacy"
 import { setCompanyAssigneeAction } from "../../../workspace/actions"
 import {
   archiveOrgAction,

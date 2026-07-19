@@ -92,8 +92,10 @@ export function buildTableFooter<TData>(
     const fileName = opts.exportFileName ?? "export"
     const toCsv = opts.toCsv ?? selectionCsv
     const ids = opts.selectedIds ?? []
+    // `flatRows` (not `.rows`) so a nested/pivot selection counts its descendants,
+    // matching what the CSV actually contains — the flat Table passes `ids` anyway.
     const selectedCount =
-      ids.length || (table?.getFilteredSelectedRowModel().rows.length ?? 0)
+      ids.length || (table?.getFilteredSelectedRowModel().flatRows.length ?? 0)
 
     const downloadCsv = () => {
       const url = URL.createObjectURL(

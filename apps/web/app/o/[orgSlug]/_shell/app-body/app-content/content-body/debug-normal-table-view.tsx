@@ -340,7 +340,9 @@ export function DebugNormalTableView({
         onCopyLink: (linkIds) => {
           const origin = window.location.origin + window.location.pathname
           void navigator.clipboard.writeText(
-            linkIds.map((id) => `${origin}?inspect=${id}`).join("\n"),
+            linkIds
+              .map((id) => `${origin}?inspect=${encodeURIComponent(id)}`)
+              .join("\n"),
           )
           toast.success(`Copied ${linkIds.length} link(s)`)
         },

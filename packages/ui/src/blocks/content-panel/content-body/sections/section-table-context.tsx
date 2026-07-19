@@ -61,6 +61,9 @@ interface SectionTableContextValue {
   /** The tab the inspector should open ON for this request (e.g. a footer
    *  "Open in Inspector · Export"). `null` → the sheet's default. */
   readonly inspectTab: InspectorTab | null
+  /** Bumped on EVERY `openInspect` call so a repeat request for the SAME row/tab
+   *  is still a distinct event (the sheet re-applies the requested tab). */
+  readonly inspectNonce: number
   /** Whether the inspector Sheet is open. */
   readonly inspectOpen: boolean
   /** Open the inspector for a row (records the row + optional tab + flips open). */
@@ -119,10 +122,12 @@ export function SectionTableProvider({
   // Sheet keeps its content through the close animation (cleared on reopen).
   const [inspectRow, setInspectRow] = React.useState<unknown>(null)
   const [inspectTab, setInspectTab] = React.useState<InspectorTab | null>(null)
+  const [inspectNonce, setInspectNonce] = React.useState(0)
   const [inspectOpen, setInspectOpen] = React.useState(false)
   const openInspect = React.useCallback((row: unknown, tab?: InspectorTab) => {
     setInspectRow(row)
     setInspectTab(tab ?? null)
+    setInspectNonce((nonce) => nonce + 1)
     setInspectOpen(true)
   }, [])
   // Per-column toolbar-filter target + open state, shared by the header "Filter"
@@ -150,6 +155,7 @@ export function SectionTableProvider({
       register: setRegistration,
       inspectRow,
       inspectTab,
+      inspectNonce,
       inspectOpen,
       openInspect,
       setInspectOpen,
@@ -168,6 +174,7 @@ export function SectionTableProvider({
       registration,
       inspectRow,
       inspectTab,
+      inspectNonce,
       inspectOpen,
       openInspect,
       filterColumnId,
@@ -231,6 +238,7 @@ export function useSectionInspectOpener():
 export function useSectionInspect(): {
   inspectRow: unknown
   inspectTab: InspectorTab | null
+  inspectNonce: number
   inspectOpen: boolean
   setInspectOpen: (open: boolean) => void
 } {
@@ -238,6 +246,7 @@ export function useSectionInspect(): {
   return {
     inspectRow: ctx?.inspectRow ?? null,
     inspectTab: ctx?.inspectTab ?? null,
+    inspectNonce: ctx?.inspectNonce ?? 0,
     inspectOpen: ctx?.inspectOpen ?? false,
     setInspectOpen: ctx?.setInspectOpen ?? (() => {}),
   }

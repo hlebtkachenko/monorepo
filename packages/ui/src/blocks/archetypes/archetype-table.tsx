@@ -328,7 +328,7 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   // animation. Adjacent-row navigation walks the table's CURRENT (sorted/
   // filtered/visible) row order, so previous/next always matches what the grid
   // shows — not the raw input rows.
-  const { inspectRow, inspectTab, inspectOpen, setInspectOpen } =
+  const { inspectRow, inspectTab, inspectNonce, inspectOpen, setInspectOpen } =
     useSectionInspect()
   const openInspect = useSectionInspectOpener()
   const visibleRows = table?.getRowModel().rows ?? []
@@ -508,7 +508,9 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   const selectionHelpers: ArchetypeTableSelectionHelpers = {
     openInspectorTab: (id, tab) => {
       if (!openInspect) return
-      const match = visibleRows.find(
+      // Search the CORE model (all rows, incl. nested + off-page), not just the
+      // visible page, so a selected row is always resolvable.
+      const match = (table?.getCoreRowModel().flatRows ?? []).find(
         (row) => String((row.original as TableSectionRow)[rowIdKey]) === id,
       )
       if (match) openInspect(match.original, tab)
@@ -561,6 +563,7 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
           breadcrumb={[title, inspectTitle ?? ""]}
           recordKey={inspectRecordKey || (inspectTitle ?? "")}
           initialTab={inspectTab}
+          openNonce={inspectNonce}
           name={inspectName ?? inspectTitle ?? ""}
           badge={inspectBadge}
           footer={inspectFooter}

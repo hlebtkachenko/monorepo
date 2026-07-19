@@ -33,13 +33,21 @@ export function TableStatusBar<TData>({
   const plural = nounPlural ?? `${noun}s`
 
   React.useEffect(() => {
+    // `--app-statusbar-clearance` is a shared global (a co-mounted ContentFooter
+    // may also own it), so SAVE the prior value and RESTORE it on unmount rather
+    // than blindly deleting it.
     const root = document.documentElement
+    const previous = root.style.getPropertyValue("--app-statusbar-clearance")
     root.style.setProperty(
       "--app-statusbar-clearance",
       "calc(var(--shell-bottom-inset) + 36px + 8px)",
     )
     return () => {
-      root.style.removeProperty("--app-statusbar-clearance")
+      if (previous) {
+        root.style.setProperty("--app-statusbar-clearance", previous)
+      } else {
+        root.style.removeProperty("--app-statusbar-clearance")
+      }
     }
   }, [])
 

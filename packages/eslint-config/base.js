@@ -263,9 +263,12 @@ export const config = [
     },
   },
   // Org UI rebuild dependency wall: the new tree (app/o/[orgSlug]) and the
-  // frozen old tree (app/[orgSlug]) may not import each other. Rides the same
-  // cwd-relative glob as no-restricted-imports so it fires under `turbo lint`;
-  // the rule itself no-ops on any file outside the two org trees.
+  // frozen old tree (app/[orgSlug]) may not import each other, and no outside
+  // file may import the frozen old tree (scripts/* generators exempt). Rides the
+  // same cwd-relative glob as no-restricted-imports so it fires under
+  // `turbo lint`. NOTE: onlyWarn downgrades this to a warning here — the
+  // BLOCKING gates are apps/web `lint:org-new` (new tree) + `lint:org-orphan`
+  // (outside->old), both `--max-warnings 0` in CI.
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {

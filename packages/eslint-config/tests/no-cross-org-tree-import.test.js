@@ -1,13 +1,15 @@
 /**
  * RuleTester fixtures for org-tree/no-cross-org-tree-import.
  *
- * Valid: files outside both org trees, imports of shared code (@workspace/*,
- * apps/web/lib), same-tree imports (alias + relative), and sibling dirs that
- * merely share a name prefix (`[orgSlug]-backup`).
+ * Valid: imports of shared code (@workspace/*, apps/web/lib), same-tree imports
+ * (alias + relative), an outside file importing the NEW tree, a `scripts/*`
+ * generator importing the old nav (exempt), and sibling dirs that merely share a
+ * name prefix (`[orgSlug]-backup`).
  *
- * Invalid: new -> old and old -> new edges through every reported node type
- * (import, `export ... from`, `export * from`, dynamic import) via alias and
- * relative path, plus the bare-directory (no trailing slash) escape.
+ * Invalid: new -> old, old -> new, and outside -> old edges through every
+ * reported node type (import, `export ... from`, `export * from`, dynamic
+ * import) via alias and relative path, plus the bare-directory (no trailing
+ * slash) escape.
  */
 
 import { test, describe, it } from "node:test"
@@ -21,6 +23,7 @@ RuleTester.itOnly = it.only
 const NEW = "/repo/apps/web/app/o/[orgSlug]/layout.tsx"
 const OLD = "/repo/apps/web/app/[orgSlug]/layout.tsx"
 const OUTSIDE = "/repo/apps/web/app/_components/org-shell.tsx"
+const SCRIPT = "/repo/scripts/gen-structure.ts"
 
 const tester = new RuleTester({
   languageOptions: {
@@ -57,13 +60,46 @@ test("no-cross-org-tree-import — valid cases", () => {
         filename: OLD,
         code: `import { safeNext } from '@/lib/safe-next'`,
       },
-      // A file in neither tree may import the old tree freely.
+      // An outside file importing the NEW tree is allowed — the new tree is not
+      // frozen; only outside -> old is an inbound-coupling violation.
       {
         filename: OUTSIDE,
-        code: `import { orgRailNav } from '@/app/[orgSlug]/_nav/org-nav'`,
+        code: `import { OrgShell } from '@/app/o/[orgSlug]/_shell/org-shell'`,
+      },
+      // A `scripts/*` generator importing the old nav is exempt (re-pointed at
+      // the flip; outside the runtime deletion guarantee).
+      {
+        filename: SCRIPT,
+        code: `import { orgRailNav } from '../apps/web/app/[orgSlug]/_nav/org-nav'`,
       },
     ],
     invalid: [],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: outside -> old via alias", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: OUTSIDE,
+        code: `import { orgRailNav } from '@/app/[orgSlug]/_nav/org-nav'`,
+        errors: [{ messageId: "outsideToOld" }],
+      },
+    ],
+  })
+})
+
+test("no-cross-org-tree-import — invalid: outside -> old via relative path", () => {
+  tester.run("no-cross-org-tree-import", rule, {
+    valid: [],
+    invalid: [
+      {
+        filename: OUTSIDE,
+        code: `import { orgRailNav } from '../[orgSlug]/_nav/org-nav'`,
+        errors: [{ messageId: "outsideToOld" }],
+      },
+    ],
   })
 })
 

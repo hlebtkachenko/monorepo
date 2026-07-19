@@ -3,22 +3,33 @@
  *
  * The organization UI is being rebuilt in a parallel clean-room tree at
  * `apps/web/app/o/[orgSlug]/` while the legacy tree at
- * `apps/web/app/[orgSlug]/` is frozen and slated for deletion. The two trees
- * MUST NOT import each other:
+ * `apps/web/app/[orgSlug]/` is frozen and slated for deletion. Three import
+ * edges are forbidden:
  *
- *   - new -> old  breaks the guarantee that the frozen tree can be `rm -rf`'d
+ *   - new -> old      breaks the guarantee that the frozen tree can be `rm -rf`'d
  *     without breaking the new one (and would let legacy code leak into the
  *     rebuild).
- *   - old -> new  would couple the frozen tree to the rebuild.
+ *   - old -> new      would couple the frozen tree to the rebuild.
+ *   - outside -> old  any file in NEITHER tree importing the frozen old tree is
+ *     an inbound coupling that would also break `rm -rf app/[orgSlug]/`. This is
+ *     the direction that keeps the hand-emptied inbound-consumer list (Track A)
+ *     empty: once the domain logic was extracted out of the old tree, nothing
+ *     outside may reach back in.
  *
  * This rule is the machine proof of clean deletion: green lint => deleting
- * `app/[orgSlug]/` cannot break `app/o/[orgSlug]/`.
+ * `app/[orgSlug]/` cannot break `app/o/[orgSlug]/` or any outside consumer.
  *
  * Shared code that both trees may use lives OUTSIDE both trees — `@workspace/*`,
- * `apps/web/lib/*`, `apps/web/app/_components/*` — and is never flagged. Files
- * that are in neither tree (including the `scripts/*` codegen that intentionally
- * reads the old nav until the flip) are ignored: the rule only governs the two
- * org route trees.
+ * `apps/web/lib/*`, `apps/web/app/_components/*`. An outside file importing the
+ * NEW tree is fine (the new tree is not frozen); only outside -> old is flagged.
+ * The one exemption is `scripts/*`: the structure/nav generators
+ * (`gen-structure`, `check-nav`, `check-sitemap`) read the old nav on purpose
+ * during coexistence and are re-pointed at the new nav at the flip; they live
+ * outside the runtime app, so they are not part of the deletion guarantee.
+ *
+ * Note: `outside -> old` only BLOCKS CI through a dedicated warning-immune gate
+ * (`apps/web` `lint:org-orphan`), because the shared base config downgrades this
+ * rule to a warning via `eslint-plugin-only-warn`. See that config for why.
  *
  * See apps/web/app/o/[orgSlug]/README.md.
  *
@@ -91,6 +102,10 @@ export default {
         "Shared code belongs in @workspace/* or apps/web/lib/. See apps/web/app/o/[orgSlug]/README.md.",
       oldToNew:
         "The frozen old org tree (app/[orgSlug]) must not import the new tree (app/o/[orgSlug]).",
+      outsideToOld:
+        "This file is outside both org trees and must not import the frozen old tree (app/[orgSlug]) — " +
+        "that inbound coupling would break its deletion. Import the extracted lib from @workspace/* or apps/web/lib/ instead. " +
+        "(scripts/* generators are exempt until the flip.)",
     },
   },
 
@@ -100,7 +115,12 @@ export default {
       "/",
     )
     const self = treeOf(filename)
-    if (!self) return {}
+    // A file inside a `scripts/` dir is exempt from the outside->old ban: the
+    // structure/nav generators intentionally read the old nav during
+    // coexistence (re-pointed at the new nav at the flip) and are not part of
+    // the runtime deletion guarantee. Keyed on the IMPORTING file, not the
+    // target. Only meaningful when `self === null` (a script is never in a tree).
+    const isScript = /(^|\/)scripts\//.test(filename)
 
     function check(source) {
       if (!source || typeof source.value !== "string") return
@@ -110,6 +130,10 @@ export default {
         context.report({ node: source, messageId: "newToOld" })
       } else if (self === "old" && target === "new") {
         context.report({ node: source, messageId: "oldToNew" })
+      } else if (self === null && target === "old" && !isScript) {
+        // Outside -> old: the inbound-coupling gate. An outside -> new import is
+        // deliberately NOT reported (the new tree is not frozen).
+        context.report({ node: source, messageId: "outsideToOld" })
       }
     }
 

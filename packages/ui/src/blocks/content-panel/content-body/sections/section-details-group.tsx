@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { Heading } from "@workspace/ui/components/heading"
 
 import {
-  type LeafSectionDescriptor,
+  type DetailsBodySectionKind,
   type SectionDescriptor,
   defineSection,
 } from "./section"
@@ -14,11 +14,14 @@ export interface SectionDetailsGroupProps {
   /** Optional URL/scroll anchor slug applied as the section's DOM `id`. */
   readonly anchor?: string
   /**
-   * The sections placed inside this group (Details Form, Details Tabs, Details
-   * Table, Space, …). Leaf sections only — a group cannot nest another group
-   * (one level deep).
+   * The sections placed inside this group — the Details BODY leaves only
+   * (`details-form` / `details-tabs` / `details-table` / `space` / `empty`).
+   * A group cannot nest another group (one level deep), and cannot smuggle a
+   * `table` / `pivot-table` / `inspector-*` section that the Details archetype
+   * body itself forbids — the narrowed `DetailsBodySectionKind` makes either a
+   * `tsc` error.
    */
-  readonly sections: readonly LeafSectionDescriptor[]
+  readonly sections: readonly SectionDescriptor<DetailsBodySectionKind>[]
 }
 
 /** What the renderer receives: the props minus the section-level `anchor`. */

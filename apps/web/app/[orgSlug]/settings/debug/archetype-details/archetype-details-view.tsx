@@ -10,10 +10,13 @@ import {
   sectionDetailsTabs,
   sectionSpace,
 } from "@workspace/ui/blocks/content-panel"
-import type { LeafSectionDescriptor } from "@workspace/ui/blocks/content-panel"
+import type {
+  DetailsBodySectionKind,
+  SectionDescriptor,
+} from "@workspace/ui/blocks/content-panel"
 
 /** A "Legal identity" Details Form section (a group child). */
-function legalIdentity(): LeafSectionDescriptor {
+function legalIdentity(): SectionDescriptor<DetailsBodySectionKind> {
   return sectionDetailsForm({
     anchor: "legal-identity",
     title: "Legal identity",
@@ -74,7 +77,7 @@ function legalIdentity(): LeafSectionDescriptor {
  * its own distinct fields, so switching tabs visibly swaps the form below. A
  * group child.
  */
-function addressesTabs(): LeafSectionDescriptor {
+function addressesTabs(): SectionDescriptor<DetailsBodySectionKind> {
   const text = (label: string, name: string, span: 1 | 2 | 3 | 4 | 5 | 6) => ({
     label,
     name,
@@ -130,7 +133,7 @@ function addressesTabs(): LeafSectionDescriptor {
  * their Edit icon flips them to inputs; "Add account" appends an editable row,
  * "Import from Excel" is a real navigation link. A group child.
  */
-function bankAccounts(): LeafSectionDescriptor {
+function bankAccounts(): SectionDescriptor<DetailsBodySectionKind> {
   return sectionDetailsTable({
     anchor: "bank-accounts",
     title: "Bank accounts",
@@ -188,7 +191,7 @@ function bankAccounts(): LeafSectionDescriptor {
  * EDITABLE "Contact people" Details Table — showcases the tags control (Emails)
  * alongside text + dropdown. Name 2 · Role 1 · Emails 2 · actions 1. A group child.
  */
-function contacts(): LeafSectionDescriptor {
+function contacts(): SectionDescriptor<DetailsBodySectionKind> {
   return sectionDetailsTable({
     anchor: "contacts",
     title: "Contact people",
@@ -242,7 +245,7 @@ function contacts(): LeafSectionDescriptor {
  * cannot be configured from this page: no Add, no Edit/Delete column, pure
  * display. Registry 2 · Number 2 · Status 2. A group child.
  */
-function registrations(): LeafSectionDescriptor {
+function registrations(): SectionDescriptor<DetailsBodySectionKind> {
   return sectionDetailsTable({
     anchor: "registrations",
     title: "Registrations",

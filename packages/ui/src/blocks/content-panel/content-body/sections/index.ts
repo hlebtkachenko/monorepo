@@ -108,10 +108,10 @@ export type { SectionDetailsGroupProps } from "./section-details-group"
 export type {
   SectionDescriptor,
   SectionKind,
-  LeafSectionDescriptor,
+  DetailsBodySectionKind,
 } from "./section"
 export type { SectionAction } from "./section-action-context"
-export { SECTION_KINDS } from "./section"
+export { SECTION_KINDS, DETAILS_BODY_KINDS } from "./section"
 // The list renderer that walks branded descriptors through `SECTION_REGISTRY`.
 // Exposed so an Inspector tab composes its body the same descriptor-driven way a
 // Content archetype composes its body — no hand-placed section JSX.

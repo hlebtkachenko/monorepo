@@ -16,6 +16,9 @@ import type {
 
 import { AppPageHeader } from "@workspace/ui/blocks/app-shell"
 
+import type { AllowedSectionKind } from "./archetype-section-policy"
+import { assertSectionsAllowed } from "./archetype-section-policy"
+
 export interface ArchetypeDetailsProps {
   /** Page title shown in the content header (no view tabs). */
   title: string
@@ -29,8 +32,11 @@ export interface ArchetypeDetailsProps {
   /**
    * The body: any number of branded Sections (e.g. `sectionDetailsForm(...)`,
    * `sectionSpace(...)`), rendered in order and stacked; the body scrolls.
+   * Narrowed to the Details archetype's allowed section kinds (the section-library
+   * policy in `archetype-section-policy.ts`) — a `table` / `pivot-table` /
+   * `inspector-*` section wired here is a `tsc` error.
    */
-  sections: readonly SectionDescriptor[]
+  sections: readonly SectionDescriptor<AllowedSectionKind<"details">>[]
   /** Handles action ids emitted by interactive section controls. */
   onSectionAction?: (action: SectionAction) => void
   /**
@@ -59,6 +65,9 @@ export function ArchetypeDetails({
   save,
   favorite,
 }: ArchetypeDetailsProps) {
+  // Dev-only belt: the narrowed `sections` type forbids a wrong-kind section at
+  // compile time; this also catches an `as`-cast bypass at runtime.
+  assertSectionsAllowed("details", sections)
   const favoriteControlled = useOptimisticFavorite(favorite)
   return (
     <>

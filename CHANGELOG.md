@@ -13,6 +13,17 @@ gathers every fragment into a new `## [vX.Y.Z]` section below, then deletes the
 consumed fragments. See [`changelog.d/README.md`](changelog.d/README.md) for the
 authoring rules.
 
+## [v0.25.2] — 2026-07-19
+
+### Changed
+
+- Rebuilt the OAuth consent and organization-selection screens on the shared auth design system (packages/ui blocks + i18n), replacing the hardcoded English markup and font-mono scope pills with localized, human-readable scope descriptions. Refs #829 (#884)
+
+### Fixed
+
+- Login now preserves a benign deep-link query (e.g. the Inspector `?inspect=<uuid>`) through the sign-in redirect instead of dropping it; credential-bearing keys (token, code, state, secret, …) are scrubbed first so they never round-trip as `?next=` or reach a logger. (#883)
+- OAuth authorize now continues correctly after a custom login: the login pages forward the pending authorize request (stripping Better Auth's signing artifacts) so the user lands back on consent instead of /workspace, and the MFA hop hard-navigates to the authorize endpoint. Refs #829 (#884)
+
 ## [v0.25.1] — 2026-07-19
 
 ### Added

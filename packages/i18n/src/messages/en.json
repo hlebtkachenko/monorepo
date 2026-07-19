@@ -1462,7 +1462,8 @@
       "company": "Company",
       "overview": "Overview",
       "periods": "Periods",
-      "debug": "Debug"
+      "debug": "Debug",
+      "archetypeTable": "Archetype Table"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1472,7 +1473,8 @@
     "titles": {
       "periods": "Periods",
       "settings": "Settings",
-      "debug": "Debug"
+      "debug": "Debug",
+      "archetypeTable": "Archetype Table"
     },
     "favorite": {
       "tooltip": "Favorite",

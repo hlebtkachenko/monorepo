@@ -1462,7 +1462,8 @@
       "company": "Společnost",
       "overview": "Přehled",
       "periods": "Období",
-      "debug": "Ladění"
+      "debug": "Ladění",
+      "archetypeTable": "Tabulka archetypu"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1472,7 +1473,8 @@
     "titles": {
       "periods": "Období",
       "settings": "Nastavení",
-      "debug": "Ladění"
+      "debug": "Ladění",
+      "archetypeTable": "Tabulka archetypu"
     },
     "favorite": {
       "tooltip": "Oblíbené",

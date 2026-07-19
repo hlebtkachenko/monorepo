@@ -23,7 +23,7 @@ import {
   formatDate,
   formatDecimal,
 } from "../_shared/accounting-format"
-import { resolveHeldWrite } from "../../[orgSlug]/accounting/approvals/actions"
+import { resolveHeldWrite } from "./actions"
 
 /** The `resolveHeldWrite` server-action signature — injectable for previews/tests. */
 export type ResolveHeldWriteFn = typeof resolveHeldWrite

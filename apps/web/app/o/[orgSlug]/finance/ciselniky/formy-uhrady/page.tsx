@@ -5,27 +5,28 @@ import { getTranslations } from "@workspace/i18n/server"
 import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
 
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
-import { getPaymentMethods } from "@/lib/org/payment-method-data"
+import { getPaymentForms } from "@/lib/org/payment-form-data"
 import { resolveMembership } from "@/lib/org/resolve"
 import { getRequestSession } from "@/lib/org/session"
 
-import { PaymentMethodsView } from "../../../_shell/app-body/app-content/content-body/payment-methods-view"
+import { PaymentFormsView } from "../../../_shell/app-body/app-content/content-body/payment-forms-view"
 
 /**
  * Finance → Číselníky → Formy úhrady.
  *
  * The forma-úhrady reference surface: a read-only Table over the shared
- * `payment_method` vocabulary (cash | transfer | card | other). Display names
- * resolve from next-intl (`org.paymentMethods.names`, keyed by code), so the
- * row's `name` is localized here at the serialization boundary — the DB stores
- * no name. A fixed platform vocabulary (Case-B), so read-only.
+ * `payment_form` register (the Czech payment-manner list — Dobírkou / Hotově /
+ * Převodem / …). Display names + the instrumental invoice phrase resolve from
+ * next-intl (`paymentFormNames` / `paymentFormPhrases`, keyed by code), so they are
+ * localized here at the serialization boundary — the DB stores no Czech text. A
+ * fixed reference register (Case-B), so read-only.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("org.titles")
   return { title: t("paymentMethods") }
 }
 
-export default async function PaymentMethodsPage({
+export default async function PaymentFormsPage({
   params,
 }: {
   params: Promise<{ orgSlug: string }>
@@ -42,26 +43,29 @@ export default async function PaymentMethodsPage({
 
   const t = await getTranslations("org.titles")
   const tf = await getTranslations("org.favorite")
-  const names = await getTranslations("org.paymentMethods.names")
+  const names = await getTranslations("paymentFormNames")
+  const phrases = await getTranslations("paymentFormPhrases")
   const title = t("paymentMethods")
   const route = "finance/ciselniky/formy-uhrady"
 
-  const [methods, active] = await Promise.all([
-    getPaymentMethods({
+  const [forms, active] = await Promise.all([
+    getPaymentForms({
       organizationId: membership.organizationId,
       userId: session.user.id,
     }),
     isFavorited({ slug: orgSlug, route }),
   ])
 
-  const rows: readonly TableSectionRow[] = methods.map((m) => {
-    const key = m.code as Parameters<typeof names>[0]
+  const rows: readonly TableSectionRow[] = forms.map((form) => {
+    const key = form.code as Parameters<typeof names>[0]
     return {
-      id: m.code,
-      code: m.code,
-      name: names.has(key) ? names(key) : m.code,
-      cash: m.isCash ? "yes" : "no",
-      bankDetail: m.requiresBankDetail ? "yes" : "no",
+      id: form.code,
+      code: form.code,
+      name: names.has(key) ? names(key) : form.code,
+      phrase: phrases.has(key) ? phrases(key) : "",
+      invoice: form.offerOnInvoice ? "yes" : "no",
+      cashDesk: form.offerOnCashDesk ? "yes" : "no",
+      pos: form.offerOnPos ? "yes" : "no",
     }
   })
 
@@ -78,7 +82,7 @@ export default async function PaymentMethodsPage({
   }
 
   return (
-    <PaymentMethodsView
+    <PaymentFormsView
       key={orgSlug}
       slug={orgSlug}
       title={title}

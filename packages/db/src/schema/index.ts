@@ -134,6 +134,7 @@ export * from "./org_currency"
 // Finance domain — forma-úhrady vocabulary (cash/transfer/card/other), shared
 // Case-B reference table, no RLS (0079)
 export * from "./payment_method"
+export * from "./payment_form"
 export * from "./financial_institution"
 export * from "./constant_symbol"
 

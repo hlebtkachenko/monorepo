@@ -1706,23 +1706,19 @@
         "references": "Reference"
       }
     },
-    "paymentMethods": {
+    "paymentForms": {
       "columns": {
         "code": "Code",
         "name": "Name",
-        "cash": "Cash",
-        "bankDetail": "Bank detail"
-      },
-      "names": {
-        "cash": "Cash",
-        "transfer": "Bank transfer",
-        "card": "Card",
-        "other": "Other"
+        "phrase": "On invoice",
+        "invoice": "Invoices",
+        "cashDesk": "Cash desk",
+        "pos": "POS"
       },
       "yes": "Yes",
       "no": "No",
       "all": "All",
-      "empty": "No payment methods.",
+      "empty": "No payment forms.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"
@@ -2173,5 +2169,25 @@
     "0479": "Vrácené mzdy",
     "0558": "Finanční platby ostatní",
     "0748": "Důchodová daň"
+  },
+  "paymentFormNames": {
+    "DOBIRKA": "Dobírkou",
+    "HOTOVE": "Hotově",
+    "KARTA": "Platební kartou",
+    "NESPECIFIKOVANO": "Nespecifikováno",
+    "PREVOD": "Převodem",
+    "SEK": "Šekem",
+    "SLOZENKA": "Složenkou",
+    "ZAPOCET": "Zápočtem"
+  },
+  "paymentFormPhrases": {
+    "DOBIRKA": "dobírkou",
+    "HOTOVE": "hotově",
+    "KARTA": "platební kartou",
+    "NESPECIFIKOVANO": "jinou formou",
+    "PREVOD": "převodem",
+    "SEK": "šekem",
+    "SLOZENKA": "složenkou",
+    "ZAPOCET": "zápočtem"
   }
 }

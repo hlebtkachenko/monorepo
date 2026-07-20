@@ -3010,6 +3010,18 @@ CREATE TABLE public.partial_record (
 ALTER TABLE ONLY public.partial_record FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: payment_form; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payment_form (
+    code text NOT NULL,
+    offer_on_invoice boolean DEFAULT false NOT NULL,
+    offer_on_cash_desk boolean DEFAULT false NOT NULL,
+    offer_on_pos boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL
+);
+
+--
 -- Name: payment_method; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4375,6 +4387,13 @@ ALTER TABLE ONLY public.partial_record
 
 ALTER TABLE ONLY public.partial_record
     ADD CONSTRAINT partial_record_pkey PRIMARY KEY (id);
+
+--
+-- Name: payment_form payment_form_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_form
+    ADD CONSTRAINT payment_form_pkey PRIMARY KEY (code);
 
 --
 -- Name: payment_method payment_method_pkey; Type: CONSTRAINT; Schema: public; Owner: -

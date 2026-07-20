@@ -4,6 +4,9 @@ import type { DocumentCategory } from "./types"
  * Canonical default series shared by provisioning and the Settings UI. `category`
  * is the Dokladové-řady config bucket (document_category) a DOCUMENT série lives
  * under — null for EVENT / ASSET / INVENTORY_COUNT séries, which carry no category.
+ * `name` is the Czech Název the Dokladové řady page shows (stored on the row at
+ * scaffold; user-editable). `description` is the legacy English label the old
+ * Settings → Number series page keys off; it stays for that page's backward map.
  */
 export const DEFAULT_NUMBER_SERIES = [
   {
@@ -11,6 +14,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "UC",
     pattern: "UC{YYYY}{NNNNNN}",
     category: null,
+    name: "Účetní zápisy",
     description: "Accounting events",
   },
   {
@@ -18,6 +22,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "FV",
     pattern: "FV{YYYY}{NNNN}",
     category: "ISSUED_INVOICE",
+    name: "Faktury vydané",
     description: "Issued invoices",
   },
   {
@@ -25,6 +30,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "FP",
     pattern: "FP{YYYY}{NNNN}",
     category: "RECEIVED_INVOICE",
+    name: "Faktury přijaté",
     description: "Received invoices",
   },
   {
@@ -32,6 +38,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "PD",
     pattern: "PD{YYYY}{NNNN}",
     category: "CASH",
+    name: "Pokladní doklady",
     description: "Cash documents",
   },
   {
@@ -39,6 +46,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "BV",
     pattern: "BV{YYYY}{NNNN}",
     category: "BANK",
+    name: "Bankovní výpisy",
     description: "Bank statements",
   },
   {
@@ -46,6 +54,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "ID",
     pattern: "ID{YYYY}{NNNN}",
     category: "INTERNAL",
+    name: "Interní doklady",
     description: "Internal documents",
   },
   {
@@ -53,6 +62,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "MAJ",
     pattern: "MAJ{YYYY}{NNNN}",
     category: null,
+    name: "Majetek",
     description: "Assets",
   },
   {
@@ -60,6 +70,7 @@ export const DEFAULT_NUMBER_SERIES = [
     code: "INV",
     pattern: "INV{YYYY}{NNNN}",
     category: null,
+    name: "Inventury",
     description: "Inventory counts",
   },
 ] as const satisfies readonly {
@@ -67,6 +78,7 @@ export const DEFAULT_NUMBER_SERIES = [
   code: string
   pattern: string
   category: DocumentCategory | null
+  name: string
   description: string
 }[]
 

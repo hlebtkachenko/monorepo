@@ -539,3 +539,110 @@ export async function deleteNumberSeriesPeriod(
     `accounting: number series period ${input.id} has already issued numbers — a gapless counter cannot be deleted (§11/1a)`,
   )
 }
+
+// --- default doklad taxonomy seed (org scaffold) -----------------------------
+
+/**
+ * The default doklad types a fresh org is scaffolded with — one primary type per
+ * default-série category, each linked to that seeded DOCUMENT série by code. Names
+ * are the stored Czech Název the org owns and freely renames (document_type is
+ * per-org, user-editable config — NOT shared law reference — so a runtime i18n
+ * overlay would clobber a rename; a stored Czech name is the correct model on a
+ * Czech-accounting-first platform). `kind` is null for categories with no Druh set
+ * defined yet (CASH / BANK); the CASH příjmový/výdajový split waits for CASH kinds.
+ */
+export const DEFAULT_DOCUMENT_TYPES = [
+  {
+    category: "ISSUED_INVOICE",
+    code: "FV",
+    name: "Faktura vydaná",
+    kind: "STANDARD",
+    seriesCode: "FV",
+  },
+  {
+    category: "RECEIVED_INVOICE",
+    code: "FP",
+    name: "Faktura přijatá",
+    kind: "STANDARD",
+    seriesCode: "FP",
+  },
+  {
+    category: "CASH",
+    code: "PD",
+    name: "Pokladní doklad",
+    kind: null,
+    seriesCode: "PD",
+  },
+  {
+    category: "BANK",
+    code: "BV",
+    name: "Bankovní výpis",
+    kind: null,
+    seriesCode: "BV",
+  },
+  {
+    category: "INTERNAL",
+    code: "ID",
+    name: "Interní doklad",
+    kind: "GENERAL",
+    seriesCode: "ID",
+  },
+] as const satisfies readonly {
+  category: DocumentCategory
+  code: string
+  name: string
+  kind: DocumentKind | null
+  seriesCode: string
+}[]
+
+/**
+ * SCAFFOLD-ONLY. Idempotently seed the org's default doklad types, each linked to
+ * its seeded DOCUMENT série by code (run AFTER {@link backfillDefaultNumberSeries}
+ * so the séries exist). One INSERT…SELECT joining the catalog to number_series;
+ * `ON CONFLICT (org, category, code) DO NOTHING` makes it idempotent.
+ *
+ * `is_primary` is computed as "no ACTIVE primary in this category yet" rather than
+ * a bare true: on a fresh org each target category is empty so the seeded type
+ * becomes primary, but even if this were ever reused on a non-fresh org it can
+ * never mint a SECOND primary — there is no DB uniqueness on is_primary (the
+ * "≤1 per category" invariant is app-enforced). The série lookup is filtered to
+ * DOCUMENT (mirrors {@link upsertDocumentType}), so only a DOCUMENT série can back
+ * a type. Returns the count inserted.
+ *
+ * Because ON CONFLICT DO NOTHING never updates, this only populates a category
+ * that has no type with the default code — it is not a Settings "restore defaults"
+ * path (types are not restored on a live org today).
+ */
+export async function backfillDefaultDocumentTypes(
+  db: RowExecutor,
+  ctx: OrgCtx,
+): Promise<number> {
+  const inserted = await rows<{ id: string }>(
+    db,
+    sql`INSERT INTO document_type
+          (organization_id, category, code, name, kind, default_series_id, is_primary)
+        SELECT ${ctx.organizationId}::uuid, d.category::document_category, d.code, d.name,
+               d.kind::document_kind, ns.id,
+               NOT EXISTS (
+                 SELECT 1 FROM document_type existing
+                  WHERE existing.organization_id = ${ctx.organizationId}::uuid
+                    AND existing.category = d.category::document_category
+                    AND existing.is_primary = true
+                    AND existing.is_active = true
+               )
+          FROM (VALUES ${sql.join(
+            DEFAULT_DOCUMENT_TYPES.map(
+              (t) =>
+                sql`(${t.category}, ${t.code}, ${t.name}, ${t.kind ?? null}, ${t.seriesCode})`,
+            ),
+            sql`, `,
+          )}) AS d(category, code, name, kind, series_code)
+          JOIN number_series ns
+            ON ns.organization_id = ${ctx.organizationId}::uuid
+           AND ns.entity_type = 'DOCUMENT'
+           AND ns.code = d.series_code
+        ON CONFLICT (organization_id, category, code) DO NOTHING
+        RETURNING id`,
+  )
+  return inserted.length
+}

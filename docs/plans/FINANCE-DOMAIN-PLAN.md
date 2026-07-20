@@ -67,9 +67,11 @@
 | 6   | **Cenné papíry a podíly**             | `security_holding` + `security_transaction` register (Table+Details); acquisition/disposal/dividend/interest/manual-impairment postings — **on demand**                                                    |
 | 7   | **Overview + period-end revaluation** | overview (Table/Details composition, the cross-object roll-up) + a period-end action running FX **and** securities fair-value / impairment remeasurement                                                   |
 
-**Still open for Hleb (product):** securities build **on-demand vs speculative** (Advisor recommends on-demand
-— spec now, build when a real client holds them); confirm the one-`security_holding`-table decision + its
-split-trigger. Carried from §12: ceniny kind-vs-sub-ledger, persist const/spec symbol, Financování
+**Resolved (Hleb 2026-07-20):** securities build **on demand** (spec now, build Phase 6 when a real client
+actually holds securities/participations — do NOT pre-build); the **one `security_holding` table** decision +
+its documented split-trigger (split only if a consolidation tier is ever built) are **confirmed**.
+
+**Still open (carried from §12):** ceniny kind-vs-sub-ledger; persist const/spec symbol; Financování
 one-page-vs-four. Accounting-advisor bucket: 067-vs-069, 249 fit, 471→361, 479 attribution, 063 cost-vs-FV
 default, FX/securities revaluation cadence.
 

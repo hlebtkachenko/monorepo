@@ -57,6 +57,9 @@ export {
   type ChartTemplateAccountRow,
 } from "./chart-of-accounts"
 
+// Directories reference registers (Adresář ▸ Veřejné číselníky)
+export { listCountries, type CountryRow } from "./countries"
+
 // Master-data / setup
 export {
   createPeriod,

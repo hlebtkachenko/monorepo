@@ -123,12 +123,24 @@ export async function updatePeriodZkratka(input: {
 // ---------------------------------------------------------------------------
 
 type OpenPeriodActionResult =
-  { ok: true; newPeriodId: string } | { ok: false; error?: string }
+  | { ok: true; newPeriodId: string }
+  | { ok: false; forbidden: true }
+  | { ok: false; error?: string }
 
 type ClosePeriodActionResult =
   | { ok: true; result: ClosePeriodResult }
+  | { ok: false; forbidden: true }
   | { ok: false; blocked: true; readiness: PeriodCloseReadiness }
   | { ok: false; error?: string }
+
+/**
+ * Closing writes (open / close / reopen) are owner/admin-only, matching the repo
+ * convention (`closing/income-tax/actions.ts` → `authorizeOrgAdmin`). `role` is
+ * the caller's DB membership role, resolved server-side, never taken from input.
+ */
+function isOrgManager(role: string): boolean {
+  return role === "owner" || role === "admin"
+}
 
 type ReopenPeriodActionResult =
   | { ok: true; result: ReopenPeriodResult }
@@ -139,8 +151,8 @@ type ReopenPeriodActionResult =
 /**
  * Open the next účetní období from a prior period (copies its regime, accounting
  * currency, fx policy, and chart of accounts forward; does NOT post opening
- * balances — the close carryover posts the 701). Any active org member may open,
- * matching the un-role-gated updatePeriodZkratka / doklad-config writes.
+ * balances — the close carryover posts the 701). Restricted to owner/admin: a
+ * Closing write that creates the next fiscal year is not for member/agent/guest.
  */
 export async function openPeriodAction(input: {
   slug: string
@@ -156,7 +168,10 @@ export async function openPeriodAction(input: {
 
   const membership = await resolveMembership({ slug: input.slug, userId })
   if (!membership) return { ok: false }
-  const { organizationId, workspaceId } = membership
+  const { organizationId, workspaceId, role } = membership
+
+  // Owner/admin authz gate — refuse a member/agent/guest BEFORE any domain call.
+  if (!isOrgManager(role)) return { ok: false, forbidden: true }
 
   try {
     const { newPeriodId } = await withOrganization(
@@ -178,7 +193,10 @@ export async function openPeriodAction(input: {
     revalidatePath(orgHref(input.slug, PERIODS_ROUTE))
     return { ok: true, newPeriodId }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "open failed" }
+    // Log the raw error server-side; return a generic message so no internal
+    // identifier / SQL text leaks to the client.
+    console.error("openPeriodAction failed", e)
+    return { ok: false, error: "Could not open the accounting period." }
   }
 }
 
@@ -186,7 +204,9 @@ export async function openPeriodAction(input: {
  * Close an účetní období end to end (result close → 702 → output → carryover).
  * `responsibleUserId` is the SESSION user, injected server-side. A readiness
  * failure throws PeriodCloseBlockedError, surfaced as `{ blocked, readiness }`
- * so the caller can render the outstanding checks.
+ * so the caller can render the outstanding checks. Restricted to owner/admin:
+ * sealing a fiscal year (posts 702/710 + carryover 701, locks the period) is not
+ * for member/agent/guest.
  */
 export async function closePeriodAction(input: {
   slug: string
@@ -198,7 +218,10 @@ export async function closePeriodAction(input: {
 
   const membership = await resolveMembership({ slug: input.slug, userId })
   if (!membership) return { ok: false }
-  const { organizationId, workspaceId } = membership
+  const { organizationId, workspaceId, role } = membership
+
+  // Owner/admin authz gate — refuse a member/agent/guest BEFORE any domain call.
+  if (!isOrgManager(role)) return { ok: false, forbidden: true }
 
   try {
     const result = await withOrganization(organizationId, userId, (db) =>
@@ -214,7 +237,10 @@ export async function closePeriodAction(input: {
     if (e instanceof PeriodCloseBlockedError) {
       return { ok: false, blocked: true, readiness: e.readiness }
     }
-    return { ok: false, error: e instanceof Error ? e.message : "close failed" }
+    // Log the raw error server-side; return a generic message so no internal
+    // identifier / SQL text leaks to the client.
+    console.error("closePeriodAction failed", e)
+    return { ok: false, error: "Could not close the accounting period." }
   }
 }
 
@@ -242,9 +268,7 @@ export async function reopenPeriodAction(input: {
 
   // Owner/admin authz gate — refuse a member/agent/guest BEFORE touching the
   // domain. `role` comes from the DB membership, never from input.
-  if (role !== "owner" && role !== "admin") {
-    return { ok: false, forbidden: true }
-  }
+  if (!isOrgManager(role)) return { ok: false, forbidden: true }
 
   try {
     const result = await withOrganization(organizationId, userId, (db) =>
@@ -261,9 +285,9 @@ export async function reopenPeriodAction(input: {
     if (e instanceof PeriodReopenBlockedError) {
       return { ok: false, blocked: true }
     }
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : "reopen failed",
-    }
+    // Log the raw error server-side; return a generic message so no internal
+    // identifier / SQL text leaks to the client.
+    console.error("reopenPeriodAction failed", e)
+    return { ok: false, error: "Could not reopen the accounting period." }
   }
 }

@@ -10,8 +10,8 @@
  * — the whole point of the reopen authz + tenant-isolation coverage.
  *
  * Coverage:
- *  - reopen is REFUSED for member/agent/guest (forbidden) and passes the gate
- *    for owner/admin (reaches the domain);
+ *  - reopen, close, and open are each REFUSED for member/agent/guest (forbidden)
+ *    and pass the gate for owner/admin (reach the domain);
  *  - reopen succeeds on a bare CLOSED period for an owner, and the reopen log's
  *    `reopened_by` is the SESSION user — an attacker-supplied `reopenedBy` / `role`
  *    in the input object is ignored (the action never reads them);
@@ -365,6 +365,54 @@ describe("reopenPeriodAction session injection", () => {
 })
 
 // ---------------------------------------------------------------------------
+// close authz gate
+// ---------------------------------------------------------------------------
+
+describe("closePeriodAction authz gate", () => {
+  it.each(["member", "agent", "guest"] as const)(
+    "refuses %s BEFORE touching the domain (forbidden)",
+    async (role) => {
+      const { userId, periodId } = await seedOrgWithMember({
+        slug: `close-refuse-${role}`,
+        role,
+        status: "OPEN",
+      })
+      sessionUserId = userId
+
+      const result = await closePeriodAction({
+        slug: `close-refuse-${role}`,
+        periodId,
+      })
+
+      expect(result).toEqual({ ok: false, forbidden: true })
+      // The gate ran before the domain, so the OPEN period is untouched.
+      expect(await periodStatus(periodId)).toBe("OPEN")
+    },
+  )
+
+  it.each(["owner", "admin"] as const)(
+    "lets %s past the gate to the domain (not forbidden)",
+    async (role) => {
+      // Proving the gate PASSED is the point — the concrete domain outcome for a
+      // bare OPEN period (ok / blocked / error) may vary, but is never forbidden.
+      const { userId, periodId } = await seedOrgWithMember({
+        slug: `close-allow-${role}`,
+        role,
+        status: "OPEN",
+      })
+      sessionUserId = userId
+
+      const result = await closePeriodAction({
+        slug: `close-allow-${role}`,
+        periodId,
+      })
+
+      expect(result).not.toHaveProperty("forbidden")
+    },
+  )
+})
+
+// ---------------------------------------------------------------------------
 // tenant isolation
 // ---------------------------------------------------------------------------
 
@@ -424,6 +472,54 @@ describe("period lifecycle tenant isolation", () => {
 // ---------------------------------------------------------------------------
 
 describe("openPeriodAction", () => {
+  it.each(["member", "agent", "guest"] as const)(
+    "refuses %s BEFORE touching the domain (forbidden)",
+    async (role) => {
+      const { userId, orgId, periodId } = await seedOrgWithMember({
+        slug: `open-refuse-${role}`,
+        role,
+        status: "OPEN",
+      })
+      sessionUserId = userId
+
+      const result = await openPeriodAction({
+        slug: `open-refuse-${role}`,
+        priorPeriodId: periodId,
+        periodStart: "2027-01-01",
+        periodEnd: "2027-12-31",
+      })
+
+      expect(result).toEqual({ ok: false, forbidden: true })
+      // No successor was created — the gate ran before the domain.
+      const [row] = await sql<Array<{ count: string }>>`
+        SELECT count(*)::text AS count FROM accounting_period
+        WHERE organization_id = ${orgId}::uuid
+      `
+      expect(row?.count).toBe("1")
+    },
+  )
+
+  it.each(["owner", "admin"] as const)(
+    "lets %s open the successor period",
+    async (role) => {
+      const { userId, periodId } = await seedOrgWithMember({
+        slug: `open-allow-${role}`,
+        role,
+        status: "OPEN",
+      })
+      sessionUserId = userId
+
+      const result = await openPeriodAction({
+        slug: `open-allow-${role}`,
+        priorPeriodId: periodId,
+        periodStart: "2027-01-01",
+        periodEnd: "2027-12-31",
+      })
+
+      expect(result.ok).toBe(true)
+    },
+  )
+
   it("opens the successor period from a prior period", async () => {
     const { userId, orgId, periodId } = await seedOrgWithMember({
       slug: "open-next",

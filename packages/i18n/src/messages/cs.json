@@ -26,6 +26,31 @@
         "DEBIT": "Má dáti",
         "CREDIT": "Dal"
       },
+      "classNames": {
+        "0": "Dlouhodobý majetek",
+        "1": "Zásoby",
+        "2": "Krátkodobý finanční majetek a peněžní prostředky",
+        "3": "Zúčtovací vztahy",
+        "4": "Kapitálové účty a dlouhodobé závazky",
+        "5": "Náklady",
+        "6": "Výnosy",
+        "7": "Závěrkové a podrozvahové účty",
+        "8": "Vnitropodnikové účetnictví",
+        "9": "Vnitropodnikové účetnictví"
+      },
+      "boolean": {
+        "yes": "Ano",
+        "no": "Ne"
+      },
+      "page": {
+        "searchPlaceholder": "Hledat účty",
+        "view": "Vše",
+        "expandAll": "Rozbalit vše",
+        "collapseAll": "Sbalit vše",
+        "exportFileName": "uctovy-rozvrh",
+        "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro sestavení účtového rozvrhu.",
+        "emptyNoChart": "Toto období zatím nemá účtový rozvrh."
+      },
       "osnovaNames": {
         "111": "Pořízení materiálu",
         "112": "Materiál na skladě",
@@ -1466,7 +1491,9 @@
       "debug": "Ladění",
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
-      "treeTable": "Stromová tabulka"
+      "treeTable": "Stromová tabulka",
+      "accounting": "Účetnictví",
+      "chartOfAccounts": "Účtový rozvrh"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1480,7 +1507,8 @@
       "debug": "Ladění",
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
-      "treeTable": "Stromová tabulka"
+      "treeTable": "Stromová tabulka",
+      "chartOfAccounts": "Účtový rozvrh"
     },
     "periods": {
       "columns": {

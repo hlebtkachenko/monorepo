@@ -4,9 +4,9 @@
  * functional / accounting currency (měna účetnictví) lives per-period on
  * accounting_period.accounting_currency, NOT here.
  *
- * Mirrors: packages/db/migrations/0076_org_currency.sql
+ * Mirrors: packages/db/migrations/0078_org_currency.sql
  *
- * Organization-scoped (FORCE RLS + organization_isolation, applied in 0076).
+ * Organization-scoped (FORCE RLS + organization_isolation, applied in 0078).
  * currency_code -> currency (shared, no RLS) and enabled_by_user_id -> app_user
  * (global, no RLS) are single-col FKs. Composite UNIQUE(id, organization_id) is
  * the composite-FK target for future refs; UNIQUE(organization_id, currency_code)

@@ -95,7 +95,7 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // Finance domain — org FX rate overrides (0072_fx_rate.sql). The shared
   // fx_rate table is Case-B (no RLS), so it is deliberately NOT listed here.
   "fx_rate_override",
-  // Finance domain — per-org currency enablement (0076_org_currency.sql). The
+  // Finance domain — per-org currency enablement (0078_org_currency.sql). The
   // shared currency catalog is Case-B (no RLS), so it is NOT listed here.
   "org_currency",
 ] as const

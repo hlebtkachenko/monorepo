@@ -1,4 +1,4 @@
--- 0076_org_currency.sql
+-- 0078_org_currency.sql
 --
 -- org_currency — which ISO 4217 currencies an organization has ENABLED for use
 -- (on bank/cash accounts, documents, transfers) BEYOND its functional currency.

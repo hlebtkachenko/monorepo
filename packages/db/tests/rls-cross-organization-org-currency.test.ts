@@ -1,5 +1,5 @@
 /**
- * RLS cross-organization leak harness — org_currency (0076).
+ * RLS cross-organization leak harness — org_currency (0078).
  *
  * org_currency records which ISO currencies an organization has enabled. A
  * cross-org leak would expose (or let one tenant toggle) another tenant's

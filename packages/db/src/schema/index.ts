@@ -128,7 +128,7 @@ export * from "./fx_rate"
 export * from "./fx_rate_override"
 
 // Finance domain — per-org currency enablement (which ISO currencies an org has
-// turned on, beyond its functional currency), org-scoped FORCE RLS (0076)
+// turned on, beyond its functional currency), org-scoped FORCE RLS (0078)
 export * from "./org_currency"
 
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the

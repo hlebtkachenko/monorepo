@@ -2,7 +2,7 @@
  * listCurrencies — the ISO 4217 currency reference surface read. Reads the shared
  * `currency` catalog and folds in two org-scoped facts (enablement via
  * org_currency; functional via accounting_period.accounting_currency) under an
- * org-bound tx. PG18 testcontainer with every migration applied (incl. 0076
+ * org-bound tx. PG18 testcontainer with every migration applied (incl. 0078
  * org_currency). Asserts ordering, the enablement join, and that a fresh org
  * (no org_currency, no periods) reports every currency disabled + non-functional.
  */

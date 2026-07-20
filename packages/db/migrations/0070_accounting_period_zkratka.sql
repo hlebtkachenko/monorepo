@@ -1,4 +1,4 @@
--- 0069_accounting_period_zkratka.sql
+-- 0070_accounting_period_zkratka.sql
 --
 -- Účetní období — the editable short code (zkratka) of a period. The Closing →
 -- Účetní období list shows a per-period "Zkratka": it auto-defaults to the fiscal

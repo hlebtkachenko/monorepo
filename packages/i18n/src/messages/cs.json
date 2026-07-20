@@ -1609,6 +1609,8 @@
       "chartFramework": "Účetní osnova",
       "directory": "Adresář",
       "states": "Státy",
+      "finance": "Finance",
+      "currencies": "Měny",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
     },
@@ -1628,6 +1630,7 @@
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "states": "Státy",
+      "currencies": "Měny",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
     },
@@ -1663,6 +1666,34 @@
       "exportFileName": "ucetni-obdobi",
       "empty": "Zatím žádná účetní období.",
       "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu."
+    },
+    "currencies": {
+      "columns": {
+        "code": "Kód",
+        "name": "Název",
+        "status": "Stav"
+      },
+      "status": {
+        "functional": "Účetní měna",
+        "enabled": "Povoleno",
+        "disabled": "Zakázáno"
+      },
+      "actions": {
+        "enable": "Povolit",
+        "disable": "Zakázat"
+      },
+      "toast": {
+        "enabled": "Měna povolena",
+        "disabled": "Měna zakázána"
+      },
+      "all": "Vše",
+      "empty": "Žádné měny.",
+      "functionalNote": "Účetní měna, vždy dostupná.",
+      "toggleError": "Změnu měny se nepodařilo uložit. Zkuste to prosím znovu.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Číselníky"
+      }
     },
     "favorite": {
       "tooltip": "Oblíbené",

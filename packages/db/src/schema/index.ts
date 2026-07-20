@@ -48,7 +48,7 @@ export * from "./vat_status"
 export * from "./counterparty"
 
 // adresar (Directories) — party foundation: workspace-tier child detail tables
-// (0082) + org-tier org↔party relationship (0083)
+// (0086) + org-tier org↔party relationship (0087)
 export * from "./party_address"
 export * from "./party_contact"
 export * from "./party_bank_account"
@@ -143,6 +143,8 @@ export * from "./org_currency"
 // Finance domain — forma-úhrady vocabulary (cash/transfer/card/other), shared
 // Case-B reference table, no RLS (0079)
 export * from "./payment_method"
+export * from "./financial_institution"
+export * from "./constant_symbol"
 
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the
 // Debug → Archetype Table reference pages; never real product data.

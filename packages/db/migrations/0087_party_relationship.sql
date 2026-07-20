@@ -1,4 +1,4 @@
--- 0083_party_relationship.sql
+-- 0087_party_relationship.sql
 --
 -- adresar (Directories) M1 PR 1c — the ORG↔PARTY relationship. A counterparty is
 -- workspace-shared identity; how a SINGLE org book relates to it (its per-org

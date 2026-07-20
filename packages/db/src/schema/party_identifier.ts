@@ -2,7 +2,7 @@
  * party_identifier — SECONDARY / foreign identifiers of a counterparty (LEI, EORI,
  * foreign registration number, …). Primary IČO/DIČ stay scalar on the party.
  *
- * Mirrors: packages/db/migrations/0082_party_child_tables.sql
+ * Mirrors: packages/db/migrations/0086_party_child_tables.sql
  *
  * WORKSPACE-scoped child of counterparty (composite FK + 4 command policies in the
  * migration). The identifier_type CHECK lives in the migration, not this DSL.

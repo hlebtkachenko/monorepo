@@ -9,7 +9,10 @@
         "primary": "Primary",
         "active": "Active"
       },
-      "boolean": { "yes": "Yes", "no": "No" },
+      "boolean": {
+        "yes": "Yes",
+        "no": "No"
+      },
       "kind": {
         "STANDARD": "Standard document",
         "CREDIT_NOTE": "Credit note",
@@ -1613,6 +1616,8 @@
       "currencies": "Currencies",
       "rates": "Rates",
       "paymentMethods": "Payment methods",
+      "financialInstitutions": "Financial institutions",
+      "constantSymbols": "Constant symbols",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1635,6 +1640,8 @@
       "currencies": "Currencies",
       "rates": "Rates",
       "paymentMethods": "Payment methods",
+      "financialInstitutions": "Financial institutions",
+      "constantSymbols": "Constant symbols",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1716,6 +1723,30 @@
       "no": "No",
       "all": "All",
       "empty": "No payment methods.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "financialInstitutions": {
+      "columns": {
+        "code": "Code",
+        "name": "Name"
+      },
+      "all": "All",
+      "empty": "No financial institutions.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "constantSymbols": {
+      "columns": {
+        "code": "Code",
+        "name": "Name"
+      },
+      "all": "All",
+      "empty": "No constant symbols.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"
@@ -2071,5 +2102,76 @@
     "ZA": "South Africa",
     "ZM": "Zambia",
     "ZW": "Zimbabwe"
+  },
+  "bankNames": {
+    "2010": "Fio banka, a.s.",
+    "2020": "Bank of Tokyo-Mitsubishi UFJ (Holland) N.V. Prague Branch, organizační složka",
+    "2030": "AKCENTA, spořitelní a úvěrní družstvo",
+    "2040": "UNIBON – spořitelní a úvěrní družstvo",
+    "2050": "WPB Capital, spořitelní družstvo",
+    "2060": "Citfin, spořitelní družstvo",
+    "2070": "Moravský Peněžní Ústav – spořitelní družstvo",
+    "2100": "Hypoteční banka, a.s.",
+    "2200": "Peněžní dům, spořitelní družstvo",
+    "2210": "Banka mezinárodní spolupráce a.s.",
+    "2220": "Artesa, spořitelní družstvo",
+    "2230": "AXA Bank Europe, organizační složka",
+    "2240": "Poštová banka, a.s., pobočka Česká republika",
+    "2250": "Záložna CREDITAS, spořitelní družstvo",
+    "2310": "ZUNO BANK AG, organizační složka",
+    "2600": "Citibank Europe plc, organizační složka",
+    "2700": "UniCredit Bank Czech Republic and Slovakia, a.s.",
+    "3030": "Air Bank a.s.",
+    "3500": "ING Bank N. V.",
+    "4000": "LBBW Bank CZ a.s.",
+    "4300": "Českomoravská záruční a rozvojová banka, a.s.",
+    "5000": "Crédit Agricole Corporate and Investment Bank S.A. Prague, organizační složka",
+    "5400": "The Royal Bank of Scotland N.V.",
+    "5500": "Raiffeisenbank a.s.",
+    "5800": "J&T banka, a.s.",
+    "6000": "PPF banka, a.s.",
+    "6100": "Equa bank a.s.",
+    "6200": "Commerzbank AG",
+    "6210": "mBank S.A., organizační složka",
+    "6300": "Fortis Bank SA/NV, pobočka ČR",
+    "6363": "Partners Banka, a.s.",
+    "6700": "Všeobecná úverová banka a.s., pobočka Praha",
+    "6800": "Sberbank CZ, a.s.",
+    "7910": "Deutsche Bank A.G. Filiale Prag",
+    "7940": "Waldviertler Sparkasse von 1842 AG",
+    "7950": "Raiffeisen stavební spořitelna a.s.",
+    "7960": "Českomoravská stavební spořitelna, a.s.",
+    "7970": "Wüstenrot - stavební spořitelna a.s.",
+    "7980": "Wüstenrot hypoteční banka a.s.",
+    "7990": "Modrá pyramida stavební spořitelna, a.s.",
+    "8030": "Raiffeisenbank im Stiftland eG pobočka Cheb, odštěpný závod",
+    "8040": "Oberbank AG pobočka Česká republika",
+    "8060": "Stavební spořitelna České spořitelny, a.s.",
+    "8090": "Česká exportní banka, a.s.",
+    "8150": "HSBC Bank plc - pobočka Praha",
+    "8200": "PRIVAT BANK AG der Raiffeisenlandesbank Oberösterreich v České republice",
+    "9910": "Centrální depozitář cenných papírů, a.s.",
+    "0100": "Komerční banka, a.s.",
+    "0300": "Československá obchodní banka, a.s.",
+    "0600": "Moneta Money Bank",
+    "0710": "Česká národní banka",
+    "0800": "Česká spořitelna, a.s."
+  },
+  "constantSymbolNames": {
+    "4648": "Daň ze mzdy",
+    "7618": "Odvod sociálního zabezpečení",
+    "0008": "Platby za dodávky výrobků",
+    "0058": "Penále, poplatky z prodlení",
+    "0108": "Platby za zemědělské výrobky",
+    "0138": "Srážky z mezd",
+    "0168": "Splátky úvěrů u KB",
+    "0208": "Platby za předměty kupované v maloobchodě",
+    "0308": "Platby za dodávky prací, výkonů a služeb",
+    "0358": "Platby určené k výplatám v hotovosti",
+    "0379": "Ostatní příjmy",
+    "0408": "Platby za samostatně placené přepravné dopr. org.",
+    "0479": "Vrácené mzdy",
+    "0558": "Finanční platby ostatní",
+    "0748": "Důchodová daň"
   }
 }

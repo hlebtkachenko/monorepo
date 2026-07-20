@@ -2027,6 +2027,16 @@ CREATE TABLE public.chart_template_account (
 );
 
 --
+-- Name: constant_symbol; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.constant_symbol (
+    code character(4) NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT constant_symbol_code_format CHECK ((code ~ '^[0-9]{4}$'::text))
+);
+
+--
 -- Name: counterparty; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2320,6 +2330,16 @@ CREATE TABLE public.financial_account (
 );
 
 ALTER TABLE ONLY public.financial_account FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: financial_institution; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.financial_institution (
+    bank_code character(4) NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT financial_institution_bank_code_format CHECK ((bank_code ~ '^[0-9]{4}$'::text))
+);
 
 --
 -- Name: fx_rate; Type: TABLE; Schema: public; Owner: -
@@ -3882,6 +3902,13 @@ ALTER TABLE ONLY public.chart_template
     ADD CONSTRAINT chart_template_year_code_key UNIQUE (year, code);
 
 --
+-- Name: constant_symbol constant_symbol_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.constant_symbol
+    ADD CONSTRAINT constant_symbol_pkey PRIMARY KEY (code);
+
+--
 -- Name: counterparty counterparty_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4048,6 +4075,13 @@ ALTER TABLE ONLY public.financial_account
 
 ALTER TABLE ONLY public.financial_account
     ADD CONSTRAINT financial_account_pkey PRIMARY KEY (id);
+
+--
+-- Name: financial_institution financial_institution_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_institution
+    ADD CONSTRAINT financial_institution_pkey PRIMARY KEY (bank_code);
 
 --
 -- Name: fx_rate fx_rate_natural_unique; Type: CONSTRAINT; Schema: public; Owner: -

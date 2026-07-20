@@ -52,7 +52,7 @@ export const counterparty = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Party-identity overlay (adresar M1, migrations 0080/0081). All additive +
+    // Party-identity overlay (adresar M1, migrations 0084/0085). All additive +
     // nullable; Directories owns these. `name` stays the resolveCounterparty dedup
     // key — these overlays never feed dedup. The data_box_id / verification_source
     // CHECK constraints and the FK constraints live in the migration, not this DSL.

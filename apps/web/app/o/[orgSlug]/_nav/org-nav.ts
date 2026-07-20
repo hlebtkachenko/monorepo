@@ -30,6 +30,8 @@ type OrgNavLabelKey =
   | "currencies"
   | "rates"
   | "paymentMethods"
+  | "financialInstitutions"
+  | "constantSymbols"
   | "overview"
   | "periods"
   | "accounting"
@@ -139,7 +141,8 @@ export function directoryNav(slug: string): OrgSidebarNavItem[] {
 /** Sidebar tree for the Finance module — Číselníky (reference data). Flat, the
  *  `ciselniky` grouping lives in the route (mirrors the Directory module's
  *  `adresar/ciselniky/staty`); the module grows one leaf at a time (Měny first,
- *  then Kurzy / Formy úhrady, then the operational bank/cash surfaces). */
+ *  then Kurzy / Formy úhrady / Peněžní ústavy / Konstantní symboly, then the
+ *  operational bank/cash surfaces). */
 export function financeNav(slug: string): OrgSidebarNavItem[] {
   return [
     {
@@ -156,6 +159,16 @@ export function financeNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "paymentMethods",
       icon: "CreditCard",
       href: orgHref(slug, "finance/ciselniky/formy-uhrady"),
+    },
+    {
+      labelKey: "financialInstitutions",
+      icon: "Building2",
+      href: orgHref(slug, "finance/ciselniky/penezni-ustavy"),
+    },
+    {
+      labelKey: "constantSymbols",
+      icon: "HashIcon",
+      href: orgHref(slug, "finance/ciselniky/konstantni-symboly"),
     },
   ]
 }

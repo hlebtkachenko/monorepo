@@ -367,6 +367,12 @@ export function DataGridView<TData>({
         aria-selected={selected}
         aria-rowindex={rowIndex + 2}
         aria-expanded={row.getCanExpand() ? row.getIsExpanded() : undefined}
+        // In a treegrid (an expandable grid), a row exposes its 1-based tree
+        // depth so `aria-expanded` is valid and the hierarchy is announced. A
+        // flat grid has no hierarchical rows, so this stays undefined.
+        aria-level={
+          row.depth > 0 || row.getCanExpand() ? row.depth + 1 : undefined
+        }
         data-state={selected ? "selected" : undefined}
         data-slot="grid-row"
         onDoubleClick={onRowActivate ? () => onRowActivate(row) : undefined}
@@ -393,7 +399,9 @@ export function DataGridView<TData>({
   return (
     <div
       ref={gridRef}
-      role="grid"
+      // A hierarchical (expandable) grid is a `treegrid`, where row-level
+      // `aria-expanded` + `aria-level` are valid; a flat grid stays a `grid`.
+      role={table.getCanSomeRowsExpand() ? "treegrid" : "grid"}
       aria-label="Data grid"
       // Header row + every body row (virtualized or not) + the summary row when present.
       aria-rowcount={rowCount + 1 + (summaryRow ? 1 : 0)}
@@ -622,7 +630,11 @@ function DataGridViewCell<TData>({
       onMouseDown={focusable ? onFocusCell : undefined}
       className={cn(
         "flex h-8 shrink-0 items-center text-sm outline-none",
-        centered ? "justify-center px-0" : "px-3",
+        centered
+          ? "justify-center px-0"
+          : cell.column.columnDef.meta?.cellPadding === "none"
+            ? "px-0"
+            : "px-3",
         borderClass(cell.column, groupEdge),
         // Pinned cells need an opaque background so scrolled content can't show
         // through; match the row's surface (idle/hover/selected) so selection +

@@ -1464,7 +1464,8 @@
       "periods": "Období",
       "debug": "Ladění",
       "normalTable": "Běžná tabulka",
-      "pivotTable": "Kontingenční tabulka"
+      "pivotTable": "Kontingenční tabulka",
+      "treeTable": "Stromová tabulka"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1476,7 +1477,8 @@
       "settings": "Nastavení",
       "debug": "Ladění",
       "normalTable": "Běžná tabulka",
-      "pivotTable": "Kontingenční tabulka"
+      "pivotTable": "Kontingenční tabulka",
+      "treeTable": "Stromová tabulka"
     },
     "favorite": {
       "tooltip": "Oblíbené",

@@ -1609,6 +1609,8 @@
       "chartFramework": "Chart framework",
       "directory": "Directory",
       "states": "Countries",
+      "finance": "Finance",
+      "currencies": "Currencies",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1628,6 +1630,7 @@
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "states": "Countries",
+      "currencies": "Currencies",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1663,6 +1666,34 @@
       "exportFileName": "accounting-periods",
       "empty": "No accounting periods yet.",
       "editZkratkaError": "Could not save the period code. Please try again."
+    },
+    "currencies": {
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "status": "Status"
+      },
+      "status": {
+        "functional": "Functional",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "actions": {
+        "enable": "Enable",
+        "disable": "Disable"
+      },
+      "toast": {
+        "enabled": "Currency enabled",
+        "disabled": "Currency disabled"
+      },
+      "all": "All",
+      "empty": "No currencies.",
+      "functionalNote": "Functional (accounting) currency — always available.",
+      "toggleError": "Could not save the currency change. Please try again.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
     },
     "favorite": {
       "tooltip": "Favorite",

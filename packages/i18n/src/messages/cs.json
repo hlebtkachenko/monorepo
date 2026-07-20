@@ -1,5 +1,100 @@
 {
   "accounting": {
+    "documentTypes": {
+      "columns": {
+        "code": "Zkratka",
+        "name": "Název",
+        "kind": "Druh",
+        "series": "Řada",
+        "primary": "Primární",
+        "active": "Aktivní"
+      },
+      "boolean": { "yes": "Ano", "no": "Ne" },
+      "kind": {
+        "STANDARD": "Řádný doklad",
+        "CREDIT_NOTE": "Dobropis",
+        "ADVANCE": "Záloha",
+        "ADVANCE_TAX_DOC": "Daňový doklad k platbě",
+        "DELIVERY_NOTE": "Dodací list",
+        "PROFORMA": "Proforma",
+        "GENERAL": "Obecný",
+        "FX_GAIN": "Kurzový zisk",
+        "FX_LOSS": "Kurzová ztráta",
+        "REMAINDER_COST": "Zaokrouhlení náklad",
+        "REMAINDER_REVENUE": "Zaokrouhlení výnos"
+      },
+      "page": {
+        "exportFileName": "typy-dokladu",
+        "empty": "V této kategorii zatím nejsou žádné typy dokladů."
+      },
+      "inspector": {
+        "code": "Zkratka",
+        "name": "Název",
+        "kind": "Druh",
+        "kindPlaceholder": "Vyberte druh",
+        "series": "Dokladová řada",
+        "seriesPlaceholder": "Vyberte řadu",
+        "dueDays": "Splatnost (dny)",
+        "paymentForm": "Forma úhrady",
+        "bankAccount": "Bankovní účet",
+        "primary": "Primární",
+        "setPrimary": "Nastavit jako primární",
+        "active": "Aktivní",
+        "archive": "Archivovat",
+        "restore": "Obnovit",
+        "defaultAccount": "Výchozí účet",
+        "postingPrescription": "Předpis zaúčtování",
+        "costCentre": "Středisko",
+        "activity": "Činnost",
+        "vatCountry": "Stát DPH",
+        "khSection": "Řádek kontrolního hlášení",
+        "description": "Popis",
+        "sectionBasic": "Základní informace",
+        "sectionPosting": "Účtování",
+        "sectionVat": "DPH",
+        "save": "Uložit",
+        "saved": "Uloženo",
+        "saveError": "Uložení se nezdařilo",
+        "actionError": "Akce se nezdařila"
+      }
+    },
+    "documentSeries": {
+      "columns": {
+        "code": "Zkratka",
+        "name": "Název"
+      },
+      "page": {
+        "exportFileName": "dokladove-rady",
+        "empty": "V této kategorii zatím nejsou žádné dokladové řady."
+      },
+      "inspector": {
+        "code": "Zkratka",
+        "name": "Název",
+        "note": "Poznámka",
+        "description": "Popis",
+        "validFrom": "Platí od roku",
+        "validTo": "Platí do roku",
+        "save": "Uložit",
+        "saved": "Uloženo",
+        "saveError": "Uložení se nezdařilo",
+        "sectionIdentity": "Identifikace",
+        "sectionValidity": "Platnost"
+      },
+      "grid": {
+        "title": "Číslování dle období",
+        "period": "Účetní období",
+        "length": "Délka čísla",
+        "prefix": "Prefix",
+        "postfix": "Postfix",
+        "current": "Akt. číslo",
+        "add": "Přidat",
+        "addPeriod": "Vyberte období",
+        "save": "Uložit",
+        "delete": "Smazat",
+        "deleteInUse": "Tato řada již vydala čísla a nelze ji smazat.",
+        "saved": "Uloženo"
+      }
+    },
     "chartOfAccounts": {
       "columns": {
         "number": "Účet",
@@ -52,7 +147,15 @@
         "collapseAll": "Sbalit vše",
         "exportFileName": "uctovy-rozvrh",
         "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro sestavení účtového rozvrhu.",
-        "emptyNoChart": "Toto období zatím nemá účtový rozvrh."
+        "emptyNoChart": "Toto období zatím nemá účtový rozvrh.",
+        "seedFromFramework": "Založit z osnovy",
+        "seedFromTemplate": "Použít šablonu",
+        "seedSuccess": "Účtový rozvrh byl založen",
+        "seedFailed": "Účtový rozvrh se nepodařilo založit",
+        "updateFailed": "Změnu se nepodařilo uložit",
+        "templatePickerTitle": "Vyberte šablonu",
+        "templatePickerDescription": "Založit účtový rozvrh z připravené šablony pro toto období.",
+        "templateDefault": "Výchozí"
       },
       "framework": {
         "searchPlaceholder": "Hledat v osnově",
@@ -1507,7 +1610,9 @@
       "directory": "Adresář",
       "states": "Státy",
       "finance": "Finance",
-      "currencies": "Měny"
+      "currencies": "Měny",
+      "documentTypes": "Typy dokladů",
+      "documentSeries": "Dokladové řady"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1525,7 +1630,20 @@
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "states": "Státy",
-      "currencies": "Měny"
+      "currencies": "Měny",
+      "documentTypes": "Typy dokladů",
+      "documentSeries": "Dokladové řady"
+    },
+    "docCategory": {
+      "RECEIVED_INVOICE": "Přijaté faktury",
+      "ISSUED_INVOICE": "Vydané faktury",
+      "CASH": "Pokladní doklady",
+      "BANK": "Bankovní doklady",
+      "INTERNAL": "Interní doklady",
+      "SET_OFF": "Zápočty",
+      "OTHER_RECEIVABLE": "Ostatní pohledávky",
+      "OTHER_PAYABLE": "Ostatní závazky",
+      "TAX_APPLICATION": "Uplatnění daně - závazky"
     },
     "periods": {
       "columns": {

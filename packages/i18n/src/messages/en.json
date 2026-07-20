@@ -1,5 +1,100 @@
 {
   "accounting": {
+    "documentTypes": {
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "kind": "Kind",
+        "series": "Series",
+        "primary": "Primary",
+        "active": "Active"
+      },
+      "boolean": { "yes": "Yes", "no": "No" },
+      "kind": {
+        "STANDARD": "Standard document",
+        "CREDIT_NOTE": "Credit note",
+        "ADVANCE": "Advance",
+        "ADVANCE_TAX_DOC": "Advance tax document",
+        "DELIVERY_NOTE": "Delivery note",
+        "PROFORMA": "Proforma",
+        "GENERAL": "General",
+        "FX_GAIN": "FX gain",
+        "FX_LOSS": "FX loss",
+        "REMAINDER_COST": "Rounding cost",
+        "REMAINDER_REVENUE": "Rounding revenue"
+      },
+      "page": {
+        "exportFileName": "document-types",
+        "empty": "No document types in this category yet."
+      },
+      "inspector": {
+        "code": "Code",
+        "name": "Name",
+        "kind": "Kind",
+        "kindPlaceholder": "Select a kind",
+        "series": "Series",
+        "seriesPlaceholder": "Select a series",
+        "dueDays": "Due (days)",
+        "paymentForm": "Payment form",
+        "bankAccount": "Bank account",
+        "primary": "Primary",
+        "setPrimary": "Set as primary",
+        "active": "Active",
+        "archive": "Archive",
+        "restore": "Restore",
+        "defaultAccount": "Default account",
+        "postingPrescription": "Posting prescription",
+        "costCentre": "Cost centre",
+        "activity": "Activity",
+        "vatCountry": "VAT country",
+        "khSection": "Control statement section",
+        "description": "Description",
+        "sectionBasic": "Basic",
+        "sectionPosting": "Posting",
+        "sectionVat": "VAT",
+        "save": "Save",
+        "saved": "Saved",
+        "saveError": "Save failed",
+        "actionError": "Action failed"
+      }
+    },
+    "documentSeries": {
+      "columns": {
+        "code": "Code",
+        "name": "Name"
+      },
+      "page": {
+        "exportFileName": "document-series",
+        "empty": "No document series in this category yet."
+      },
+      "inspector": {
+        "code": "Code",
+        "name": "Name",
+        "note": "Note",
+        "description": "Description",
+        "validFrom": "Valid from year",
+        "validTo": "Valid to year",
+        "save": "Save",
+        "saved": "Saved",
+        "saveError": "Save failed",
+        "sectionIdentity": "Identity",
+        "sectionValidity": "Validity"
+      },
+      "grid": {
+        "title": "Numbering by period",
+        "period": "Accounting period",
+        "length": "Number length",
+        "prefix": "Prefix",
+        "postfix": "Postfix",
+        "current": "Current no.",
+        "add": "Add",
+        "addPeriod": "Select a period",
+        "save": "Save",
+        "delete": "Delete",
+        "deleteInUse": "This row has already issued numbers and cannot be deleted.",
+        "saved": "Saved"
+      }
+    },
     "chartOfAccounts": {
       "columns": {
         "number": "Account",
@@ -52,7 +147,15 @@
         "collapseAll": "Collapse all",
         "exportFileName": "chart-of-accounts",
         "emptyNoPeriod": "No active accounting period. Open a period to build the chart of accounts.",
-        "emptyNoChart": "This period has no chart of accounts yet."
+        "emptyNoChart": "This period has no chart of accounts yet.",
+        "seedFromFramework": "Start from framework",
+        "seedFromTemplate": "Use a template",
+        "seedSuccess": "Chart of accounts created",
+        "seedFailed": "Could not create the chart of accounts",
+        "updateFailed": "Could not save the change",
+        "templatePickerTitle": "Choose a template",
+        "templatePickerDescription": "Fork a prebuilt chart of accounts into this period.",
+        "templateDefault": "Default"
       },
       "framework": {
         "searchPlaceholder": "Search framework",
@@ -1507,7 +1610,9 @@
       "directory": "Directory",
       "states": "Countries",
       "finance": "Finance",
-      "currencies": "Currencies"
+      "currencies": "Currencies",
+      "documentTypes": "Document types",
+      "documentSeries": "Document series"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1525,7 +1630,20 @@
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "states": "Countries",
-      "currencies": "Currencies"
+      "currencies": "Currencies",
+      "documentTypes": "Document types",
+      "documentSeries": "Document series"
+    },
+    "docCategory": {
+      "RECEIVED_INVOICE": "Received invoices",
+      "ISSUED_INVOICE": "Issued invoices",
+      "CASH": "Cash documents",
+      "BANK": "Bank documents",
+      "INTERNAL": "Internal documents",
+      "SET_OFF": "Set-offs",
+      "OTHER_RECEIVABLE": "Other receivables",
+      "OTHER_PAYABLE": "Other payables",
+      "TAX_APPLICATION": "Tax application - payables"
     },
     "periods": {
       "columns": {

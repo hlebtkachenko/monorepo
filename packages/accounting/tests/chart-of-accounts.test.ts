@@ -20,6 +20,7 @@ import {
   resolveFrameworkYear,
   seedChartFromDirectives,
   seedChartFromTemplate,
+  updateAccount,
 } from "../src/index"
 import type { OrgCtx } from "../src/index"
 
@@ -190,5 +191,111 @@ describe("tenant isolation", () => {
       listAccounts(db, { periodId: s.periodId }),
     )
     expect(leaked).toHaveLength(0)
+  })
+})
+
+describe("updateAccount — edit the user-editable fields of one účet", () => {
+  it("updates name + the two policy flags; structural columns stay immutable", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userA)
+    const ctx: OrgCtx = { organizationId: orgA, workspaceId }
+    const after = await withOrganization(orgA, userA, async (db) => {
+      const id = await updateAccount(db, ctx, {
+        id: s.accounts["311"]!,
+        name: "Odběratelé (upravené)",
+        tracksOpenItems: false,
+        taxRelevant: true,
+      })
+      expect(id).toBe(s.accounts["311"])
+      const [row] = await listAccounts(db, {
+        periodId: s.periodId,
+        number: "311",
+      })
+      return row
+    })
+    expect(after?.name).toBe("Odběratelé (upravené)")
+    expect(after?.tracks_open_items).toBe(false)
+    expect(after?.tax_relevant).toBe(true)
+    // číslo + the GENERATED structural columns are untouched
+    expect(after?.number).toBe("311")
+    expect(after?.is_synthetic).toBe(true)
+    expect(after?.nature).toBe("ASSET")
+  })
+
+  it("taxRelevant:null clears the flag (SET-list from present keys, not COALESCE)", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userA)
+    const ctx: OrgCtx = { organizationId: orgA, workspaceId }
+    const id = s.accounts["504"]!
+    const cleared = await withOrganization(orgA, userA, async (db) => {
+      await updateAccount(db, ctx, { id, taxRelevant: true })
+      const [set] = await listAccounts(db, {
+        periodId: s.periodId,
+        number: "504",
+      })
+      expect(set?.tax_relevant).toBe(true)
+      // a null patch is a real value — it must overwrite, not be ignored
+      await updateAccount(db, ctx, { id, taxRelevant: null })
+      const [row] = await listAccounts(db, {
+        periodId: s.periodId,
+        number: "504",
+      })
+      return row
+    })
+    expect(cleared?.tax_relevant).toBeNull()
+    // an untouched field (name) is left alone by the partial patch
+    expect(cleared?.name).toBe("Prodané zboží")
+  })
+
+  it("throws on an empty patch and treats an immutable field as no field", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userA)
+    const ctx: OrgCtx = { organizationId: orgA, workspaceId }
+    await expect(
+      withOrganization(orgA, userA, (db) =>
+        updateAccount(db, ctx, { id: s.accounts["311"]! }),
+      ),
+    ).rejects.toThrow(/no editable fields/)
+    // an immutable column is NOT a patchable field — the type rejects it AND, if
+    // forced through, it is not counted, so the patch is still "empty".
+    await expect(
+      withOrganization(orgA, userA, (db) =>
+        // @ts-expect-error — `nature` is derived/immutable, not part of the patch
+        updateAccount(db, ctx, { id: s.accounts["311"]!, nature: "REVENUE" }),
+      ),
+    ).rejects.toThrow(/no editable fields/)
+  })
+
+  it("throws on a non-existent id", async () => {
+    const ctx: OrgCtx = { organizationId: orgA, workspaceId }
+    await expect(
+      withOrganization(orgA, userA, (db) =>
+        updateAccount(db, ctx, {
+          id: "11111111-1111-1111-1111-111111111111",
+          name: "ghost",
+        }),
+      ),
+    ).rejects.toThrow(/not found/)
+  })
+
+  it("org B cannot update org A's account (RLS + organization_id predicate)", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userA)
+    const targetId = s.accounts["311"]!
+    // org B, scoped to its own GUC, targets org A's account id → zero rows → throws
+    await expect(
+      withOrganization(orgB, userB, (db) =>
+        updateAccount(
+          db,
+          { organizationId: orgB, workspaceId },
+          { id: targetId, name: "hijacked" },
+        ),
+      ),
+    ).rejects.toThrow(/not found/)
+    // org A's row is unchanged
+    const still = await withOrgReadonly(orgA, userA, async (db) => {
+      const [row] = await listAccounts(db, {
+        periodId: s.periodId,
+        number: "311",
+      })
+      return row
+    })
+    expect(still?.name).toBe("Odběratelé")
   })
 })

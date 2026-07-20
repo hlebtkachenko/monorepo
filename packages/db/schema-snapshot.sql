@@ -212,6 +212,18 @@ CREATE TYPE public.fx_rate_kind AS ENUM (
 );
 
 --
+-- Name: holding_intent; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.holding_intent AS ENUM (
+    'OWN_USE',
+    'LONG_TERM_RENTAL',
+    'SALE',
+    'MIXED',
+    'UNDECIDED'
+);
+
+--
 -- Name: inventory_difference; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -349,6 +361,17 @@ CREATE TYPE public.tax_depreciation_method AS ENUM (
     'STRAIGHT_LINE',
     'ACCELERATED',
     'EXTRAORDINARY'
+);
+
+--
+-- Name: valuation_method; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.valuation_method AS ENUM (
+    'ACQUISITION_PRICE',
+    'OWN_COST',
+    'REPRODUCTION_PRICE',
+    'NOMINAL'
 );
 
 --
@@ -1790,10 +1813,38 @@ CREATE TABLE public.asset (
     responsible_user_id uuid,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    holding_intent public.holding_intent,
+    valuation_method public.valuation_method,
+    asset_type_id uuid,
     CONSTRAINT asset_account_number_chk CHECK ((account_number ~ '^[0-9]{2,}(\.[0-9A-Za-z]+)*$'::text))
 );
 
 ALTER TABLE ONLY public.asset FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: asset_type; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.asset_type (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    family public.asset_category NOT NULL,
+    is_depreciated boolean NOT NULL,
+    asset_account_number text,
+    acquisition_account_number text,
+    accumulated_account_number text,
+    expense_account_number text,
+    disposal_account_number text,
+    valid_from date,
+    valid_to date,
+    active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.asset_type FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: audit_event; Type: TABLE; Schema: public; Owner: -
@@ -3573,6 +3624,27 @@ ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_pkey PRIMARY KEY (id);
 
 --
+-- Name: asset_type asset_type_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset_type
+    ADD CONSTRAINT asset_type_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: asset_type asset_type_org_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset_type
+    ADD CONSTRAINT asset_type_org_code_unique UNIQUE (organization_id, code);
+
+--
+-- Name: asset_type asset_type_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset_type
+    ADD CONSTRAINT asset_type_pkey PRIMARY KEY (id);
+
+--
 -- Name: audit_event audit_event_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4663,6 +4735,12 @@ CREATE INDEX app_user_phone_idx ON public.app_user USING btree (phone) WHERE (ph
 --
 
 CREATE INDEX app_user_role_idx ON public.app_user USING btree (role) WHERE (role <> 'user'::text);
+
+--
+-- Name: asset_type_org_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX asset_type_org_active_idx ON public.asset_type USING btree (organization_id, active);
 
 --
 -- Name: audit_event_actor_idx; Type: INDEX; Schema: public; Owner: -
@@ -5837,6 +5915,13 @@ ALTER TABLE ONLY public.api_key
     ADD CONSTRAINT api_key_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id) ON DELETE CASCADE;
 
 --
+-- Name: asset asset_asset_type_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset
+    ADD CONSTRAINT asset_asset_type_fk FOREIGN KEY (asset_type_id, organization_id) REFERENCES public.asset_type(id, organization_id);
+
+--
 -- Name: asset asset_directive_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5863,6 +5948,13 @@ ALTER TABLE ONLY public.asset
 
 ALTER TABLE ONLY public.asset
     ADD CONSTRAINT asset_series_fk FOREIGN KEY (number_series_id, organization_id) REFERENCES public.number_series(id, organization_id);
+
+--
+-- Name: asset_type asset_type_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.asset_type
+    ADD CONSTRAINT asset_type_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 --
 -- Name: audit_event audit_event_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -6989,6 +7081,12 @@ CREATE POLICY app_workspace_billing_owner_admin ON public.workspace_billing USIN
 ALTER TABLE public.asset ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: asset_type; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.asset_type ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: audit_event; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7413,6 +7511,12 @@ CREATE POLICY organization_isolation ON public.api_key USING ((organization_id =
 --
 
 CREATE POLICY organization_isolation ON public.asset USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: asset_type organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.asset_type USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: category organization_isolation; Type: POLICY; Schema: public; Owner: -

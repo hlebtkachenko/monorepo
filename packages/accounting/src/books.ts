@@ -13,7 +13,7 @@
 
 import { sql } from "drizzle-orm"
 import { rows } from "./sql"
-import type { RowExecutor } from "./sql"
+import type { ReadExecutor, RowExecutor } from "./sql"
 import type {
   AccountNature,
   Decimal,
@@ -98,6 +98,38 @@ export function generalLedger(
          WHERE b.period_id = ${periodId}::uuid
          ORDER BY a.number`,
   )
+}
+
+export interface AccountBalanceRow {
+  account_id: string
+  account_number: string
+  opening_balance: Decimal
+  turnover_debit: Decimal
+  turnover_credit: Decimal
+  closing_balance: Decimal
+}
+
+/**
+ * A single GL account's balance from the read-model, by account NUMBER + period —
+ * počáteční stav | obraty MD/Dal | konečný stav. The single-account subset of
+ * generalLedger; returns null when the account has no balance row in the period
+ * (never posted). A Finance `financial_account`'s balance is exactly this, looked
+ * up by its `gl_account_number` (the 1:1-analytic invariant guarantees one row).
+ */
+export async function accountBalance(
+  db: ReadExecutor,
+  params: { accountNumber: string; periodId: string },
+): Promise<AccountBalanceRow | null> {
+  const result = await rows<AccountBalanceRow>(
+    db,
+    sql`SELECT b.account_id, a.number AS account_number,
+               b.opening_balance, b.turnover_debit, b.turnover_credit, b.closing_balance
+          FROM account_period_balance b
+          JOIN account a ON b.account_id = a.id
+         WHERE b.period_id = ${params.periodId}::uuid
+           AND a.number = ${params.accountNumber}`,
+  )
+  return result[0] ?? null
 }
 
 export interface MonetaryJournalRow {

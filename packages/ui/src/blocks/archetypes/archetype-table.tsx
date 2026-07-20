@@ -33,6 +33,7 @@ import type {
   SectionPivotDrill,
   TableColumnSpec,
   TableSectionRow,
+  TreeTableRow,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type {
@@ -48,6 +49,23 @@ import type { IconName } from "@workspace/ui/icon-packs"
  *  section (a Pivot body) — kept module-level so their identity never changes. */
 const NO_COLUMNS: readonly TableColumnSpec[] = []
 const NO_ROWS: readonly TableSectionRow[] = []
+const NO_TREE_ROWS: readonly TreeTableRow[] = []
+
+/** Depth-first find of a tree node by id; returns its flat `values` record so the
+ *  page's `inspectorRow*` callbacks receive the SAME shape a flat table row gives. */
+function findTreeNodeValues(
+  nodes: readonly TreeTableRow[],
+  id: string,
+): TableSectionRow | undefined {
+  for (const node of nodes) {
+    if (node.id === id) return node.values as TableSectionRow
+    if (node.subRows?.length) {
+      const hit = findTreeNodeValues(node.subRows, id)
+      if (hit) return hit
+    }
+  }
+  return undefined
+}
 
 import type { AllowedSectionKind } from "./archetype-section-policy"
 import { assertSectionsAllowed } from "./archetype-section-policy"
@@ -333,37 +351,71 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   const openInspect = useSectionInspectOpener()
   const visibleRows = table?.getRowModel().rows ?? []
 
-  // Adjacent-row navigation (prev/next) walks the live grid's CURRENT visible
-  // order, so it always matches what the user sees.
-  const navIndex = visibleRows.findIndex((row) => row.original === inspectRow)
-  const previousRow = navIndex > 0 ? visibleRows[navIndex - 1] : undefined
-  const nextRow =
-    navIndex >= 0 && navIndex < visibleRows.length - 1
-      ? visibleRows[navIndex + 1]
+  // The section that FEEDS the row-rail inspector — a flat `table` OR a
+  // `tree-table`. SEPARATE from `tableSection` (flat-only, which drives the
+  // auto-filter + row re-mint) so a tree, which brings its own filtering, is
+  // never double-filtered or re-minted into the wrong shape.
+  const inspectSection = sections.find(
+    (section) => section.kind === "table" || section.kind === "tree-table",
+  )
+  const isTreeInspect = inspectSection?.kind === "tree-table"
+  const flatInspectPayload =
+    inspectSection && !isTreeInspect
+      ? (inspectSection.props as {
+          rows: readonly TableSectionRow[]
+          rowIdKey: string
+        })
+      : undefined
+  const treeInspectRows =
+    inspectSection && isTreeInspect
+      ? (inspectSection.props as { rows: readonly TreeTableRow[] }).rows
       : undefined
 
-  // Inspector CONTENT is sourced from the archetype's OWN fresh row list
-  // (`tablePayload.rows` — the page rebuilds it every render because it owns the
-  // rows) keyed by the inspected row's id, NOT from the live TanStack model which
-  // lags a render behind its child renderer. So an edit committed from a cell, an
-  // inspector field, or Approve/Reject shows in the inspector immediately. The
-  // bridge publishes the clicked row object; on open that is an identity of a
-  // `tablePayload.rows` entry (record its id in an effect), and a row-replacing
-  // edit then re-finds the row by that id.
-  const rowIdKey = tablePayload?.rowIdKey ?? "id"
-  const pageRows = tablePayload?.rows ?? NO_ROWS
-  // The inspected row's id is stably readable from the bridge object (it only
-  // changes identity via openInspect), so resolve the FRESH row of that id in the
-  // archetype's own list. `resolvedRow` is undefined once the row is edited out
-  // of the active view or deleted.
+  // Adjacent-row navigation (prev/next) walks the grid's CURRENT visible order,
+  // so it always matches what the user sees. A tree's visible rows include
+  // structural tier nodes (`selectable === false`) — never inspectable — so
+  // navigation skips them.
+  const navIndex = visibleRows.findIndex((row) => row.original === inspectRow)
+  const inspectableNeighbor = (from: number, step: number) => {
+    for (let i = from + step; i >= 0 && i < visibleRows.length; i += step) {
+      const row = visibleRows[i]!
+      if (
+        !isTreeInspect ||
+        (row.original as unknown as TreeTableRow).selectable !== false
+      )
+        return row
+    }
+    return undefined
+  }
+  const previousRow =
+    navIndex >= 0 ? inspectableNeighbor(navIndex, -1) : undefined
+  const nextRow = navIndex >= 0 ? inspectableNeighbor(navIndex, 1) : undefined
+
+  // Inspector CONTENT is resolved from the archetype's OWN fresh row list by the
+  // inspected row's id, NOT from the live TanStack model (which lags a render
+  // behind its child renderer) — so an edit committed from a cell, an inspector
+  // field, or Approve/Reject shows immediately. A flat table resolves by its
+  // `rowIdKey`; a tree resolves by the node's top-level `id`, depth-first through
+  // the nested forest, returning the node's flat `values` (the shape callbacks
+  // expect from a flat row).
+  const rowIdKey = isTreeInspect ? "id" : (flatInspectPayload?.rowIdKey ?? "id")
   const inspectId =
-    inspectRow != null
-      ? String((inspectRow as TableSectionRow)[rowIdKey] ?? "")
-      : null
-  const resolvedRow = inspectId
-    ? pageRows.find((row) => String(row[rowIdKey]) === inspectId)
-    : undefined
-  const inspectData = (resolvedRow ?? inspectRow) as TData | null
+    inspectRow == null
+      ? null
+      : isTreeInspect
+        ? String((inspectRow as unknown as TreeTableRow).id ?? "")
+        : String((inspectRow as TableSectionRow)[rowIdKey] ?? "")
+  const resolvedRow: TableSectionRow | undefined = !inspectId
+    ? undefined
+    : isTreeInspect
+      ? findTreeNodeValues(treeInspectRows ?? NO_TREE_ROWS, inspectId)
+      : (flatInspectPayload?.rows ?? NO_ROWS).find(
+          (row) => String(row[rowIdKey]) === inspectId,
+        )
+  const inspectFallback: TableSectionRow | null = isTreeInspect
+    ? ((inspectRow as unknown as TreeTableRow | null)?.values ?? null)
+    : (inspectRow as TableSectionRow | null)
+  const inspectData = (resolvedRow ?? inspectFallback) as TData | null
   const inspectRecordKey = inspectId ?? ""
 
   // Auto-close the rail once the inspected row can no longer be resolved (edited
@@ -382,11 +434,19 @@ function ArchetypeTableChrome<TData extends TableSectionRow>({
   React.useEffect(() => {
     if (!openRowId || !openInspect) return
     if (openedDeepLinkRef.current === openRowId) return
-    const match = visibleRows.find((row) => row.id === openRowId)
+    // A tree's target may be collapsed (rows start at `defaultExpanded`), so search
+    // the FULL core model and expand the ancestor chain before opening; a flat
+    // table already has all its rows visible.
+    const pool = isTreeInspect
+      ? (table?.getCoreRowModel().flatRows ?? [])
+      : visibleRows
+    const match = pool.find((row) => row.id === openRowId)
     if (!match) return
     openedDeepLinkRef.current = openRowId
+    if (isTreeInspect)
+      match.getParentRows().forEach((parent) => parent.toggleExpanded(true))
     openInspect(match.original)
-  }, [openRowId, visibleRows, openInspect])
+  }, [openRowId, visibleRows, openInspect, isTreeInspect, table])
 
   const inspectTitle =
     inspectorRowTitle && inspectData != null

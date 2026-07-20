@@ -146,6 +146,28 @@ CREATE TYPE public.depreciation_plan_status AS ENUM (
 );
 
 --
+-- Name: financial_account_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.financial_account_kind AS ENUM (
+    'BANK',
+    'CASH',
+    'CASH_EQUIVALENT'
+);
+
+--
+-- Name: financial_account_status; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.financial_account_status AS ENUM (
+    'DRAFT',
+    'ACTIVE',
+    'INACTIVE',
+    'CLOSED',
+    'ARCHIVED'
+);
+
+--
 -- Name: fx_rate_kind; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -2187,6 +2209,84 @@ CREATE TABLE public.feature_flag (
 );
 
 --
+-- Name: financial_account; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.financial_account (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    kind public.financial_account_kind NOT NULL,
+    status public.financial_account_status DEFAULT 'DRAFT'::public.financial_account_status NOT NULL,
+    name text NOT NULL,
+    code text NOT NULL,
+    currency_code character(3) NOT NULL,
+    gl_account_number text,
+    account_number text,
+    bank_code text,
+    iban text,
+    bic text,
+    is_default_payment_account boolean DEFAULT false NOT NULL,
+    overdraft_limit numeric(19,4),
+    opened_on date,
+    closed_on date,
+    location text,
+    cash_limit numeric(19,4),
+    number_series_id uuid,
+    responsible_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT financial_account_cash_limit_nonneg_chk CHECK (((cash_limit IS NULL) OR (cash_limit >= (0)::numeric))),
+    CONSTRAINT financial_account_overdraft_nonneg_chk CHECK (((overdraft_limit IS NULL) OR (overdraft_limit >= (0)::numeric)))
+);
+
+ALTER TABLE ONLY public.financial_account FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: fx_rate; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fx_rate (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    from_code character(3) NOT NULL,
+    to_code character(3) NOT NULL,
+    rate_date date NOT NULL,
+    rate_kind public.fx_rate_kind DEFAULT 'DAILY'::public.fx_rate_kind NOT NULL,
+    unit_amount integer DEFAULT 1 NOT NULL,
+    rate numeric(18,6) NOT NULL,
+    source text DEFAULT 'CNB'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fx_rate_distinct_currencies_chk CHECK ((from_code <> to_code)),
+    CONSTRAINT fx_rate_positive_chk CHECK ((rate > (0)::numeric)),
+    CONSTRAINT fx_rate_unit_positive_chk CHECK ((unit_amount > 0))
+);
+
+--
+-- Name: fx_rate_override; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.fx_rate_override (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    from_code character(3) NOT NULL,
+    to_code character(3) NOT NULL,
+    rate_date date NOT NULL,
+    rate_kind public.fx_rate_kind DEFAULT 'DAILY'::public.fx_rate_kind NOT NULL,
+    unit_amount integer DEFAULT 1 NOT NULL,
+    rate numeric(18,6) NOT NULL,
+    reason text NOT NULL,
+    is_locked boolean DEFAULT false NOT NULL,
+    created_by_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT fx_rate_override_distinct_currencies_chk CHECK ((from_code <> to_code)),
+    CONSTRAINT fx_rate_override_positive_chk CHECK ((rate > (0)::numeric)),
+    CONSTRAINT fx_rate_override_unit_positive_chk CHECK ((unit_amount > 0))
+);
+
+ALTER TABLE ONLY public.fx_rate_override FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3627,6 +3727,62 @@ ALTER TABLE ONLY public.feature_flag
     ADD CONSTRAINT feature_flag_pkey PRIMARY KEY (key);
 
 --
+-- Name: financial_account financial_account_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: financial_account financial_account_org_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_org_code_unique UNIQUE (organization_id, code);
+
+--
+-- Name: financial_account financial_account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_pkey PRIMARY KEY (id);
+
+--
+-- Name: fx_rate fx_rate_natural_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate
+    ADD CONSTRAINT fx_rate_natural_unique UNIQUE (from_code, to_code, rate_date, rate_kind, source);
+
+--
+-- Name: fx_rate_override fx_rate_override_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: fx_rate_override fx_rate_override_natural_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_natural_unique UNIQUE (organization_id, from_code, to_code, rate_date, rate_kind);
+
+--
+-- Name: fx_rate_override fx_rate_override_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_pkey PRIMARY KEY (id);
+
+--
+-- Name: fx_rate fx_rate_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate
+    ADD CONSTRAINT fx_rate_pkey PRIMARY KEY (id);
+
+--
 -- Name: impersonation impersonation_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4462,6 +4618,30 @@ CREATE INDEX depreciation_plan_asset_idx ON public.depreciation_plan USING btree
 --
 
 CREATE INDEX favorite_page_org_user_module_idx ON public.favorite_page USING btree (organization_id, user_id, module_key, sort_order);
+
+--
+-- Name: financial_account_org_default_pay_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX financial_account_org_default_pay_unique ON public.financial_account USING btree (organization_id) WHERE is_default_payment_account;
+
+--
+-- Name: financial_account_org_gl_unique; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX financial_account_org_gl_unique ON public.financial_account USING btree (organization_id, gl_account_number) WHERE (gl_account_number IS NOT NULL);
+
+--
+-- Name: financial_account_org_kind_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX financial_account_org_kind_status_idx ON public.financial_account USING btree (organization_id, kind, status);
+
+--
+-- Name: fx_rate_lookup_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fx_rate_lookup_idx ON public.fx_rate USING btree (from_code, to_code, rate_date, rate_kind);
 
 --
 -- Name: impersonation_actor_started_idx; Type: INDEX; Schema: public; Owner: -
@@ -5676,6 +5856,76 @@ ALTER TABLE ONLY public.favorite_page
     ADD CONSTRAINT favorite_page_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 --
+-- Name: financial_account financial_account_currency_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_currency_code_fkey FOREIGN KEY (currency_code) REFERENCES public.currency(code);
+
+--
+-- Name: financial_account financial_account_number_series_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_number_series_fk FOREIGN KEY (number_series_id, organization_id) REFERENCES public.number_series(id, organization_id);
+
+--
+-- Name: financial_account financial_account_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: financial_account financial_account_responsible_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.financial_account
+    ADD CONSTRAINT financial_account_responsible_user_id_fkey FOREIGN KEY (responsible_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: fx_rate fx_rate_from_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate
+    ADD CONSTRAINT fx_rate_from_code_fkey FOREIGN KEY (from_code) REFERENCES public.currency(code);
+
+--
+-- Name: fx_rate_override fx_rate_override_created_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_created_by_user_id_fkey FOREIGN KEY (created_by_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: fx_rate_override fx_rate_override_from_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_from_code_fkey FOREIGN KEY (from_code) REFERENCES public.currency(code);
+
+--
+-- Name: fx_rate_override fx_rate_override_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: fx_rate_override fx_rate_override_to_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate_override
+    ADD CONSTRAINT fx_rate_override_to_code_fkey FOREIGN KEY (to_code) REFERENCES public.currency(code);
+
+--
+-- Name: fx_rate fx_rate_to_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fx_rate
+    ADD CONSTRAINT fx_rate_to_code_fkey FOREIGN KEY (to_code) REFERENCES public.currency(code);
+
+--
 -- Name: impersonation impersonation_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6645,6 +6895,18 @@ ALTER TABLE public.dppo_annual_taxpayer_category ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorite_page ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: financial_account; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.financial_account ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: fx_rate_override; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.fx_rate_override ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: impersonation; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6919,6 +7181,18 @@ CREATE POLICY organization_isolation ON public.dppo_annual_taxpayer_category USI
 --
 
 CREATE POLICY organization_isolation ON public.favorite_page USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: financial_account organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.financial_account USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: fx_rate_override organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.fx_rate_override USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: individual_record organization_isolation; Type: POLICY; Schema: public; Owner: -

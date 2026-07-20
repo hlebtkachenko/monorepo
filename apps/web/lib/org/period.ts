@@ -31,6 +31,12 @@ export interface HeaderPeriod {
   status: "OPEN" | "CLOSED"
   /** Editable period code; NULL until overridden (readers derive the fiscal year). */
   zkratka: string | null
+  /** Bookkeeping regime, fixed per period (DOUBLE_ENTRY | SINGLE_ENTRY | TAX_RECORDS). */
+  regime_code: string
+  /** Měna účetnictví (§4/12) — the period's accounting currency, ISO-4217. */
+  accounting_currency: string
+  /** §24 fx policy; NULL = the default DAILY. */
+  fx_rate_policy: "DAILY" | "REAL" | "FIXED" | null
 }
 
 /**
@@ -55,6 +61,9 @@ const getPeriods = cache(
           period_end: accounting_period.period_end,
           status: accounting_period.status,
           zkratka: accounting_period.zkratka,
+          regime_code: accounting_period.regime_code,
+          accounting_currency: accounting_period.accounting_currency,
+          fx_rate_policy: accounting_period.fx_rate_policy,
         })
         .from(accounting_period)
         .where(eq(accounting_period.organization_id, organizationId))

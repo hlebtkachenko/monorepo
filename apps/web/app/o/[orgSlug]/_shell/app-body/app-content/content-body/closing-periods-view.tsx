@@ -1,18 +1,23 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import type { Table } from "@tanstack/react-table"
 
+import type { FxRateKind } from "@workspace/accounting"
 import { useTranslations } from "@workspace/i18n/client"
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import type { ArchetypeTableSelectionHelpers } from "@workspace/ui/blocks/archetypes"
 import {
   buildTableFooter,
   buildTableToolbar,
+  SectionList,
+  sectionInspectorKeyDetails,
   sectionTreeTable,
   useTreeTableFilters,
 } from "@workspace/ui/blocks/content-panel"
 import type {
+  ActionDescriptor,
   ContentFooterAction,
   ContentHeaderFavoriteToggle,
   ContentToolbarProps,
@@ -23,10 +28,30 @@ import type {
   TreeTableRow,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
+import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
 import type { FiltersState } from "@workspace/ui/components/filter-bar"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { updatePeriodZkratka } from "@/lib/org/period-actions"
+import { openPeriodAction, updatePeriodZkratka } from "@/lib/org/period-actions"
+import type { PeriodListRow } from "@/lib/org/period-data"
 
 /**
  * ClosingPeriodsView — the Closing → Účetní období list.
@@ -44,11 +69,42 @@ import { updatePeriodZkratka } from "@/lib/org/period-actions"
  * if `updatePeriodZkratka` rejects (this handler throws on `!ok`). No demo
  * content — every cell is real org data.
  *
- * The row Inspector is deliberately absent: `ArchetypeTable`'s Inspector resolves
- * its row from the flat `sectionTable` payload only, so it auto-closes on a tree
- * section. The per-period detail / Uzávěrka Inspector arrives with a
- * tree-compatible opener in a later slice.
+ * Row Inspector (Details): `ArchetypeTable` resolves the inspected row from the
+ * tree forest by node id, so the tree section opts in with `inspect: true`. The
+ * Details tab is a read-only detail of the period (Období, Stav, Rok, regime,
+ * currency, fx policy); Zkratka stays editable through the same
+ * `updatePeriodZkratka` action the inline cell uses.
+ *
+ * "Otevřít období" (toolbar, owner/admin) opens the next účetní období from the
+ * newest one: a small dialog collects the počátek/konec bounds (defaulted to the
+ * following year) plus an optional currency + fx override, then calls
+ * `openPeriodAction`, which copies the prior period's regime/currency/fx forward.
  */
+
+/** Fx policies offered when opening a period (matches the column's DAILY | FIXED
+ *  documented policy domain; `""` = inherit the prior period's value). */
+const FX_POLICY_CHOICES = ["DAILY", "FIXED"] as const
+
+/** Narrow a Select value to a real fx policy (its options are the only source). */
+function isFxChoice(value: string): value is FxRateKind {
+  return (FX_POLICY_CHOICES as readonly string[]).includes(value)
+}
+
+/** Add `days` to an ISO `YYYY-MM-DD` date, returning an ISO date (UTC-anchored). */
+function addDaysIso(iso: string, days: number): string {
+  const date = new Date(`${iso}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+/** The last day of the 12-month span that starts on `startIso` (start + 1y − 1d). */
+function oneYearEndIso(startIso: string): string {
+  const date = new Date(`${startIso}T00:00:00Z`)
+  date.setUTCFullYear(date.getUTCFullYear() + 1)
+  date.setUTCDate(date.getUTCDate() - 1)
+  return date.toISOString().slice(0, 10)
+}
+
 export function ClosingPeriodsView({
   slug,
   title,
@@ -57,28 +113,34 @@ export function ClosingPeriodsView({
 }: {
   slug: string
   title: string
-  rows: readonly TableSectionRow[]
+  rows: readonly PeriodListRow[]
   favorite: ContentHeaderFavoriteToggle
 }) {
   const t = useTranslations("org.periods")
+  const router = useRouter()
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
   const [filters, setFilters] = React.useState<FiltersState>([])
 
   // Wrap the flat period rows as a Tree-table forest: top-level = fiscal years,
   // each period's cells under `values` keyed by column id (month sub-rows join as
-  // `subRows` in a later slice). The renderer holds its own draft, so inline
-  // edits stick and revert without a page-level optimistic store.
+  // `subRows` in a later slice). `id`, `regime`, `currency`, `fxPolicy` ride along
+  // in `values` (unrendered as columns) so the Inspector — which resolves the row
+  // from the tree node's `values` — can read them.
   const treeRows = React.useMemo<readonly TreeTableRow[]>(
     () =>
       serverRows.map((row) => ({
-        id: String(row.id ?? ""),
+        id: row.id,
         values: {
-          rok: row.rok ?? null,
-          zkratka: row.zkratka ?? null,
-          od: row.od ?? null,
-          do: row.do ?? null,
-          stav: row.stav ?? null,
+          id: row.id,
+          rok: row.rok,
+          zkratka: row.zkratka,
+          od: row.od,
+          do: row.do,
+          stav: row.stav,
+          regime: row.regime,
+          currency: row.currency,
+          fxPolicy: row.fxPolicy,
         },
       })),
     [serverRows],
@@ -160,8 +222,27 @@ export function ClosingPeriodsView({
     [treeRows, t],
   )
 
-  // Persist an inline Zkratka edit. Only Zkratka is editable; other columns are
-  // read-only. Throwing on failure makes the tree renderer revert the cell.
+  // Persist a Zkratka edit through the shared server action. Revalidation on the
+  // server refreshes the list; a rejection surfaces as a toast.
+  const [, startSaving] = React.useTransition()
+  const commitZkratka = React.useCallback(
+    (periodId: string, raw: string) => {
+      const next = raw.trim()
+      if (!next || !periodId) return
+      startSaving(async () => {
+        const result = await updatePeriodZkratka({
+          slug,
+          periodId,
+          zkratka: next,
+        })
+        if (!result.ok) toast.error(t("editZkratkaError"))
+      })
+    },
+    [slug, t],
+  )
+
+  // Inline-cell variant: throwing on failure makes the tree renderer revert the
+  // optimistic cell. Only Zkratka is editable; other columns are read-only.
   const onCellEdit: SectionCellCommit = React.useCallback(
     async ({ rowId, columnId, value }) => {
       if (columnId !== "zkratka") return
@@ -180,6 +261,156 @@ export function ClosingPeriodsView({
     [slug, t],
   )
 
+  // ── Inspector Details: read-only period detail; Zkratka editable via the same
+  // action as the inline cell. Labels reuse the column i18n; regime / stav / fx
+  // enums map to their localized labels. The row is the tree node's `values`.
+  const stavLabel = React.useCallback(
+    (value: string | number | null | undefined) => {
+      const key = String(value ?? "")
+      return key === "active" || key === "open" || key === "closed"
+        ? t(`stav.${key}`)
+        : "—"
+    },
+    [t],
+  )
+  const regimeLabel = React.useCallback(
+    (value: string | number | null | undefined) => {
+      const key = String(value ?? "")
+      return key === "DOUBLE_ENTRY" ||
+        key === "SINGLE_ENTRY" ||
+        key === "TAX_RECORDS"
+        ? t(`regime.${key}`)
+        : key || "—"
+    },
+    [t],
+  )
+  const fxLabel = React.useCallback(
+    (value: string | number | null | undefined) => {
+      const key = String(value ?? "")
+      if (key === "") return t("fx.default")
+      return key === "DAILY" || key === "REAL" || key === "FIXED"
+        ? t(`fx.${key}`)
+        : key
+    },
+    [t],
+  )
+
+  const inspectorContent = React.useCallback(
+    (row: TableSectionRow): Partial<Record<InspectorTab, React.ReactNode>> => {
+      const id = String(row.id ?? "")
+      return {
+        details: (
+          <SectionList
+            sections={[
+              sectionInspectorKeyDetails({
+                lines: [
+                  {
+                    label: t("columns.rok"),
+                    value: String(row.rok ?? ""),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("columns.zkratka"),
+                    value: String(row.zkratka ?? ""),
+                    onCommit: (v) => commitZkratka(id, v),
+                  },
+                  {
+                    label: t("columns.od"),
+                    value: String(row.od ?? ""),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("columns.do"),
+                    value: String(row.do ?? ""),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("columns.stav"),
+                    value: stavLabel(row.stav),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("details.regime"),
+                    value: regimeLabel(row.regime),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("details.currency"),
+                    value: String(row.currency ?? ""),
+                    readOnly: true,
+                  },
+                  {
+                    label: t("details.fx"),
+                    value: fxLabel(row.fxPolicy),
+                    readOnly: true,
+                  },
+                ],
+              }),
+            ]}
+          />
+        ),
+      }
+    },
+    [t, commitZkratka, stavLabel, regimeLabel, fxLabel],
+  )
+
+  // ── "Otevřít období": create the next period from the newest one (rows are
+  // newest-first). Disabled with no prior period — the first period is seeded at
+  // org provisioning, not here.
+  const newest = serverRows[0]
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [startDate, setStartDate] = React.useState("")
+  const [endDate, setEndDate] = React.useState("")
+  const [currency, setCurrency] = React.useState("")
+  const [fxPolicy, setFxPolicy] = React.useState<"" | FxRateKind>("")
+  const [creating, startCreating] = React.useTransition()
+
+  const openCreate = React.useCallback(() => {
+    if (!newest) return
+    const nextStart = addDaysIso(newest.periodEndIso, 1)
+    setStartDate(nextStart)
+    setEndDate(oneYearEndIso(nextStart))
+    setCurrency(newest.currency)
+    setFxPolicy(newest.fxPolicy ?? "")
+    setCreateOpen(true)
+  }, [newest])
+
+  const submitCreate = React.useCallback(() => {
+    if (!newest || !startDate || !endDate) return
+    startCreating(async () => {
+      const result = await openPeriodAction({
+        slug,
+        priorPeriodId: newest.id,
+        periodStart: startDate,
+        periodEnd: endDate,
+        accountingCurrency: currency.trim() || undefined,
+        fxRatePolicy: fxPolicy || undefined,
+      })
+      if (!result.ok) {
+        const forbidden = "forbidden" in result && result.forbidden
+        toast.error(forbidden ? t("open.forbidden") : t("open.error"))
+        return
+      }
+      setCreateOpen(false)
+      toast.success(t("open.success"))
+      router.refresh()
+    })
+  }, [newest, slug, startDate, endDate, currency, fxPolicy, t, router])
+
+  const toolbarActions = React.useMemo<ActionDescriptor[]>(
+    () => [
+      {
+        id: "open-period",
+        label: t("open.action"),
+        icon: "Plus",
+        variant: "default",
+        disabled: !newest,
+        onSelect: openCreate,
+      },
+    ],
+    [t, newest, openCreate],
+  )
+
   const buildToolbar = React.useCallback(
     (
       table: Table<TableSectionRow> | null,
@@ -187,8 +418,9 @@ export function ClosingPeriodsView({
       buildTableToolbar(table, {
         search: { value: search, onChange: setSearch },
         filter,
+        actions: toolbarActions,
       }),
-    [search, filter],
+    [search, filter, toolbarActions],
   )
 
   const selectionActions = React.useCallback(
@@ -209,22 +441,107 @@ export function ClosingPeriodsView({
   )
 
   return (
-    <ArchetypeTable<TableSectionRow>
-      title={title}
-      favorite={favorite}
-      views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
-      toolbar={buildToolbar}
-      selectionActions={selectionActions}
-      onCellEdit={onCellEdit}
-      sections={[
-        sectionTreeTable({
-          anchor: "periods",
-          columns,
-          rows: filteredTree,
-          features: { search: true },
-          emptyText: t("empty"),
-        }),
-      ]}
-    />
+    <>
+      <ArchetypeTable<TableSectionRow>
+        title={title}
+        favorite={favorite}
+        views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
+        toolbar={buildToolbar}
+        selectionActions={selectionActions}
+        onCellEdit={onCellEdit}
+        inspectorRowTitle={(row) => String(row.rok ?? "")}
+        inspectorRowName={(row) => String(row.zkratka ?? row.rok ?? "")}
+        inspectorRowContent={inspectorContent}
+        sections={[
+          sectionTreeTable({
+            anchor: "periods",
+            columns,
+            rows: filteredTree,
+            features: { search: true, inspect: true },
+            emptyText: t("empty"),
+          }),
+        ]}
+      />
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("open.title")}</DialogTitle>
+            <DialogDescription>{t("open.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="period-start">{t("open.startLabel")}</Label>
+                <Input
+                  id="period-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="period-end">{t("open.endLabel")}</Label>
+                <Input
+                  id="period-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="period-currency">
+                  {t("open.currencyLabel")}
+                </Label>
+                <Input
+                  id="period-currency"
+                  value={currency}
+                  maxLength={3}
+                  autoCapitalize="characters"
+                  onChange={(e) =>
+                    setCurrency(e.target.value.toUpperCase().slice(0, 3))
+                  }
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="period-fx">{t("open.fxLabel")}</Label>
+                <Select
+                  value={fxPolicy || "inherit"}
+                  onValueChange={(v) => setFxPolicy(isFxChoice(v) ? v : "")}
+                >
+                  <SelectTrigger id="period-fx">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inherit">{t("fx.inherit")}</SelectItem>
+                    {FX_POLICY_CHOICES.map((choice) => (
+                      <SelectItem key={choice} value={choice}>
+                        {t(`fx.${choice}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              disabled={creating}
+              onClick={() => setCreateOpen(false)}
+            >
+              {t("open.cancel")}
+            </Button>
+            <Button
+              disabled={creating || !startDate || !endDate}
+              onClick={submitCreate}
+            >
+              {t("open.submit")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

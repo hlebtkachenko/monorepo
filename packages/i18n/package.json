@@ -21,13 +21,13 @@
     "next-intl": "^4.13.1"
   },
   "devDependencies": {
-    "@formatjs/icu-messageformat-parser": "^3.5.12",
+    "@formatjs/icu-messageformat-parser": "^3.5.14",
     "@types/node": "^26.0.1",
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.2",
+    "eslint": "^9.39.5",
     "next": "16.2.10",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {

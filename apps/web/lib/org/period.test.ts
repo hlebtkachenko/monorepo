@@ -8,6 +8,9 @@ const p = (id: string, status: "OPEN" | "CLOSED"): HeaderPeriod => ({
   period_end: "2026-12-31",
   status,
   zkratka: null,
+  regime_code: "DOUBLE_ENTRY",
+  accounting_currency: "CZK",
+  fx_rate_policy: null,
 })
 
 describe("resolveActivePeriod precedence", () => {

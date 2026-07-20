@@ -43,6 +43,16 @@ export type PeriodListRow = {
   stav: PeriodStav
   /** Fiscal year, derived from the bounds (the year the books close). Not editable. */
   rok: number
+  /** Bookkeeping regime code (DOUBLE_ENTRY | SINGLE_ENTRY | TAX_RECORDS). Read-only. */
+  regime: string
+  /** Měna účetnictví — the period's accounting currency, ISO-4217. Read-only. */
+  currency: string
+  /** §24 fx policy (DAILY | REAL | FIXED); `null` = the default DAILY. Read-only. */
+  fxPolicy: "DAILY" | "REAL" | "FIXED" | null
+  /** Raw ISO `YYYY-MM-DD` start — powers the "Otevřít období" default derivation. */
+  periodStartIso: string
+  /** Raw ISO `YYYY-MM-DD` end — powers the "Otevřít období" default derivation. */
+  periodEndIso: string
 }
 
 /** Fiscal year of a period — the calendar year in which it ends. */
@@ -99,6 +109,11 @@ export async function listPeriods(input: {
       do: formatCzDate(period.period_end),
       stav,
       rok: fiscalYear(period.period_end),
+      regime: period.regime_code,
+      currency: period.accounting_currency,
+      fxPolicy: period.fx_rate_policy,
+      periodStartIso: period.period_start,
+      periodEndIso: period.period_end,
     }
   })
 }

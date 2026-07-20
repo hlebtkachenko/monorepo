@@ -1662,7 +1662,38 @@
       },
       "exportFileName": "accounting-periods",
       "empty": "No accounting periods yet.",
-      "editZkratkaError": "Could not save the period code. Please try again."
+      "editZkratkaError": "Could not save the period code. Please try again.",
+      "regime": {
+        "DOUBLE_ENTRY": "Double-entry bookkeeping",
+        "SINGLE_ENTRY": "Single-entry bookkeeping",
+        "TAX_RECORDS": "Tax records"
+      },
+      "fx": {
+        "DAILY": "Daily rate",
+        "REAL": "Actual rate",
+        "FIXED": "Fixed rate",
+        "default": "Daily rate (default)",
+        "inherit": "Inherit from prior period"
+      },
+      "details": {
+        "regime": "Regime",
+        "currency": "Accounting currency",
+        "fx": "FX rate policy"
+      },
+      "open": {
+        "action": "Open period",
+        "title": "Open accounting period",
+        "description": "The new period follows the latest one and inherits its regime, currency, and FX rate policy.",
+        "startLabel": "Start",
+        "endLabel": "End",
+        "currencyLabel": "Accounting currency",
+        "fxLabel": "FX rate policy",
+        "submit": "Open period",
+        "cancel": "Cancel",
+        "success": "The accounting period was opened.",
+        "error": "Could not open the accounting period.",
+        "forbidden": "Only an owner or admin can open a period."
+      }
     },
     "favorite": {
       "tooltip": "Favorite",

@@ -1662,7 +1662,38 @@
       },
       "exportFileName": "ucetni-obdobi",
       "empty": "Zatím žádná účetní období.",
-      "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu."
+      "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu.",
+      "regime": {
+        "DOUBLE_ENTRY": "Podvojné účetnictví",
+        "SINGLE_ENTRY": "Jednoduché účetnictví",
+        "TAX_RECORDS": "Daňová evidence"
+      },
+      "fx": {
+        "DAILY": "Denní kurz",
+        "REAL": "Skutečný kurz",
+        "FIXED": "Pevný kurz",
+        "default": "Denní kurz (výchozí)",
+        "inherit": "Převzít z předchozího období"
+      },
+      "details": {
+        "regime": "Režim",
+        "currency": "Měna účetnictví",
+        "fx": "Kurzová politika"
+      },
+      "open": {
+        "action": "Otevřít období",
+        "title": "Otevřít účetní období",
+        "description": "Nové období navazuje na poslední období a přebírá jeho režim, měnu a kurzovou politiku.",
+        "startLabel": "Počátek",
+        "endLabel": "Konec",
+        "currencyLabel": "Měna účetnictví",
+        "fxLabel": "Kurzová politika",
+        "submit": "Otevřít období",
+        "cancel": "Zrušit",
+        "success": "Účetní období bylo otevřeno.",
+        "error": "Účetní období se nepodařilo otevřít.",
+        "forbidden": "Otevřít období může jen vlastník nebo administrátor."
+      }
     },
     "favorite": {
       "tooltip": "Oblíbené",

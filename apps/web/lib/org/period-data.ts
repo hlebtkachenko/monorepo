@@ -19,8 +19,13 @@ import { getRequestSession } from "@/lib/org/session"
 /** Display state of a period row. `active` = the currently-resolved period. */
 type PeriodStav = "active" | "open" | "closed"
 
-/** One accounting-period row projected for the Periods table. */
-export interface PeriodListRow {
+/**
+ * One accounting-period row projected for the Periods table. A `type` (not an
+ * `interface`) so it carries the implicit string index signature that makes
+ * `PeriodListRow[]` assignable to the archetype's `readonly TableSectionRow[]`
+ * — the page passes the rows straight through, no re-mapping.
+ */
+export type PeriodListRow = {
   /** DB id (uuid) — the row identity + inspector/select key. */
   id: string
   /**
@@ -76,12 +81,17 @@ export async function listPeriods(input: {
   )
 
   return periods.map((period) => {
+    // Lifecycle wins over selection: a CLOSED period stays "closed" even when it
+    // is the actively-selected one in the header switcher — otherwise selecting a
+    // closed period would flip its badge to "Aktivní" and mis-file it under
+    // Otevřené (inflating the Open tab count). "active" is reserved for the
+    // selected OPEN period; "open"/"closed" are the lifecycle states.
     const stav: PeriodStav =
-      period.id === active?.id
-        ? "active"
-        : period.status === "OPEN"
-          ? "open"
-          : "closed"
+      period.status === "CLOSED"
+        ? "closed"
+        : period.id === active?.id
+          ? "active"
+          : "open"
     return {
       id: period.id,
       zkratka: String(fiscalYear(period.period_end)),

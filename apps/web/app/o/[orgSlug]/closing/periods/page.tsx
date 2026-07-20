@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 
 import { getTranslations } from "@workspace/i18n/server"
-import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
 
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 import { listPeriods } from "@/lib/org/period-data"
@@ -44,15 +43,6 @@ export default async function ClosingPeriodsPage({
     isFavorited({ slug: orgSlug, route }),
   ])
 
-  const rows: readonly TableSectionRow[] = periods.map((period) => ({
-    id: period.id,
-    zkratka: period.zkratka,
-    od: period.od,
-    do: period.do,
-    stav: period.stav,
-    rok: period.rok,
-  }))
-
   async function onToggleFavorite() {
     "use server"
     const result = await toggleFavorite({
@@ -69,7 +59,7 @@ export default async function ClosingPeriodsPage({
     <ClosingPeriodsView
       key={orgSlug}
       title={title}
-      rows={rows}
+      rows={periods}
       favorite={{
         initialActive: active,
         onToggle: onToggleFavorite,

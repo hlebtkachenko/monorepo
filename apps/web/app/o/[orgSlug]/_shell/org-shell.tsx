@@ -26,7 +26,13 @@ import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 
 import { orgBasePath, orgHref } from "@/lib/org/href"
 
-import { companyNav, debugNav, orgBottomNav, orgRailNav } from "../_nav/org-nav"
+import {
+  closingNav,
+  companyNav,
+  debugNav,
+  orgBottomNav,
+  orgRailNav,
+} from "../_nav/org-nav"
 
 /**
  * The persistent shell for the rebuilt org tree — mounted once by `layout.tsx`
@@ -85,18 +91,22 @@ export function OrgShell({
     [slug, t, showDebug],
   )
   const active = activeRailEntry(rail, pathname)
-  // Pick the active module's sidebar tree. Company is the default; the Debug
-  // module has its own single-Overview tree.
+  // Pick the active module's sidebar tree from the active rail entry. Company is
+  // the default; Closing and Debug each own their tree.
   const isDebugModule = active?.href === orgHref(slug, "debug")
+  const isClosingModule = active?.href === orgHref(slug, "closing")
   const nav = React.useMemo<SidebarNavEntry[]>(
     () =>
-      (isDebugModule ? debugNav(slug) : companyNav(slug)).map(
-        ({ labelKey, ...rest }) => ({
-          ...rest,
-          label: t(labelKey),
-        }),
-      ),
-    [slug, t, isDebugModule],
+      (isDebugModule
+        ? debugNav(slug)
+        : isClosingModule
+          ? closingNav(slug)
+          : companyNav(slug)
+      ).map(({ labelKey, ...rest }) => ({
+        ...rest,
+        label: t(labelKey),
+      })),
+    [slug, t, isDebugModule, isClosingModule],
   )
   const title = active?.label ?? t("company")
 

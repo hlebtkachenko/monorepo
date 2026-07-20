@@ -1460,6 +1460,7 @@
   "org": {
     "nav": {
       "company": "Společnost",
+      "closing": "Uzávěrky",
       "overview": "Přehled",
       "periods": "Období",
       "debug": "Ladění",
@@ -1473,12 +1474,35 @@
       "mainContent": "Hlavní obsah"
     },
     "titles": {
+      "closing": "Uzávěrky",
       "periods": "Období",
       "settings": "Nastavení",
       "debug": "Ladění",
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka"
+    },
+    "periods": {
+      "columns": {
+        "zkratka": "Zkratka",
+        "od": "Od",
+        "do": "Do",
+        "stav": "Stav",
+        "rok": "Rok"
+      },
+      "stav": {
+        "active": "Aktivní",
+        "open": "Otevřené",
+        "closed": "Uzavřené"
+      },
+      "views": {
+        "all": "Vše",
+        "open": "Otevřená",
+        "closed": "Uzavřená"
+      },
+      "exportFileName": "ucetni-obdobi",
+      "empty": "Zatím žádná účetní období.",
+      "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu."
     },
     "favorite": {
       "tooltip": "Oblíbené",

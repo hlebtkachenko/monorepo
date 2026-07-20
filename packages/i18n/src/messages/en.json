@@ -1460,6 +1460,7 @@
   "org": {
     "nav": {
       "company": "Company",
+      "closing": "Closing",
       "overview": "Overview",
       "periods": "Periods",
       "debug": "Debug",
@@ -1473,12 +1474,35 @@
       "mainContent": "Main content"
     },
     "titles": {
+      "closing": "Closing",
       "periods": "Periods",
       "settings": "Settings",
       "debug": "Debug",
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
       "treeTable": "Tree Table"
+    },
+    "periods": {
+      "columns": {
+        "zkratka": "Code",
+        "od": "From",
+        "do": "To",
+        "stav": "Status",
+        "rok": "Year"
+      },
+      "stav": {
+        "active": "Active",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "views": {
+        "all": "All",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "exportFileName": "accounting-periods",
+      "empty": "No accounting periods yet.",
+      "editZkratkaError": "Could not save the period code. Please try again."
     },
     "favorite": {
       "tooltip": "Favorite",

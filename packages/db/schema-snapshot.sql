@@ -1575,6 +1575,7 @@ CREATE TABLE public.accounting_period (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     accounting_currency_is_functional boolean GENERATED ALWAYS AS (true) STORED NOT NULL,
     fx_rate_policy public.fx_rate_kind,
+    zkratka text,
     CONSTRAINT accounting_period_dates_chk CHECK ((period_start <= period_end))
 );
 

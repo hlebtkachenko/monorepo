@@ -1507,7 +1507,8 @@
       "directory": "Directory",
       "states": "Countries",
       "finance": "Finance",
-      "currencies": "Currencies"
+      "currencies": "Currencies",
+      "paymentMethods": "Payment methods"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1525,7 +1526,8 @@
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "states": "Countries",
-      "currencies": "Currencies"
+      "currencies": "Currencies",
+      "paymentMethods": "Payment methods"
     },
     "periods": {
       "columns": {
@@ -1572,6 +1574,28 @@
       "empty": "No currencies.",
       "functionalNote": "Functional (accounting) currency — always available.",
       "toggleError": "Could not save the currency change. Please try again.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "paymentMethods": {
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "cash": "Cash",
+        "bankDetail": "Bank detail"
+      },
+      "names": {
+        "cash": "Cash",
+        "transfer": "Bank transfer",
+        "card": "Card",
+        "other": "Other"
+      },
+      "yes": "Yes",
+      "no": "No",
+      "all": "All",
+      "empty": "No payment methods.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"

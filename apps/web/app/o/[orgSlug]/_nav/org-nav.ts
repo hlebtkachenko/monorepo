@@ -28,6 +28,7 @@ type OrgNavLabelKey =
   | "states"
   | "finance"
   | "currencies"
+  | "paymentMethods"
   | "overview"
   | "periods"
   | "accounting"
@@ -142,6 +143,11 @@ export function financeNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "currencies",
       icon: "Banknote",
       href: orgHref(slug, "finance/ciselniky/meny"),
+    },
+    {
+      labelKey: "paymentMethods",
+      icon: "CreditCard",
+      href: orgHref(slug, "finance/ciselniky/formy-uhrady"),
     },
   ]
 }

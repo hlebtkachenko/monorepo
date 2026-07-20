@@ -9,20 +9,21 @@ import type { ArchetypeTableSelectionHelpers } from "@workspace/ui/blocks/archet
 import {
   buildTableFooter,
   buildTableToolbar,
-  SectionList,
-  sectionInspectorKeyDetails,
-  sectionTable,
+  sectionTreeTable,
+  useTreeTableFilters,
 } from "@workspace/ui/blocks/content-panel"
 import type {
   ContentFooterAction,
   ContentHeaderFavoriteToggle,
   ContentToolbarProps,
+  SectionCellCommit,
   TableColumnOption,
   TableColumnSpec,
   TableSectionRow,
+  TreeTableRow,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
-import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import type { FiltersState } from "@workspace/ui/components/filter-bar"
 import { toast } from "@workspace/ui/components/sonner"
 
 import { updatePeriodZkratka } from "@/lib/org/period-actions"
@@ -30,13 +31,23 @@ import { updatePeriodZkratka } from "@/lib/org/period-actions"
 /**
  * ClosingPeriodsView — the Closing → Účetní období list.
  *
- * A Table archetype over the org's real `accounting_period` rows (projected
- * server-side by `listPeriods`). Columns: Zkratka (the period code — editable,
+ * A **Tree-table** archetype section (the #892 variant) over the org's real
+ * `accounting_period` rows (projected server-side by `listPeriods`). The fiscal
+ * years are the top-level rows; the monthly sub-periods join later as `subRows`,
+ * so the year → month hierarchy is built on the tree renderer from the start.
+ *
+ * Columns: Rok (the fiscal year — the row's STABLE identity, so it hosts the
+ * tree anchor and is never editable), Zkratka (the period code — inline-editable,
  * defaults to the derived fiscal year until overridden), Od / Do (bounds), Stav
- * (Aktivní / Otevřené / Uzavřené), Rok (fiscal year, derived, not editable).
- * Editing Zkratka — inline in the grid or in the row Inspector — updates
- * optimistically and persists through `updatePeriodZkratka`. No demo content —
- * every cell is real org data.
+ * (Aktivní / Otevřené / Uzavřené). Editing Zkratka commits through the tree
+ * renderer's own optimistic cell state: it shows the edit immediately and reverts
+ * if `updatePeriodZkratka` rejects (this handler throws on `!ok`). No demo
+ * content — every cell is real org data.
+ *
+ * The row Inspector is deliberately absent: `ArchetypeTable`'s Inspector resolves
+ * its row from the flat `sectionTable` payload only, so it auto-closes on a tree
+ * section. The per-period detail / Uzávěrka Inspector arrives with a
+ * tree-compatible opener in a later slice.
  */
 export function ClosingPeriodsView({
   slug,
@@ -52,38 +63,25 @@ export function ClosingPeriodsView({
   const t = useTranslations("org.periods")
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
-  const [, startTransition] = React.useTransition()
+  const [filters, setFilters] = React.useState<FiltersState>([])
 
-  // Optimistic Zkratka edits: `useOptimistic` shows the edited code immediately
-  // during the transition, then settles on the server value when the action's
-  // revalidation lands — the persisted value on success, the prior value on
-  // failure (where the toast fires). No manual prop→state sync.
-  const [rows, addOptimisticZkratka] = React.useOptimistic(
-    serverRows,
-    (
-      current: readonly TableSectionRow[],
-      edit: { rowId: string; zkratka: string },
-    ) =>
-      current.map((row) =>
-        String(row.id) === edit.rowId ? { ...row, zkratka: edit.zkratka } : row,
-      ),
-  )
-
-  const commitZkratka = React.useCallback(
-    (rowId: string, value: string) => {
-      const next = value.trim()
-      if (!next) return
-      startTransition(async () => {
-        addOptimisticZkratka({ rowId, zkratka: next })
-        const result = await updatePeriodZkratka({
-          slug,
-          periodId: rowId,
-          zkratka: next,
-        })
-        if (!result.ok) toast.error(t("editZkratkaError"))
-      })
-    },
-    [slug, addOptimisticZkratka, t],
+  // Wrap the flat period rows as a Tree-table forest: top-level = fiscal years,
+  // each period's cells under `values` keyed by column id (month sub-rows join as
+  // `subRows` in a later slice). The renderer holds its own draft, so inline
+  // edits stick and revert without a page-level optimistic store.
+  const treeRows = React.useMemo<readonly TreeTableRow[]>(
+    () =>
+      serverRows.map((row) => ({
+        id: String(row.id ?? ""),
+        values: {
+          rok: row.rok ?? null,
+          zkratka: row.zkratka ?? null,
+          od: row.od ?? null,
+          do: row.do ?? null,
+          stav: row.stav ?? null,
+        },
+      })),
+    [serverRows],
   )
 
   const stavOptions: TableColumnOption[] = React.useMemo(
@@ -97,15 +95,24 @@ export function ClosingPeriodsView({
 
   const columns: TableColumnSpec[] = React.useMemo(
     () => [
+      // Rok is the stable identity → the tree anchor (chevron + expand), never
+      // inline-editable. A user-editable Zkratka cannot serve as the anchor.
+      {
+        id: "rok",
+        header: t("columns.rok"),
+        kind: "text",
+        role: "id",
+        width: 160,
+      },
       {
         id: "zkratka",
         header: t("columns.zkratka"),
         kind: "text",
-        role: "id",
-        width: 140,
+        edit: "inline",
+        width: 160,
       },
-      { id: "od", header: t("columns.od"), kind: "text", width: 140 },
-      { id: "do", header: t("columns.do"), kind: "text", width: 140 },
+      { id: "od", header: t("columns.od"), kind: "text", width: 150 },
+      { id: "do", header: t("columns.do"), kind: "text", width: 150 },
       {
         id: "stav",
         header: t("columns.stav"),
@@ -113,40 +120,64 @@ export function ClosingPeriodsView({
         options: stavOptions,
         width: 150,
       },
-      {
-        id: "rok",
-        header: t("columns.rok"),
-        kind: "number",
-        align: "end",
-        width: 110,
-      },
     ],
     [t, stavOptions],
   )
 
-  const viewRows = React.useMemo(() => {
+  // View tabs filter the top-level (year) rows by lifecycle state.
+  const tabRows = React.useMemo(() => {
     if (activeTab === "open")
-      return rows.filter((row) => String(row.stav) !== "closed")
+      return treeRows.filter((row) => String(row.values.stav) !== "closed")
     if (activeTab === "closed")
-      return rows.filter((row) => String(row.stav) === "closed")
-    return rows
-  }, [rows, activeTab])
+      return treeRows.filter((row) => String(row.values.stav) === "closed")
+    return treeRows
+  }, [treeRows, activeTab])
+
+  // Column-driven toolbar filter + the recursively-narrowed tree it produces.
+  const { filter, rows: filteredTree } = useTreeTableFilters({
+    columns,
+    rows: tabRows,
+    filters,
+    onFiltersChange: setFilters,
+  })
 
   const views: ViewTab[] = React.useMemo(
     () => [
-      { value: "all", label: t("views.all"), count: rows.length },
+      { value: "all", label: t("views.all"), count: treeRows.length },
       {
         value: "open",
         label: t("views.open"),
-        count: rows.filter((row) => String(row.stav) !== "closed").length,
+        count: treeRows.filter((row) => String(row.values.stav) !== "closed")
+          .length,
       },
       {
         value: "closed",
         label: t("views.closed"),
-        count: rows.filter((row) => String(row.stav) === "closed").length,
+        count: treeRows.filter((row) => String(row.values.stav) === "closed")
+          .length,
       },
     ],
-    [rows, t],
+    [treeRows, t],
+  )
+
+  // Persist an inline Zkratka edit. Only Zkratka is editable; other columns are
+  // read-only. Throwing on failure makes the tree renderer revert the cell.
+  const onCellEdit: SectionCellCommit = React.useCallback(
+    async ({ rowId, columnId, value }) => {
+      if (columnId !== "zkratka") return
+      const next = String(value ?? "").trim()
+      if (!next) throw new Error("empty zkratka") // revert, no toast
+      const result = await updatePeriodZkratka({
+        slug,
+        periodId: rowId,
+        zkratka: next,
+      })
+      if (!result.ok) {
+        toast.error(t("editZkratkaError"))
+        throw new Error("zkratka update rejected") // revert the optimistic cell
+      }
+    },
+    [slug, t],
   )
 
   const buildToolbar = React.useCallback(
@@ -155,8 +186,9 @@ export function ClosingPeriodsView({
     ): ContentToolbarProps<TableSectionRow> =>
       buildTableToolbar(table, {
         search: { value: search, onChange: setSearch },
+        filter,
       }),
-    [search],
+    [search, filter],
   )
 
   const selectionActions = React.useCallback(
@@ -164,8 +196,9 @@ export function ClosingPeriodsView({
       table: Table<TableSectionRow> | null,
       _helpers: ArchetypeTableSelectionHelpers,
     ): ContentFooterAction[] => {
-      const ids = (table?.getFilteredSelectedRowModel().rows ?? []).map((row) =>
-        String(row.original.id),
+      // `flatRows` so a nested (month) selection is included alongside years.
+      const ids = (table?.getFilteredSelectedRowModel().flatRows ?? []).map(
+        (row) => String(row.original.id),
       )
       return buildTableFooter(table, {
         exportFileName: t("exportFileName"),
@@ -175,61 +208,6 @@ export function ClosingPeriodsView({
     [t],
   )
 
-  const inspectorContent = React.useCallback(
-    (row: TableSectionRow) => {
-      const stav = String(row.stav ?? "")
-      const stavText =
-        stav === "active"
-          ? t("stav.active")
-          : stav === "closed"
-            ? t("stav.closed")
-            : t("stav.open")
-      return {
-        details: (
-          <SectionList
-            sections={[
-              sectionInspectorKeyDetails({
-                lines: [
-                  {
-                    label: t("columns.zkratka"),
-                    value: String(row.zkratka ?? ""),
-                    icon: "HashIcon",
-                    onChange: (next) => commitZkratka(String(row.id), next),
-                  },
-                  {
-                    label: t("columns.od"),
-                    value: String(row.od ?? ""),
-                    icon: "CalendarIcon",
-                    readOnly: true,
-                  },
-                  {
-                    label: t("columns.do"),
-                    value: String(row.do ?? ""),
-                    icon: "CalendarIcon",
-                    readOnly: true,
-                  },
-                  {
-                    label: t("columns.stav"),
-                    value: stavText,
-                    icon: "CheckCircle2",
-                    readOnly: true,
-                  },
-                  {
-                    label: t("columns.rok"),
-                    value: String(row.rok ?? ""),
-                    icon: "CalendarClock",
-                    readOnly: true,
-                  },
-                ],
-              }),
-            ]}
-          />
-        ),
-      } satisfies Partial<Record<InspectorTab, React.ReactNode>>
-    },
-    [t, commitZkratka],
-  )
-
   return (
     <ArchetypeTable<TableSectionRow>
       title={title}
@@ -237,21 +215,16 @@ export function ClosingPeriodsView({
       views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
       toolbar={buildToolbar}
       selectionActions={selectionActions}
+      onCellEdit={onCellEdit}
       sections={[
-        sectionTable({
+        sectionTreeTable({
           anchor: "periods",
           columns,
-          rows: viewRows,
-          rowIdKey: "id",
-          features: { search: true, inspect: true },
+          rows: filteredTree,
+          features: { search: true },
           emptyText: t("empty"),
         }),
       ]}
-      inspectorRowTitle={(row) => String(row.zkratka ?? "")}
-      inspectorRowName={(row) =>
-        `${String(row.od ?? "")} – ${String(row.do ?? "")}`
-      }
-      inspectorRowContent={inspectorContent}
     />
   )
 }

@@ -41,7 +41,7 @@ export type ArchetypeKind = "table" | "details"
  * of truth) plus the `details-group` container — one list, no drift.
  */
 export const ARCHETYPE_SECTION_POLICY = {
-  table: ["table", "pivot-table", "space", "empty"],
+  table: ["table", "pivot-table", "tree-table", "space", "empty"],
   details: [...DETAILS_BODY_KINDS, "details-group"],
 } as const satisfies Record<ArchetypeKind, readonly SectionKind[]>
 

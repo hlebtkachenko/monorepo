@@ -1464,7 +1464,8 @@
       "periods": "Periods",
       "debug": "Debug",
       "normalTable": "Normal Table",
-      "pivotTable": "Pivot Table"
+      "pivotTable": "Pivot Table",
+      "treeTable": "Tree Table"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1476,7 +1477,8 @@
       "settings": "Settings",
       "debug": "Debug",
       "normalTable": "Normal Table",
-      "pivotTable": "Pivot Table"
+      "pivotTable": "Pivot Table",
+      "treeTable": "Tree Table"
     },
     "favorite": {
       "tooltip": "Favorite",

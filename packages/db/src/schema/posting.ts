@@ -53,6 +53,7 @@ export const posting = pgTable(
     corrects_posting_id: uuid("corrects_posting_id"), // opravuje_zapis_id (R8/§35) — self-FK
     correction_type: correctionType("correction_type"), // set iff corrects_posting_id set
     is_opening: boolean("is_opening").notNull().default(false), // B2: 701 počáteční-stav opening posting
+    is_closing: boolean("is_closing").notNull().default(false), // 702 konečný účet rozvažný close posting (read-model-neutral)
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -553,13 +553,6 @@ export async function deleteNumberSeriesPeriod(
  */
 export const DEFAULT_DOCUMENT_TYPES = [
   {
-    category: "ISSUED_INVOICE",
-    code: "FV",
-    name: "Faktura vydaná",
-    kind: "STANDARD",
-    seriesCode: "FV",
-  },
-  {
     category: "RECEIVED_INVOICE",
     code: "FP",
     name: "Faktura přijatá",
@@ -567,11 +560,18 @@ export const DEFAULT_DOCUMENT_TYPES = [
     seriesCode: "FP",
   },
   {
+    category: "ISSUED_INVOICE",
+    code: "FV",
+    name: "Faktura vydaná",
+    kind: "STANDARD",
+    seriesCode: "FV",
+  },
+  {
     category: "CASH",
-    code: "PD",
-    name: "Pokladní doklad",
+    code: "PPD",
+    name: "Příjmový pokladní doklad",
     kind: null,
-    seriesCode: "PD",
+    seriesCode: "PPD",
   },
   {
     category: "BANK",
@@ -586,6 +586,34 @@ export const DEFAULT_DOCUMENT_TYPES = [
     name: "Interní doklad",
     kind: "GENERAL",
     seriesCode: "ID",
+  },
+  {
+    category: "SET_OFF",
+    code: "ZAP",
+    name: "Zápočet",
+    kind: null,
+    seriesCode: "ZAP",
+  },
+  {
+    category: "OTHER_RECEIVABLE",
+    code: "POH",
+    name: "Pohledávkový doklad",
+    kind: null,
+    seriesCode: "POH",
+  },
+  {
+    category: "OTHER_PAYABLE",
+    code: "ZAV",
+    name: "Závazkový doklad",
+    kind: null,
+    seriesCode: "ZAV",
+  },
+  {
+    category: "TAX_APPLICATION",
+    code: "UDZ",
+    name: "Uplatnění daně - závazky",
+    kind: null,
+    seriesCode: "UDZ",
   },
 ] as const satisfies readonly {
   category: DocumentCategory

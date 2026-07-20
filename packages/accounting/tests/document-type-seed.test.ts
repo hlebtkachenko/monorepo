@@ -104,8 +104,10 @@ describe("backfillDefaultDocumentTypes", () => {
              ORDER BY code`,
       ),
     )
-    expect(rows.find((r) => r.code === "FV")?.name).toBe("Faktury vydané")
-    expect(rows.find((r) => r.code === "PD")?.name).toBe("Pokladní doklady")
+    expect(rows.find((r) => r.code === "FV")?.name).toBe("Vydané faktury")
+    expect(rows.find((r) => r.code === "PPD")?.name).toBe(
+      "Příjmové pokladní doklady",
+    )
     expect(rows.every((r) => r.name != null)).toBe(true)
   })
 

@@ -8,7 +8,10 @@
         "accountType": "Typ",
         "normalBalance": "Strana",
         "tracksOpenItems": "Saldokonto",
-        "taxRelevant": "Daňový"
+        "taxRelevant": "Daňový",
+        "code": "Kód",
+        "balanceSheetLine": "Řádek rozvahy",
+        "incomeStatementLine": "Řádek výsledovky"
       },
       "statementClass": {
         "BALANCE_SHEET": "Rozvahový",
@@ -50,6 +53,12 @@
         "exportFileName": "uctovy-rozvrh",
         "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro sestavení účtového rozvrhu.",
         "emptyNoChart": "Toto období zatím nemá účtový rozvrh."
+      },
+      "framework": {
+        "searchPlaceholder": "Hledat v osnově",
+        "view": "Vše",
+        "exportFileName": "ucetni-osnova",
+        "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro zobrazení účetní osnovy."
       },
       "osnovaNames": {
         "111": "Pořízení materiálu",
@@ -1493,7 +1502,8 @@
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
       "accounting": "Účetnictví",
-      "chartOfAccounts": "Účtový rozvrh"
+      "chartOfAccounts": "Účtový rozvrh",
+      "chartFramework": "Účetní osnova"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1508,7 +1518,8 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
-      "chartOfAccounts": "Účtový rozvrh"
+      "chartOfAccounts": "Účtový rozvrh",
+      "chartFramework": "Účetní osnova"
     },
     "periods": {
       "columns": {

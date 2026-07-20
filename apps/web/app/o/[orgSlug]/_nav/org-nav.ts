@@ -28,6 +28,7 @@ type OrgNavLabelKey =
   | "periods"
   | "accounting"
   | "chartOfAccounts"
+  | "chartFramework"
   | "debug"
   | "normalTable"
   | "pivotTable"
@@ -123,6 +124,11 @@ export function accountingNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "chartOfAccounts",
       icon: "BookOpenText",
       href: orgHref(slug, "accounting/chart-of-accounts"),
+    },
+    {
+      labelKey: "chartFramework",
+      icon: "TableProperties",
+      href: orgHref(slug, "accounting/chart-framework"),
     },
   ]
 }

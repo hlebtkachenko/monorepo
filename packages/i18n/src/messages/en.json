@@ -8,7 +8,10 @@
         "accountType": "Type",
         "normalBalance": "Normal side",
         "tracksOpenItems": "Open items",
-        "taxRelevant": "Tax-relevant"
+        "taxRelevant": "Tax-relevant",
+        "code": "Code",
+        "balanceSheetLine": "Balance-sheet line",
+        "incomeStatementLine": "Income-statement line"
       },
       "statementClass": {
         "BALANCE_SHEET": "Balance sheet",
@@ -50,6 +53,12 @@
         "exportFileName": "chart-of-accounts",
         "emptyNoPeriod": "No active accounting period. Open a period to build the chart of accounts.",
         "emptyNoChart": "This period has no chart of accounts yet."
+      },
+      "framework": {
+        "searchPlaceholder": "Search framework",
+        "view": "All",
+        "exportFileName": "chart-framework",
+        "emptyNoPeriod": "No active accounting period. Open a period to view the framework chart."
       },
       "osnovaNames": {
         "111": "Material Acquisition (Method A accumulator)",
@@ -1493,7 +1502,8 @@
       "pivotTable": "Pivot Table",
       "treeTable": "Tree Table",
       "accounting": "Accounting",
-      "chartOfAccounts": "Chart of accounts"
+      "chartOfAccounts": "Chart of accounts",
+      "chartFramework": "Chart framework"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1508,7 +1518,8 @@
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
       "treeTable": "Tree Table",
-      "chartOfAccounts": "Chart of accounts"
+      "chartOfAccounts": "Chart of accounts",
+      "chartFramework": "Chart framework"
     },
     "periods": {
       "columns": {

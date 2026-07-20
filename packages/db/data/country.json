@@ -1,0 +1,1292 @@
+[
+  {
+    "iso2": "AD",
+    "nameCs": "Andorra",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "AE",
+    "nameCs": "Spojené arabské emiráty",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AF",
+    "nameCs": "Afghánistán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AG",
+    "nameCs": "Antigua a Barbuda",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AI",
+    "nameCs": "Anguilla",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AL",
+    "nameCs": "Albánie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AM",
+    "nameCs": "Arménie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AN",
+    "nameCs": "Nizozemské Antily",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AO",
+    "nameCs": "Angola",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AQ",
+    "nameCs": "Antarktida",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AR",
+    "nameCs": "Argentina",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AS",
+    "nameCs": "Americká Samoa",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AT",
+    "nameCs": "Rakousko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "AU",
+    "nameCs": "Austrálie",
+    "currencyCode": "AUD"
+  },
+  {
+    "iso2": "AW",
+    "nameCs": "Aruba",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AX",
+    "nameCs": "Alandské ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "AZ",
+    "nameCs": "Ázerbájdžán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BA",
+    "nameCs": "Bosna a Hercegovina",
+    "currencyCode": "BAM"
+  },
+  {
+    "iso2": "BB",
+    "nameCs": "Barbados",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BD",
+    "nameCs": "Bangladéš",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BE",
+    "nameCs": "Belgie",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "BF",
+    "nameCs": "Burkina Faso",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BG",
+    "nameCs": "Bulharsko",
+    "currencyCode": "BGN"
+  },
+  {
+    "iso2": "BH",
+    "nameCs": "Bahrajn",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BI",
+    "nameCs": "Burundi",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BJ",
+    "nameCs": "Benin",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BL",
+    "nameCs": "Svatý Bartoloměj",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BM",
+    "nameCs": "Bermudy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BN",
+    "nameCs": "Brunej Darussalam",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BO",
+    "nameCs": "Bolívie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BQ",
+    "nameCs": "Bonaire, Svatý Eustach a SABA",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BR",
+    "nameCs": "Brazílie",
+    "currencyCode": "BRL"
+  },
+  {
+    "iso2": "BS",
+    "nameCs": "Bahamy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BT",
+    "nameCs": "Bhútán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BV",
+    "nameCs": "Bouvetův ostrov",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BW",
+    "nameCs": "Botswana",
+    "currencyCode": null
+  },
+  {
+    "iso2": "BY",
+    "nameCs": "Bělorusko",
+    "currencyCode": "BYR"
+  },
+  {
+    "iso2": "BZ",
+    "nameCs": "Belize",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CA",
+    "nameCs": "Kanada",
+    "currencyCode": "CAD"
+  },
+  {
+    "iso2": "CC",
+    "nameCs": "Kokosové ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CD",
+    "nameCs": "Kongo, demokratická republika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CF",
+    "nameCs": "Středoafrická republika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CG",
+    "nameCs": "Kongo",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CH",
+    "nameCs": "Švýcarsko",
+    "currencyCode": "CHF"
+  },
+  {
+    "iso2": "CI",
+    "nameCs": "Pobřeží slonoviny",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CK",
+    "nameCs": "Cookovy ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CL",
+    "nameCs": "Chile",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CM",
+    "nameCs": "Kamerun",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CN",
+    "nameCs": "Čína",
+    "currencyCode": "CNY"
+  },
+  {
+    "iso2": "CO",
+    "nameCs": "Kolumbie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CR",
+    "nameCs": "Kostarika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CU",
+    "nameCs": "Kuba",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CV",
+    "nameCs": "Kapverdy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CW",
+    "nameCs": "Curaçao",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CX",
+    "nameCs": "Vánoční ostrov",
+    "currencyCode": null
+  },
+  {
+    "iso2": "CY",
+    "nameCs": "Kypr",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "CZ",
+    "nameCs": "Česká republika",
+    "currencyCode": "CZK"
+  },
+  {
+    "iso2": "DE",
+    "nameCs": "Německo",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "DJ",
+    "nameCs": "Džibutsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "DK",
+    "nameCs": "Dánsko",
+    "currencyCode": "DKK"
+  },
+  {
+    "iso2": "DM",
+    "nameCs": "Dominika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "DO",
+    "nameCs": "Dominikánská republika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "DZ",
+    "nameCs": "Alžírsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "EC",
+    "nameCs": "Ekvádor",
+    "currencyCode": null
+  },
+  {
+    "iso2": "EE",
+    "nameCs": "Estonsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "EG",
+    "nameCs": "Egypt",
+    "currencyCode": null
+  },
+  {
+    "iso2": "EH",
+    "nameCs": "Západní Sahara",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ER",
+    "nameCs": "Eritrea",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ES",
+    "nameCs": "Španělsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "ET",
+    "nameCs": "Etiopie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "EU",
+    "nameCs": "Evropská unie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "FI",
+    "nameCs": "Finsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "FJ",
+    "nameCs": "Fidži",
+    "currencyCode": null
+  },
+  {
+    "iso2": "FK",
+    "nameCs": "Falklandy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "FM",
+    "nameCs": "Mikronésie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "FO",
+    "nameCs": "Faerské ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "FR",
+    "nameCs": "Francie",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "GA",
+    "nameCs": "Gabon",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GB",
+    "nameCs": "Spojené království",
+    "currencyCode": "GBP"
+  },
+  {
+    "iso2": "GD",
+    "nameCs": "Grenada",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GE",
+    "nameCs": "Gruzie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GF",
+    "nameCs": "Francouzská Guyana",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GG",
+    "nameCs": "Guernsey",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GH",
+    "nameCs": "Ghana",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GI",
+    "nameCs": "Gibraltar",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GL",
+    "nameCs": "Grónsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GM",
+    "nameCs": "Gambie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GN",
+    "nameCs": "Guinea",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GP",
+    "nameCs": "Guadeloupe",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GQ",
+    "nameCs": "Rovníková Guinea",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GR",
+    "nameCs": "Řecko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "GS",
+    "nameCs": "Jižní Georgie a Jižní Sandwichovy ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GT",
+    "nameCs": "Guatemala",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GU",
+    "nameCs": "Guam",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GW",
+    "nameCs": "Guinea-Bissau",
+    "currencyCode": null
+  },
+  {
+    "iso2": "GY",
+    "nameCs": "Guyana",
+    "currencyCode": null
+  },
+  {
+    "iso2": "HK",
+    "nameCs": "Hongkong",
+    "currencyCode": "HKD"
+  },
+  {
+    "iso2": "HM",
+    "nameCs": "Heardův ostrov a McDonaldovy ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "HN",
+    "nameCs": "Honduras",
+    "currencyCode": null
+  },
+  {
+    "iso2": "HR",
+    "nameCs": "Chorvatsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "HT",
+    "nameCs": "Haiti",
+    "currencyCode": null
+  },
+  {
+    "iso2": "HU",
+    "nameCs": "Maďarsko",
+    "currencyCode": "HUF"
+  },
+  {
+    "iso2": "ID",
+    "nameCs": "Indonésie",
+    "currencyCode": "IDR"
+  },
+  {
+    "iso2": "IE",
+    "nameCs": "Irsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "IL",
+    "nameCs": "Izrael",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IM",
+    "nameCs": "Ostrov Man",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IN",
+    "nameCs": "Indie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IO",
+    "nameCs": "Britské indickooceánské území",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IQ",
+    "nameCs": "Irák",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IR",
+    "nameCs": "Írán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "IS",
+    "nameCs": "Island",
+    "currencyCode": "ISK"
+  },
+  {
+    "iso2": "IT",
+    "nameCs": "Itálie",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "JE",
+    "nameCs": "Jersey",
+    "currencyCode": null
+  },
+  {
+    "iso2": "JM",
+    "nameCs": "Jamajka",
+    "currencyCode": null
+  },
+  {
+    "iso2": "JO",
+    "nameCs": "Jordánsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "JP",
+    "nameCs": "Japonsko",
+    "currencyCode": "JPY"
+  },
+  {
+    "iso2": "KE",
+    "nameCs": "Keňa",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KG",
+    "nameCs": "Kyrgyzstán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KH",
+    "nameCs": "Kambodža",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KI",
+    "nameCs": "Kiribati",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KM",
+    "nameCs": "Komory",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KN",
+    "nameCs": "Svatý Kryštof a Nevis",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KP",
+    "nameCs": "Korea, lidově demokratická republika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KR",
+    "nameCs": "Korea",
+    "currencyCode": "KRW"
+  },
+  {
+    "iso2": "KW",
+    "nameCs": "Kuvajt",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KY",
+    "nameCs": "Kajmanské ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "KZ",
+    "nameCs": "Kazachstán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LA",
+    "nameCs": "Laos",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LB",
+    "nameCs": "Libanon",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LC",
+    "nameCs": "Svatá Lucie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LI",
+    "nameCs": "Lichtenštejnsko",
+    "currencyCode": "CHF"
+  },
+  {
+    "iso2": "LK",
+    "nameCs": "Srí Lanka",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LR",
+    "nameCs": "Libérie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LS",
+    "nameCs": "Lesotho",
+    "currencyCode": null
+  },
+  {
+    "iso2": "LT",
+    "nameCs": "Litva",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "LU",
+    "nameCs": "Lucembursko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "LV",
+    "nameCs": "Lotyšsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "LY",
+    "nameCs": "Libye",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MA",
+    "nameCs": "Maroko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MC",
+    "nameCs": "Monacké knížectví",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "MD",
+    "nameCs": "Moldavsko",
+    "currencyCode": "MDL"
+  },
+  {
+    "iso2": "ME",
+    "nameCs": "Černá Hora",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "MF",
+    "nameCs": "Svatý Martin (francouzská část)",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MG",
+    "nameCs": "Madagaskar",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MH",
+    "nameCs": "Marshallovy ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MK",
+    "nameCs": "Makedonie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ML",
+    "nameCs": "Mali",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MM",
+    "nameCs": "Myanmar",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MN",
+    "nameCs": "Mongolsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MO",
+    "nameCs": "Macao",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MP",
+    "nameCs": "Severní Mariany",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MQ",
+    "nameCs": "Martinik",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MR",
+    "nameCs": "Mauritánie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MS",
+    "nameCs": "Montserrat",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MT",
+    "nameCs": "Malta",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "MU",
+    "nameCs": "Mauricius",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MV",
+    "nameCs": "Maledivy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MW",
+    "nameCs": "Malawi",
+    "currencyCode": null
+  },
+  {
+    "iso2": "MX",
+    "nameCs": "Mexiko",
+    "currencyCode": "MXN"
+  },
+  {
+    "iso2": "MY",
+    "nameCs": "Malajsie",
+    "currencyCode": "MYR"
+  },
+  {
+    "iso2": "MZ",
+    "nameCs": "Mosambik",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NA",
+    "nameCs": "Namibie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NC",
+    "nameCs": "Nová Kaledonie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NE",
+    "nameCs": "Niger",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NF",
+    "nameCs": "Norfolk",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NG",
+    "nameCs": "Nigérie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NI",
+    "nameCs": "Nikaragua",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NL",
+    "nameCs": "Nizozemsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "NO",
+    "nameCs": "Norsko",
+    "currencyCode": "NOK"
+  },
+  {
+    "iso2": "NP",
+    "nameCs": "Nepál",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NR",
+    "nameCs": "Nauru",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NU",
+    "nameCs": "Niue",
+    "currencyCode": null
+  },
+  {
+    "iso2": "NZ",
+    "nameCs": "Nový Zéland",
+    "currencyCode": "NZD"
+  },
+  {
+    "iso2": "OM",
+    "nameCs": "Omán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PA",
+    "nameCs": "Panama",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PE",
+    "nameCs": "Peru",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PF",
+    "nameCs": "Francouzská Polynésie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PG",
+    "nameCs": "Papua Nová Guinea",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PH",
+    "nameCs": "Filipíny",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PK",
+    "nameCs": "Pákistán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PL",
+    "nameCs": "Polsko",
+    "currencyCode": "PLN"
+  },
+  {
+    "iso2": "PM",
+    "nameCs": "Saint Pierre a Miquelon",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PN",
+    "nameCs": "Pitcairn",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PR",
+    "nameCs": "Portoriko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PS",
+    "nameCs": "Okupované palestinské území",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PT",
+    "nameCs": "Portugalsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "PW",
+    "nameCs": "Palau",
+    "currencyCode": null
+  },
+  {
+    "iso2": "PY",
+    "nameCs": "Paraguay",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QA",
+    "nameCs": "Katar",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QQ",
+    "nameCs": "Rezervy a zásoby",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QR",
+    "nameCs": "Rezervy a zásoby v rámci obchodu uvnitř Společenstí",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QS",
+    "nameCs": "Rezervy a zásoby v rámci obchodu s třetími zeměmi",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QU",
+    "nameCs": "Státy a území nevymezené",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QV",
+    "nameCs": "Země a území neuváděné v rámci obchodu uvnitř Společenství",
+    "currencyCode": null
+  },
+  {
+    "iso2": "QW",
+    "nameCs": "Země a území neuváděné v rámci obchodu s třetími zeměmi",
+    "currencyCode": null
+  },
+  {
+    "iso2": "RO",
+    "nameCs": "Rumunsko",
+    "currencyCode": "RON"
+  },
+  {
+    "iso2": "RS",
+    "nameCs": "Srbsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "RU",
+    "nameCs": "Rusko",
+    "currencyCode": "RUB"
+  },
+  {
+    "iso2": "RW",
+    "nameCs": "Rwanda",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SA",
+    "nameCs": "Saúdská Arábie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SB",
+    "nameCs": "Šalamounovy ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SC",
+    "nameCs": "Seychely",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SD",
+    "nameCs": "Súdán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SE",
+    "nameCs": "Švédsko",
+    "currencyCode": "SEK"
+  },
+  {
+    "iso2": "SG",
+    "nameCs": "Singapur",
+    "currencyCode": "SGD"
+  },
+  {
+    "iso2": "SH",
+    "nameCs": "Svatá Helena",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SI",
+    "nameCs": "Slovinsko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "SJ",
+    "nameCs": "Svalbard a ostrov Jan Maye",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SK",
+    "nameCs": "Slovensko",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "SL",
+    "nameCs": "Sierra Leone",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SM",
+    "nameCs": "San Marino",
+    "currencyCode": "EUR"
+  },
+  {
+    "iso2": "SN",
+    "nameCs": "Senegal",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SO",
+    "nameCs": "Somálsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SR",
+    "nameCs": "Surinam",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SS",
+    "nameCs": "Jihosúdánská republika",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ST",
+    "nameCs": "Svatý Tomáš",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SV",
+    "nameCs": "Salvador",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SX",
+    "nameCs": "Sv. Martin (nizozem.část)",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SY",
+    "nameCs": "Sýrie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "SZ",
+    "nameCs": "Svazijsko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TC",
+    "nameCs": "Turks a Caicos",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TD",
+    "nameCs": "Čad",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TF",
+    "nameCs": "Francouzská jižní území",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TG",
+    "nameCs": "Togo",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TH",
+    "nameCs": "Thajsko",
+    "currencyCode": "THB"
+  },
+  {
+    "iso2": "TJ",
+    "nameCs": "Tádžikistán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TK",
+    "nameCs": "Tokelau",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TL",
+    "nameCs": "Timor-Leste",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TM",
+    "nameCs": "Turkmenistán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TN",
+    "nameCs": "Tunisko",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TO",
+    "nameCs": "Tonga",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TR",
+    "nameCs": "Turecko",
+    "currencyCode": "TRY"
+  },
+  {
+    "iso2": "TT",
+    "nameCs": "Trinidad a Tobago",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TV",
+    "nameCs": "Tuvalu",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TW",
+    "nameCs": "Tchaj-wan",
+    "currencyCode": null
+  },
+  {
+    "iso2": "TZ",
+    "nameCs": "Tanzanie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "UA",
+    "nameCs": "Ukrajina",
+    "currencyCode": null
+  },
+  {
+    "iso2": "UG",
+    "nameCs": "Uganda",
+    "currencyCode": null
+  },
+  {
+    "iso2": "UM",
+    "nameCs": "Menší odlehlé ostrovy USA",
+    "currencyCode": null
+  },
+  {
+    "iso2": "US",
+    "nameCs": "Spojené státy",
+    "currencyCode": "USD"
+  },
+  {
+    "iso2": "UY",
+    "nameCs": "Uruguay",
+    "currencyCode": null
+  },
+  {
+    "iso2": "UZ",
+    "nameCs": "Uzbekistán",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VA",
+    "nameCs": "Svatý stolec",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VC",
+    "nameCs": "Svatý Vincenc a Grenadiny",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VE",
+    "nameCs": "Venezuela",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VG",
+    "nameCs": "Britské Panenské ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VI",
+    "nameCs": "Americké Panenské ostrovy",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VN",
+    "nameCs": "Vietnam",
+    "currencyCode": null
+  },
+  {
+    "iso2": "VU",
+    "nameCs": "Vanuatu",
+    "currencyCode": null
+  },
+  {
+    "iso2": "WF",
+    "nameCs": "Wallis a Futuna",
+    "currencyCode": null
+  },
+  {
+    "iso2": "WS",
+    "nameCs": "Samoa",
+    "currencyCode": null
+  },
+  {
+    "iso2": "XI",
+    "nameCs": "Severní Irsko",
+    "currencyCode": "GBP"
+  },
+  {
+    "iso2": "XK",
+    "nameCs": "Kosovo",
+    "currencyCode": null
+  },
+  {
+    "iso2": "YE",
+    "nameCs": "Jemen",
+    "currencyCode": null
+  },
+  {
+    "iso2": "YT",
+    "nameCs": "Mayotte",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ZA",
+    "nameCs": "Jihoafrická republika",
+    "currencyCode": "ZAR"
+  },
+  {
+    "iso2": "ZM",
+    "nameCs": "Zambie",
+    "currencyCode": null
+  },
+  {
+    "iso2": "ZW",
+    "nameCs": "Zimbabwská republika",
+    "currencyCode": null
+  }
+]

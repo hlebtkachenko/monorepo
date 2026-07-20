@@ -58,6 +58,7 @@ export default async function ClosingPeriodsPage({
   return (
     <ClosingPeriodsView
       key={orgSlug}
+      slug={orgSlug}
       title={title}
       rows={periods}
       favorite={{

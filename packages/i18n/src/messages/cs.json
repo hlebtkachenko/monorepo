@@ -1501,7 +1501,8 @@
         "closed": "Uzavřená"
       },
       "exportFileName": "ucetni-obdobi",
-      "empty": "Zatím žádná účetní období."
+      "empty": "Zatím žádná účetní období.",
+      "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu."
     },
     "favorite": {
       "tooltip": "Oblíbené",

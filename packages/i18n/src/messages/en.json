@@ -1501,7 +1501,8 @@
         "closed": "Closed"
       },
       "exportFileName": "accounting-periods",
-      "empty": "No accounting periods yet."
+      "empty": "No accounting periods yet.",
+      "editZkratkaError": "Could not save the period code. Please try again."
     },
     "favorite": {
       "tooltip": "Favorite",

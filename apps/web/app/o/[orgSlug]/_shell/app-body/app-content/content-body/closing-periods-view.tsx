@@ -23,23 +23,28 @@ import type {
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import { toast } from "@workspace/ui/components/sonner"
+
+import { updatePeriodZkratka } from "@/lib/org/period-actions"
 
 /**
  * ClosingPeriodsView — the Closing → Účetní období list.
  *
- * A read-only Table archetype over the org's real `accounting_period` rows
- * (projected server-side by `listPeriods`). Columns: Zkratka (the period code,
- * currently the derived fiscal year — a stored, editable column in a later
- * slice), Od / Do (bounds), Stav (Aktivní / Otevřené / Uzavřené), Rok (fiscal
- * year, derived, not editable). The row Inspector shows the same fields
- * read-only; open/close/edit actions arrive in later slices. No demo content —
+ * A Table archetype over the org's real `accounting_period` rows (projected
+ * server-side by `listPeriods`). Columns: Zkratka (the period code — editable,
+ * defaults to the derived fiscal year until overridden), Od / Do (bounds), Stav
+ * (Aktivní / Otevřené / Uzavřené), Rok (fiscal year, derived, not editable).
+ * Editing Zkratka — inline in the grid or in the row Inspector — updates
+ * optimistically and persists through `updatePeriodZkratka`. No demo content —
  * every cell is real org data.
  */
 export function ClosingPeriodsView({
+  slug,
   title,
-  rows,
+  rows: serverRows,
   favorite,
 }: {
+  slug: string
   title: string
   rows: readonly TableSectionRow[]
   favorite: ContentHeaderFavoriteToggle
@@ -47,6 +52,39 @@ export function ClosingPeriodsView({
   const t = useTranslations("org.periods")
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
+  const [, startTransition] = React.useTransition()
+
+  // Optimistic Zkratka edits: `useOptimistic` shows the edited code immediately
+  // during the transition, then settles on the server value when the action's
+  // revalidation lands — the persisted value on success, the prior value on
+  // failure (where the toast fires). No manual prop→state sync.
+  const [rows, addOptimisticZkratka] = React.useOptimistic(
+    serverRows,
+    (
+      current: readonly TableSectionRow[],
+      edit: { rowId: string; zkratka: string },
+    ) =>
+      current.map((row) =>
+        String(row.id) === edit.rowId ? { ...row, zkratka: edit.zkratka } : row,
+      ),
+  )
+
+  const commitZkratka = React.useCallback(
+    (rowId: string, value: string) => {
+      const next = value.trim()
+      if (!next) return
+      startTransition(async () => {
+        addOptimisticZkratka({ rowId, zkratka: next })
+        const result = await updatePeriodZkratka({
+          slug,
+          periodId: rowId,
+          zkratka: next,
+        })
+        if (!result.ok) toast.error(t("editZkratkaError"))
+      })
+    },
+    [slug, addOptimisticZkratka, t],
+  )
 
   const stavOptions: TableColumnOption[] = React.useMemo(
     () => [
@@ -156,7 +194,7 @@ export function ClosingPeriodsView({
                     label: t("columns.zkratka"),
                     value: String(row.zkratka ?? ""),
                     icon: "HashIcon",
-                    readOnly: true,
+                    onChange: (next) => commitZkratka(String(row.id), next),
                   },
                   {
                     label: t("columns.od"),
@@ -189,7 +227,7 @@ export function ClosingPeriodsView({
         ),
       } satisfies Partial<Record<InspectorTab, React.ReactNode>>
     },
-    [t],
+    [t, commitZkratka],
   )
 
   return (

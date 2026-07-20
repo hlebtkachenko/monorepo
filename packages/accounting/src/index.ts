@@ -14,6 +14,7 @@ export * from "./types"
 export {
   allocateNumber,
   formatDesignation,
+  previewNextNumber,
   type AllocatedNumber,
 } from "./number-series"
 export { resolveAccountId, resolveAccountIds } from "./accounts"
@@ -37,6 +38,7 @@ export {
   createVatStatus,
   createTaxProfile,
   createNumberSeries,
+  createNumberSeriesPeriod,
   backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,

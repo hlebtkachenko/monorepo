@@ -141,6 +141,47 @@ export async function createNumberSeries(
 }
 
 /**
+ * Configure one účetní-období row of a DOCUMENT dokladová řada (the Dokladové řady
+ * editor grid: Účetní období · Délka čísla · Prefix · Postfix · Akt.číslo). Each
+ * period row carries its own gapless `current_number`, so allocation restarts per
+ * period. `currentNumber` seeds an imported historical sequence; it defaults to 1.
+ */
+export async function createNumberSeriesPeriod(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    numberSeriesId: string
+    periodId: string
+    numberLength: number
+    prefix?: string
+    postfix?: string
+    currentNumber?: number
+  },
+): Promise<string> {
+  // Gate at the source: only DOCUMENT séries carry per-period rows (EVENT/ASSET/
+  // INVENTORY_COUNT stay flat). The INSERT…SELECT yields zero rows — and throws —
+  // when the target série is missing or not DOCUMENT.
+  const inserted = await rows<{ id: string }>(
+    db,
+    sql`INSERT INTO number_series_period
+          (organization_id, number_series_id, period_id, number_length, prefix, postfix, current_number)
+        SELECT ${ctx.organizationId}::uuid, s.id, ${input.periodId}::uuid,
+               ${input.numberLength}, ${input.prefix ?? ""}, ${input.postfix ?? ""}, ${input.currentNumber ?? 1}
+          FROM number_series s
+         WHERE s.id = ${input.numberSeriesId}::uuid
+           AND s.entity_type = 'DOCUMENT'
+        RETURNING id`,
+  )
+  const r = inserted[0]
+  if (r === undefined) {
+    throw new Error(
+      `accounting: number series ${input.numberSeriesId} not found or not DOCUMENT — only DOCUMENT séries carry per-period rows`,
+    )
+  }
+  return r.id
+}
+
+/**
  * Default číselné řady aligned to the capture layer's document kinds. Canonical
  * home for the scaffolding protocol (`scaffoldOrganization`) AND the Settings →
  * Number series "restore default series" backfill — both call sites must agree

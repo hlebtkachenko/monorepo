@@ -18,7 +18,7 @@ vi.setConfig({ testTimeout: 20_000 })
 
 type WorkCall = { name: string }
 type QueueCall = { name: string }
-type ScheduleCall = { name: string; cron: string }
+type ScheduleCall = { name: string; cron: string; tz?: string }
 
 const calls = {
   queues: [] as QueueCall[],
@@ -40,8 +40,13 @@ vi.mock("pg-boss", () => {
     async work(name: string, _opts: unknown, _handler: unknown) {
       calls.works.push({ name })
     }
-    async schedule(name: string, cron: string) {
-      calls.schedules.push({ name, cron })
+    async schedule(
+      name: string,
+      cron: string,
+      _data: unknown,
+      options?: { tz?: string },
+    ) {
+      calls.schedules.push({ name, cron, tz: options?.tz })
     }
     async stop() {
       calls.stopped++
@@ -84,5 +89,15 @@ describe("boot()", () => {
 
     const reaper = calls.schedules.find((s) => s.name === "admission-reaper")
     expect(reaper?.cron).toBe("*/5 * * * *")
+    // A plain cron lane passes no timezone (pg-boss defaults to UTC).
+    expect(reaper?.tz).toBeUndefined()
+  })
+
+  it("passes the lane timezone through to the scheduler (ČNB fix, Prague)", async () => {
+    await boot("postgres://direct/db")
+
+    const cnb = calls.schedules.find((s) => s.name === "cnb-fx-daily")
+    expect(cnb?.cron).toBe("40 14 * * 1-5")
+    expect(cnb?.tz).toBe("Europe/Prague")
   })
 })

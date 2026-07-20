@@ -22,3 +22,5 @@ export {
   type ResolvedFxRate,
   type FxRateQuery,
 } from "./rates"
+
+export { listFxRates, type FxRateListRow } from "./list"

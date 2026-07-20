@@ -157,6 +157,8 @@ export {
   FxRateNotFoundError,
   type ResolvedFxRate,
   type FxRateQuery,
+  listFxRates,
+  type FxRateListRow,
 } from "./fx/index"
 
 // Saldokonto (open items)

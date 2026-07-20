@@ -1507,7 +1507,8 @@
       "directory": "Adresář",
       "states": "Státy",
       "finance": "Finance",
-      "currencies": "Měny"
+      "currencies": "Měny",
+      "rates": "Kurzy"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1525,7 +1526,8 @@
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "states": "Státy",
-      "currencies": "Měny"
+      "currencies": "Měny",
+      "rates": "Kurzy"
     },
     "periods": {
       "columns": {
@@ -1572,6 +1574,22 @@
       "empty": "Žádné měny.",
       "functionalNote": "Účetní měna, vždy dostupná.",
       "toggleError": "Změnu měny se nepodařilo uložit. Zkuste to prosím znovu.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Číselníky"
+      }
+    },
+    "fxRates": {
+      "columns": {
+        "pair": "Pár",
+        "date": "Datum",
+        "kind": "Druh",
+        "unit": "Množství",
+        "rate": "Kurz",
+        "source": "Zdroj"
+      },
+      "all": "Vše",
+      "empty": "Zatím žádné kurzy. Načtěte kurz ČNB.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Číselníky"

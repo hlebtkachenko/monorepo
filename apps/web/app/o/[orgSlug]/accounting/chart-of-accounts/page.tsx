@@ -150,6 +150,7 @@ export default async function ChartOfAccountsPage({
       session!.user.id,
       input,
     )
+    revalidatePath(chartPath)
   }
 
   return (

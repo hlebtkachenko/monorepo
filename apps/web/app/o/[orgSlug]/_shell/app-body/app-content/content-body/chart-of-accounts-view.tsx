@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
 import type { Table } from "@tanstack/react-table"
 
 import { useTranslations } from "@workspace/i18n/client"
@@ -52,9 +51,9 @@ import { orgHref } from "@/lib/org/href"
  *
  * Writes (all human-gated, wired here):
  *  - EDIT — the row Inspector's name / open-items / tax-relevant fields are
- *    editable; a commit debounces (text) or fires immediately (flags) into
- *    `onUpdateAccount`, then `router.refresh()` reconciles the tree. číslo / type /
- *    nature stay read-only (derived).
+ *    editable; each field persists once through `onUpdateAccount` at its commit
+ *    boundary (input blur / Enter, or a select pick), and the server action
+ *    revalidates the page. číslo / type / nature stay read-only (derived).
  *  - SEED — an empty chart offers two toolbar actions: fill from the year framework
  *    (`onSeedFromFramework`) or fork a prebuilt template (`onSeedFromTemplate`, via
  *    the picker dialog). Both revalidate server-side.
@@ -120,8 +119,6 @@ export function ChartOfAccountsView({
   const tnb = useTranslations("accounting.chartOfAccounts.normalBalance")
   const tb = useTranslations("accounting.chartOfAccounts.boolean")
   const tp = useTranslations("accounting.chartOfAccounts.page")
-
-  const router = useRouter()
 
   const columns = React.useMemo<TableColumnSpec[]>(
     () => [
@@ -189,32 +186,12 @@ export function ChartOfAccountsView({
 
   const views: ViewTab[] = [{ value: "all", label: tp("view") }]
 
-  // ── Edit: debounced (text) / immediate (flags) persist through the action ──
+  // ── Edit: persist once at the field's commit boundary (blur / Enter / pick) ──
+  // The inspector line fires `onCommit` only when a field actually settles with a
+  // changed value, so there is no per-keystroke save and no re-render tearing down
+  // the open editor. The server action revalidates the page (no client refresh).
   const [, startEdit] = React.useTransition()
-  const timers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
-  )
-  const pendingPatches = React.useRef<Map<string, UpdateAccountInput>>(
-    new Map(),
-  )
-
-  const persist = React.useCallback(
-    (key: string, input: UpdateAccountInput) => {
-      pendingPatches.current.delete(key)
-      startEdit(async () => {
-        try {
-          await onUpdateAccount(input)
-        } catch {
-          toast.error(tp("updateFailed"))
-        }
-        // Reconcile the tree with server truth either way (the page is dynamic).
-        router.refresh()
-      })
-    },
-    [onUpdateAccount, router, tp],
-  )
-
-  const commit = React.useCallback(
+  const commitField = React.useCallback(
     (id: string, field: EditableField, raw: string) => {
       if (!id) return
       const input: UpdateAccountInput =
@@ -223,33 +200,16 @@ export function ChartOfAccountsView({
           : field === "tracksOpenItems"
             ? { id, tracksOpenItems: raw === "yes" }
             : { id, taxRelevant: raw === "yes" }
-      const key = `${id}:${field}`
-      pendingPatches.current.set(key, input)
-      const existing = timers.current.get(key)
-      if (existing) clearTimeout(existing)
-      // Text debounces so we don't fire per keystroke; a flag select commits once.
-      const delay = field === "name" ? 500 : 0
-      const timer = setTimeout(() => {
-        timers.current.delete(key)
-        persist(key, input)
-      }, delay)
-      timers.current.set(key, timer)
+      startEdit(async () => {
+        try {
+          await onUpdateAccount(input)
+        } catch {
+          toast.error(tp("updateFailed"))
+        }
+      })
     },
-    [persist],
+    [onUpdateAccount, tp],
   )
-
-  // Flush any pending edit on unmount so a value typed right before navigating
-  // away is never silently dropped.
-  React.useEffect(() => {
-    const timerMap = timers.current
-    const patchMap = pendingPatches.current
-    return () => {
-      for (const timer of timerMap.values()) clearTimeout(timer)
-      timerMap.clear()
-      for (const input of patchMap.values()) void onUpdateAccount(input)
-      patchMap.clear()
-    }
-  }, [onUpdateAccount])
 
   // ── Seed: fill an empty chart from the framework or a template ──
   const [seedPending, startSeed] = React.useTransition()
@@ -336,8 +296,9 @@ export function ChartOfAccountsView({
   )
 
   // Row Inspector: číslo + derived dimensions read-only; name + the two policy
-  // flags editable, committing through `commit`. Labels + enum values reuse the
-  // column i18n. Sections are minted inside the client boundary.
+  // flags editable, persisting through `commitField` at each field's commit
+  // boundary. Labels + enum values reuse the column i18n. Sections are minted
+  // inside the client boundary.
   const inspectorContent = React.useCallback(
     (row: TableSectionRow): Partial<Record<InspectorTab, React.ReactNode>> => {
       const id = String(row.id ?? "")
@@ -363,7 +324,7 @@ export function ChartOfAccountsView({
                   {
                     label: tc("name"),
                     value: String(row.name ?? ""),
-                    onChange: (v) => commit(id, "name", v),
+                    onCommit: (v) => commitField(id, "name", v),
                   },
                   {
                     label: tc("statementClass"),
@@ -385,7 +346,7 @@ export function ChartOfAccountsView({
                     value: flagValue(row.tracksOpenItems),
                     type: "select",
                     options: boolOptions,
-                    onChange: (v) => commit(id, "tracksOpenItems", v),
+                    onCommit: (v) => commitField(id, "tracksOpenItems", v),
                   },
                   {
                     label: tc("taxRelevant"),
@@ -393,7 +354,7 @@ export function ChartOfAccountsView({
                     type: "select",
                     options: boolOptions,
                     placeholder: "—",
-                    onChange: (v) => commit(id, "taxRelevant", v),
+                    onCommit: (v) => commitField(id, "taxRelevant", v),
                   },
                 ],
               }),
@@ -402,7 +363,7 @@ export function ChartOfAccountsView({
         ),
       }
     },
-    [tc, tsc, tat, tnb, tb, commit],
+    [tc, tsc, tat, tnb, tb, commitField],
   )
 
   return (

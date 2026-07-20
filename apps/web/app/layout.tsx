@@ -92,16 +92,19 @@ export default async function RootLayout({
 }>) {
   const locale = await getLocale()
   const messages = await getMessages()
-  // The chart-of-accounts reference-name catalogs (osnovaNames + templateNames, ~520 keys total) are
-  // resolved only in server-only app-edge code (getFramework / getChartTemplateAccounts), so keep
-  // them out of the client provider payload that ships on every route.
+  // Server-only reference-name catalogs are resolved in RSC pages only, so keep them out of the
+  // client provider payload that ships on every route:
+  //   - accounting.chartOfAccounts.{osnovaNames,templateNames} (~520 keys) — getFramework / getChartTemplateAccounts
+  //   - countryNames (258 keys, top-level) — the Directories Státy register (RSC-resolved)
+  const { countryNames: _serverOnlyCountryNames, ...clientBase } = messages
+  void _serverOnlyCountryNames // referenced only to drop it from the client payload
   const clientMessages = {
-    ...messages,
+    ...clientBase,
     accounting: {
-      ...messages.accounting,
+      ...clientBase.accounting,
       chartOfAccounts: Object.fromEntries(
         // guarded: a missing namespace must never crash the root layout (= every route)
-        Object.entries(messages.accounting?.chartOfAccounts ?? {}).filter(
+        Object.entries(clientBase.accounting?.chartOfAccounts ?? {}).filter(
           ([key]) => key !== "osnovaNames" && key !== "templateNames",
         ),
       ),

@@ -9,9 +9,12 @@ import type { ArchetypeTableSelectionHelpers } from "@workspace/ui/blocks/archet
 import {
   buildTableFooter,
   buildTableToolbar,
+  SectionList,
+  sectionInspectorKeyDetails,
   sectionTreeTable,
   useTreeTableFilters,
 } from "@workspace/ui/blocks/content-panel"
+import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
 import type { FiltersState } from "@workspace/ui/components/filter-bar"
 import type {
   ContentFooterAction,
@@ -166,6 +169,67 @@ export function ChartOfAccountsView({
     [tp],
   )
 
+  // Read-only row Inspector: the clicked account's fields in a details tab. Labels
+  // + enum values reuse the column i18n; every line is read-only (inline edit is
+  // the later human-gated batch). Sections are minted inside the client boundary.
+  const inspectorContent = React.useCallback(
+    (row: TableSectionRow): Partial<Record<InspectorTab, React.ReactNode>> => {
+      const asLabel = (
+        v: string | number | null | undefined,
+        t: (k: never) => string,
+      ) => (v == null || v === "" ? "—" : t(String(v) as never))
+      return {
+        details: (
+          <SectionList
+            sections={[
+              sectionInspectorKeyDetails({
+                lines: [
+                  {
+                    label: tc("number"),
+                    value: String(row.number ?? ""),
+                    icon: "HashIcon",
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("name"),
+                    value: String(row.name ?? ""),
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("statementClass"),
+                    value: asLabel(row.statementClass, tsc),
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("accountType"),
+                    value: asLabel(row.accountType, tat),
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("normalBalance"),
+                    value: asLabel(row.normalBalance, tnb),
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("tracksOpenItems"),
+                    value: asLabel(row.tracksOpenItems, tb),
+                    readOnly: true,
+                  },
+                  {
+                    label: tc("taxRelevant"),
+                    value: asLabel(row.taxRelevant, tb),
+                    readOnly: true,
+                  },
+                ],
+              }),
+            ]}
+          />
+        ),
+      }
+    },
+    [tc, tsc, tat, tnb, tb],
+  )
+
   return (
     <ArchetypeTable<TableSectionRow>
       title={title}
@@ -180,13 +244,16 @@ export function ChartOfAccountsView({
       views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
       toolbar={buildToolbar}
       selectionActions={selectionActions}
+      inspectorRowTitle={(row) => String(row.number ?? "")}
+      inspectorRowName={(row) => String(row.name ?? "")}
+      inspectorRowContent={inspectorContent}
       sections={[
         sectionTreeTable({
           anchor: "chart",
           columns,
           rows: filteredTree,
           defaultExpanded: 2,
-          features: { search: true },
+          features: { search: true, inspect: true },
           emptyText,
         }),
       ]}

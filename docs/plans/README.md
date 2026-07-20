@@ -45,11 +45,12 @@ Do NOT add a file here when:
 
 ## Current files
 
-| File                                                                 | Backs                            | Notes                                                                                  |
-| -------------------------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------- |
-| [`AI-FINANCIAL-AGENTS-PLAN.md`](AI-FINANCIAL-AGENTS-PLAN.md)         | EPIC #485 + EPIC #487            | Research and design context for AI-assisted financial workflows and the reconciler.    |
-| [`CZ-ACCOUNTING-KB-GROWTH-PLAN.md`](CZ-ACCOUNTING-KB-GROWTH-PLAN.md) | Brain accounting-KB growth track | Research and staged expansion of the machine-readable Czech accounting knowledge base. |
-| [`V1-LAUNCH-GATES.md`](V1-LAUNCH-GATES.md)                           | v1 launch                        | Stable cross-system go-live criteria. GitHub Issues own completion status.             |
+| File                                                                 | Backs                            | Notes                                                                                                                        |
+| -------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [`AI-FINANCIAL-AGENTS-PLAN.md`](AI-FINANCIAL-AGENTS-PLAN.md)         | EPIC #485 + EPIC #487            | Research and design context for AI-assisted financial workflows and the reconciler.                                          |
+| [`CZ-ACCOUNTING-KB-GROWTH-PLAN.md`](CZ-ACCOUNTING-KB-GROWTH-PLAN.md) | Brain accounting-KB growth track | Research and staged expansion of the machine-readable Czech accounting knowledge base.                                       |
+| [`FINANCE-DOMAIN-PLAN.md`](FINANCE-DOMAIN-PLAN.md)                   | New `/o` Finance module          | Reviewed, verified design for the Finance module (accounts, facilities, positions, reference data) on the rebuilt `/o` tree. |
+| [`V1-LAUNCH-GATES.md`](V1-LAUNCH-GATES.md)                           | v1 launch                        | Stable cross-system go-live criteria. GitHub Issues own completion status.                                                   |
 
 ## Archived
 

@@ -40,9 +40,9 @@
  *     tables get ENABLE (not FORCE) RLS so the SECURITY DEFINER maintenance
  *     trigger writes through (0034 §3). Not in this org-isolation list.
  *   - regime, legal_form, legal_form_allowed_regime, accounting_size,
- *     vat_regime, currency, business_activity, account_group,
- *     directive_account, depreciation_group — reference (law) tables, shared
- *     across all tenants, no RLS.
+ *     vat_regime, currency, country, business_activity, account_group,
+ *     directive_account, depreciation_group — reference (system/law) tables,
+ *     shared across all tenants, no RLS.
  */
 export const ORGANIZATION_SCOPED_TABLES = [
   "api_key",
@@ -89,6 +89,11 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // debug/reference demo tables — dev-seeded (0067_demo_debug_tables.sql)
   "demo_debug_normal_table_record",
   "demo_debug_pivot_table_record",
+  // Finance domain — operational money-place entity (0073_financial_account.sql)
+  "financial_account",
+  // Finance domain — org FX rate overrides (0072_fx_rate.sql). The shared
+  // fx_rate table is Case-B (no RLS), so it is deliberately NOT listed here.
+  "fx_rate_override",
 ] as const
 
 export type OrganizationScopedTable =

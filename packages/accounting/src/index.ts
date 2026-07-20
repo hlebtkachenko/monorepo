@@ -32,6 +32,9 @@ export {
   type ChartTemplateAccountRow,
 } from "./chart-of-accounts"
 
+// Directories reference registers (Adresář ▸ Veřejné číselníky)
+export { listCountries, type CountryRow } from "./countries"
+
 // Master-data / setup
 export {
   createPeriod,
@@ -121,6 +124,13 @@ export {
   revalueOpenItemFx,
   type FxSettlementInput,
   type FxRevaluationInput,
+  resolveFxRate,
+  effectiveRate,
+  convertAmount,
+  convertAmountAt,
+  FxRateNotFoundError,
+  type ResolvedFxRate,
+  type FxRateQuery,
 } from "./fx/index"
 
 // Saldokonto (open items)
@@ -141,10 +151,12 @@ export {
 export {
   journal,
   generalLedger,
+  accountBalance,
   monetaryJournal,
   monetarySummary,
   type JournalRow,
   type LedgerAccountRow,
+  type AccountBalanceRow,
   type MonetaryJournalRow,
   type MonetarySummaryRow,
 } from "./books"

@@ -12,10 +12,14 @@ import {
   AppContentHeaderSlot,
   AppPageHeaderProvider,
 } from "@workspace/ui/blocks/app-shell"
-import { sectionTable } from "@workspace/ui/blocks/content-panel"
+import {
+  sectionTable,
+  sectionTreeTable,
+} from "@workspace/ui/blocks/content-panel"
 import type {
   TableColumnSpec,
   TableSectionRow,
+  TreeTableRow,
 } from "@workspace/ui/blocks/content-panel"
 import { IconProvider } from "@workspace/ui/icon-packs"
 
@@ -129,6 +133,99 @@ describe("ArchetypeTable — row inspector", () => {
   it("has no Open inspector button when inspect is off", () => {
     renderArchetype(false)
     expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
+  })
+})
+
+describe("ArchetypeTable — tree row inspector", () => {
+  // One tier + one nested account; a second tier + account for nav.
+  const TREE: TreeTableRow[] = [
+    {
+      id: "tier:0",
+      values: { number: "0", name: "Assets" },
+      selectable: false,
+      editable: false,
+      subRows: [{ id: "a021", values: { number: "021", name: "Buildings" } }],
+    },
+  ]
+  const TREE2: TreeTableRow[] = [
+    {
+      id: "tier:0",
+      values: { number: "0" },
+      selectable: false,
+      editable: false,
+      subRows: [{ id: "a021", values: { number: "021" } }],
+    },
+    {
+      id: "tier:3",
+      values: { number: "3" },
+      selectable: false,
+      editable: false,
+      subRows: [{ id: "a311", values: { number: "311" } }],
+    },
+  ]
+
+  function renderTree(inspect: boolean, rows: TreeTableRow[] = TREE) {
+    return render(
+      <AppShell>
+        <ArchetypeTable<TableSectionRow>
+          title="Chart"
+          views={TEST_VIEWS}
+          favorite={TEST_FAVORITE}
+          selectionActions={TEST_SELECTION}
+          toolbar={() => ({})}
+          inspectorRowTitle={(row) => `Inspector for ${String(row.number)}`}
+          inspectorRowContent={(row) => ({
+            details: <div>Tree detail {String(row.number)}</div>,
+          })}
+          sections={[
+            sectionTreeTable({
+              columns: [
+                { id: "number", header: "Account", kind: "text", role: "id" },
+              ],
+              rows,
+              defaultExpanded: true,
+              features: { inspect },
+            }),
+          ]}
+        />
+      </AppShell>,
+      { wrapper: IconProvider },
+    )
+  }
+
+  it("opens the rail for a NESTED account, resolving content from the forest", async () => {
+    renderTree(true)
+    // Only the real account is inspectable — the structural tier has no button.
+    const buttons = screen.getAllByLabelText("Open inspector")
+    expect(buttons).toHaveLength(1)
+    expect(screen.queryByText("Inspector for 021")).not.toBeInTheDocument()
+    fireEvent.click(buttons[0]!)
+    expect(
+      (await screen.findAllByText("Inspector for 021")).length,
+    ).toBeGreaterThan(0)
+    expect(screen.getByText(/Tree detail 021/)).toBeInTheDocument()
+  })
+
+  it("has no Open inspector button when inspect is off", () => {
+    renderTree(false)
+    expect(screen.queryByLabelText("Open inspector")).not.toBeInTheDocument()
+  })
+
+  it("adjacent navigation skips structural tier rows", async () => {
+    renderTree(true, TREE2)
+    const buttons = screen.getAllByLabelText("Open inspector")
+    expect(buttons).toHaveLength(2) // two accounts, neither tier
+    fireEvent.click(buttons[0]!) // open account 021
+    const inspector = await waitFor(() => {
+      const el = document.querySelector('[data-slot="app-shell-inspector"]')
+      if (!el) throw new Error("inspector not open")
+      return el as HTMLElement
+    })
+    const scoped = within(inspector)
+    expect(await scoped.findAllByText("Inspector for 021")).not.toHaveLength(0)
+    // Next must skip the intervening tier (tier:3) and land on account 311.
+    fireEvent.click(scoped.getByRole("button", { name: "Next item" }))
+    expect(await scoped.findAllByText("Inspector for 311")).not.toHaveLength(0)
   })
 })
 

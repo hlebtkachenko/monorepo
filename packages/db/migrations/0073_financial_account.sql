@@ -1,4 +1,4 @@
--- 0071_financial_account.sql
+-- 0073_financial_account.sql
 --
 -- financial_account — the operational money-place entity for the Finance module:
 -- a bank account, a cash desk (pokladna), or a cash-equivalent store (ceniny =

@@ -6,9 +6,9 @@
  * accounting layer knows only GL accounts and the bare posting_monetary_line
  * location CASH|BANK enum, never an operational bank account.
  *
- * Mirrors: packages/db/migrations/0071_financial_account.sql
+ * Mirrors: packages/db/migrations/0073_financial_account.sql
  *
- * Organization-scoped (FORCE RLS + organization_isolation, applied in 0071).
+ * Organization-scoped (FORCE RLS + organization_isolation, applied in 0073).
  * One financial_account maps 1:1 to one analytic GL account (gl_account_number,
  * partial-unique per org) so a single account's balance is one
  * account_period_balance lookup. Composite UNIQUE(id, organization_id) is the

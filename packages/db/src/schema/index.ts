@@ -114,7 +114,7 @@ export * from "./brain_admission_slot"
 export * from "./favorite_page"
 
 // Finance domain — operational money-place entity (bank / cash / ceniny),
-// org-scoped FORCE RLS (0071)
+// org-scoped FORCE RLS (0073)
 export * from "./financial_account"
 
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the

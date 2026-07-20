@@ -1,0 +1,62 @@
+[
+  {
+    "code": "0008",
+    "name": "Platby za dodávky výrobků"
+  },
+  {
+    "code": "0058",
+    "name": "Penále, poplatky z prodlení"
+  },
+  {
+    "code": "0108",
+    "name": "Platby za zemědělské výrobky"
+  },
+  {
+    "code": "0138",
+    "name": "Srážky z mezd"
+  },
+  {
+    "code": "0168",
+    "name": "Splátky úvěrů u KB"
+  },
+  {
+    "code": "0208",
+    "name": "Platby za předměty kupované v maloobchodě"
+  },
+  {
+    "code": "0308",
+    "name": "Platby za dodávky prací, výkonů a služeb"
+  },
+  {
+    "code": "0358",
+    "name": "Platby určené k výplatám v hotovosti"
+  },
+  {
+    "code": "0379",
+    "name": "Ostatní příjmy"
+  },
+  {
+    "code": "0408",
+    "name": "Platby za samostatně placené přepravné dopr. org."
+  },
+  {
+    "code": "0479",
+    "name": "Vrácené mzdy"
+  },
+  {
+    "code": "0558",
+    "name": "Finanční platby ostatní"
+  },
+  {
+    "code": "0748",
+    "name": "Důchodová daň"
+  },
+  {
+    "code": "4648",
+    "name": "Daň ze mzdy"
+  },
+  {
+    "code": "7618",
+    "name": "Odvod sociálního zabezpečení"
+  }
+]

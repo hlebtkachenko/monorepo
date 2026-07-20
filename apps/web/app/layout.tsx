@@ -96,8 +96,16 @@ export default async function RootLayout({
   // client provider payload that ships on every route:
   //   - accounting.chartOfAccounts.{osnovaNames,templateNames} (~520 keys) — getFramework / getChartTemplateAccounts
   //   - countryNames (258 keys, top-level) — the Directories Státy register (RSC-resolved)
-  const { countryNames: _serverOnlyCountryNames, ...clientBase } = messages
+  //   - bankNames / constantSymbolNames (top-level) — the Finance Peněžní ústavy / Konstantní symboly registers (RSC-resolved)
+  const {
+    countryNames: _serverOnlyCountryNames,
+    bankNames: _serverOnlyBankNames,
+    constantSymbolNames: _serverOnlyConstantSymbolNames,
+    ...clientBase
+  } = messages
   void _serverOnlyCountryNames // referenced only to drop it from the client payload
+  void _serverOnlyBankNames
+  void _serverOnlyConstantSymbolNames
   const clientMessages = {
     ...clientBase,
     accounting: {

@@ -1,0 +1,210 @@
+[
+  {
+    "bankCode": "0100",
+    "name": "Komerční banka, a.s."
+  },
+  {
+    "bankCode": "0300",
+    "name": "Československá obchodní banka, a.s."
+  },
+  {
+    "bankCode": "0600",
+    "name": "Moneta Money Bank"
+  },
+  {
+    "bankCode": "0710",
+    "name": "Česká národní banka"
+  },
+  {
+    "bankCode": "0800",
+    "name": "Česká spořitelna, a.s."
+  },
+  {
+    "bankCode": "2010",
+    "name": "Fio banka, a.s."
+  },
+  {
+    "bankCode": "2020",
+    "name": "Bank of Tokyo-Mitsubishi UFJ (Holland) N.V. Prague Branch, organizační složka"
+  },
+  {
+    "bankCode": "2030",
+    "name": "AKCENTA, spořitelní a úvěrní družstvo"
+  },
+  {
+    "bankCode": "2040",
+    "name": "UNIBON – spořitelní a úvěrní družstvo"
+  },
+  {
+    "bankCode": "2050",
+    "name": "WPB Capital, spořitelní družstvo"
+  },
+  {
+    "bankCode": "2060",
+    "name": "Citfin, spořitelní družstvo"
+  },
+  {
+    "bankCode": "2070",
+    "name": "Moravský Peněžní Ústav – spořitelní družstvo"
+  },
+  {
+    "bankCode": "2100",
+    "name": "Hypoteční banka, a.s."
+  },
+  {
+    "bankCode": "2200",
+    "name": "Peněžní dům, spořitelní družstvo"
+  },
+  {
+    "bankCode": "2210",
+    "name": "Banka mezinárodní spolupráce a.s."
+  },
+  {
+    "bankCode": "2220",
+    "name": "Artesa, spořitelní družstvo"
+  },
+  {
+    "bankCode": "2230",
+    "name": "AXA Bank Europe, organizační složka"
+  },
+  {
+    "bankCode": "2240",
+    "name": "Poštová banka, a.s., pobočka Česká republika"
+  },
+  {
+    "bankCode": "2250",
+    "name": "Záložna CREDITAS, spořitelní družstvo"
+  },
+  {
+    "bankCode": "2310",
+    "name": "ZUNO BANK AG, organizační složka"
+  },
+  {
+    "bankCode": "2600",
+    "name": "Citibank Europe plc, organizační složka"
+  },
+  {
+    "bankCode": "2700",
+    "name": "UniCredit Bank Czech Republic and Slovakia, a.s."
+  },
+  {
+    "bankCode": "3030",
+    "name": "Air Bank a.s."
+  },
+  {
+    "bankCode": "3500",
+    "name": "ING Bank N. V."
+  },
+  {
+    "bankCode": "4000",
+    "name": "LBBW Bank CZ a.s."
+  },
+  {
+    "bankCode": "4300",
+    "name": "Českomoravská záruční a rozvojová banka, a.s."
+  },
+  {
+    "bankCode": "5000",
+    "name": "Crédit Agricole Corporate and Investment Bank S.A. Prague, organizační složka"
+  },
+  {
+    "bankCode": "5400",
+    "name": "The Royal Bank of Scotland N.V."
+  },
+  {
+    "bankCode": "5500",
+    "name": "Raiffeisenbank a.s."
+  },
+  {
+    "bankCode": "5800",
+    "name": "J&T banka, a.s."
+  },
+  {
+    "bankCode": "6000",
+    "name": "PPF banka, a.s."
+  },
+  {
+    "bankCode": "6100",
+    "name": "Equa bank a.s."
+  },
+  {
+    "bankCode": "6200",
+    "name": "Commerzbank AG"
+  },
+  {
+    "bankCode": "6210",
+    "name": "mBank S.A., organizační složka"
+  },
+  {
+    "bankCode": "6300",
+    "name": "Fortis Bank SA/NV, pobočka ČR"
+  },
+  {
+    "bankCode": "6363",
+    "name": "Partners Banka, a.s."
+  },
+  {
+    "bankCode": "6700",
+    "name": "Všeobecná úverová banka a.s., pobočka Praha"
+  },
+  {
+    "bankCode": "6800",
+    "name": "Sberbank CZ, a.s."
+  },
+  {
+    "bankCode": "7910",
+    "name": "Deutsche Bank A.G. Filiale Prag"
+  },
+  {
+    "bankCode": "7940",
+    "name": "Waldviertler Sparkasse von 1842 AG"
+  },
+  {
+    "bankCode": "7950",
+    "name": "Raiffeisen stavební spořitelna a.s."
+  },
+  {
+    "bankCode": "7960",
+    "name": "Českomoravská stavební spořitelna, a.s."
+  },
+  {
+    "bankCode": "7970",
+    "name": "Wüstenrot - stavební spořitelna a.s."
+  },
+  {
+    "bankCode": "7980",
+    "name": "Wüstenrot hypoteční banka a.s."
+  },
+  {
+    "bankCode": "7990",
+    "name": "Modrá pyramida stavební spořitelna, a.s."
+  },
+  {
+    "bankCode": "8030",
+    "name": "Raiffeisenbank im Stiftland eG pobočka Cheb, odštěpný závod"
+  },
+  {
+    "bankCode": "8040",
+    "name": "Oberbank AG pobočka Česká republika"
+  },
+  {
+    "bankCode": "8060",
+    "name": "Stavební spořitelna České spořitelny, a.s."
+  },
+  {
+    "bankCode": "8090",
+    "name": "Česká exportní banka, a.s."
+  },
+  {
+    "bankCode": "8150",
+    "name": "HSBC Bank plc - pobočka Praha"
+  },
+  {
+    "bankCode": "8200",
+    "name": "PRIVAT BANK AG der Raiffeisenlandesbank Oberösterreich v České republice"
+  },
+  {
+    "bankCode": "9910",
+    "name": "Centrální depozitář cenných papírů, a.s."
+  }
+]

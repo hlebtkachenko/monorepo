@@ -58,6 +58,43 @@
         "actionError": "Akce se nezdařila"
       }
     },
+    "documentSeries": {
+      "columns": {
+        "code": "Zkratka",
+        "name": "Název"
+      },
+      "page": {
+        "exportFileName": "dokladove-rady",
+        "empty": "V této kategorii zatím nejsou žádné dokladové řady."
+      },
+      "inspector": {
+        "code": "Zkratka",
+        "name": "Název",
+        "note": "Poznámka",
+        "description": "Popis",
+        "validFrom": "Platí od roku",
+        "validTo": "Platí do roku",
+        "save": "Uložit",
+        "saved": "Uloženo",
+        "saveError": "Uložení se nezdařilo",
+        "sectionIdentity": "Identifikace",
+        "sectionValidity": "Platnost"
+      },
+      "grid": {
+        "title": "Číslování dle období",
+        "period": "Účetní období",
+        "length": "Délka čísla",
+        "prefix": "Prefix",
+        "postfix": "Postfix",
+        "current": "Akt. číslo",
+        "add": "Přidat",
+        "addPeriod": "Vyberte období",
+        "save": "Uložit",
+        "delete": "Smazat",
+        "deleteInUse": "Tato řada již vydala čísla a nelze ji smazat.",
+        "saved": "Uloženo"
+      }
+    },
     "chartOfAccounts": {
       "columns": {
         "number": "Účet",
@@ -1572,7 +1609,8 @@
       "chartFramework": "Účetní osnova",
       "directory": "Adresář",
       "states": "Státy",
-      "documentTypes": "Typy dokladů"
+      "documentTypes": "Typy dokladů",
+      "documentSeries": "Dokladové řady"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1590,7 +1628,8 @@
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "states": "Státy",
-      "documentTypes": "Typy dokladů"
+      "documentTypes": "Typy dokladů",
+      "documentSeries": "Dokladové řady"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Přijaté faktury",

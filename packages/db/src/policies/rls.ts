@@ -98,6 +98,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // Finance domain — per-org currency enablement (0078_org_currency.sql). The
   // shared currency catalog is Case-B (no RLS), so it is NOT listed here.
   "org_currency",
+  // Filing domain — persisted tax-filing status, calendar grain (0080_filing_record.sql)
+  "filing_record",
 ] as const
 
 export type OrganizationScopedTable =

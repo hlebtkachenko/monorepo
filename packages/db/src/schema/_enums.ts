@@ -266,3 +266,28 @@ export const financialAccountStatus = pgEnum("financial_account_status", [
   "CLOSED",
   "ARCHIVED",
 ])
+
+// =============================================================================
+// Filing domain enums — created in
+// packages/db/migrations/0080_filing_record.sql (CREATE TYPE ...)
+// =============================================================================
+
+// Mirrors: 0080_filing_record.sql — CREATE TYPE obligation_kind AS ENUM.
+// Mirrors the ObligationKind union in packages/accounting/src/obligations/model.ts.
+export const obligationKind = pgEnum("obligation_kind", [
+  "VAT_RETURN",
+  "CONTROL_STATEMENT",
+  "EC_SALES_LIST",
+  "SOCIAL_INSURANCE",
+  "HEALTH_INSURANCE",
+  "PAYROLL_TAX_ADVANCE",
+  "SPECIAL_RATE_WITHHOLDING_TAX",
+])
+
+// Mirrors: 0080_filing_record.sql — CREATE TYPE filing_status AS ENUM.
+// The persisted subset of FilingRecord.status (NOT_TRACKED is row-absence).
+export const filingStatus = pgEnum("filing_status", [
+  "FILED",
+  "ACCEPTED",
+  "REJECTED",
+])

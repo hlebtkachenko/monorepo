@@ -135,6 +135,10 @@ export * from "./org_currency"
 // Case-B reference table, no RLS (0079)
 export * from "./payment_method"
 
+// Filing domain — persisted tax-filing status (FilingRecord), calendar grain,
+// org-scoped FORCE RLS (0080)
+export * from "./filing_record"
+
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the
 // Debug → Archetype Table reference pages; never real product data.
 export * from "./demo_debug_normal_table_record"

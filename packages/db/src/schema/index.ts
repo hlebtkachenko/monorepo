@@ -113,6 +113,10 @@ export * from "./brain_admission_slot"
 // Org favorites — per-user, per-org starred pages, org-scoped FORCE RLS (0064)
 export * from "./favorite_page"
 
+// Finance domain — operational money-place entity (bank / cash / ceniny),
+// org-scoped FORCE RLS (0073)
+export * from "./financial_account"
+
 // Finance domain — FX rate store: shared ČNB reference (no RLS) + org overrides
 // (FORCE RLS) (0072)
 export * from "./fx_rate"

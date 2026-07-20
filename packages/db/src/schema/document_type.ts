@@ -15,7 +15,6 @@
  */
 import {
   boolean,
-  index,
   integer,
   pgTable,
   text,
@@ -65,11 +64,12 @@ export const document_type = pgTable(
   },
   (t) => [
     unique("document_type_id_org_unique").on(t.id, t.organization_id),
+    // (org, category, code) — its backing index also serves the (org, category)
+    // per-category list read as a leading-column prefix, so no separate index.
     unique("document_type_org_cat_code_unique").on(
       t.organization_id,
       t.category,
       t.code,
     ),
-    index("document_type_org_category_idx").on(t.organization_id, t.category),
   ],
 )

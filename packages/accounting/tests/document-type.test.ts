@@ -106,7 +106,13 @@ describe("document_type writes + reads", () => {
         code: "FAKTURA",
         name: "Faktura vydaná",
         kind: "STANDARD",
-        isPrimary: true,
+      }),
+    )
+    // Primacy is set only through the atomic writer, never through upsert.
+    await onA((db) =>
+      setPrimaryDocumentType(db, seed.ctx, {
+        id: first,
+        category: "ISSUED_INVOICE",
       }),
     )
     const again = await onA((db) =>
@@ -125,6 +131,17 @@ describe("document_type writes + reads", () => {
       kind: "CREDIT_NOTE",
       is_primary: true,
     })
+  })
+
+  it("inserts fresh types as non-primary (primacy is not an upsert field)", async () => {
+    const id = await onA((db) =>
+      upsertDocumentType(db, seed.ctx, {
+        category: "OTHER_RECEIVABLE",
+        code: "OP1",
+        name: "Ostatní pohledávka",
+      }),
+    )
+    expect((await onA((db) => getDocumentType(db, id)))?.is_primary).toBe(false)
   })
 
   it("rejects a Druh that is invalid for the category", async () => {
@@ -150,14 +167,13 @@ describe("document_type writes + reads", () => {
     ).rejects.toThrow(/not valid for category/)
   })
 
-  it("makes exactly one type primary per category", async () => {
+  it("makes exactly one type primary per category via the atomic writer", async () => {
     const a = await onA((db) =>
       upsertDocumentType(db, seed.ctx, {
         category: "INTERNAL",
         code: "ID1",
         name: "Interní 1",
         kind: "GENERAL",
-        isPrimary: true,
       }),
     )
     const b = await onA((db) =>
@@ -169,12 +185,15 @@ describe("document_type writes + reads", () => {
       }),
     )
     await onA((db) =>
+      setPrimaryDocumentType(db, seed.ctx, { id: a, category: "INTERNAL" }),
+    )
+    expect((await onA((db) => getDocumentType(db, a)))?.is_primary).toBe(true)
+    // Electing b demotes a — exactly one primary at a time.
+    await onA((db) =>
       setPrimaryDocumentType(db, seed.ctx, { id: b, category: "INTERNAL" }),
     )
-    const rowA = await onA((db) => getDocumentType(db, a))
-    const rowB = await onA((db) => getDocumentType(db, b))
-    expect(rowA?.is_primary).toBe(false)
-    expect(rowB?.is_primary).toBe(true)
+    expect((await onA((db) => getDocumentType(db, a)))?.is_primary).toBe(false)
+    expect((await onA((db) => getDocumentType(db, b)))?.is_primary).toBe(true)
   })
 
   it("setPrimaryDocumentType rejects an id outside the category", async () => {
@@ -189,7 +208,37 @@ describe("document_type writes + reads", () => {
       onA((db) =>
         setPrimaryDocumentType(db, seed.ctx, { id, category: "BANK" }),
       ),
-    ).rejects.toThrow(/not a type of category/)
+    ).rejects.toThrow(/not an active type of category/)
+  })
+
+  it("archiving a primary demotes it, and setPrimary refuses an archived id", async () => {
+    const id = await onA((db) =>
+      upsertDocumentType(db, seed.ctx, {
+        category: "OTHER_PAYABLE",
+        code: "OZ1",
+        name: "Ostatní závazek",
+      }),
+    )
+    await onA((db) =>
+      setPrimaryDocumentType(db, seed.ctx, { id, category: "OTHER_PAYABLE" }),
+    )
+    // Archiving the current primary must clear is_primary (a primary must be active).
+    await onA((db) =>
+      setDocumentTypeActive(db, seed.ctx, { id, isActive: false }),
+    )
+    expect(await onA((db) => getDocumentType(db, id))).toMatchObject({
+      is_active: false,
+      is_primary: false,
+    })
+    // An archived type can no longer be elected primary.
+    await expect(
+      onA((db) =>
+        setPrimaryDocumentType(db, seed.ctx, {
+          id,
+          category: "OTHER_PAYABLE",
+        }),
+      ),
+    ).rejects.toThrow(/not an active type of category/)
   })
 
   it("archives + restores a type, and rejects an unknown id", async () => {

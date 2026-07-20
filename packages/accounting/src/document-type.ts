@@ -230,14 +230,18 @@ export async function getDocumentSeries(
 
 // --- document_type writes ----------------------------------------------------
 
-/** Fields settable on a doklad type. `id` present ⇒ overwrite that exact row. */
+/**
+ * Fields settable on a doklad type. Upsert keyed on (org, category, Zkratka).
+ * `is_primary` is deliberately NOT here — primacy is set only through
+ * {@link setPrimaryDocumentType}, the single writer that enforces the exclusive
+ * "one primary per category" invariant. A fresh type inserts as non-primary.
+ */
 export interface UpsertDocumentTypeInput {
   category: DocumentCategory
   code: string
   name: string
   kind?: DocumentKind | null
   defaultSeriesId?: string | null
-  isPrimary?: boolean
   defaultAccount?: string | null
   postingPrescription?: string | null
   costCentre?: string | null
@@ -256,10 +260,10 @@ export interface UpsertDocumentTypeInput {
 /**
  * Create or overwrite a doklad type, keyed on (org, category, Zkratka). Validates
  * the Druh against DOCUMENT_KINDS_BY_CATEGORY (a kind on a category with no defined
- * kinds, or a kind outside its set, is rejected). `isPrimary` is set only on
- * INSERT — the exclusive "one primary per category" invariant is owned by
- * {@link setPrimaryDocumentType}, so a plain edit never silently flips primacy.
- * Returns the row id.
+ * kinds, or a kind outside its set, is rejected). A fresh row inserts as
+ * non-primary and the conflict path never touches is_primary — primacy is owned
+ * solely by {@link setPrimaryDocumentType}, so neither a create nor an edit can
+ * mint a second primary. Returns the row id.
  */
 export async function upsertDocumentType(
   db: RowExecutor,
@@ -277,13 +281,13 @@ export async function upsertDocumentType(
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO document_type
-          (organization_id, category, code, name, kind, default_series_id, is_primary,
+          (organization_id, category, code, name, kind, default_series_id,
            default_account, posting_prescription, cost_centre, activity, bank_account,
            payment_form, due_days, vat_country, kh_section, description,
            valid_from_year, valid_to_year, external_source_id)
         VALUES
           (${ctx.organizationId}::uuid, ${input.category}, ${input.code}, ${input.name},
-           ${input.kind ?? null}, ${input.defaultSeriesId ?? null}, ${input.isPrimary ?? false},
+           ${input.kind ?? null}, ${input.defaultSeriesId ?? null},
            ${input.defaultAccount ?? null}, ${input.postingPrescription ?? null},
            ${input.costCentre ?? null}, ${input.activity ?? null}, ${input.bankAccount ?? null},
            ${input.paymentForm ?? null}, ${input.dueDays ?? null}, ${input.vatCountry ?? null},
@@ -313,10 +317,11 @@ export async function upsertDocumentType(
 }
 
 /**
- * Make one type the primary of its category — atomically, so exactly one row per
- * (org, category) has is_primary = true. A single UPDATE flips every sibling in the
- * category: the target to true, the rest to false. Throws if the id is not an
- * active type in that category.
+ * Make one ACTIVE type the primary of its category — atomically, so exactly one
+ * row per (org, category) has is_primary = true. A single UPDATE flips every
+ * ACTIVE sibling in the category: the target to true, the rest to false. Archived
+ * (is_active = false) rows are excluded (a primary must be active), so a
+ * non-existent or archived id fails the RETURNING check and throws.
  */
 export async function setPrimaryDocumentType(
   db: RowExecutor,
@@ -329,16 +334,22 @@ export async function setPrimaryDocumentType(
           SET is_primary = (id = ${input.id}::uuid), updated_at = now()
         WHERE organization_id = ${ctx.organizationId}::uuid
           AND category = ${input.category}
+          AND is_active = true
         RETURNING id`,
   )
   if (!updated.some((r) => r.id === input.id)) {
     throw new Error(
-      `document type: ${input.id} is not a type of category ${input.category}`,
+      `document type: ${input.id} is not an active type of category ${input.category}`,
     )
   }
 }
 
-/** Toggle a type's Aktivní flag (archive / restore). Throws if the id is unknown. */
+/**
+ * Toggle a type's Aktivní flag (archive / restore). Archiving also demotes the
+ * type (is_primary = false) so an archived row can never remain a category's
+ * primary; restoring leaves it non-primary until re-elected via
+ * {@link setPrimaryDocumentType}. Throws if the id is unknown.
+ */
 export async function setDocumentTypeActive(
   db: RowExecutor,
   ctx: OrgCtx,
@@ -347,7 +358,9 @@ export async function setDocumentTypeActive(
   const updated = await rows<{ id: string }>(
     db,
     sql`UPDATE document_type
-          SET is_active = ${input.isActive}, updated_at = now()
+          SET is_active = ${input.isActive},
+              is_primary = is_primary AND ${input.isActive},
+              updated_at = now()
         WHERE id = ${input.id}::uuid
           AND organization_id = ${ctx.organizationId}::uuid
         RETURNING id`,

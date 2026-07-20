@@ -58,6 +58,22 @@ END $$;
 ALTER TABLE number_series
   ADD COLUMN IF NOT EXISTS category document_category;  -- NULL for non-DOCUMENT séries
 
+-- Backfill the category onto the canonical default DOCUMENT séries that predate
+-- this migration (mirrors DEFAULT_NUMBER_SERIES in @workspace/accounting; a série
+-- with a custom code stays NULL and is categorized later via the Dokladové řady
+-- editor). Idempotent: the `category IS NULL` guard makes a re-run a no-op.
+UPDATE number_series
+   SET category = CASE code
+                    WHEN 'FV' THEN 'ISSUED_INVOICE'
+                    WHEN 'FP' THEN 'RECEIVED_INVOICE'
+                    WHEN 'PD' THEN 'CASH'
+                    WHEN 'BV' THEN 'BANK'
+                    WHEN 'ID' THEN 'INTERNAL'
+                  END::document_category
+ WHERE entity_type = 'DOCUMENT'
+   AND category IS NULL
+   AND code IN ('FV', 'FP', 'PD', 'BV', 'ID');
+
 -- 3. document_type -------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS document_type (
   id                   uuid              PRIMARY KEY DEFAULT uuidv7(),
@@ -106,8 +122,8 @@ CREATE POLICY organization_isolation ON document_type
   WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')::uuid);
 GRANT SELECT, INSERT, UPDATE, DELETE ON document_type TO app_user;
 
--- Fast per-category list (the Typy dokladů category Table read).
-CREATE INDEX IF NOT EXISTS document_type_org_category_idx
-  ON document_type (organization_id, category);
+-- No separate (organization_id, category) index: the document_type_org_cat_code_unique
+-- constraint's backing btree already serves the per-category list read as a
+-- leading-column prefix.
 
 COMMIT;

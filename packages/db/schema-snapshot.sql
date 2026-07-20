@@ -4507,12 +4507,6 @@ CREATE INDEX demo_debug_pivot_table_record_org_category_idx ON public.demo_debug
 CREATE INDEX depreciation_plan_asset_idx ON public.depreciation_plan USING btree (asset_id);
 
 --
--- Name: document_type_org_category_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX document_type_org_category_idx ON public.document_type USING btree (organization_id, category);
-
---
 -- Name: favorite_page_org_user_module_idx; Type: INDEX; Schema: public; Owner: -
 --
 

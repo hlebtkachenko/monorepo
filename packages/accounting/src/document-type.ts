@@ -19,6 +19,7 @@ import { sql } from "drizzle-orm"
 import type { SQL } from "drizzle-orm"
 import { one, rows } from "./sql"
 import type { ReadExecutor, RowExecutor } from "./sql"
+import { allocateNumber } from "./number-series"
 import type { DocumentCategory, DocumentKind, OrgCtx } from "./types"
 
 /**
@@ -538,4 +539,55 @@ export async function deleteNumberSeriesPeriod(
   throw new Error(
     `accounting: number series period ${input.id} has already issued numbers — a gapless counter cannot be deleted (§11/1a)`,
   )
+}
+
+// --- doklad number allocation (typ dokladu → default série → gapless číslo) ---
+
+/**
+ * Allocate the next gapless number for a doklad TYPE: resolve the type's default
+ * číselná řada (`default_series_id`, which must be a DOCUMENT série) and burn its
+ * next Označení via {@link allocateNumber}. This is the typ→řada→číslo chain the
+ * Doklady capture lane runs — a doklad of a given typ draws its number from the
+ * řada that typ points at. When `periodId` matches a per-účetní-období numbering
+ * row the per-period counter advances (restarts per období); otherwise the flat
+ * série counter does. Throws if the type has no DOCUMENT default série to draw from.
+ */
+export async function allocateForDocumentType(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: { documentTypeId: string; isoDate: string; periodId?: string },
+): Promise<{
+  seriesCode: string
+  designation: string
+  sequenceNumber: number
+}> {
+  const found = await rows<{ series_id: string; series_code: string }>(
+    db,
+    sql`SELECT ns.id AS series_id, ns.code AS series_code
+          FROM document_type dt
+          JOIN number_series ns
+            ON ns.id = dt.default_series_id
+           AND ns.organization_id = dt.organization_id
+         WHERE dt.id = ${input.documentTypeId}::uuid
+           AND dt.organization_id = ${ctx.organizationId}::uuid
+           AND ns.entity_type = 'DOCUMENT'`,
+  )
+  const s = found[0]
+  if (s === undefined) {
+    throw new Error(
+      `document type ${input.documentTypeId} has no DOCUMENT default série to allocate from`,
+    )
+  }
+  const allocated = await allocateNumber(
+    db,
+    s.series_id,
+    input.isoDate,
+    "DOCUMENT",
+    input.periodId,
+  )
+  return {
+    seriesCode: s.series_code,
+    designation: allocated.designation,
+    sequenceNumber: allocated.sequenceNumber,
+  }
 }

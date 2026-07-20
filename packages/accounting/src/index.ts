@@ -37,6 +37,7 @@ export {
   upsertDocumentSeries,
   upsertNumberSeriesPeriod,
   deleteNumberSeriesPeriod,
+  allocateForDocumentType,
   type DocumentTypeRow,
   type DocumentSeriesRow,
   type NumberSeriesPeriodRow,

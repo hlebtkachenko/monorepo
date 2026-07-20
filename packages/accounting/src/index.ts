@@ -148,10 +148,12 @@ export {
 export {
   journal,
   generalLedger,
+  accountBalance,
   monetaryJournal,
   monetarySummary,
   type JournalRow,
   type LedgerAccountRow,
+  type AccountBalanceRow,
   type MonetaryJournalRow,
   type MonetarySummaryRow,
 } from "./books"

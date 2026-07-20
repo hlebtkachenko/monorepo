@@ -218,6 +218,34 @@ export const periodOutputType = pgEnum("period_output_type", [
   "PERSONAL_INCOME_TAX",
 ])
 
+// Mirrors: packages/db/migrations/0076_document_type.sql — CREATE TYPE document_category AS ENUM
+export const documentCategory = pgEnum("document_category", [
+  "RECEIVED_INVOICE",
+  "ISSUED_INVOICE",
+  "CASH",
+  "BANK",
+  "INTERNAL",
+  "SET_OFF",
+  "OTHER_RECEIVABLE",
+  "OTHER_PAYABLE",
+  "TAX_APPLICATION",
+])
+
+// Mirrors: packages/db/migrations/0076_document_type.sql — CREATE TYPE document_kind AS ENUM
+export const documentKind = pgEnum("document_kind", [
+  "STANDARD",
+  "CREDIT_NOTE",
+  "ADVANCE",
+  "ADVANCE_TAX_DOC",
+  "DELIVERY_NOTE",
+  "PROFORMA",
+  "GENERAL",
+  "FX_GAIN",
+  "FX_LOSS",
+  "REMAINDER_COST",
+  "REMAINDER_REVENUE",
+])
+
 // =============================================================================
 // Finance domain enums — created in
 // packages/db/migrations/0073_financial_account.sql (CREATE TYPE ...)

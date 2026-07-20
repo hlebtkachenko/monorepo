@@ -146,6 +146,40 @@ CREATE TYPE public.depreciation_plan_status AS ENUM (
 );
 
 --
+-- Name: document_category; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_category AS ENUM (
+    'RECEIVED_INVOICE',
+    'ISSUED_INVOICE',
+    'CASH',
+    'BANK',
+    'INTERNAL',
+    'SET_OFF',
+    'OTHER_RECEIVABLE',
+    'OTHER_PAYABLE',
+    'TAX_APPLICATION'
+);
+
+--
+-- Name: document_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_kind AS ENUM (
+    'STANDARD',
+    'CREDIT_NOTE',
+    'ADVANCE',
+    'ADVANCE_TAX_DOC',
+    'DELIVERY_NOTE',
+    'PROFORMA',
+    'GENERAL',
+    'FX_GAIN',
+    'FX_LOSS',
+    'REMAINDER_COST',
+    'REMAINDER_REVENUE'
+);
+
+--
 -- Name: financial_account_kind; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -2143,6 +2177,41 @@ CREATE TABLE public.directive_account_year (
 );
 
 --
+-- Name: document_type; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.document_type (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    category public.document_category NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    kind public.document_kind,
+    default_series_id uuid,
+    is_primary boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    default_account text,
+    posting_prescription text,
+    cost_centre text,
+    activity text,
+    bank_account text,
+    payment_form text,
+    due_days integer,
+    vat_country text,
+    kh_section text,
+    description text,
+    valid_from_year integer,
+    valid_to_year integer,
+    external_source_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT document_type_due_days_chk CHECK (((due_days IS NULL) OR (due_days >= 0))),
+    CONSTRAINT document_type_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
+);
+
+ALTER TABLE ONLY public.document_type FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: dppo_annual_adjustment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2471,7 +2540,15 @@ CREATE TABLE public.number_series (
     pattern text NOT NULL,
     next_number bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    category public.document_category,
+    name text,
+    note text,
+    description text,
+    valid_from_year integer,
+    valid_to_year integer,
+    CONSTRAINT number_series_category_document_chk CHECK (((category IS NULL) OR (entity_type = 'DOCUMENT'::public.number_series_entity))),
+    CONSTRAINT number_series_valid_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
 );
 
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;
@@ -3709,6 +3786,27 @@ ALTER TABLE ONLY public.directive_account
 
 ALTER TABLE ONLY public.directive_account_year
     ADD CONSTRAINT directive_account_year_pkey PRIMARY KEY (year, code);
+
+--
+-- Name: document_type document_type_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: document_type document_type_org_cat_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_org_cat_code_unique UNIQUE (organization_id, category, code);
+
+--
+-- Name: document_type document_type_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_pkey PRIMARY KEY (id);
 
 --
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -5871,6 +5969,13 @@ ALTER TABLE ONLY public.directive_account_year
     ADD CONSTRAINT directive_account_year_code_fkey FOREIGN KEY (code) REFERENCES public.directive_account(code);
 
 --
+-- Name: document_type document_type_series_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_series_fk FOREIGN KEY (default_series_id, organization_id) REFERENCES public.number_series(id, organization_id);
+
+--
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6955,6 +7060,12 @@ ALTER TABLE public.demo_debug_pivot_table_record ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.depreciation_plan ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: document_type; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.document_type ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: dppo_annual_adjustment; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7241,6 +7352,12 @@ CREATE POLICY organization_isolation ON public.demo_debug_pivot_table_record USI
 --
 
 CREATE POLICY organization_isolation ON public.depreciation_plan USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: document_type organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.document_type USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: dppo_annual_adjustment organization_isolation; Type: POLICY; Schema: public; Owner: -

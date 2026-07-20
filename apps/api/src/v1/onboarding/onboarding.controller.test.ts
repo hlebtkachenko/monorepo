@@ -86,6 +86,9 @@ vi.mock("@workspace/accounting", () => ({
       return "0196f1de-0000-7000-8000-0000000000e1"
     },
   ),
+  defaultSeriesCategory: vi.fn((_entityType: string, code: string) =>
+    code === "FP" ? "RECEIVED_INVOICE" : null,
+  ),
 }))
 
 vi.mock("@workspace/org-provisioning", () => {
@@ -307,6 +310,8 @@ describe("OnboardingController (/v1/accounting onboarding)", () => {
     expect(state.numberSeriesCalls[0]?.input).not.toHaveProperty(
       "organization_id",
     )
+    // A canonical default DOCUMENT série is bucketed under its config category.
+    expect(state.numberSeriesCalls[0]?.input.category).toBe("RECEIVED_INVOICE")
     expect(state.scopeCalls).toEqual([
       { orgId: ORG_A, userId: principalFor(ORG_A).userId },
     ])

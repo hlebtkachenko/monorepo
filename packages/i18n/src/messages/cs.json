@@ -1708,7 +1708,20 @@
           "unavailable": "Neověřeno"
         },
         "run": "Spustit uzávěrku",
-        "closed": "Období je uzavřené."
+        "closed": "Období je uzavřené.",
+        "reopen": {
+          "action": "Znovu otevřít období",
+          "title": "Znovu otevřít období?",
+          "description": "Tato akce stornuje účetní závěrku a znovu otevře období. Pokračovat?",
+          "reasonLabel": "Důvod (nepovinné)",
+          "reasonPlaceholder": "Proč se období znovu otevírá?",
+          "cancel": "Zrušit",
+          "confirm": "Znovu otevřít",
+          "success": "Období bylo znovu otevřeno",
+          "forbidden": "Tuto akci může provést pouze vlastník nebo správce.",
+          "blocked": "Období nelze znovu otevřít.",
+          "error": "Období se nepodařilo znovu otevřít."
+        }
       }
     },
     "favorite": {

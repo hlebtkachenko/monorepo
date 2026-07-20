@@ -26,10 +26,10 @@ import { getActivePeriod } from "@/lib/org/period"
 /** The 4 config categories the Dokladové řady page surfaces, re-exported so the
  *  page needs one import. */
 export { DOCUMENT_SERIES_CATEGORIES }
-export type { DocumentCategory }
 
-/** One per-účetní-období numbering row as the grid consumes it (camelCase). */
-export interface NumberSeriesPeriodView {
+/** One per-účetní-období numbering row as the grid consumes it (camelCase).
+ *  Part of the exported DocumentSeriesView shape; not itself imported by name. */
+interface NumberSeriesPeriodView {
   id: string
   periodId: string
   numberLength: number

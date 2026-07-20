@@ -11,6 +11,16 @@
  * The reversal posts into the ORIGINAL's period (the common case — an error
  * found while the period is still open). Reversing into a different period would
  * require by-number account re-resolution and is a follow-up.
+ *
+ * The reversal PROPAGATES the original's `is_opening` / `is_closing` tags: a
+ * storno of a 701 opening is itself opening-natured and a storno of a 702
+ * balance-close is closing-natured, so the read-model maintain trigger (0071)
+ * treats each reversal line the same way it treated the original — the 701 storno
+ * nets `opening_balance` back to zero (not into turnover), and the 702 storno
+ * stays read-model-neutral. Without this the period-reopen cascade would leave a
+ * non-zero opening_balance in N+1 (blocking a re-close) and corrupt N's konečné
+ * stavy. For every ordinary posting both flags are false, so propagation is a
+ * no-op there.
  */
 
 import { sql } from "drizzle-orm"
@@ -41,9 +51,11 @@ export async function reverse(
     period_id: string
     summary_record_id: string
     accounting_event_id: string
+    is_opening: boolean
+    is_closing: boolean
   }>(
     db,
-    sql`SELECT regime_code, period_id, summary_record_id, accounting_event_id
+    sql`SELECT regime_code, period_id, summary_record_id, accounting_event_id, is_opening, is_closing
           FROM posting WHERE id = ${input.originalPostingId}::uuid`,
   )
 
@@ -57,6 +69,8 @@ export async function reverse(
     responsibleUserId: input.responsibleUserId,
     correctsPostingId: input.originalPostingId,
     correctionType: "REVERSAL",
+    isOpening: orig.is_opening,
+    isClosing: orig.is_closing,
   })
 
   if (orig.regime_code === "DOUBLE_ENTRY") {

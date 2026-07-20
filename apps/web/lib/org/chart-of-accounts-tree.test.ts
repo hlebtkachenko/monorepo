@@ -84,6 +84,8 @@ describe("buildChartTree", () => {
     expect(group01.values).toMatchObject({ number: "01" })
     const synth012 = group01.subRows![0]!
     expect(synth012.id).toBe("a012")
+    // The record id rides in `values` (not a column) for the row Inspector.
+    expect(synth012.values.id).toBe("a012")
     // A real account row is selectable/editable by default (both undefined).
     expect(synth012.selectable).toBeUndefined()
     expect(synth012.subRows!.map((n) => n.id)).toEqual(["a012.001"])

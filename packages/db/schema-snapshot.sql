@@ -2983,10 +2983,29 @@ CREATE TABLE public.period_output (
     period_id uuid NOT NULL,
     type public.period_output_type NOT NULL,
     generated_at timestamp with time zone DEFAULT now() NOT NULL,
-    generated_by uuid NOT NULL
+    generated_by uuid NOT NULL,
+    reverses_output_id uuid
 );
 
 ALTER TABLE ONLY public.period_output FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: period_reopen_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.period_reopen_log (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    reopened_by uuid NOT NULL,
+    reason text,
+    result_storno_posting_id uuid,
+    balance_storno_posting_id uuid,
+    opening_storno_posting_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.period_reopen_log FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_rule; Type: TABLE; Schema: public; Owner: -
@@ -4287,6 +4306,20 @@ ALTER TABLE ONLY public.period_output
     ADD CONSTRAINT period_output_pkey PRIMARY KEY (id);
 
 --
+-- Name: period_reopen_log period_reopen_log_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_pkey PRIMARY KEY (id);
+
+--
 -- Name: permission_rule permission_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4982,6 +5015,12 @@ CREATE INDEX partial_record_line_idx ON public.partial_record USING btree (indiv
 CREATE INDEX period_output_period_idx ON public.period_output USING btree (period_id, organization_id);
 
 --
+-- Name: period_reopen_log_period_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX period_reopen_log_period_idx ON public.period_reopen_log USING btree (period_id, organization_id);
+
+--
 -- Name: permission_rule_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5346,6 +5385,24 @@ CREATE TRIGGER period_output_block_update BEFORE UPDATE ON public.period_output 
 --
 
 CREATE TRIGGER period_output_completeness_gate BEFORE INSERT ON public.period_output FOR EACH ROW EXECUTE FUNCTION public.app_assert_period_complete();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_delete BEFORE DELETE ON public.period_reopen_log FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_truncate BEFORE TRUNCATE ON public.period_reopen_log FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_accounting();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_update BEFORE UPDATE ON public.period_reopen_log FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
 
 --
 -- Name: posting posting_balanced; Type: TRIGGER; Schema: public; Owner: -
@@ -6479,6 +6536,27 @@ ALTER TABLE ONLY public.period_output
     ADD CONSTRAINT period_output_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
+-- Name: period_output period_output_reverses_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_output
+    ADD CONSTRAINT period_output_reverses_fk FOREIGN KEY (reverses_output_id, organization_id) REFERENCES public.period_output(id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_reopened_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_reopened_by_fkey FOREIGN KEY (reopened_by) REFERENCES public.app_user(id);
+
+--
 -- Name: permission_template permission_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7402,6 +7480,12 @@ CREATE POLICY organization_isolation ON public.partial_record USING ((organizati
 CREATE POLICY organization_isolation ON public.period_output USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: period_reopen_log organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.period_reopen_log USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: posting organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7508,6 +7592,12 @@ ALTER TABLE public.partial_record ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.period_output ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: period_reopen_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.period_reopen_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_template; Type: ROW SECURITY; Schema: public; Owner: -

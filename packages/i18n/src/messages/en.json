@@ -110,7 +110,15 @@
         "collapseAll": "Collapse all",
         "exportFileName": "chart-of-accounts",
         "emptyNoPeriod": "No active accounting period. Open a period to build the chart of accounts.",
-        "emptyNoChart": "This period has no chart of accounts yet."
+        "emptyNoChart": "This period has no chart of accounts yet.",
+        "seedFromFramework": "Start from framework",
+        "seedFromTemplate": "Use a template",
+        "seedSuccess": "Chart of accounts created",
+        "seedFailed": "Could not create the chart of accounts",
+        "updateFailed": "Could not save the change",
+        "templatePickerTitle": "Choose a template",
+        "templatePickerDescription": "Fork a prebuilt chart of accounts into this period.",
+        "templateDefault": "Default"
       },
       "framework": {
         "searchPlaceholder": "Search framework",

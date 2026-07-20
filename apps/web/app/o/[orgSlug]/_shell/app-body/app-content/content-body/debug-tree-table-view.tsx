@@ -154,6 +154,21 @@ const TREE: TreeTableRow[] = [
   ]),
 ]
 
+/** Remove the nodes whose id is selected (and, with them, their whole subtree) —
+ *  recursively, returning a new tree. Used by the demo's footer Delete. */
+function removeIds(
+  rows: readonly TreeTableRow[],
+  ids: ReadonlySet<string>,
+): TreeTableRow[] {
+  const out: TreeTableRow[] = []
+  for (const node of rows) {
+    if (ids.has(node.id)) continue
+    const subRows = node.subRows ? removeIds(node.subRows, ids) : undefined
+    out.push(subRows ? { ...node, subRows } : node)
+  }
+  return out
+}
+
 export function DebugTreeTableView({
   slug,
   title,
@@ -166,11 +181,13 @@ export function DebugTreeTableView({
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
   const [filters, setFilters] = React.useState<FiltersState>([])
+  // The demo owns the tree so the footer Delete actually removes rows.
+  const [treeRows, setTreeRows] = React.useState<TreeTableRow[]>(() => TREE)
 
   // Column-driven toolbar filter + the recursively-narrowed tree it produces.
   const { filter, rows: filteredTree } = useTreeTableFilters({
     columns: COLUMNS,
-    rows: TREE,
+    rows: treeRows,
     filters,
     onFiltersChange: setFilters,
   })
@@ -198,9 +215,39 @@ export function DebugTreeTableView({
     (
       table: Table<TableSectionRow> | null,
       _helpers: ArchetypeTableSelectionHelpers,
-    ): ContentFooterAction[] =>
-      buildTableFooter(table, { exportFileName: "tree-table" }),
-    [],
+    ): ContentFooterAction[] => {
+      // `flatRows` so a nested account selection is included (the tiers are not
+      // selectable, so selections are always nested).
+      const ids = (table?.getFilteredSelectedRowModel().flatRows ?? []).map(
+        (row) => String(row.original.id),
+      )
+      return buildTableFooter(table, {
+        exportFileName: "uctovy-rozvrh",
+        selectedIds: ids,
+        onCopyId: (copyIds) => {
+          void navigator.clipboard.writeText(copyIds.join("\n"))
+          toast.success(`Zkopírováno ${copyIds.length} ID`)
+        },
+        actions: [
+          {
+            id: "delete",
+            label: "Smazat",
+            icon: "Trash2",
+            variant: "destructive",
+            onSelect: () => {
+              if (ids.length === 0) return
+              const previous = treeRows
+              setTreeRows(removeIds(treeRows, new Set(ids)))
+              table?.resetRowSelection()
+              toast.success(`Smazáno ${ids.length} účtů`, {
+                action: { label: "Zpět", onClick: () => setTreeRows(previous) },
+              })
+            },
+          },
+        ],
+      })
+    },
+    [treeRows],
   )
 
   return (

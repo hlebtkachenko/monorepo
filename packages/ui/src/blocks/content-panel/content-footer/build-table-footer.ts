@@ -1,4 +1,4 @@
-import type { Row, Table } from "@tanstack/react-table"
+import type { Table } from "@tanstack/react-table"
 
 import { toast } from "@workspace/ui/components/sonner"
 
@@ -18,11 +18,12 @@ function csvCell(value: unknown): string {
  * A CSV of the SELECTED rows × the VISIBLE data columns, both in their current
  * on-screen order — the whole selected range, exactly as placed. Display columns
  * (selection checkbox, row actions) carry no `accessorFn` and are dropped, so the
- * header/body stay aligned to the real data columns. Each selected row's
- * DESCENDANTS are walked too (a nested/pivot row keeps its children in `subRows`);
- * a flat Table has none, so this stays a single pass. A page whose grid needs a
- * bespoke layout (e.g. a Pivot's dimension columns + band header line) passes its
- * own `toCsv` to `buildTableFooter` instead of this default.
+ * header/body stay aligned to the real data columns. Uses `flatRows`, so a NESTED
+ * selection is included: in a Tree-table a selected account sits under a
+ * non-selected tier, so it never appears in `.rows` (top-level only) and the CSV
+ * would silently omit it. For a flat Table `flatRows === rows`. A page whose grid
+ * needs a bespoke layout (e.g. a Pivot's dimension columns + band header line)
+ * passes its own `toCsv` to `buildTableFooter` instead of this default.
  */
 export function selectionCsv<TData>(table: Table<TData> | null): string {
   const columns = (table?.getVisibleLeafColumns() ?? []).filter(
@@ -31,14 +32,9 @@ export function selectionCsv<TData>(table: Table<TData> | null): string {
   const header = columns.map((column) =>
     csvCell(column.columnDef.meta?.label ?? column.id),
   )
-  const body: string[][] = []
-  const walk = (rows: readonly Row<TData>[]) => {
-    for (const row of rows) {
-      body.push(columns.map((column) => csvCell(row.getValue(column.id))))
-      if (row.subRows.length) walk(row.subRows)
-    }
-  }
-  walk(table?.getFilteredSelectedRowModel().rows ?? [])
+  const body = (table?.getFilteredSelectedRowModel().flatRows ?? []).map(
+    (row) => columns.map((column) => csvCell(row.getValue(column.id))),
+  )
   return [header, ...body].map((cells) => cells.join(",")).join("\n")
 }
 

@@ -60,8 +60,17 @@ export type {
 export { deriveFilterColumns, applyTableFilters } from "./derive-table-filters"
 export { useTableFilters } from "./use-table-filters"
 export type { UseTableFiltersOptions } from "./use-table-filters"
+export { useTreeTableFilters } from "./use-tree-table-filters"
+export type { UseTreeTableFiltersOptions } from "./use-tree-table-filters"
 export { usePivotFilters } from "./use-pivot-filters"
 export type { UsePivotFiltersOptions } from "./use-pivot-filters"
+export { sectionTreeTable } from "./section-tree-table"
+export type {
+  SectionTreeTableProps,
+  SectionTreeTablePayload,
+  TreeTableRow,
+  TreeTableDefaultExpanded,
+} from "./section-tree-table"
 export { sectionPivotTable, PIVOT_ROW_LABEL_ID } from "./section-pivot-table"
 export type {
   SectionPivotTableProps,

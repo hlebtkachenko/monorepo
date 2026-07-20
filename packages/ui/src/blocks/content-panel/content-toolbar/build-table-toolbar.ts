@@ -32,6 +32,15 @@ export interface BuildTableToolbarOptions<TData> {
   /** The multi-filter slot, e.g. straight from `useTableFilters().filter`. */
   filter?: FilterDescriptor<TData>
   actions?: ActionDescriptor[]
+  /**
+   * A group/ungroup toggle for an expandable grid (Tree-table / Pivot): a single
+   * toolbar action that collapses or expands EVERY row at once, driven off the
+   * live table's expansion state. Shown only when the table has expandable rows.
+   * When everything is expanded (ungrouped) it offers "group" (collapse-all) with
+   * the `ListChevronsDownUp` icon; when collapsed (grouped) it offers "ungroup"
+   * (expand-all) with `ListChevronsUpDown`. Labels are page-supplied (i18n).
+   */
+  expandAll?: { groupLabel: string; ungroupLabel: string }
   add?: AddDescriptor
   /** Include the columns manager (`viewTools`). Default true. */
   columnsManager?: boolean
@@ -106,7 +115,26 @@ export function buildTableToolbar<TData>(
   }
 
   if (filterDescriptor) toolbar.filter = filterDescriptor
-  if (opts.actions) toolbar.actions = opts.actions
+
+  const actions: ActionDescriptor[] = opts.actions ? [...opts.actions] : []
+  // The group/ungroup (collapse-all / expand-all) toggle for an expandable grid.
+  if (opts.expandAll && table && table.getCanSomeRowsExpand()) {
+    const allExpanded = table.getIsAllRowsExpanded()
+    actions.push({
+      id: "expand-toggle",
+      label: allExpanded
+        ? opts.expandAll.groupLabel
+        : opts.expandAll.ungroupLabel,
+      icon: allExpanded ? "ListChevronsDownUp" : "ListChevronsUpDown",
+      variant: "outline",
+      tooltip: allExpanded
+        ? opts.expandAll.groupLabel
+        : opts.expandAll.ungroupLabel,
+      onSelect: () => table.toggleAllRowsExpanded(!allExpanded),
+    })
+  }
+  if (actions.length > 0) toolbar.actions = actions
+
   if (opts.add) toolbar.add = opts.add
   if ((opts.columnsManager ?? true) && table) toolbar.viewTools = { table }
 

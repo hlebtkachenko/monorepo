@@ -2040,8 +2040,19 @@ CREATE TABLE public.counterparty (
     tax_id text,
     country_code character(2),
     ico character varying(8),
+    party_kind_code text,
+    legal_name text,
+    display_name text,
+    legal_form_code text,
+    data_box_id character varying(7),
+    registration_status text,
+    verification_source text,
+    last_verified_at timestamp with time zone,
+    archived_at timestamp with time zone,
     CONSTRAINT counterparty_country_code_chk CHECK (((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text))),
-    CONSTRAINT counterparty_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text)))
+    CONSTRAINT counterparty_data_box_id_format CHECK (((data_box_id IS NULL) OR ((data_box_id)::text ~ '^[a-z0-9]{7}$'::text))),
+    CONSTRAINT counterparty_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text))),
+    CONSTRAINT counterparty_verification_source_chk CHECK (((verification_source IS NULL) OR (verification_source = ANY (ARRAY['MANUAL'::text, 'ARES'::text, 'CRPDPH'::text]))))
 );
 
 ALTER TABLE ONLY public.counterparty FORCE ROW LEVEL SECURITY;
@@ -2972,6 +2983,16 @@ CREATE TABLE public.partial_record (
 );
 
 ALTER TABLE ONLY public.partial_record FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_kind; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_kind (
+    code text NOT NULL,
+    person_type public.person_type NOT NULL,
+    CONSTRAINT party_kind_code_format CHECK ((code ~ '^[A-Z_]+$'::text))
+);
 
 --
 -- Name: period_output; Type: TABLE; Schema: public; Owner: -
@@ -4290,6 +4311,13 @@ ALTER TABLE ONLY public.partial_record
 
 ALTER TABLE ONLY public.partial_record
     ADD CONSTRAINT partial_record_pkey PRIMARY KEY (id);
+
+--
+-- Name: party_kind party_kind_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_kind
+    ADD CONSTRAINT party_kind_pkey PRIMARY KEY (code);
 
 --
 -- Name: period_output period_output_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -5904,6 +5932,20 @@ ALTER TABLE ONLY public.chart_template_account
 
 ALTER TABLE ONLY public.chart_template_account
     ADD CONSTRAINT chart_template_account_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.chart_template(id) ON DELETE CASCADE;
+
+--
+-- Name: counterparty counterparty_legal_form_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counterparty
+    ADD CONSTRAINT counterparty_legal_form_code_fkey FOREIGN KEY (legal_form_code) REFERENCES public.legal_form(code);
+
+--
+-- Name: counterparty counterparty_party_kind_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counterparty
+    ADD CONSTRAINT counterparty_party_kind_code_fkey FOREIGN KEY (party_kind_code) REFERENCES public.party_kind(code);
 
 --
 -- Name: counterparty counterparty_self_of_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -

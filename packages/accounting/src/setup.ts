@@ -201,11 +201,11 @@ export async function backfillDefaultNumberSeries(
 ): Promise<number> {
   const inserted = await rows<{ id: string }>(
     db,
-    sql`INSERT INTO number_series (organization_id, entity_type, code, pattern, next_number)
+    sql`INSERT INTO number_series (organization_id, entity_type, category, code, pattern, next_number)
         VALUES ${sql.join(
           DEFAULT_NUMBER_SERIES.map(
             (s) =>
-              sql`(${ctx.organizationId}::uuid, ${s.entityType}, ${s.code}, ${s.pattern}, 1)`,
+              sql`(${ctx.organizationId}::uuid, ${s.entityType}, ${s.category}, ${s.code}, ${s.pattern}, 1)`,
           ),
           sql`, `,
         )}

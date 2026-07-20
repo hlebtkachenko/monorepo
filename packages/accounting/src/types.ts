@@ -35,6 +35,8 @@ import type {
   depreciationMethod,
   vatFilingPeriod,
   personType,
+  documentCategory,
+  documentKind,
 } from "@workspace/db/schema"
 
 // --- enum unions -----------------------------------------------------------
@@ -75,6 +77,10 @@ export type OpenItemDirection = (typeof openItemDirection.enumValues)[number]
 export type PeriodOutputType = (typeof periodOutputType.enumValues)[number]
 export type AssetCategory = (typeof assetCategory.enumValues)[number]
 export type DepreciationMethod = (typeof depreciationMethod.enumValues)[number]
+/** Config-facing doklad bucket (Typy dokladů / Dokladové řady). Superset of the booked SummaryRecordType. */
+export type DocumentCategory = (typeof documentCategory.enumValues)[number]
+/** Druh — the per-category doklad kind; which kinds are valid per category lives in DOCUMENT_KINDS_BY_CATEGORY. */
+export type DocumentKind = (typeof documentKind.enumValues)[number]
 
 /** Exact decimal amount as a string (e.g. "121.00"). Never a JS number (R13). */
 export type Decimal = string

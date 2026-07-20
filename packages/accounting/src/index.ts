@@ -19,6 +19,27 @@ export {
 } from "./number-series"
 export { resolveAccountId, resolveAccountIds } from "./accounts"
 
+// Typy dokladů + Dokladové řady config backend (the Lists-layer single source for
+// doklad-type/série config — every future Doklady page + table reads here)
+export {
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_SERIES_CATEGORIES,
+  DOCUMENT_KINDS_BY_CATEGORY,
+  documentKindsFor,
+  listDocumentCategories,
+  listDocumentTypes,
+  getDocumentType,
+  listDocumentSeries,
+  getDocumentSeries,
+  upsertDocumentType,
+  setPrimaryDocumentType,
+  setDocumentTypeActive,
+  type DocumentTypeRow,
+  type DocumentSeriesRow,
+  type NumberSeriesPeriodRow,
+  type UpsertDocumentTypeInput,
+} from "./document-type"
+
 // Chart of accounts + Účetní osnova + prebuilt-template reads (the Lists-layer single source)
 export {
   listAccounts,

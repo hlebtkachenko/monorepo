@@ -17,7 +17,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { numberSeriesEntity } from "./_enums"
+import { documentCategory, numberSeriesEntity } from "./_enums"
 import { organization } from "./organization"
 
 export const number_series = pgTable(
@@ -30,11 +30,10 @@ export const number_series = pgTable(
       .notNull()
       .references(() => organization.id),
     entity_type: numberSeriesEntity("entity_type").notNull(), // EVENT | DOCUMENT | ASSET | INVENTORY_COUNT
+    category: documentCategory("category"), // config bucket for Dokladové řady; NULL for non-DOCUMENT séries
     code: text("code").notNull(), // company's série label
     pattern: text("pattern").notNull(), // company-defined format, e.g. 'FP{YYYY}{NNNN}'
-    next_number: bigint("next_number", { mode: "number" })
-      .notNull()
-      .default(1),
+    next_number: bigint("next_number", { mode: "number" }).notNull().default(1),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

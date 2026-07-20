@@ -33,6 +33,17 @@ import type {
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@workspace/ui/components/alert-dialog"
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
@@ -54,10 +65,12 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
+import { Textarea } from "@workspace/ui/components/textarea"
 
 import {
   getPeriodCloseReadinessAction,
   openPeriodAction,
+  reopenPeriodAction,
   updatePeriodZkratka,
   type PeriodCloseReadinessView,
 } from "@/lib/org/period-actions"
@@ -161,6 +174,36 @@ function PeriodUzaverkaTab({
 
   const isClosed = stav === "closed"
 
+  // Reopen ("storno" of the year-end close) — the single riskiest period write,
+  // so it is confirm-gated. The button is rendered only for owner/admin (the
+  // DTO's `canManage`); the action re-checks authz + injects `reopenedBy`.
+  const [reopenOpen, setReopenOpen] = React.useState(false)
+  const [reopenReason, setReopenReason] = React.useState("")
+  const [reopening, startReopen] = React.useTransition()
+
+  const submitReopen = React.useCallback(() => {
+    startReopen(async () => {
+      const result = await reopenPeriodAction({
+        slug,
+        periodId,
+        reason: reopenReason.trim() || undefined,
+      })
+      if (result.ok) {
+        setReopenOpen(false)
+        toast.success(t("uzaverka.reopen.success"))
+        router.refresh()
+        return
+      }
+      if ("forbidden" in result && result.forbidden) {
+        toast.error(t("uzaverka.reopen.forbidden"))
+      } else if ("blocked" in result && result.blocked) {
+        toast.error(t("uzaverka.reopen.blocked"))
+      } else {
+        toast.error(t("uzaverka.reopen.error"))
+      }
+    })
+  }, [slug, periodId, reopenReason, t, router])
+
   const statusLabel = React.useCallback(
     (status: CloseCheckStatus): string =>
       status === "PASS"
@@ -250,7 +293,51 @@ function PeriodUzaverkaTab({
           <p className="text-sm text-muted-foreground">
             {t("uzaverka.closed")}
           </p>
-          {/* P12: the reopen action button mounts here for a closed period. */}
+          {readiness?.canManage ? (
+            <AlertDialog open={reopenOpen} onOpenChange={setReopenOpen}>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="self-end">
+                  {t("uzaverka.reopen.action")}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    {t("uzaverka.reopen.title")}
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("uzaverka.reopen.description")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="reopen-reason">
+                    {t("uzaverka.reopen.reasonLabel")}
+                  </Label>
+                  <Textarea
+                    id="reopen-reason"
+                    value={reopenReason}
+                    onChange={(e) => setReopenReason(e.target.value)}
+                    placeholder={t("uzaverka.reopen.reasonPlaceholder")}
+                  />
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={reopening}>
+                    {t("uzaverka.reopen.cancel")}
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    disabled={reopening}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      submitReopen()
+                    }}
+                  >
+                    {t("uzaverka.reopen.confirm")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          ) : null}
         </div>
       ) : readiness?.canManage ? (
         <div className="flex justify-end">

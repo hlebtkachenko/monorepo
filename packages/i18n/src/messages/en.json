@@ -1708,7 +1708,20 @@
           "unavailable": "Not verified"
         },
         "run": "Run close",
-        "closed": "This period is closed."
+        "closed": "This period is closed.",
+        "reopen": {
+          "action": "Reopen period",
+          "title": "Reopen this period?",
+          "description": "This reverses the year-end close and reopens the period. Continue?",
+          "reasonLabel": "Reason (optional)",
+          "reasonPlaceholder": "Why is the period being reopened?",
+          "cancel": "Cancel",
+          "confirm": "Reopen",
+          "success": "The period has been reopened",
+          "forbidden": "Only the owner or an admin can do this.",
+          "blocked": "This period cannot be reopened.",
+          "error": "The period could not be reopened."
+        }
       }
     },
     "favorite": {

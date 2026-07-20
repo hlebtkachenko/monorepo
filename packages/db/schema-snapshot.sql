@@ -2013,6 +2013,18 @@ CREATE TABLE public.counterparty (
 ALTER TABLE ONLY public.counterparty FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: country; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.country (
+    iso2 character(2) NOT NULL,
+    currency_code character varying(3),
+    active boolean DEFAULT true NOT NULL,
+    CONSTRAINT country_currency_format CHECK (((currency_code IS NULL) OR ((currency_code)::text ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT country_iso2_format CHECK ((iso2 ~ '^[A-Z]{2}$'::text))
+);
+
+--
 -- Name: currency; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3608,6 +3620,13 @@ ALTER TABLE ONLY public.counterparty
 
 ALTER TABLE ONLY public.counterparty
     ADD CONSTRAINT counterparty_self_of_organization_id_key UNIQUE (self_of_organization_id);
+
+--
+-- Name: country country_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.country
+    ADD CONSTRAINT country_pkey PRIMARY KEY (iso2);
 
 --
 -- Name: currency currency_code_functional_unique; Type: CONSTRAINT; Schema: public; Owner: -

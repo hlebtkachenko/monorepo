@@ -40,9 +40,9 @@
  *     tables get ENABLE (not FORCE) RLS so the SECURITY DEFINER maintenance
  *     trigger writes through (0034 §3). Not in this org-isolation list.
  *   - regime, legal_form, legal_form_allowed_regime, accounting_size,
- *     vat_regime, currency, business_activity, account_group,
- *     directive_account, depreciation_group — reference (law) tables, shared
- *     across all tenants, no RLS.
+ *     vat_regime, currency, country, business_activity, account_group,
+ *     directive_account, depreciation_group — reference (system/law) tables,
+ *     shared across all tenants, no RLS.
  */
 export const ORGANIZATION_SCOPED_TABLES = [
   "api_key",

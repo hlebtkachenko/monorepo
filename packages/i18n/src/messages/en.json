@@ -1611,6 +1611,7 @@
       "states": "Countries",
       "finance": "Finance",
       "currencies": "Currencies",
+      "rates": "Rates",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1631,6 +1632,7 @@
       "chartFramework": "Chart framework",
       "states": "Countries",
       "currencies": "Currencies",
+      "rates": "Rates",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1690,6 +1692,22 @@
       "empty": "No currencies.",
       "functionalNote": "Functional (accounting) currency — always available.",
       "toggleError": "Could not save the currency change. Please try again.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "fxRates": {
+      "columns": {
+        "pair": "Pair",
+        "date": "Date",
+        "kind": "Kind",
+        "unit": "Unit",
+        "rate": "Rate",
+        "source": "Source"
+      },
+      "all": "All",
+      "empty": "No exchange rates yet. Import the ČNB fix to populate.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"

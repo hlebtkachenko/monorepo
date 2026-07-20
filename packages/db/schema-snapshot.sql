@@ -180,6 +180,16 @@ CREATE TYPE public.document_kind AS ENUM (
 );
 
 --
+-- Name: filing_status; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.filing_status AS ENUM (
+    'FILED',
+    'ACCEPTED',
+    'REJECTED'
+);
+
+--
 -- Name: financial_account_kind; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -259,6 +269,20 @@ CREATE TYPE public.number_series_entity AS ENUM (
     'DOCUMENT',
     'ASSET',
     'INVENTORY_COUNT'
+);
+
+--
+-- Name: obligation_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.obligation_kind AS ENUM (
+    'VAT_RETURN',
+    'CONTROL_STATEMENT',
+    'EC_SALES_LIST',
+    'SOCIAL_INSURANCE',
+    'HEALTH_INSURANCE',
+    'PAYROLL_TAX_ADVANCE',
+    'SPECIAL_RATE_WITHHOLDING_TAX'
 );
 
 --
@@ -2278,6 +2302,23 @@ CREATE TABLE public.feature_flag (
 );
 
 --
+-- Name: filing_record; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.filing_record (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    obligation_kind public.obligation_kind NOT NULL,
+    period_start date NOT NULL,
+    period_end date NOT NULL,
+    status public.filing_status NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    recorded_by uuid NOT NULL
+);
+
+ALTER TABLE ONLY public.filing_record FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: financial_account; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3872,6 +3913,27 @@ ALTER TABLE ONLY public.favorite_page
 
 ALTER TABLE ONLY public.feature_flag
     ADD CONSTRAINT feature_flag_pkey PRIMARY KEY (key);
+
+--
+-- Name: filing_record filing_record_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.filing_record
+    ADD CONSTRAINT filing_record_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: filing_record filing_record_org_kind_period_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.filing_record
+    ADD CONSTRAINT filing_record_org_kind_period_unique UNIQUE (organization_id, obligation_kind, period_start, period_end);
+
+--
+-- Name: filing_record filing_record_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.filing_record
+    ADD CONSTRAINT filing_record_pkey PRIMARY KEY (id);
 
 --
 -- Name: financial_account financial_account_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -6082,6 +6144,13 @@ ALTER TABLE ONLY public.favorite_page
     ADD CONSTRAINT favorite_page_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(id) ON DELETE CASCADE;
 
 --
+-- Name: filing_record filing_record_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.filing_record
+    ADD CONSTRAINT filing_record_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
 -- Name: financial_account financial_account_currency_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7169,6 +7238,12 @@ ALTER TABLE public.dppo_annual_taxpayer_category ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorite_page ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: filing_record; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.filing_record ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: financial_account; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7467,6 +7542,12 @@ CREATE POLICY organization_isolation ON public.dppo_annual_taxpayer_category USI
 --
 
 CREATE POLICY organization_isolation ON public.favorite_page USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: filing_record organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.filing_record USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: financial_account organization_isolation; Type: POLICY; Schema: public; Owner: -

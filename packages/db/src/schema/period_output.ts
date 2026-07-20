@@ -38,7 +38,7 @@ export const period_output = pgTable(
     generated_by: uuid("generated_by")
       .notNull()
       .references(() => app_user.id), // R10 attributable
-    // Set only on a period-reopen reversal marker (migration 0072): points at the
+    // Set only on a period-reopen reversal marker (migration 0076): points at the
     // závěrka output this row voids. period_output is append-only (no delete), so a
     // reopen inserts a marker instead of deleting the sealed output. NULL on a
     // normally-generated output.

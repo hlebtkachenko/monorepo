@@ -1,4 +1,4 @@
--- 0072_period_reopen.sql
+-- 0076_period_reopen.sql
 --
 -- Period reopen cascade support (READ-MODEL-DESIGN §3). Reopening a CLOSED účetní
 -- období stornos its year-end close (the 701 carried into N+1, the 702 balance-close

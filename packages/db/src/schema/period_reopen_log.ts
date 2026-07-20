@@ -5,9 +5,9 @@
  * nullable, since a monetary regime or an empty period may lack a given close
  * generation).
  *
- * Mirrors: packages/db/migrations/0072_period_reopen.sql
+ * Mirrors: packages/db/migrations/0076_period_reopen.sql
  *
- * Organization-scoped (FORCE RLS + organization_isolation, applied in 0072).
+ * Organization-scoped (FORCE RLS + organization_isolation, applied in 0076).
  * Composite (period_id, organization_id) FK — FK bypasses RLS. UNIQUE(id,
  * organization_id) is the composite-FK target idiom. `reopened_by` → app_user (R10).
  */

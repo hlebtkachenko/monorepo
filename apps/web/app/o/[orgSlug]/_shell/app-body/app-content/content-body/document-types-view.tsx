@@ -206,8 +206,11 @@ export function DocumentTypesView({
       if (!type) return {}
       const id = type.id
       const d = drafts[id] ?? {}
+      // Key on PRESENCE, not nullishness: a draft that intentionally clears a
+      // field to null must win over the stale server value (else the clear is
+      // silently dropped and Save falsely reports success).
       const val = <K extends keyof Draft>(key: K): Draft[K] =>
-        d[key] ?? (type[key as keyof DocumentTypeView] as Draft[K])
+        key in d ? d[key] : (type[key as keyof DocumentTypeView] as Draft[K])
 
       const kindOptions: TableColumnOption[] = (
         kindsByCategory[type.category] ?? []
@@ -249,8 +252,15 @@ export function DocumentTypesView({
           label: ti("dueDays"),
           value: val("dueDays") ?? "",
           type: "number",
-          onChange: (next) =>
-            patch(id, { dueDays: next === "" ? null : Number(next) }),
+          onChange: (next) => {
+            // Guard the parse: a text input can yield "abc" (NaN) or "1.5"; keep
+            // a non-negative integer or null, never a NaN that the column rejects.
+            const n = Number.parseInt(next, 10)
+            patch(id, {
+              dueDays:
+                next.trim() === "" || Number.isNaN(n) ? null : Math.max(0, n),
+            })
+          },
         },
         {
           label: ti("paymentForm"),
@@ -372,19 +382,24 @@ export function DocumentTypesView({
         slug,
         category: type.category,
         code: type.code,
-        name: d.name ?? type.name,
-        kind: d.kind ?? type.kind,
-        defaultSeriesId: d.defaultSeriesId ?? type.defaultSeriesId,
-        defaultAccount: d.defaultAccount ?? type.defaultAccount,
-        postingPrescription: d.postingPrescription ?? type.postingPrescription,
-        costCentre: d.costCentre ?? type.costCentre,
-        activity: d.activity ?? type.activity,
-        bankAccount: d.bankAccount ?? type.bankAccount,
-        paymentForm: d.paymentForm ?? type.paymentForm,
-        dueDays: d.dueDays ?? type.dueDays,
-        vatCountry: d.vatCountry ?? type.vatCountry,
-        khSection: d.khSection ?? type.khSection,
-        description: d.description ?? type.description,
+        name: "name" in d ? (d.name ?? type.name) : type.name,
+        kind: "kind" in d ? d.kind : type.kind,
+        defaultSeriesId:
+          "defaultSeriesId" in d ? d.defaultSeriesId : type.defaultSeriesId,
+        defaultAccount:
+          "defaultAccount" in d ? d.defaultAccount : type.defaultAccount,
+        postingPrescription:
+          "postingPrescription" in d
+            ? d.postingPrescription
+            : type.postingPrescription,
+        costCentre: "costCentre" in d ? d.costCentre : type.costCentre,
+        activity: "activity" in d ? d.activity : type.activity,
+        bankAccount: "bankAccount" in d ? d.bankAccount : type.bankAccount,
+        paymentForm: "paymentForm" in d ? d.paymentForm : type.paymentForm,
+        dueDays: "dueDays" in d ? d.dueDays : type.dueDays,
+        vatCountry: "vatCountry" in d ? d.vatCountry : type.vatCountry,
+        khSection: "khSection" in d ? d.khSection : type.khSection,
+        description: "description" in d ? d.description : type.description,
         validFromYear: type.validFromYear,
         validToYear: type.validToYear,
       }).then((r) => {

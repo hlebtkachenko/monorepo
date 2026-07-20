@@ -22,6 +22,11 @@ import { getRequestSession } from "./session"
  * The domain layer (`@workspace/accounting`) owns the invariants — Druh-per-category,
  * DOCUMENT-only default série, exclusive primary — so these actions just forward and
  * surface a rejection. `slug` is a routing key, never a tenant id.
+ *
+ * Authorization: any active org member may edit doklad-type config — deliberately
+ * un-role-gated, matching the sibling `updatePeriodZkratka` / číselné-řady config
+ * writes. A future org-config role policy, if introduced, is a cross-cutting change
+ * applied to all of these together, not a one-off here.
  */
 
 const ROUTE = "accounting/document-types"

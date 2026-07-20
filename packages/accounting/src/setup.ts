@@ -158,15 +158,26 @@ export async function createNumberSeriesPeriod(
     currentNumber?: number
   },
 ): Promise<string> {
-  const r = await one<{ id: string }>(
+  // Gate at the source: only DOCUMENT séries carry per-period rows (EVENT/ASSET/
+  // INVENTORY_COUNT stay flat). The INSERT…SELECT yields zero rows — and throws —
+  // when the target série is missing or not DOCUMENT.
+  const inserted = await rows<{ id: string }>(
     db,
     sql`INSERT INTO number_series_period
           (organization_id, number_series_id, period_id, number_length, prefix, postfix, current_number)
-        VALUES
-          (${ctx.organizationId}::uuid, ${input.numberSeriesId}::uuid, ${input.periodId}::uuid,
-           ${input.numberLength}, ${input.prefix ?? ""}, ${input.postfix ?? ""}, ${input.currentNumber ?? 1})
+        SELECT ${ctx.organizationId}::uuid, s.id, ${input.periodId}::uuid,
+               ${input.numberLength}, ${input.prefix ?? ""}, ${input.postfix ?? ""}, ${input.currentNumber ?? 1}
+          FROM number_series s
+         WHERE s.id = ${input.numberSeriesId}::uuid
+           AND s.entity_type = 'DOCUMENT'
         RETURNING id`,
   )
+  const r = inserted[0]
+  if (r === undefined) {
+    throw new Error(
+      `accounting: number series ${input.numberSeriesId} not found or not DOCUMENT — only DOCUMENT séries carry per-period rows`,
+    )
+  }
   return r.id
 }
 

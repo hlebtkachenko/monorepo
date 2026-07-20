@@ -158,4 +158,39 @@ describe("number_series_period allocation", () => {
       ),
     ).rejects.toThrow(/not EVENT|has no dokladová řada|is DOCUMENT/)
   })
+
+  it("previewNextNumber refuses a period-configured série for an unconfigured period", async () => {
+    const period2027 = await withOrganization(orgA, userId, (db) =>
+      createPeriod(db, seed.ctx, {
+        periodStart: "2027-01-01",
+        periodEnd: "2027-12-31",
+        regimeCode: "DOUBLE_ENTRY",
+        accountingCurrency: "CZK",
+      }),
+    )
+    // Configured for seed.periodId, but has no row for period2027: preview must
+    // refuse (mirror allocateNumber) rather than fall back to the flat pattern.
+    const series = await freshConfiguredSeries(seed.periodId, {
+      prefix: "PP",
+      length: 4,
+      postfix: "",
+    })
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        previewNextNumber(db, series, "2027-05-01", period2027),
+      ),
+    ).rejects.toThrow(/no dokladová řada row/)
+  })
+
+  it("createNumberSeriesPeriod rejects a non-DOCUMENT série", async () => {
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        createNumberSeriesPeriod(db, seed.ctx, {
+          numberSeriesId: seed.eventSeriesId,
+          periodId: seed.periodId,
+          numberLength: 4,
+        }),
+      ),
+    ).rejects.toThrow(/not DOCUMENT/)
+  })
 })

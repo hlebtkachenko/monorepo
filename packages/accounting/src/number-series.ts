@@ -17,6 +17,11 @@
  * row lock, gapless per (série, period)). A série with no period rows — every
  * EVENT / ASSET / INVENTORY_COUNT série, and a not-yet-configured DOCUMENT série —
  * keeps advancing the flat `number_series.next_number` unchanged.
+ *
+ * For a period-configured DOCUMENT série the per-period rows are the SINGLE source
+ * of the designation; that série's flat `number_series.pattern` / `next_number`
+ * are unused (kept only for the no-period fallback path). Do not treat the two as
+ * two live formats — the flat pattern is dormant once period rows exist.
  */
 
 import { sql } from "drizzle-orm"
@@ -193,6 +198,19 @@ export async function previewNextNumber(
         periodPattern(pr.prefix, pr.postfix, pr.number_length),
         Number(pr.current_number),
         isoDate,
+      )
+    }
+    // Mirror allocateNumber: a period-configured série with no row for THIS period
+    // must refuse rather than silently fall back to the flat pattern, so preview
+    // always equals what allocate would produce.
+    const configured = await rows<{ has_periods: boolean }>(
+      db,
+      sql`SELECT EXISTS (SELECT 1 FROM number_series_period
+                          WHERE number_series_id = ${seriesId}::uuid) AS has_periods`,
+    )
+    if (configured[0]?.has_periods) {
+      throw new Error(
+        `accounting: number series ${seriesId} has no dokladová řada row for účetní období ${periodId} — configure the period before allocating`,
       )
     }
   }

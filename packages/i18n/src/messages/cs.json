@@ -8,7 +8,10 @@
         "accountType": "Typ",
         "normalBalance": "Strana",
         "tracksOpenItems": "Saldokonto",
-        "taxRelevant": "Daňový"
+        "taxRelevant": "Daňový",
+        "code": "Kód",
+        "balanceSheetLine": "Řádek rozvahy",
+        "incomeStatementLine": "Řádek výsledovky"
       },
       "statementClass": {
         "BALANCE_SHEET": "Rozvahový",
@@ -25,6 +28,37 @@
       "normalBalance": {
         "DEBIT": "Má dáti",
         "CREDIT": "Dal"
+      },
+      "classNames": {
+        "0": "Dlouhodobý majetek",
+        "1": "Zásoby",
+        "2": "Krátkodobý finanční majetek a peněžní prostředky",
+        "3": "Zúčtovací vztahy",
+        "4": "Kapitálové účty a dlouhodobé závazky",
+        "5": "Náklady",
+        "6": "Výnosy",
+        "7": "Závěrkové a podrozvahové účty",
+        "8": "Vnitropodnikové účetnictví",
+        "9": "Vnitropodnikové účetnictví"
+      },
+      "boolean": {
+        "yes": "Ano",
+        "no": "Ne"
+      },
+      "page": {
+        "searchPlaceholder": "Hledat účty",
+        "view": "Vše",
+        "expandAll": "Rozbalit vše",
+        "collapseAll": "Sbalit vše",
+        "exportFileName": "uctovy-rozvrh",
+        "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro sestavení účtového rozvrhu.",
+        "emptyNoChart": "Toto období zatím nemá účtový rozvrh."
+      },
+      "framework": {
+        "searchPlaceholder": "Hledat v osnově",
+        "view": "Vše",
+        "exportFileName": "ucetni-osnova",
+        "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro zobrazení účetní osnovy."
       },
       "osnovaNames": {
         "111": "Pořízení materiálu",
@@ -1467,6 +1501,9 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
+      "accounting": "Účetnictví",
+      "chartOfAccounts": "Účtový rozvrh",
+      "chartFramework": "Účetní osnova",
       "directory": "Adresář",
       "states": "Státy"
     },
@@ -1483,6 +1520,8 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
+      "chartOfAccounts": "Účtový rozvrh",
+      "chartFramework": "Účetní osnova",
       "states": "Státy"
     },
     "periods": {

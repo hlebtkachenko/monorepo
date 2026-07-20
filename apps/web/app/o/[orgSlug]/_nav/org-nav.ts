@@ -28,6 +28,9 @@ type OrgNavLabelKey =
   | "states"
   | "overview"
   | "periods"
+  | "accounting"
+  | "chartOfAccounts"
+  | "chartFramework"
   | "debug"
   | "normalTable"
   | "pivotTable"
@@ -63,6 +66,11 @@ export function orgRailNav(
 ): OrgRailNavItem[] {
   const modules: OrgRailNavItem[] = [
     { labelKey: "company", icon: "Goal", href: orgHref(slug) },
+    {
+      labelKey: "accounting",
+      icon: "BookOpen",
+      href: orgHref(slug, "accounting"),
+    },
     { labelKey: "closing", icon: "Lock", href: orgHref(slug, "closing") },
     { labelKey: "directory", icon: "BookUser", href: orgHref(slug, "adresar") },
   ]
@@ -117,6 +125,24 @@ export function directoryNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "states",
       icon: "Globe",
       href: orgHref(slug, "adresar/ciselniky/staty"),
+    },
+  ]
+}
+
+/** Sidebar tree for the Účetnictví (Accounting) module. Flat — no sub-grouping
+ *  (per the module design): the chart of accounts is the single leaf for now and
+ *  the module grows one flat page at a time as the accounting surfaces are built. */
+export function accountingNav(slug: string): OrgSidebarNavItem[] {
+  return [
+    {
+      labelKey: "chartOfAccounts",
+      icon: "BookOpenText",
+      href: orgHref(slug, "accounting/chart-of-accounts"),
+    },
+    {
+      labelKey: "chartFramework",
+      icon: "TableProperties",
+      href: orgHref(slug, "accounting/chart-framework"),
     },
   ]
 }

@@ -16,6 +16,7 @@ import {
 } from "./lanes/registry"
 import "./lanes/permissions-drain"
 import "./lanes/admission-reaper"
+import "./lanes/cnb-fx-daily"
 
 /**
  * Shared failure-notify hook (OBS-15): every lane handler is bound through
@@ -81,6 +82,7 @@ export async function boot(connectionString: string): Promise<WorkersBoot> {
         lane.name,
         lane.schedule.cron,
         lane.schedule.data ?? null,
+        lane.schedule.tz ? { tz: lane.schedule.tz } : {},
       )
     }
   }

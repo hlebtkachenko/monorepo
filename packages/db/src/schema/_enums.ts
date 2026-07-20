@@ -217,3 +217,24 @@ export const periodOutputType = pgEnum("period_output_type", [
   "OVERVIEWS",
   "PERSONAL_INCOME_TAX",
 ])
+
+// =============================================================================
+// Finance domain enums — created in
+// packages/db/migrations/0073_financial_account.sql (CREATE TYPE ...)
+// =============================================================================
+
+// Mirrors: 0073_financial_account.sql — CREATE TYPE financial_account_kind AS ENUM
+export const financialAccountKind = pgEnum("financial_account_kind", [
+  "BANK",
+  "CASH",
+  "CASH_EQUIVALENT",
+])
+
+// Mirrors: 0073_financial_account.sql — CREATE TYPE financial_account_status AS ENUM
+export const financialAccountStatus = pgEnum("financial_account_status", [
+  "DRAFT",
+  "ACTIVE",
+  "INACTIVE",
+  "CLOSED",
+  "ARCHIVED",
+])

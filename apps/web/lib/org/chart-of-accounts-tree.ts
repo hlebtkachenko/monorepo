@@ -13,9 +13,12 @@ import type { ChartAccountView } from "./accounting"
  */
 
 /** Serialize one account's flags into the raw, i18n-free cell codes the tree
- *  stores. A null flag stays null (rendered as an em dash on a real row). */
+ *  stores. A null flag stays null (rendered as an em dash on a real row). The
+ *  account `id` rides along (not a column) so the row Inspector can identify the
+ *  record it edits — the tree node id is not surfaced to the inspector callbacks. */
 function accountValues(a: ChartAccountView): Record<string, string | null> {
   return {
+    id: a.id,
     number: a.number,
     name: a.name,
     statementClass: a.statementClass,

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import type { Table } from "@tanstack/react-table"
 
 import { useTranslations } from "@workspace/i18n/client"
@@ -17,6 +18,7 @@ import {
 import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
 import type { FiltersState } from "@workspace/ui/components/filter-bar"
 import type {
+  ActionDescriptor,
   ContentFooterAction,
   ContentHeaderFavoriteToggle,
   ContentToolbarProps,
@@ -25,20 +27,37 @@ import type {
   TreeTableRow,
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import { toast } from "@workspace/ui/components/sonner"
 
 import { orgHref } from "@/lib/org/href"
 
 /**
  * ChartOfAccountsView — the Účtový rozvrh (chart of accounts) page body.
  *
- * A READ-ONLY Tree-table archetype over the period's real chart: Class → Group →
- * Synthetic → Analytical. Structural Class/Group tiers are label-only; every real
- * synthetic + analytical account is a fully-wired row (select, sort, per-column
- * filter, CSV export). Classification + boolean columns render as PLAIN TEXT (a
- * read-only `select` cell, not a chip). The tree is projected server-side
- * (`buildChartTree`) and passed in; enum/boolean cells arrive as RAW codes and are
- * localized here through each column's `options`, so faceting stays keyed on stable
- * values. Add/edit accounts + seeding are the human-gated write batch — not here.
+ * A Tree-table archetype over the period's real chart: Class → Group → Synthetic →
+ * Analytical. Structural Class/Group tiers are label-only; every real synthetic +
+ * analytical account is a fully-wired row (select, sort, per-column filter, CSV
+ * export). Classification + boolean columns render as PLAIN TEXT (a read-only
+ * `select` cell, not a chip). The tree is projected server-side (`buildChartTree`)
+ * and passed in; enum/boolean cells arrive as RAW codes and are localized here
+ * through each column's `options`, so faceting stays keyed on stable values.
+ *
+ * Writes (all human-gated, wired here):
+ *  - EDIT — the row Inspector's name / open-items / tax-relevant fields are
+ *    editable; a commit debounces (text) or fires immediately (flags) into
+ *    `onUpdateAccount`, then `router.refresh()` reconciles the tree. číslo / type /
+ *    nature stay read-only (derived).
+ *  - SEED — an empty chart offers two toolbar actions: fill from the year framework
+ *    (`onSeedFromFramework`) or fork a prebuilt template (`onSeedFromTemplate`, via
+ *    the picker dialog). Both revalidate server-side.
  */
 
 /** Enum value sets → localized `select` options (value = stable code, label = i18n). */
@@ -52,18 +71,47 @@ const ACCOUNT_TYPES = ["ACTIVE", "PASSIVE", "EXPENSE", "REVENUE"] as const
 const NORMAL_BALANCES = ["DEBIT", "CREDIT"] as const
 const BOOLEANS = ["yes", "no"] as const
 
+/** The user-editable fields of an account (mirrors the domain `updateAccount`). */
+type EditableField = "name" | "tracksOpenItems" | "taxRelevant"
+
+/** Patch the inspector sends back through the server action. */
+export interface UpdateAccountInput {
+  id: string
+  name?: string
+  tracksOpenItems?: boolean
+  taxRelevant?: boolean | null
+}
+
+/** A prebuilt chart template as the picker lists it. */
+export interface ChartTemplateOption {
+  id: string
+  label: string
+  isDefault: boolean
+}
+
 export function ChartOfAccountsView({
   slug,
   title,
   favorite,
   tree,
   emptyText,
+  canSeed,
+  templates,
+  onSeedFromFramework,
+  onSeedFromTemplate,
+  onUpdateAccount,
 }: {
   slug: string
   title: string
   favorite: ContentHeaderFavoriteToggle
   tree: readonly TreeTableRow[]
   emptyText: string
+  /** True when the active period has an empty chart — the seed actions show. */
+  canSeed: boolean
+  templates: readonly ChartTemplateOption[]
+  onSeedFromFramework: () => Promise<void>
+  onSeedFromTemplate: (templateId: string) => Promise<void>
+  onUpdateAccount: (input: UpdateAccountInput) => Promise<void>
 }) {
   const tn = useTranslations("org.nav")
   const tc = useTranslations("accounting.chartOfAccounts.columns")
@@ -72,6 +120,8 @@ export function ChartOfAccountsView({
   const tnb = useTranslations("accounting.chartOfAccounts.normalBalance")
   const tb = useTranslations("accounting.chartOfAccounts.boolean")
   const tp = useTranslations("accounting.chartOfAccounts.page")
+
+  const router = useRouter()
 
   const columns = React.useMemo<TableColumnSpec[]>(
     () => [
@@ -139,6 +189,121 @@ export function ChartOfAccountsView({
 
   const views: ViewTab[] = [{ value: "all", label: tp("view") }]
 
+  // ── Edit: debounced (text) / immediate (flags) persist through the action ──
+  const [, startEdit] = React.useTransition()
+  const timers = React.useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  )
+  const pendingPatches = React.useRef<Map<string, UpdateAccountInput>>(
+    new Map(),
+  )
+
+  const persist = React.useCallback(
+    (key: string, input: UpdateAccountInput) => {
+      pendingPatches.current.delete(key)
+      startEdit(async () => {
+        try {
+          await onUpdateAccount(input)
+        } catch {
+          toast.error(tp("updateFailed"))
+        }
+        // Reconcile the tree with server truth either way (the page is dynamic).
+        router.refresh()
+      })
+    },
+    [onUpdateAccount, router, tp],
+  )
+
+  const commit = React.useCallback(
+    (id: string, field: EditableField, raw: string) => {
+      if (!id) return
+      const input: UpdateAccountInput =
+        field === "name"
+          ? { id, name: raw }
+          : field === "tracksOpenItems"
+            ? { id, tracksOpenItems: raw === "yes" }
+            : { id, taxRelevant: raw === "yes" }
+      const key = `${id}:${field}`
+      pendingPatches.current.set(key, input)
+      const existing = timers.current.get(key)
+      if (existing) clearTimeout(existing)
+      // Text debounces so we don't fire per keystroke; a flag select commits once.
+      const delay = field === "name" ? 500 : 0
+      const timer = setTimeout(() => {
+        timers.current.delete(key)
+        persist(key, input)
+      }, delay)
+      timers.current.set(key, timer)
+    },
+    [persist],
+  )
+
+  // Flush any pending edit on unmount so a value typed right before navigating
+  // away is never silently dropped.
+  React.useEffect(() => {
+    const timerMap = timers.current
+    const patchMap = pendingPatches.current
+    return () => {
+      for (const timer of timerMap.values()) clearTimeout(timer)
+      timerMap.clear()
+      for (const input of patchMap.values()) void onUpdateAccount(input)
+      patchMap.clear()
+    }
+  }, [onUpdateAccount])
+
+  // ── Seed: fill an empty chart from the framework or a template ──
+  const [seedPending, startSeed] = React.useTransition()
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+
+  const runFramework = React.useCallback(() => {
+    startSeed(async () => {
+      try {
+        await onSeedFromFramework()
+        toast.success(tp("seedSuccess"))
+      } catch {
+        toast.error(tp("seedFailed"))
+      }
+    })
+  }, [onSeedFromFramework, tp])
+
+  const runTemplate = React.useCallback(
+    (templateId: string) => {
+      setPickerOpen(false)
+      startSeed(async () => {
+        try {
+          await onSeedFromTemplate(templateId)
+          toast.success(tp("seedSuccess"))
+        } catch {
+          toast.error(tp("seedFailed"))
+        }
+      })
+    },
+    [onSeedFromTemplate, tp],
+  )
+
+  const seedActions = React.useMemo<ActionDescriptor[]>(
+    () =>
+      canSeed
+        ? [
+            {
+              id: "seed-framework",
+              label: tp("seedFromFramework"),
+              variant: "default",
+              disabled: seedPending,
+              onSelect: runFramework,
+            },
+            {
+              id: "seed-template",
+              label: tp("seedFromTemplate"),
+              variant: "outline",
+              disabled: seedPending || templates.length === 0,
+              onSelect: () => setPickerOpen(true),
+            },
+          ]
+        : [],
+    [canSeed, seedPending, templates.length, runFramework, tp],
+  )
+
   const buildToolbar = React.useCallback(
     (
       table: Table<TableSectionRow> | null,
@@ -154,8 +319,9 @@ export function ChartOfAccountsView({
           ungroupLabel: tp("expandAll"),
         },
         filter,
+        actions: seedActions.length > 0 ? seedActions : undefined,
       }),
-    [search, filter, tp],
+    [search, filter, tp, seedActions],
   )
 
   const selectionActions = React.useCallback(
@@ -163,21 +329,25 @@ export function ChartOfAccountsView({
       table: Table<TableSectionRow> | null,
       _helpers: ArchetypeTableSelectionHelpers,
     ): ContentFooterAction[] =>
-      // Read-only: the only selection action is CSV export of the selected
+      // Read-only footer: the only selection action is CSV export of the selected
       // accounts (tiers are not selectable, so a selection is always accounts).
       buildTableFooter(table, { exportFileName: tp("exportFileName") }),
     [tp],
   )
 
-  // Read-only row Inspector: the clicked account's fields in a details tab. Labels
-  // + enum values reuse the column i18n; every line is read-only (inline edit is
-  // the later human-gated batch). Sections are minted inside the client boundary.
+  // Row Inspector: číslo + derived dimensions read-only; name + the two policy
+  // flags editable, committing through `commit`. Labels + enum values reuse the
+  // column i18n. Sections are minted inside the client boundary.
   const inspectorContent = React.useCallback(
     (row: TableSectionRow): Partial<Record<InspectorTab, React.ReactNode>> => {
+      const id = String(row.id ?? "")
       const asLabel = (
         v: string | number | null | undefined,
         t: (k: never) => string,
       ) => (v == null || v === "" ? "—" : t(String(v) as never))
+      const flagValue = (v: string | number | null | undefined) =>
+        v == null || v === "" ? "" : String(v)
+      const boolOptions = BOOLEANS.map((v) => ({ value: v, label: tb(v) }))
       return {
         details: (
           <SectionList
@@ -193,7 +363,7 @@ export function ChartOfAccountsView({
                   {
                     label: tc("name"),
                     value: String(row.name ?? ""),
-                    readOnly: true,
+                    onChange: (v) => commit(id, "name", v),
                   },
                   {
                     label: tc("statementClass"),
@@ -212,13 +382,18 @@ export function ChartOfAccountsView({
                   },
                   {
                     label: tc("tracksOpenItems"),
-                    value: asLabel(row.tracksOpenItems, tb),
-                    readOnly: true,
+                    value: flagValue(row.tracksOpenItems),
+                    type: "select",
+                    options: boolOptions,
+                    onChange: (v) => commit(id, "tracksOpenItems", v),
                   },
                   {
                     label: tc("taxRelevant"),
-                    value: asLabel(row.taxRelevant, tb),
-                    readOnly: true,
+                    value: flagValue(row.taxRelevant),
+                    type: "select",
+                    options: boolOptions,
+                    placeholder: "—",
+                    onChange: (v) => commit(id, "taxRelevant", v),
                   },
                 ],
               }),
@@ -227,36 +402,66 @@ export function ChartOfAccountsView({
         ),
       }
     },
-    [tc, tsc, tat, tnb, tb],
+    [tc, tsc, tat, tnb, tb, commit],
   )
 
   return (
-    <ArchetypeTable<TableSectionRow>
-      title={title}
-      breadcrumb={[
-        {
-          label: tn("accounting"),
-          href: orgHref(slug, "accounting"),
-          icon: "BookOpen",
-        },
-      ]}
-      favorite={favorite}
-      views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
-      toolbar={buildToolbar}
-      selectionActions={selectionActions}
-      inspectorRowTitle={(row) => String(row.number ?? "")}
-      inspectorRowName={(row) => String(row.name ?? "")}
-      inspectorRowContent={inspectorContent}
-      sections={[
-        sectionTreeTable({
-          anchor: "chart",
-          columns,
-          rows: filteredTree,
-          defaultExpanded: 2,
-          features: { search: true, inspect: true },
-          emptyText,
-        }),
-      ]}
-    />
+    <>
+      <ArchetypeTable<TableSectionRow>
+        title={title}
+        breadcrumb={[
+          {
+            label: tn("accounting"),
+            href: orgHref(slug, "accounting"),
+            icon: "BookOpen",
+          },
+        ]}
+        favorite={favorite}
+        views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
+        toolbar={buildToolbar}
+        selectionActions={selectionActions}
+        inspectorRowTitle={(row) => String(row.number ?? "")}
+        inspectorRowName={(row) => String(row.name ?? "")}
+        inspectorRowContent={inspectorContent}
+        sections={[
+          sectionTreeTable({
+            anchor: "chart",
+            columns,
+            rows: filteredTree,
+            defaultExpanded: 2,
+            features: { search: true, inspect: true },
+            emptyText,
+          }),
+        ]}
+      />
+      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tp("templatePickerTitle")}</DialogTitle>
+            <DialogDescription>
+              {tp("templatePickerDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            {templates.map((t) => (
+              <Button
+                key={t.id}
+                variant="outline"
+                className="justify-between"
+                disabled={seedPending}
+                onClick={() => runTemplate(t.id)}
+              >
+                <span className="truncate">{t.label}</span>
+                {t.isDefault ? (
+                  <span className="text-xs text-muted-foreground">
+                    {tp("templateDefault")}
+                  </span>
+                ) : null}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

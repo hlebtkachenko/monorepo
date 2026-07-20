@@ -139,6 +139,10 @@ export * from "./payment_method"
 // org-scoped FORCE RLS (0080)
 export * from "./filing_record"
 
+// Sub-period domain — fiscal month/quarter slots that subdivide an účetní období,
+// with per-slot document-flow flags, org-scoped FORCE RLS (0081)
+export * from "./accounting_sub_period"
+
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the
 // Debug → Archetype Table reference pages; never real product data.
 export * from "./demo_debug_normal_table_record"

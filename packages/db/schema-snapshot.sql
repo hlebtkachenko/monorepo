@@ -353,6 +353,15 @@ CREATE TYPE public.signature_role AS ENUM (
 );
 
 --
+-- Name: sub_period_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.sub_period_kind AS ENUM (
+    'MONTH',
+    'QUARTER'
+);
+
+--
 -- Name: summary_record_type; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -1692,6 +1701,29 @@ CREATE TABLE public.accounting_size (
     max_net_turnover numeric(19,4),
     max_average_employees integer
 );
+
+--
+-- Name: accounting_sub_period; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.accounting_sub_period (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    slot_index integer NOT NULL,
+    slot_kind public.sub_period_kind NOT NULL,
+    period_start date NOT NULL,
+    period_end date NOT NULL,
+    status public.period_status DEFAULT 'OPEN'::public.period_status NOT NULL,
+    allow_inbound_documents boolean DEFAULT true NOT NULL,
+    allow_outbound_documents boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT accounting_sub_period_dates_chk CHECK ((period_start <= period_end)),
+    CONSTRAINT accounting_sub_period_slot_index_chk CHECK ((slot_index >= 0))
+);
+
+ALTER TABLE ONLY public.accounting_sub_period FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: admin_staff_role; Type: TABLE; Schema: public; Owner: -
@@ -3551,6 +3583,27 @@ ALTER TABLE ONLY public.accounting_size
     ADD CONSTRAINT accounting_size_pkey PRIMARY KEY (code);
 
 --
+-- Name: accounting_sub_period accounting_sub_period_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_sub_period
+    ADD CONSTRAINT accounting_sub_period_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: accounting_sub_period accounting_sub_period_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_sub_period
+    ADD CONSTRAINT accounting_sub_period_pkey PRIMARY KEY (id);
+
+--
+-- Name: accounting_sub_period accounting_sub_period_slot_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_sub_period
+    ADD CONSTRAINT accounting_sub_period_slot_unique UNIQUE (organization_id, period_id, slot_index);
+
+--
 -- Name: admin_staff_role admin_staff_role_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4689,6 +4742,12 @@ CREATE INDEX accounting_event_org_occurred_on_idx ON public.accounting_event USI
 --
 
 CREATE INDEX accounting_event_period_idx ON public.accounting_event USING btree (period_id);
+
+--
+-- Name: accounting_sub_period_period_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX accounting_sub_period_period_idx ON public.accounting_sub_period USING btree (period_id, organization_id);
 
 --
 -- Name: admin_staff_role_role_idx; Type: INDEX; Schema: public; Owner: -
@@ -5857,6 +5916,13 @@ ALTER TABLE ONLY public.accounting_period
     ADD CONSTRAINT accounting_period_regime_code_fkey FOREIGN KEY (regime_code) REFERENCES public.regime(code);
 
 --
+-- Name: accounting_sub_period accounting_sub_period_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.accounting_sub_period
+    ADD CONSTRAINT accounting_sub_period_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
 -- Name: admin_staff_role admin_staff_role_granted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7022,6 +7088,12 @@ ALTER TABLE public.accounting_event ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.accounting_period ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: accounting_sub_period; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.accounting_sub_period ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: admin_workspace_allowlist admin_allowlist_read; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7476,6 +7548,12 @@ CREATE POLICY organization_isolation ON public.accounting_event USING ((organiza
 --
 
 CREATE POLICY organization_isolation ON public.accounting_period USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: accounting_sub_period organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.accounting_sub_period USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: api_key organization_isolation; Type: POLICY; Schema: public; Owner: -

@@ -291,3 +291,12 @@ export const filingStatus = pgEnum("filing_status", [
   "ACCEPTED",
   "REJECTED",
 ])
+
+// =============================================================================
+// Sub-period domain enum — created in
+// packages/db/migrations/0081_accounting_sub_period.sql (CREATE TYPE ...)
+// =============================================================================
+
+// Mirrors: 0081_accounting_sub_period.sql — CREATE TYPE sub_period_kind AS ENUM.
+// The fiscal grain of an accounting_sub_period slot (12 months or 4 quarters).
+export const subPeriodKind = pgEnum("sub_period_kind", ["MONTH", "QUARTER"])

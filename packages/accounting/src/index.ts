@@ -157,6 +157,8 @@ export {
   openNextPeriod,
   closePeriod,
   rollForwardPeriod,
+  reopenPeriod,
+  PeriodReopenBlockedError,
   type CloseResultInput,
   type OpenPeriodInput,
   type OpenPeriodResult,
@@ -166,6 +168,9 @@ export {
   type ClosePeriodResult,
   type RollForwardInput,
   type RollForwardResult,
+  type ReopenPeriodInput,
+  type ReopenPeriodResult,
+  type PeriodReopenBlockReason,
 } from "./period"
 export {
   assessPeriodCloseReadiness,

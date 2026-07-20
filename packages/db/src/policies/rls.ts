@@ -71,6 +71,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "inventory_count",
   "inventory_count_line",
   "period_output",
+  // period reopen audit log (0072_period_reopen.sql)
+  "period_reopen_log",
   "open_item",
   "open_item_settlement",
   // org config satellites (0042_org_config.sql)

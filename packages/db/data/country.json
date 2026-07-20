@@ -2,1291 +2,1495 @@
   {
     "iso2": "AD",
     "nameCs": "Andorra",
+    "nameEn": "Andorra",
     "currencyCode": "EUR"
   },
   {
     "iso2": "AE",
     "nameCs": "Spojené arabské emiráty",
-    "currencyCode": null
+    "nameEn": "United Arab Emirates",
+    "currencyCode": "AED"
   },
   {
     "iso2": "AF",
     "nameCs": "Afghánistán",
-    "currencyCode": null
+    "nameEn": "Afghanistan",
+    "currencyCode": "AFN"
   },
   {
     "iso2": "AG",
     "nameCs": "Antigua a Barbuda",
-    "currencyCode": null
+    "nameEn": "Antigua and Barbuda",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "AI",
     "nameCs": "Anguilla",
-    "currencyCode": null
+    "nameEn": "Anguilla",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "AL",
     "nameCs": "Albánie",
-    "currencyCode": null
+    "nameEn": "Albania",
+    "currencyCode": "ALL"
   },
   {
     "iso2": "AM",
     "nameCs": "Arménie",
-    "currencyCode": null
-  },
-  {
-    "iso2": "AN",
-    "nameCs": "Nizozemské Antily",
-    "currencyCode": null
+    "nameEn": "Armenia",
+    "currencyCode": "AMD"
   },
   {
     "iso2": "AO",
     "nameCs": "Angola",
-    "currencyCode": null
+    "nameEn": "Angola",
+    "currencyCode": "AOA"
   },
   {
     "iso2": "AQ",
     "nameCs": "Antarktida",
+    "nameEn": "Antarctica",
     "currencyCode": null
   },
   {
     "iso2": "AR",
     "nameCs": "Argentina",
-    "currencyCode": null
+    "nameEn": "Argentina",
+    "currencyCode": "ARS"
   },
   {
     "iso2": "AS",
     "nameCs": "Americká Samoa",
-    "currencyCode": null
+    "nameEn": "American Samoa",
+    "currencyCode": "USD"
   },
   {
     "iso2": "AT",
     "nameCs": "Rakousko",
+    "nameEn": "Austria",
     "currencyCode": "EUR"
   },
   {
     "iso2": "AU",
     "nameCs": "Austrálie",
+    "nameEn": "Australia",
     "currencyCode": "AUD"
   },
   {
     "iso2": "AW",
     "nameCs": "Aruba",
-    "currencyCode": null
+    "nameEn": "Aruba",
+    "currencyCode": "AWG"
   },
   {
     "iso2": "AX",
-    "nameCs": "Alandské ostrovy",
-    "currencyCode": null
+    "nameCs": "Ålandy",
+    "nameEn": "Åland Islands",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "AZ",
     "nameCs": "Ázerbájdžán",
-    "currencyCode": null
+    "nameEn": "Azerbaijan",
+    "currencyCode": "AZN"
   },
   {
     "iso2": "BA",
     "nameCs": "Bosna a Hercegovina",
+    "nameEn": "Bosnia and Herzegovina",
     "currencyCode": "BAM"
   },
   {
     "iso2": "BB",
     "nameCs": "Barbados",
-    "currencyCode": null
+    "nameEn": "Barbados",
+    "currencyCode": "BBD"
   },
   {
     "iso2": "BD",
     "nameCs": "Bangladéš",
-    "currencyCode": null
+    "nameEn": "Bangladesh",
+    "currencyCode": "BDT"
   },
   {
     "iso2": "BE",
     "nameCs": "Belgie",
+    "nameEn": "Belgium",
     "currencyCode": "EUR"
   },
   {
     "iso2": "BF",
     "nameCs": "Burkina Faso",
-    "currencyCode": null
+    "nameEn": "Burkina Faso",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "BG",
     "nameCs": "Bulharsko",
-    "currencyCode": "BGN"
+    "nameEn": "Bulgaria",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "BH",
     "nameCs": "Bahrajn",
-    "currencyCode": null
+    "nameEn": "Bahrain",
+    "currencyCode": "BHD"
   },
   {
     "iso2": "BI",
     "nameCs": "Burundi",
-    "currencyCode": null
+    "nameEn": "Burundi",
+    "currencyCode": "BIF"
   },
   {
     "iso2": "BJ",
     "nameCs": "Benin",
-    "currencyCode": null
+    "nameEn": "Benin",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "BL",
     "nameCs": "Svatý Bartoloměj",
-    "currencyCode": null
+    "nameEn": "Saint Barthélemy",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "BM",
     "nameCs": "Bermudy",
-    "currencyCode": null
+    "nameEn": "Bermuda",
+    "currencyCode": "BMD"
   },
   {
     "iso2": "BN",
-    "nameCs": "Brunej Darussalam",
-    "currencyCode": null
+    "nameCs": "Brunej",
+    "nameEn": "Brunei Darussalam",
+    "currencyCode": "BND"
   },
   {
     "iso2": "BO",
     "nameCs": "Bolívie",
-    "currencyCode": null
+    "nameEn": "Bolivia, Plurinational State of",
+    "currencyCode": "BOB"
   },
   {
     "iso2": "BQ",
-    "nameCs": "Bonaire, Svatý Eustach a SABA",
-    "currencyCode": null
+    "nameCs": "Karibské Nizozemsko",
+    "nameEn": "Bonaire, Sint Eustatius and Saba",
+    "currencyCode": "USD"
   },
   {
     "iso2": "BR",
     "nameCs": "Brazílie",
+    "nameEn": "Brazil",
     "currencyCode": "BRL"
   },
   {
     "iso2": "BS",
     "nameCs": "Bahamy",
-    "currencyCode": null
+    "nameEn": "Bahamas",
+    "currencyCode": "BSD"
   },
   {
     "iso2": "BT",
     "nameCs": "Bhútán",
-    "currencyCode": null
+    "nameEn": "Bhutan",
+    "currencyCode": "BTN"
   },
   {
     "iso2": "BV",
     "nameCs": "Bouvetův ostrov",
-    "currencyCode": null
+    "nameEn": "Bouvet Island",
+    "currencyCode": "NOK"
   },
   {
     "iso2": "BW",
     "nameCs": "Botswana",
-    "currencyCode": null
+    "nameEn": "Botswana",
+    "currencyCode": "BWP"
   },
   {
     "iso2": "BY",
     "nameCs": "Bělorusko",
-    "currencyCode": "BYR"
+    "nameEn": "Belarus",
+    "currencyCode": "BYN"
   },
   {
     "iso2": "BZ",
     "nameCs": "Belize",
-    "currencyCode": null
+    "nameEn": "Belize",
+    "currencyCode": "BZD"
   },
   {
     "iso2": "CA",
     "nameCs": "Kanada",
+    "nameEn": "Canada",
     "currencyCode": "CAD"
   },
   {
     "iso2": "CC",
     "nameCs": "Kokosové ostrovy",
-    "currencyCode": null
+    "nameEn": "Cocos (Keeling) Islands",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "CD",
-    "nameCs": "Kongo, demokratická republika",
-    "currencyCode": null
+    "nameCs": "Kongo – Kinshasa",
+    "nameEn": "Congo, The Democratic Republic of the",
+    "currencyCode": "CDF"
   },
   {
     "iso2": "CF",
     "nameCs": "Středoafrická republika",
-    "currencyCode": null
+    "nameEn": "Central African Republic",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "CG",
-    "nameCs": "Kongo",
-    "currencyCode": null
+    "nameCs": "Kongo – Brazzaville",
+    "nameEn": "Congo",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "CH",
     "nameCs": "Švýcarsko",
+    "nameEn": "Switzerland",
     "currencyCode": "CHF"
   },
   {
     "iso2": "CI",
     "nameCs": "Pobřeží slonoviny",
-    "currencyCode": null
+    "nameEn": "Côte d'Ivoire",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "CK",
     "nameCs": "Cookovy ostrovy",
-    "currencyCode": null
+    "nameEn": "Cook Islands",
+    "currencyCode": "NZD"
   },
   {
     "iso2": "CL",
     "nameCs": "Chile",
-    "currencyCode": null
+    "nameEn": "Chile",
+    "currencyCode": "CLP"
   },
   {
     "iso2": "CM",
     "nameCs": "Kamerun",
-    "currencyCode": null
+    "nameEn": "Cameroon",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "CN",
     "nameCs": "Čína",
+    "nameEn": "China",
     "currencyCode": "CNY"
   },
   {
     "iso2": "CO",
     "nameCs": "Kolumbie",
-    "currencyCode": null
+    "nameEn": "Colombia",
+    "currencyCode": "COP"
   },
   {
     "iso2": "CR",
     "nameCs": "Kostarika",
-    "currencyCode": null
+    "nameEn": "Costa Rica",
+    "currencyCode": "CRC"
   },
   {
     "iso2": "CU",
     "nameCs": "Kuba",
-    "currencyCode": null
+    "nameEn": "Cuba",
+    "currencyCode": "CUP"
   },
   {
     "iso2": "CV",
     "nameCs": "Kapverdy",
-    "currencyCode": null
+    "nameEn": "Cabo Verde",
+    "currencyCode": "CVE"
   },
   {
     "iso2": "CW",
     "nameCs": "Curaçao",
-    "currencyCode": null
+    "nameEn": "Curaçao",
+    "currencyCode": "XCG"
   },
   {
     "iso2": "CX",
     "nameCs": "Vánoční ostrov",
-    "currencyCode": null
+    "nameEn": "Christmas Island",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "CY",
     "nameCs": "Kypr",
+    "nameEn": "Cyprus",
     "currencyCode": "EUR"
   },
   {
     "iso2": "CZ",
-    "nameCs": "Česká republika",
+    "nameCs": "Česko",
+    "nameEn": "Czechia",
     "currencyCode": "CZK"
   },
   {
     "iso2": "DE",
     "nameCs": "Německo",
+    "nameEn": "Germany",
     "currencyCode": "EUR"
   },
   {
     "iso2": "DJ",
     "nameCs": "Džibutsko",
-    "currencyCode": null
+    "nameEn": "Djibouti",
+    "currencyCode": "DJF"
   },
   {
     "iso2": "DK",
     "nameCs": "Dánsko",
+    "nameEn": "Denmark",
     "currencyCode": "DKK"
   },
   {
     "iso2": "DM",
     "nameCs": "Dominika",
-    "currencyCode": null
+    "nameEn": "Dominica",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "DO",
     "nameCs": "Dominikánská republika",
-    "currencyCode": null
+    "nameEn": "Dominican Republic",
+    "currencyCode": "DOP"
   },
   {
     "iso2": "DZ",
     "nameCs": "Alžírsko",
-    "currencyCode": null
+    "nameEn": "Algeria",
+    "currencyCode": "DZD"
   },
   {
     "iso2": "EC",
     "nameCs": "Ekvádor",
-    "currencyCode": null
+    "nameEn": "Ecuador",
+    "currencyCode": "USD"
   },
   {
     "iso2": "EE",
     "nameCs": "Estonsko",
+    "nameEn": "Estonia",
     "currencyCode": "EUR"
   },
   {
     "iso2": "EG",
     "nameCs": "Egypt",
-    "currencyCode": null
+    "nameEn": "Egypt",
+    "currencyCode": "EGP"
   },
   {
     "iso2": "EH",
     "nameCs": "Západní Sahara",
-    "currencyCode": null
+    "nameEn": "Western Sahara",
+    "currencyCode": "MAD"
   },
   {
     "iso2": "ER",
     "nameCs": "Eritrea",
-    "currencyCode": null
+    "nameEn": "Eritrea",
+    "currencyCode": "ERN"
   },
   {
     "iso2": "ES",
     "nameCs": "Španělsko",
+    "nameEn": "Spain",
     "currencyCode": "EUR"
   },
   {
     "iso2": "ET",
     "nameCs": "Etiopie",
-    "currencyCode": null
-  },
-  {
-    "iso2": "EU",
-    "nameCs": "Evropská unie",
-    "currencyCode": null
+    "nameEn": "Ethiopia",
+    "currencyCode": "ETB"
   },
   {
     "iso2": "FI",
     "nameCs": "Finsko",
+    "nameEn": "Finland",
     "currencyCode": "EUR"
   },
   {
     "iso2": "FJ",
     "nameCs": "Fidži",
-    "currencyCode": null
+    "nameEn": "Fiji",
+    "currencyCode": "FJD"
   },
   {
     "iso2": "FK",
-    "nameCs": "Falklandy",
-    "currencyCode": null
+    "nameCs": "Falklandské ostrovy",
+    "nameEn": "Falkland Islands (Malvinas)",
+    "currencyCode": "FKP"
   },
   {
     "iso2": "FM",
     "nameCs": "Mikronésie",
-    "currencyCode": null
+    "nameEn": "Micronesia, Federated States of",
+    "currencyCode": "USD"
   },
   {
     "iso2": "FO",
     "nameCs": "Faerské ostrovy",
-    "currencyCode": null
+    "nameEn": "Faroe Islands",
+    "currencyCode": "DKK"
   },
   {
     "iso2": "FR",
     "nameCs": "Francie",
+    "nameEn": "France",
     "currencyCode": "EUR"
   },
   {
     "iso2": "GA",
     "nameCs": "Gabon",
-    "currencyCode": null
+    "nameEn": "Gabon",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "GB",
     "nameCs": "Spojené království",
+    "nameEn": "United Kingdom",
     "currencyCode": "GBP"
   },
   {
     "iso2": "GD",
     "nameCs": "Grenada",
-    "currencyCode": null
+    "nameEn": "Grenada",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "GE",
     "nameCs": "Gruzie",
-    "currencyCode": null
+    "nameEn": "Georgia",
+    "currencyCode": "GEL"
   },
   {
     "iso2": "GF",
     "nameCs": "Francouzská Guyana",
-    "currencyCode": null
+    "nameEn": "French Guiana",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "GG",
     "nameCs": "Guernsey",
-    "currencyCode": null
+    "nameEn": "Guernsey",
+    "currencyCode": "GBP"
   },
   {
     "iso2": "GH",
     "nameCs": "Ghana",
-    "currencyCode": null
+    "nameEn": "Ghana",
+    "currencyCode": "GHS"
   },
   {
     "iso2": "GI",
     "nameCs": "Gibraltar",
-    "currencyCode": null
+    "nameEn": "Gibraltar",
+    "currencyCode": "GIP"
   },
   {
     "iso2": "GL",
     "nameCs": "Grónsko",
-    "currencyCode": null
+    "nameEn": "Greenland",
+    "currencyCode": "DKK"
   },
   {
     "iso2": "GM",
     "nameCs": "Gambie",
-    "currencyCode": null
+    "nameEn": "Gambia",
+    "currencyCode": "GMD"
   },
   {
     "iso2": "GN",
     "nameCs": "Guinea",
-    "currencyCode": null
+    "nameEn": "Guinea",
+    "currencyCode": "GNF"
   },
   {
     "iso2": "GP",
     "nameCs": "Guadeloupe",
-    "currencyCode": null
+    "nameEn": "Guadeloupe",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "GQ",
     "nameCs": "Rovníková Guinea",
-    "currencyCode": null
+    "nameEn": "Equatorial Guinea",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "GR",
     "nameCs": "Řecko",
+    "nameEn": "Greece",
     "currencyCode": "EUR"
   },
   {
     "iso2": "GS",
     "nameCs": "Jižní Georgie a Jižní Sandwichovy ostrovy",
+    "nameEn": "South Georgia and the South Sandwich Islands",
     "currencyCode": null
   },
   {
     "iso2": "GT",
     "nameCs": "Guatemala",
-    "currencyCode": null
+    "nameEn": "Guatemala",
+    "currencyCode": "GTQ"
   },
   {
     "iso2": "GU",
     "nameCs": "Guam",
-    "currencyCode": null
+    "nameEn": "Guam",
+    "currencyCode": "USD"
   },
   {
     "iso2": "GW",
     "nameCs": "Guinea-Bissau",
-    "currencyCode": null
+    "nameEn": "Guinea-Bissau",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "GY",
     "nameCs": "Guyana",
-    "currencyCode": null
+    "nameEn": "Guyana",
+    "currencyCode": "GYD"
   },
   {
     "iso2": "HK",
-    "nameCs": "Hongkong",
+    "nameCs": "Hongkong – ZAO Číny",
+    "nameEn": "Hong Kong",
     "currencyCode": "HKD"
   },
   {
     "iso2": "HM",
     "nameCs": "Heardův ostrov a McDonaldovy ostrovy",
-    "currencyCode": null
+    "nameEn": "Heard Island and McDonald Islands",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "HN",
     "nameCs": "Honduras",
-    "currencyCode": null
+    "nameEn": "Honduras",
+    "currencyCode": "HNL"
   },
   {
     "iso2": "HR",
     "nameCs": "Chorvatsko",
+    "nameEn": "Croatia",
     "currencyCode": "EUR"
   },
   {
     "iso2": "HT",
     "nameCs": "Haiti",
-    "currencyCode": null
+    "nameEn": "Haiti",
+    "currencyCode": "HTG"
   },
   {
     "iso2": "HU",
     "nameCs": "Maďarsko",
+    "nameEn": "Hungary",
     "currencyCode": "HUF"
   },
   {
     "iso2": "ID",
     "nameCs": "Indonésie",
+    "nameEn": "Indonesia",
     "currencyCode": "IDR"
   },
   {
     "iso2": "IE",
     "nameCs": "Irsko",
+    "nameEn": "Ireland",
     "currencyCode": "EUR"
   },
   {
     "iso2": "IL",
     "nameCs": "Izrael",
-    "currencyCode": null
+    "nameEn": "Israel",
+    "currencyCode": "ILS"
   },
   {
     "iso2": "IM",
     "nameCs": "Ostrov Man",
-    "currencyCode": null
+    "nameEn": "Isle of Man",
+    "currencyCode": "GBP"
   },
   {
     "iso2": "IN",
     "nameCs": "Indie",
-    "currencyCode": null
+    "nameEn": "India",
+    "currencyCode": "INR"
   },
   {
     "iso2": "IO",
     "nameCs": "Britské indickooceánské území",
-    "currencyCode": null
+    "nameEn": "British Indian Ocean Territory",
+    "currencyCode": "USD"
   },
   {
     "iso2": "IQ",
     "nameCs": "Irák",
-    "currencyCode": null
+    "nameEn": "Iraq",
+    "currencyCode": "IQD"
   },
   {
     "iso2": "IR",
     "nameCs": "Írán",
-    "currencyCode": null
+    "nameEn": "Iran, Islamic Republic of",
+    "currencyCode": "IRR"
   },
   {
     "iso2": "IS",
     "nameCs": "Island",
+    "nameEn": "Iceland",
     "currencyCode": "ISK"
   },
   {
     "iso2": "IT",
     "nameCs": "Itálie",
+    "nameEn": "Italy",
     "currencyCode": "EUR"
   },
   {
     "iso2": "JE",
     "nameCs": "Jersey",
-    "currencyCode": null
+    "nameEn": "Jersey",
+    "currencyCode": "GBP"
   },
   {
     "iso2": "JM",
     "nameCs": "Jamajka",
-    "currencyCode": null
+    "nameEn": "Jamaica",
+    "currencyCode": "JMD"
   },
   {
     "iso2": "JO",
     "nameCs": "Jordánsko",
-    "currencyCode": null
+    "nameEn": "Jordan",
+    "currencyCode": "JOD"
   },
   {
     "iso2": "JP",
     "nameCs": "Japonsko",
+    "nameEn": "Japan",
     "currencyCode": "JPY"
   },
   {
     "iso2": "KE",
     "nameCs": "Keňa",
-    "currencyCode": null
+    "nameEn": "Kenya",
+    "currencyCode": "KES"
   },
   {
     "iso2": "KG",
     "nameCs": "Kyrgyzstán",
-    "currencyCode": null
+    "nameEn": "Kyrgyzstan",
+    "currencyCode": "KGS"
   },
   {
     "iso2": "KH",
     "nameCs": "Kambodža",
-    "currencyCode": null
+    "nameEn": "Cambodia",
+    "currencyCode": "KHR"
   },
   {
     "iso2": "KI",
     "nameCs": "Kiribati",
-    "currencyCode": null
+    "nameEn": "Kiribati",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "KM",
     "nameCs": "Komory",
-    "currencyCode": null
+    "nameEn": "Comoros",
+    "currencyCode": "KMF"
   },
   {
     "iso2": "KN",
     "nameCs": "Svatý Kryštof a Nevis",
-    "currencyCode": null
+    "nameEn": "Saint Kitts and Nevis",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "KP",
-    "nameCs": "Korea, lidově demokratická republika",
-    "currencyCode": null
+    "nameCs": "Severní Korea",
+    "nameEn": "Korea, Democratic People's Republic of",
+    "currencyCode": "KPW"
   },
   {
     "iso2": "KR",
-    "nameCs": "Korea",
+    "nameCs": "Jižní Korea",
+    "nameEn": "Korea, Republic of",
     "currencyCode": "KRW"
   },
   {
     "iso2": "KW",
     "nameCs": "Kuvajt",
-    "currencyCode": null
+    "nameEn": "Kuwait",
+    "currencyCode": "KWD"
   },
   {
     "iso2": "KY",
     "nameCs": "Kajmanské ostrovy",
-    "currencyCode": null
+    "nameEn": "Cayman Islands",
+    "currencyCode": "KYD"
   },
   {
     "iso2": "KZ",
     "nameCs": "Kazachstán",
-    "currencyCode": null
+    "nameEn": "Kazakhstan",
+    "currencyCode": "KZT"
   },
   {
     "iso2": "LA",
     "nameCs": "Laos",
-    "currencyCode": null
+    "nameEn": "Lao People's Democratic Republic",
+    "currencyCode": "LAK"
   },
   {
     "iso2": "LB",
     "nameCs": "Libanon",
-    "currencyCode": null
+    "nameEn": "Lebanon",
+    "currencyCode": "LBP"
   },
   {
     "iso2": "LC",
     "nameCs": "Svatá Lucie",
-    "currencyCode": null
+    "nameEn": "Saint Lucia",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "LI",
     "nameCs": "Lichtenštejnsko",
+    "nameEn": "Liechtenstein",
     "currencyCode": "CHF"
   },
   {
     "iso2": "LK",
     "nameCs": "Srí Lanka",
-    "currencyCode": null
+    "nameEn": "Sri Lanka",
+    "currencyCode": "LKR"
   },
   {
     "iso2": "LR",
     "nameCs": "Libérie",
-    "currencyCode": null
+    "nameEn": "Liberia",
+    "currencyCode": "LRD"
   },
   {
     "iso2": "LS",
     "nameCs": "Lesotho",
-    "currencyCode": null
+    "nameEn": "Lesotho",
+    "currencyCode": "LSL"
   },
   {
     "iso2": "LT",
     "nameCs": "Litva",
+    "nameEn": "Lithuania",
     "currencyCode": "EUR"
   },
   {
     "iso2": "LU",
     "nameCs": "Lucembursko",
+    "nameEn": "Luxembourg",
     "currencyCode": "EUR"
   },
   {
     "iso2": "LV",
     "nameCs": "Lotyšsko",
+    "nameEn": "Latvia",
     "currencyCode": "EUR"
   },
   {
     "iso2": "LY",
     "nameCs": "Libye",
-    "currencyCode": null
+    "nameEn": "Libya",
+    "currencyCode": "LYD"
   },
   {
     "iso2": "MA",
     "nameCs": "Maroko",
-    "currencyCode": null
+    "nameEn": "Morocco",
+    "currencyCode": "MAD"
   },
   {
     "iso2": "MC",
-    "nameCs": "Monacké knížectví",
+    "nameCs": "Monako",
+    "nameEn": "Monaco",
     "currencyCode": "EUR"
   },
   {
     "iso2": "MD",
     "nameCs": "Moldavsko",
+    "nameEn": "Moldova, Republic of",
     "currencyCode": "MDL"
   },
   {
     "iso2": "ME",
     "nameCs": "Černá Hora",
+    "nameEn": "Montenegro",
     "currencyCode": "EUR"
   },
   {
     "iso2": "MF",
-    "nameCs": "Svatý Martin (francouzská část)",
-    "currencyCode": null
+    "nameCs": "Svatý Martin (Francie)",
+    "nameEn": "Saint Martin (French part)",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "MG",
     "nameCs": "Madagaskar",
-    "currencyCode": null
+    "nameEn": "Madagascar",
+    "currencyCode": "MGA"
   },
   {
     "iso2": "MH",
     "nameCs": "Marshallovy ostrovy",
-    "currencyCode": null
+    "nameEn": "Marshall Islands",
+    "currencyCode": "USD"
   },
   {
     "iso2": "MK",
-    "nameCs": "Makedonie",
-    "currencyCode": null
+    "nameCs": "Severní Makedonie",
+    "nameEn": "North Macedonia",
+    "currencyCode": "MKD"
   },
   {
     "iso2": "ML",
     "nameCs": "Mali",
-    "currencyCode": null
+    "nameEn": "Mali",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "MM",
-    "nameCs": "Myanmar",
-    "currencyCode": null
+    "nameCs": "Myanmar (Barma)",
+    "nameEn": "Myanmar",
+    "currencyCode": "MMK"
   },
   {
     "iso2": "MN",
     "nameCs": "Mongolsko",
-    "currencyCode": null
+    "nameEn": "Mongolia",
+    "currencyCode": "MNT"
   },
   {
     "iso2": "MO",
-    "nameCs": "Macao",
-    "currencyCode": null
+    "nameCs": "Macao – ZAO Číny",
+    "nameEn": "Macao",
+    "currencyCode": "MOP"
   },
   {
     "iso2": "MP",
     "nameCs": "Severní Mariany",
-    "currencyCode": null
+    "nameEn": "Northern Mariana Islands",
+    "currencyCode": "USD"
   },
   {
     "iso2": "MQ",
     "nameCs": "Martinik",
-    "currencyCode": null
+    "nameEn": "Martinique",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "MR",
     "nameCs": "Mauritánie",
-    "currencyCode": null
+    "nameEn": "Mauritania",
+    "currencyCode": "MRU"
   },
   {
     "iso2": "MS",
     "nameCs": "Montserrat",
-    "currencyCode": null
+    "nameEn": "Montserrat",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "MT",
     "nameCs": "Malta",
+    "nameEn": "Malta",
     "currencyCode": "EUR"
   },
   {
     "iso2": "MU",
     "nameCs": "Mauricius",
-    "currencyCode": null
+    "nameEn": "Mauritius",
+    "currencyCode": "MUR"
   },
   {
     "iso2": "MV",
     "nameCs": "Maledivy",
-    "currencyCode": null
+    "nameEn": "Maldives",
+    "currencyCode": "MVR"
   },
   {
     "iso2": "MW",
     "nameCs": "Malawi",
-    "currencyCode": null
+    "nameEn": "Malawi",
+    "currencyCode": "MWK"
   },
   {
     "iso2": "MX",
     "nameCs": "Mexiko",
+    "nameEn": "Mexico",
     "currencyCode": "MXN"
   },
   {
     "iso2": "MY",
     "nameCs": "Malajsie",
+    "nameEn": "Malaysia",
     "currencyCode": "MYR"
   },
   {
     "iso2": "MZ",
     "nameCs": "Mosambik",
-    "currencyCode": null
+    "nameEn": "Mozambique",
+    "currencyCode": "MZN"
   },
   {
     "iso2": "NA",
     "nameCs": "Namibie",
-    "currencyCode": null
+    "nameEn": "Namibia",
+    "currencyCode": "NAD"
   },
   {
     "iso2": "NC",
     "nameCs": "Nová Kaledonie",
-    "currencyCode": null
+    "nameEn": "New Caledonia",
+    "currencyCode": "XPF"
   },
   {
     "iso2": "NE",
     "nameCs": "Niger",
-    "currencyCode": null
+    "nameEn": "Niger",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "NF",
     "nameCs": "Norfolk",
-    "currencyCode": null
+    "nameEn": "Norfolk Island",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "NG",
     "nameCs": "Nigérie",
-    "currencyCode": null
+    "nameEn": "Nigeria",
+    "currencyCode": "NGN"
   },
   {
     "iso2": "NI",
     "nameCs": "Nikaragua",
-    "currencyCode": null
+    "nameEn": "Nicaragua",
+    "currencyCode": "NIO"
   },
   {
     "iso2": "NL",
     "nameCs": "Nizozemsko",
+    "nameEn": "Netherlands",
     "currencyCode": "EUR"
   },
   {
     "iso2": "NO",
     "nameCs": "Norsko",
+    "nameEn": "Norway",
     "currencyCode": "NOK"
   },
   {
     "iso2": "NP",
     "nameCs": "Nepál",
-    "currencyCode": null
+    "nameEn": "Nepal",
+    "currencyCode": "NPR"
   },
   {
     "iso2": "NR",
     "nameCs": "Nauru",
-    "currencyCode": null
+    "nameEn": "Nauru",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "NU",
     "nameCs": "Niue",
-    "currencyCode": null
+    "nameEn": "Niue",
+    "currencyCode": "NZD"
   },
   {
     "iso2": "NZ",
     "nameCs": "Nový Zéland",
+    "nameEn": "New Zealand",
     "currencyCode": "NZD"
   },
   {
     "iso2": "OM",
     "nameCs": "Omán",
-    "currencyCode": null
+    "nameEn": "Oman",
+    "currencyCode": "OMR"
   },
   {
     "iso2": "PA",
     "nameCs": "Panama",
+    "nameEn": "Panama",
     "currencyCode": null
   },
   {
     "iso2": "PE",
     "nameCs": "Peru",
-    "currencyCode": null
+    "nameEn": "Peru",
+    "currencyCode": "PEN"
   },
   {
     "iso2": "PF",
     "nameCs": "Francouzská Polynésie",
-    "currencyCode": null
+    "nameEn": "French Polynesia",
+    "currencyCode": "XPF"
   },
   {
     "iso2": "PG",
-    "nameCs": "Papua Nová Guinea",
-    "currencyCode": null
+    "nameCs": "Papua-Nová Guinea",
+    "nameEn": "Papua New Guinea",
+    "currencyCode": "PGK"
   },
   {
     "iso2": "PH",
     "nameCs": "Filipíny",
-    "currencyCode": null
+    "nameEn": "Philippines",
+    "currencyCode": "PHP"
   },
   {
     "iso2": "PK",
     "nameCs": "Pákistán",
-    "currencyCode": null
+    "nameEn": "Pakistan",
+    "currencyCode": "PKR"
   },
   {
     "iso2": "PL",
     "nameCs": "Polsko",
+    "nameEn": "Poland",
     "currencyCode": "PLN"
   },
   {
     "iso2": "PM",
-    "nameCs": "Saint Pierre a Miquelon",
-    "currencyCode": null
+    "nameCs": "Saint-Pierre a Miquelon",
+    "nameEn": "Saint Pierre and Miquelon",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "PN",
-    "nameCs": "Pitcairn",
-    "currencyCode": null
+    "nameCs": "Pitcairnovy ostrovy",
+    "nameEn": "Pitcairn",
+    "currencyCode": "NZD"
   },
   {
     "iso2": "PR",
     "nameCs": "Portoriko",
-    "currencyCode": null
+    "nameEn": "Puerto Rico",
+    "currencyCode": "USD"
   },
   {
     "iso2": "PS",
-    "nameCs": "Okupované palestinské území",
+    "nameCs": "Palestinská území",
+    "nameEn": "Palestine, State of",
     "currencyCode": null
   },
   {
     "iso2": "PT",
     "nameCs": "Portugalsko",
+    "nameEn": "Portugal",
     "currencyCode": "EUR"
   },
   {
     "iso2": "PW",
     "nameCs": "Palau",
-    "currencyCode": null
+    "nameEn": "Palau",
+    "currencyCode": "USD"
   },
   {
     "iso2": "PY",
     "nameCs": "Paraguay",
-    "currencyCode": null
+    "nameEn": "Paraguay",
+    "currencyCode": "PYG"
   },
   {
     "iso2": "QA",
     "nameCs": "Katar",
-    "currencyCode": null
+    "nameEn": "Qatar",
+    "currencyCode": "QAR"
   },
   {
-    "iso2": "QQ",
-    "nameCs": "Rezervy a zásoby",
-    "currencyCode": null
-  },
-  {
-    "iso2": "QR",
-    "nameCs": "Rezervy a zásoby v rámci obchodu uvnitř Společenstí",
-    "currencyCode": null
-  },
-  {
-    "iso2": "QS",
-    "nameCs": "Rezervy a zásoby v rámci obchodu s třetími zeměmi",
-    "currencyCode": null
-  },
-  {
-    "iso2": "QU",
-    "nameCs": "Státy a území nevymezené",
-    "currencyCode": null
-  },
-  {
-    "iso2": "QV",
-    "nameCs": "Země a území neuváděné v rámci obchodu uvnitř Společenství",
-    "currencyCode": null
-  },
-  {
-    "iso2": "QW",
-    "nameCs": "Země a území neuváděné v rámci obchodu s třetími zeměmi",
-    "currencyCode": null
+    "iso2": "RE",
+    "nameCs": "Réunion",
+    "nameEn": "Réunion",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "RO",
     "nameCs": "Rumunsko",
+    "nameEn": "Romania",
     "currencyCode": "RON"
   },
   {
     "iso2": "RS",
     "nameCs": "Srbsko",
-    "currencyCode": null
+    "nameEn": "Serbia",
+    "currencyCode": "RSD"
   },
   {
     "iso2": "RU",
     "nameCs": "Rusko",
+    "nameEn": "Russian Federation",
     "currencyCode": "RUB"
   },
   {
     "iso2": "RW",
     "nameCs": "Rwanda",
-    "currencyCode": null
+    "nameEn": "Rwanda",
+    "currencyCode": "RWF"
   },
   {
     "iso2": "SA",
     "nameCs": "Saúdská Arábie",
-    "currencyCode": null
+    "nameEn": "Saudi Arabia",
+    "currencyCode": "SAR"
   },
   {
     "iso2": "SB",
     "nameCs": "Šalamounovy ostrovy",
-    "currencyCode": null
+    "nameEn": "Solomon Islands",
+    "currencyCode": "SBD"
   },
   {
     "iso2": "SC",
     "nameCs": "Seychely",
-    "currencyCode": null
+    "nameEn": "Seychelles",
+    "currencyCode": "SCR"
   },
   {
     "iso2": "SD",
     "nameCs": "Súdán",
-    "currencyCode": null
+    "nameEn": "Sudan",
+    "currencyCode": "SDG"
   },
   {
     "iso2": "SE",
     "nameCs": "Švédsko",
+    "nameEn": "Sweden",
     "currencyCode": "SEK"
   },
   {
     "iso2": "SG",
     "nameCs": "Singapur",
+    "nameEn": "Singapore",
     "currencyCode": "SGD"
   },
   {
     "iso2": "SH",
     "nameCs": "Svatá Helena",
-    "currencyCode": null
+    "nameEn": "Saint Helena, Ascension and Tristan da Cunha",
+    "currencyCode": "SHP"
   },
   {
     "iso2": "SI",
     "nameCs": "Slovinsko",
+    "nameEn": "Slovenia",
     "currencyCode": "EUR"
   },
   {
     "iso2": "SJ",
-    "nameCs": "Svalbard a ostrov Jan Maye",
-    "currencyCode": null
+    "nameCs": "Špicberky a Jan Mayen",
+    "nameEn": "Svalbard and Jan Mayen",
+    "currencyCode": "NOK"
   },
   {
     "iso2": "SK",
     "nameCs": "Slovensko",
+    "nameEn": "Slovakia",
     "currencyCode": "EUR"
   },
   {
     "iso2": "SL",
     "nameCs": "Sierra Leone",
-    "currencyCode": null
+    "nameEn": "Sierra Leone",
+    "currencyCode": "SLE"
   },
   {
     "iso2": "SM",
     "nameCs": "San Marino",
+    "nameEn": "San Marino",
     "currencyCode": "EUR"
   },
   {
     "iso2": "SN",
     "nameCs": "Senegal",
-    "currencyCode": null
+    "nameEn": "Senegal",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "SO",
     "nameCs": "Somálsko",
-    "currencyCode": null
+    "nameEn": "Somalia",
+    "currencyCode": "SOS"
   },
   {
     "iso2": "SR",
     "nameCs": "Surinam",
-    "currencyCode": null
+    "nameEn": "Suriname",
+    "currencyCode": "SRD"
   },
   {
     "iso2": "SS",
-    "nameCs": "Jihosúdánská republika",
-    "currencyCode": null
+    "nameCs": "Jižní Súdán",
+    "nameEn": "South Sudan",
+    "currencyCode": "SSP"
   },
   {
     "iso2": "ST",
-    "nameCs": "Svatý Tomáš",
-    "currencyCode": null
+    "nameCs": "Svatý Tomáš a Princův ostrov",
+    "nameEn": "Sao Tome and Principe",
+    "currencyCode": "STN"
   },
   {
     "iso2": "SV",
     "nameCs": "Salvador",
-    "currencyCode": null
+    "nameEn": "El Salvador",
+    "currencyCode": "USD"
   },
   {
     "iso2": "SX",
-    "nameCs": "Sv. Martin (nizozem.část)",
-    "currencyCode": null
+    "nameCs": "Svatý Martin (Nizozemsko)",
+    "nameEn": "Sint Maarten (Dutch part)",
+    "currencyCode": "XCG"
   },
   {
     "iso2": "SY",
     "nameCs": "Sýrie",
-    "currencyCode": null
+    "nameEn": "Syrian Arab Republic",
+    "currencyCode": "SYP"
   },
   {
     "iso2": "SZ",
-    "nameCs": "Svazijsko",
-    "currencyCode": null
+    "nameCs": "Eswatini",
+    "nameEn": "Eswatini",
+    "currencyCode": "SZL"
   },
   {
     "iso2": "TC",
     "nameCs": "Turks a Caicos",
-    "currencyCode": null
+    "nameEn": "Turks and Caicos Islands",
+    "currencyCode": "USD"
   },
   {
     "iso2": "TD",
     "nameCs": "Čad",
-    "currencyCode": null
+    "nameEn": "Chad",
+    "currencyCode": "XAF"
   },
   {
     "iso2": "TF",
     "nameCs": "Francouzská jižní území",
-    "currencyCode": null
+    "nameEn": "French Southern Territories",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "TG",
     "nameCs": "Togo",
-    "currencyCode": null
+    "nameEn": "Togo",
+    "currencyCode": "XOF"
   },
   {
     "iso2": "TH",
     "nameCs": "Thajsko",
+    "nameEn": "Thailand",
     "currencyCode": "THB"
   },
   {
     "iso2": "TJ",
     "nameCs": "Tádžikistán",
-    "currencyCode": null
+    "nameEn": "Tajikistan",
+    "currencyCode": "TJS"
   },
   {
     "iso2": "TK",
     "nameCs": "Tokelau",
-    "currencyCode": null
+    "nameEn": "Tokelau",
+    "currencyCode": "NZD"
   },
   {
     "iso2": "TL",
-    "nameCs": "Timor-Leste",
-    "currencyCode": null
+    "nameCs": "Východní Timor",
+    "nameEn": "Timor-Leste",
+    "currencyCode": "USD"
   },
   {
     "iso2": "TM",
     "nameCs": "Turkmenistán",
-    "currencyCode": null
+    "nameEn": "Turkmenistan",
+    "currencyCode": "TMT"
   },
   {
     "iso2": "TN",
     "nameCs": "Tunisko",
-    "currencyCode": null
+    "nameEn": "Tunisia",
+    "currencyCode": "TND"
   },
   {
     "iso2": "TO",
     "nameCs": "Tonga",
-    "currencyCode": null
+    "nameEn": "Tonga",
+    "currencyCode": "TOP"
   },
   {
     "iso2": "TR",
     "nameCs": "Turecko",
+    "nameEn": "Türkiye",
     "currencyCode": "TRY"
   },
   {
     "iso2": "TT",
     "nameCs": "Trinidad a Tobago",
-    "currencyCode": null
+    "nameEn": "Trinidad and Tobago",
+    "currencyCode": "TTD"
   },
   {
     "iso2": "TV",
     "nameCs": "Tuvalu",
-    "currencyCode": null
+    "nameEn": "Tuvalu",
+    "currencyCode": "AUD"
   },
   {
     "iso2": "TW",
     "nameCs": "Tchaj-wan",
-    "currencyCode": null
+    "nameEn": "Taiwan, Province of China",
+    "currencyCode": "TWD"
   },
   {
     "iso2": "TZ",
     "nameCs": "Tanzanie",
-    "currencyCode": null
+    "nameEn": "Tanzania, United Republic of",
+    "currencyCode": "TZS"
   },
   {
     "iso2": "UA",
     "nameCs": "Ukrajina",
-    "currencyCode": null
+    "nameEn": "Ukraine",
+    "currencyCode": "UAH"
   },
   {
     "iso2": "UG",
     "nameCs": "Uganda",
-    "currencyCode": null
+    "nameEn": "Uganda",
+    "currencyCode": "UGX"
   },
   {
     "iso2": "UM",
     "nameCs": "Menší odlehlé ostrovy USA",
-    "currencyCode": null
+    "nameEn": "United States Minor Outlying Islands",
+    "currencyCode": "USD"
   },
   {
     "iso2": "US",
     "nameCs": "Spojené státy",
+    "nameEn": "United States",
     "currencyCode": "USD"
   },
   {
     "iso2": "UY",
     "nameCs": "Uruguay",
-    "currencyCode": null
+    "nameEn": "Uruguay",
+    "currencyCode": "UYU"
   },
   {
     "iso2": "UZ",
     "nameCs": "Uzbekistán",
-    "currencyCode": null
+    "nameEn": "Uzbekistan",
+    "currencyCode": "UZS"
   },
   {
     "iso2": "VA",
-    "nameCs": "Svatý stolec",
-    "currencyCode": null
+    "nameCs": "Vatikán",
+    "nameEn": "Holy See (Vatican City State)",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "VC",
     "nameCs": "Svatý Vincenc a Grenadiny",
-    "currencyCode": null
+    "nameEn": "Saint Vincent and the Grenadines",
+    "currencyCode": "XCD"
   },
   {
     "iso2": "VE",
     "nameCs": "Venezuela",
-    "currencyCode": null
+    "nameEn": "Venezuela, Bolivarian Republic of",
+    "currencyCode": "VES"
   },
   {
     "iso2": "VG",
     "nameCs": "Britské Panenské ostrovy",
-    "currencyCode": null
+    "nameEn": "Virgin Islands, British",
+    "currencyCode": "USD"
   },
   {
     "iso2": "VI",
     "nameCs": "Americké Panenské ostrovy",
-    "currencyCode": null
+    "nameEn": "Virgin Islands, U.S.",
+    "currencyCode": "USD"
   },
   {
     "iso2": "VN",
     "nameCs": "Vietnam",
-    "currencyCode": null
+    "nameEn": "Viet Nam",
+    "currencyCode": "VND"
   },
   {
     "iso2": "VU",
     "nameCs": "Vanuatu",
-    "currencyCode": null
+    "nameEn": "Vanuatu",
+    "currencyCode": "VUV"
   },
   {
     "iso2": "WF",
     "nameCs": "Wallis a Futuna",
-    "currencyCode": null
+    "nameEn": "Wallis and Futuna",
+    "currencyCode": "XPF"
   },
   {
     "iso2": "WS",
     "nameCs": "Samoa",
-    "currencyCode": null
-  },
-  {
-    "iso2": "XI",
-    "nameCs": "Severní Irsko",
-    "currencyCode": "GBP"
-  },
-  {
-    "iso2": "XK",
-    "nameCs": "Kosovo",
-    "currencyCode": null
+    "nameEn": "Samoa",
+    "currencyCode": "WST"
   },
   {
     "iso2": "YE",
     "nameCs": "Jemen",
-    "currencyCode": null
+    "nameEn": "Yemen",
+    "currencyCode": "YER"
   },
   {
     "iso2": "YT",
     "nameCs": "Mayotte",
-    "currencyCode": null
+    "nameEn": "Mayotte",
+    "currencyCode": "EUR"
   },
   {
     "iso2": "ZA",
     "nameCs": "Jihoafrická republika",
+    "nameEn": "South Africa",
     "currencyCode": "ZAR"
   },
   {
     "iso2": "ZM",
     "nameCs": "Zambie",
-    "currencyCode": null
+    "nameEn": "Zambia",
+    "currencyCode": "ZMW"
   },
   {
     "iso2": "ZW",
-    "nameCs": "Zimbabwská republika",
-    "currencyCode": null
+    "nameCs": "Zimbabwe",
+    "nameEn": "Zimbabwe",
+    "currencyCode": "ZWG"
   }
 ]

@@ -32,6 +32,7 @@ type OrgNavLabelKey =
   | "chartOfAccounts"
   | "chartFramework"
   | "documentTypes"
+  | "documentSeries"
   | "debug"
   | "normalTable"
   | "pivotTable"
@@ -149,6 +150,11 @@ export function accountingNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "documentTypes",
       icon: "FileText",
       href: orgHref(slug, "accounting/document-types"),
+    },
+    {
+      labelKey: "documentSeries",
+      icon: "HashIcon",
+      href: orgHref(slug, "accounting/document-series"),
     },
   ]
 }

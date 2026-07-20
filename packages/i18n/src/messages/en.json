@@ -58,6 +58,43 @@
         "actionError": "Action failed"
       }
     },
+    "documentSeries": {
+      "columns": {
+        "code": "Code",
+        "name": "Name"
+      },
+      "page": {
+        "exportFileName": "document-series",
+        "empty": "No document series in this category yet."
+      },
+      "inspector": {
+        "code": "Code",
+        "name": "Name",
+        "note": "Note",
+        "description": "Description",
+        "validFrom": "Valid from year",
+        "validTo": "Valid to year",
+        "save": "Save",
+        "saved": "Saved",
+        "saveError": "Save failed",
+        "sectionIdentity": "Identity",
+        "sectionValidity": "Validity"
+      },
+      "grid": {
+        "title": "Numbering by period",
+        "period": "Accounting period",
+        "length": "Number length",
+        "prefix": "Prefix",
+        "postfix": "Postfix",
+        "current": "Current no.",
+        "add": "Add",
+        "addPeriod": "Select a period",
+        "save": "Save",
+        "delete": "Delete",
+        "deleteInUse": "This row has already issued numbers and cannot be deleted.",
+        "saved": "Saved"
+      }
+    },
     "chartOfAccounts": {
       "columns": {
         "number": "Account",
@@ -1572,7 +1609,8 @@
       "chartFramework": "Chart framework",
       "directory": "Directory",
       "states": "Countries",
-      "documentTypes": "Document types"
+      "documentTypes": "Document types",
+      "documentSeries": "Document series"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1590,7 +1628,8 @@
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "states": "Countries",
-      "documentTypes": "Document types"
+      "documentTypes": "Document types",
+      "documentSeries": "Document series"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Received invoices",

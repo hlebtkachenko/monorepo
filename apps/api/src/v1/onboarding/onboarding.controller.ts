@@ -15,7 +15,10 @@ import { ConflictError, ValidationError } from "@workspace/shared/errors"
 import type { ApiKeyPrincipal } from "@workspace/auth/api-key-verifier"
 import { withOrganization } from "@workspace/db"
 import { accounting_period } from "@workspace/db/schema"
-import { createNumberSeries } from "@workspace/accounting"
+import {
+  createNumberSeries,
+  defaultSeriesCategory,
+} from "@workspace/accounting"
 import {
   derivePeriodBounds,
   resolveOrgAccountingProfile,
@@ -82,6 +85,9 @@ export class OnboardingController {
               code: body.code,
               pattern: body.pattern,
               nextNumber: body.nextNumber,
+              // Bucket a canonical default DOCUMENT série under its config category so
+              // the Dokladové řady list surfaces it; a custom code resolves to null.
+              category: defaultSeriesCategory(body.entityType, body.code),
             },
           ),
       )

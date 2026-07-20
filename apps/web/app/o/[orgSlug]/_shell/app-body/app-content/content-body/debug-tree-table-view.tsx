@@ -9,7 +9,9 @@ import {
   buildTableFooter,
   buildTableToolbar,
   sectionTreeTable,
+  useTreeTableFilters,
 } from "@workspace/ui/blocks/content-panel"
+import type { FiltersState } from "@workspace/ui/components/filter-bar"
 import type {
   ContentFooterAction,
   ContentHeaderFavoriteToggle,
@@ -55,17 +57,17 @@ const COLUMNS: TableColumnSpec[] = [
   {
     id: "category",
     header: "Kategorie",
-    kind: "badge",
-    options: CATEGORY,
-    enableFilter: true,
+    // A read-only classification — plain TEXT, not a status chip — but still
+    // offered as a faceted (option) filter in the toolbar.
+    kind: "text",
+    filter: { variant: "option", options: CATEGORY },
     width: 140,
   },
   {
     id: "type",
     header: "Typ účtu",
-    kind: "badge",
-    options: TYPE,
-    enableFilter: true,
+    kind: "text",
+    filter: { variant: "option", options: TYPE },
     width: 120,
   },
   {
@@ -163,6 +165,15 @@ export function DebugTreeTableView({
 }) {
   const [activeTab, setActiveTab] = React.useState("all")
   const [search, setSearch] = React.useState("")
+  const [filters, setFilters] = React.useState<FiltersState>([])
+
+  // Column-driven toolbar filter + the recursively-narrowed tree it produces.
+  const { filter, rows: filteredTree } = useTreeTableFilters({
+    columns: COLUMNS,
+    rows: TREE,
+    filters,
+    onFiltersChange: setFilters,
+  })
 
   const views: ViewTab[] = [{ value: "all", label: "Vše" }]
 
@@ -177,8 +188,10 @@ export function DebugTreeTableView({
     ): ContentToolbarProps<TableSectionRow> =>
       buildTableToolbar(table, {
         search: { value: search, onChange: setSearch },
+        expandAll: { groupLabel: "Sbalit vše", ungroupLabel: "Rozbalit vše" },
+        filter,
       }),
-    [search],
+    [search, filter],
   )
 
   const selectionActions = React.useCallback(
@@ -209,7 +222,7 @@ export function DebugTreeTableView({
         sectionTreeTable({
           anchor: "chart",
           columns: COLUMNS,
-          rows: TREE,
+          rows: filteredTree,
           defaultExpanded: 2,
           features: { search: true },
           emptyText: "No accounts.",

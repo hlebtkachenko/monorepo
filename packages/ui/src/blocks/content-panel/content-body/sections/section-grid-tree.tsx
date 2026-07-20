@@ -35,7 +35,13 @@ export function TreeLabelCell<T>({
       {canExpand ? (
         <button
           type="button"
-          onClick={row.getToggleExpandedHandler()}
+          // Stop propagation so a click on the chevron toggles exactly once — the
+          // whole-cell click zone (the Tree-table renderer's identity cell) also
+          // toggles, and without this the two handlers would cancel out.
+          onClick={(event) => {
+            event.stopPropagation()
+            row.toggleExpanded()
+          }}
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
           className="flex size-4 shrink-0 items-center justify-center text-muted-foreground hover:text-foreground"

@@ -162,7 +162,7 @@ export const ChartOfAccounts: Story = {
         {
           id: "category",
           header: "Kategorie",
-          kind: "badge",
+          kind: "text",
           options: CATEGORY,
           enableFilter: true,
           width: 140,
@@ -170,7 +170,7 @@ export const ChartOfAccounts: Story = {
         {
           id: "type",
           header: "Typ účtu",
-          kind: "badge",
+          kind: "text",
           options: TYPE,
           enableFilter: true,
           width: 120,

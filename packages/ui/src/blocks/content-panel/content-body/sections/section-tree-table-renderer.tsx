@@ -11,6 +11,7 @@ import {
 import { Badge } from "@workspace/ui/components/badge"
 import { DataGridView } from "@workspace/ui/components/data-grid-view"
 import { TooltipProvider } from "@workspace/ui/components/tooltip"
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   useSectionCellCommit,
@@ -243,7 +244,12 @@ export function SectionTreeTableRenderer({
           label: spec.header,
           align,
           editable: columnInline,
-          ...(isIdColumn ? { trailingWidth: 30 } : {}),
+          // The identity column: reserve room for the trailing inspector button
+          // and drop the cell inset so the chevron sits flush at the left edge and
+          // the whole cell is one click target (see the cell renderer below).
+          ...(isIdColumn
+            ? { trailingWidth: 30, cellPadding: "none" as const }
+            : {}),
           ...(spec.enableFilter
             ? {
                 variant: "multiSelect" as const,
@@ -262,8 +268,11 @@ export function SectionTreeTableRenderer({
           const inline = columnInline && rowEditable
 
           // The identity column always renders the tree label (chevron + indent),
-          // never an editor — the number/label is the row's stable identity.
+          // never an editor — the number/label is the row's stable identity. The
+          // WHOLE cell is the expand/collapse click zone (not just the chevron);
+          // the inspector button stops propagation so it never also toggles.
           if (isIdColumn) {
+            const canToggle = row.getCanExpand()
             const label = (
               <TreeLabelCell
                 row={row}
@@ -271,15 +280,20 @@ export function SectionTreeTableRenderer({
                 emphasis={isTier}
               />
             )
-            if (features.inspect && openInspect && !isTier) {
-              return (
-                <div className="flex w-full items-center gap-2">
-                  <div className="min-w-0 flex-1">{label}</div>
+            return (
+              <div
+                className={cn(
+                  "flex h-8 w-full items-center gap-2 pr-3",
+                  canToggle && "cursor-pointer",
+                )}
+                onClick={canToggle ? () => row.toggleExpanded() : undefined}
+              >
+                <div className="min-w-0 flex-1">{label}</div>
+                {features.inspect && openInspect && !isTier ? (
                   <InspectorOpenButton onClick={() => openInspect(original)} />
-                </div>
-              )
-            }
-            return label
+                ) : null}
+              </div>
+            )
           }
 
           // A structural tier node is never editable (its `editable` is false, so

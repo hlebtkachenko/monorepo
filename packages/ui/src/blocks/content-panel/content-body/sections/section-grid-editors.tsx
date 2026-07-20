@@ -271,7 +271,12 @@ export function InspectorOpenButton({ onClick }: { onClick: () => void }) {
           type="button"
           aria-label="Open inspector"
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={onClick}
+          // Also stop the click so opening the inspector never toggles the row's
+          // expansion (the Tree-table identity cell is a whole-cell click zone).
+          onClick={(event) => {
+            event.stopPropagation()
+            onClick()
+          }}
           className="flex size-[22px] shrink-0 items-center justify-center rounded-md border border-grid-checkbox-border bg-background text-grid-action-icon opacity-0 transition-[opacity,background-color] group-hover/row:opacity-100 hover:bg-grid-action-hover focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <Maximize2 className="size-3.5" />

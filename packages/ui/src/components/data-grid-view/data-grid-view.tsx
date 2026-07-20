@@ -622,7 +622,11 @@ function DataGridViewCell<TData>({
       onMouseDown={focusable ? onFocusCell : undefined}
       className={cn(
         "flex h-8 shrink-0 items-center text-sm outline-none",
-        centered ? "justify-center px-0" : "px-3",
+        centered
+          ? "justify-center px-0"
+          : cell.column.columnDef.meta?.cellPadding === "none"
+            ? "px-0"
+            : "px-3",
         borderClass(cell.column, groupEdge),
         // Pinned cells need an opaque background so scrolled content can't show
         // through; match the row's surface (idle/hover/selected) so selection +

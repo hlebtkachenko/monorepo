@@ -28,15 +28,16 @@ import { toast } from "@workspace/ui/components/sonner"
 import { orgHref } from "@/lib/org/href"
 
 /**
- * PaymentMethodsView — Finance → Číselníky → Formy úhrady.
+ * PaymentFormsView — Finance → Číselníky → Formy úhrady.
  *
- * A READ-ONLY Table archetype over the shared `payment_method` vocabulary. No
- * inline edit / create / destructive action (a fixed platform vocabulary):
+ * A READ-ONLY Table archetype over the shared `payment_form` register (the Czech
+ * forma-úhrady list). No inline edit / create / destructive action (reference data):
  * search + column display + a per-row read-only Inspector, plus the design-system
- * selection footer. Rows + localized names are assembled server-side; this view
- * renders them.
+ * selection footer. Rows + localized names/phrases are assembled server-side; this
+ * view renders them. The three offer flags (invoice / cash desk / POS) drive where
+ * a form is offered for selection.
  */
-export function PaymentMethodsView({
+export function PaymentFormsView({
   slug,
   title,
   rows,
@@ -47,7 +48,7 @@ export function PaymentMethodsView({
   rows: readonly TableSectionRow[]
   favorite: ContentHeaderFavoriteToggle
 }) {
-  const t = useTranslations("org.paymentMethods")
+  const t = useTranslations("org.paymentForms")
   const [view, setView] = React.useState("all")
   const [search, setSearch] = React.useState("")
 
@@ -73,22 +74,30 @@ export function PaymentMethodsView({
         header: t("columns.code"),
         kind: "text",
         role: "id",
-        width: 130,
+        width: 150,
       },
       { id: "name", header: t("columns.name"), kind: "text" },
+      { id: "phrase", header: t("columns.phrase"), kind: "text" },
       {
-        id: "cash",
-        header: t("columns.cash"),
+        id: "invoice",
+        header: t("columns.invoice"),
         kind: "badge",
         options: yesNo,
         width: 110,
       },
       {
-        id: "bankDetail",
-        header: t("columns.bankDetail"),
+        id: "cashDesk",
+        header: t("columns.cashDesk"),
         kind: "badge",
         options: yesNo,
-        width: 150,
+        width: 120,
+      },
+      {
+        id: "pos",
+        header: t("columns.pos"),
+        kind: "badge",
+        options: yesNo,
+        width: 100,
       },
     ],
     [t, yesNo],
@@ -140,6 +149,11 @@ export function PaymentMethodsView({
     [],
   )
 
+  const yesNoValue = React.useCallback(
+    (raw: unknown) => (String(raw ?? "") === "yes" ? t("yes") : t("no")),
+    [t],
+  )
+
   const inspectorContent = React.useCallback(
     (row: TableSectionRow): Partial<Record<InspectorTab, React.ReactNode>> => ({
       details: (
@@ -160,16 +174,27 @@ export function PaymentMethodsView({
                   readOnly: true,
                 },
                 {
-                  label: t("columns.cash"),
-                  value: String(row.cash ?? "") === "yes" ? t("yes") : t("no"),
+                  label: t("columns.phrase"),
+                  value: String(row.phrase ?? ""),
+                  icon: "ReceiptEuro",
+                  readOnly: true,
+                },
+                {
+                  label: t("columns.invoice"),
+                  value: yesNoValue(row.invoice),
+                  icon: "FileText",
+                  readOnly: true,
+                },
+                {
+                  label: t("columns.cashDesk"),
+                  value: yesNoValue(row.cashDesk),
                   icon: "Banknote",
                   readOnly: true,
                 },
                 {
-                  label: t("columns.bankDetail"),
-                  value:
-                    String(row.bankDetail ?? "") === "yes" ? t("yes") : t("no"),
-                  icon: "ReceiptEuro",
+                  label: t("columns.pos"),
+                  value: yesNoValue(row.pos),
+                  icon: "CreditCard",
                   readOnly: true,
                 },
               ],
@@ -178,7 +203,7 @@ export function PaymentMethodsView({
         />
       ),
     }),
-    [t],
+    [t, yesNoValue],
   )
 
   return (

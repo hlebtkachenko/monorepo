@@ -24,6 +24,17 @@ import type {
 } from "@workspace/ui/blocks/content-panel"
 import type { InspectorKeyLine } from "@workspace/ui/blocks/inspector-sheet"
 import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import { Button } from "@workspace/ui/components/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@workspace/ui/components/dialog"
+import { Field, FieldError, FieldLabel } from "@workspace/ui/components/field"
+import { Input } from "@workspace/ui/components/input"
 import { toast } from "@workspace/ui/components/sonner"
 
 import { orgHref } from "@/lib/org/href"
@@ -92,12 +103,17 @@ export function DocumentTypesView({
   const tp = useTranslations("accounting.documentTypes.page")
   const ti = useTranslations("accounting.documentTypes.inspector")
   const tb = useTranslations("accounting.documentTypes.boolean")
+  const tcreate = useTranslations("accounting.documentTypes.create")
 
   const [activeTab, setActiveTab] = React.useState<string>(
     categories[0] ?? "RECEIVED_INVOICE",
   )
   const [search, setSearch] = React.useState("")
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>({})
+  const [createOpen, setCreateOpen] = React.useState(false)
+  const [newCode, setNewCode] = React.useState("")
+  const [newName, setNewName] = React.useState("")
+  const [creating, setCreating] = React.useState(false)
 
   const activeCategory = activeTab as DocumentCategory
   const byId = React.useMemo(
@@ -183,8 +199,16 @@ export function DocumentTypesView({
     ): ContentToolbarProps<TableSectionRow> =>
       buildTableToolbar(table, {
         search: { value: search, onChange: setSearch },
+        add: {
+          label: tcreate("new"),
+          onAdd: () => {
+            setNewCode("")
+            setNewName("")
+            setCreateOpen(true)
+          },
+        },
       }),
-    [search],
+    [search, tcreate],
   )
 
   const selectionActions = React.useCallback(
@@ -417,35 +441,113 @@ export function DocumentTypesView({
     [byId, drafts, slug, ti],
   )
 
+  // A create is an upsert keyed on (category, Zkratka), so a duplicate code would
+  // silently overwrite the existing type — block it in the form instead.
+  const trimmedNewCode = newCode.trim()
+  const duplicateCode = types.some(
+    (t) => t.category === activeCategory && t.code === trimmedNewCode,
+  )
+  const canCreate =
+    trimmedNewCode !== "" &&
+    newName.trim() !== "" &&
+    !duplicateCode &&
+    !creating
+
+  const onCreate = React.useCallback(() => {
+    const code = newCode.trim()
+    const name = newName.trim()
+    if (!code || !name) return
+    setCreating(true)
+    void saveDocumentType({ slug, category: activeCategory, code, name }).then(
+      (r) => {
+        setCreating(false)
+        if (r.ok) {
+          setCreateOpen(false)
+          toast.success(tcreate("created"))
+        } else {
+          toast.error(tcreate("createError"))
+        }
+      },
+    )
+  }, [newCode, newName, slug, activeCategory, tcreate])
+
   return (
-    <ArchetypeTable<TableSectionRow>
-      title={title}
-      breadcrumb={[
-        {
-          label: tn("accounting"),
-          href: orgHref(slug, "accounting"),
-          icon: "BookOpen",
-        },
-      ]}
-      favorite={favorite}
-      views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
-      toolbar={buildToolbar}
-      selectionActions={selectionActions}
-      inspectorRowTitle={(row) => String(row.code ?? "")}
-      inspectorRowName={(row) => String(row.name ?? "")}
-      inspectorRowContent={inspectorContent}
-      inspectorApproveLabel={ti("save")}
-      onInspectorApprove={onApprove}
-      sections={[
-        sectionTable({
-          anchor: "document-types",
-          columns,
-          rows,
-          rowIdKey: "id",
-          features: { search: true, inspect: true },
-          emptyText: tp("empty"),
-        }),
-      ]}
-    />
+    <>
+      <ArchetypeTable<TableSectionRow>
+        title={title}
+        breadcrumb={[
+          {
+            label: tn("accounting"),
+            href: orgHref(slug, "accounting"),
+            icon: "BookOpen",
+          },
+        ]}
+        favorite={favorite}
+        views={{ tabs: views, value: activeTab, onValueChange: setActiveTab }}
+        toolbar={buildToolbar}
+        selectionActions={selectionActions}
+        inspectorRowTitle={(row) => String(row.code ?? "")}
+        inspectorRowName={(row) => String(row.name ?? "")}
+        inspectorRowContent={inspectorContent}
+        inspectorApproveLabel={ti("save")}
+        onInspectorApprove={onApprove}
+        sections={[
+          sectionTable({
+            anchor: "document-types",
+            columns,
+            rows,
+            rowIdKey: "id",
+            features: { search: true, inspect: true },
+            emptyText: tp("empty"),
+          }),
+        ]}
+      />
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{tcreate("title")}</DialogTitle>
+            <DialogDescription>
+              {tcreate("description", { category: tcat(activeCategory) })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <Field data-invalid={duplicateCode ? true : undefined}>
+              <FieldLabel htmlFor="new-type-code">{tcreate("code")}</FieldLabel>
+              <Input
+                id="new-type-code"
+                autoFocus
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+                placeholder={tcreate("codePlaceholder")}
+              />
+              {duplicateCode ? (
+                <FieldError>{tcreate("duplicate")}</FieldError>
+              ) : null}
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="new-type-name">{tcreate("name")}</FieldLabel>
+              <Input
+                id="new-type-name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={tcreate("namePlaceholder")}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCreateOpen(false)}
+            >
+              {tcreate("cancel")}
+            </Button>
+            <Button size="sm" disabled={!canCreate} onClick={onCreate}>
+              {tcreate("submit")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

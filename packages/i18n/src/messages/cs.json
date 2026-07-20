@@ -56,6 +56,20 @@
         "saved": "Uloženo",
         "saveError": "Uložení se nezdařilo",
         "actionError": "Akce se nezdařila"
+      },
+      "create": {
+        "new": "Nový typ",
+        "title": "Nový typ dokladu",
+        "description": "Vytvořit nový typ dokladu v kategorii {category}.",
+        "code": "Zkratka",
+        "codePlaceholder": "např. FV",
+        "name": "Název",
+        "namePlaceholder": "např. Faktura vydaná",
+        "submit": "Vytvořit",
+        "cancel": "Zrušit",
+        "created": "Typ dokladu vytvořen",
+        "createError": "Typ dokladu se nepodařilo vytvořit",
+        "duplicate": "Typ s touto zkratkou v této kategorii již existuje."
       }
     },
     "documentSeries": {
@@ -93,6 +107,20 @@
         "delete": "Smazat",
         "deleteInUse": "Tato řada již vydala čísla a nelze ji smazat.",
         "saved": "Uloženo"
+      },
+      "create": {
+        "new": "Nová řada",
+        "title": "Nová dokladová řada",
+        "description": "Vytvořit novou dokladovou řadu v kategorii {category}.",
+        "code": "Zkratka",
+        "codePlaceholder": "např. FV",
+        "name": "Název",
+        "namePlaceholder": "např. Faktury vydané",
+        "submit": "Vytvořit",
+        "cancel": "Zrušit",
+        "created": "Dokladová řada vytvořena",
+        "createError": "Dokladovou řadu se nepodařilo vytvořit",
+        "duplicate": "Řada s touto zkratkou v této kategorii již existuje."
       }
     },
     "chartOfAccounts": {

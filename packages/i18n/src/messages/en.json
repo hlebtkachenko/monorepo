@@ -56,6 +56,20 @@
         "saved": "Saved",
         "saveError": "Save failed",
         "actionError": "Action failed"
+      },
+      "create": {
+        "new": "New type",
+        "title": "New document type",
+        "description": "Create a new document type in {category}.",
+        "code": "Code",
+        "codePlaceholder": "e.g. FV",
+        "name": "Name",
+        "namePlaceholder": "e.g. Issued invoice",
+        "submit": "Create",
+        "cancel": "Cancel",
+        "created": "Document type created",
+        "createError": "Could not create the document type",
+        "duplicate": "A type with this code already exists in this category."
       }
     },
     "documentSeries": {
@@ -93,6 +107,20 @@
         "delete": "Delete",
         "deleteInUse": "This row has already issued numbers and cannot be deleted.",
         "saved": "Saved"
+      },
+      "create": {
+        "new": "New series",
+        "title": "New document series",
+        "description": "Create a new document series in {category}.",
+        "code": "Code",
+        "codePlaceholder": "e.g. FV",
+        "name": "Name",
+        "namePlaceholder": "e.g. Issued invoices",
+        "submit": "Create",
+        "cancel": "Cancel",
+        "created": "Document series created",
+        "createError": "Could not create the document series",
+        "duplicate": "A series with this code already exists in this category."
       }
     },
     "chartOfAccounts": {

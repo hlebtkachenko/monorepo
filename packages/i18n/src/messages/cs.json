@@ -52,7 +52,15 @@
         "collapseAll": "Sbalit vše",
         "exportFileName": "uctovy-rozvrh",
         "emptyNoPeriod": "Není zvoleno žádné aktivní účetní období. Otevřete období pro sestavení účtového rozvrhu.",
-        "emptyNoChart": "Toto období zatím nemá účtový rozvrh."
+        "emptyNoChart": "Toto období zatím nemá účtový rozvrh.",
+        "seedFromFramework": "Založit z osnovy",
+        "seedFromTemplate": "Použít šablonu",
+        "seedSuccess": "Účtový rozvrh byl založen",
+        "seedFailed": "Účtový rozvrh se nepodařilo založit",
+        "updateFailed": "Změnu se nepodařilo uložit",
+        "templatePickerTitle": "Vyberte šablonu",
+        "templatePickerDescription": "Založit účtový rozvrh z připravené šablony pro toto období.",
+        "templateDefault": "Výchozí"
       },
       "framework": {
         "searchPlaceholder": "Hledat v osnově",

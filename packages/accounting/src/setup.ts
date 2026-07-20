@@ -357,6 +357,58 @@ export async function createAccount(
 }
 
 /**
+ * Update the user-editable fields of one účet: `name` and the two policy flags
+ * (`tracks_open_items` / `tax_relevant`). Everything else is immutable — číslo
+ * and the 4 GENERATED levels are structural, and `nature` / `normal_balance`
+ * drive posting + statement mapping. The SET list is built from the keys that
+ * are actually PRESENT (`!== undefined`), NOT with COALESCE: `taxRelevant: null`
+ * is a real value (clears tax relevance on a balance/closing account). `account`
+ * carries no update trigger, so `updated_at` is stamped here. `RETURNING id`
+ * with a zero-row throw is the cross-org / stale-id detector; the explicit
+ * `organization_id` predicate is defense-in-depth on top of FORCE RLS.
+ */
+export async function updateAccount(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    id: string
+    name?: string
+    tracksOpenItems?: boolean
+    taxRelevant?: boolean | null
+  },
+): Promise<string> {
+  const sets = []
+  if (input.name !== undefined) sets.push(sql`name = ${input.name}`)
+  if (input.tracksOpenItems !== undefined) {
+    sets.push(sql`tracks_open_items = ${input.tracksOpenItems}`)
+  }
+  if (input.taxRelevant !== undefined) {
+    sets.push(sql`tax_relevant = ${input.taxRelevant}`)
+  }
+  if (sets.length === 0) {
+    throw new Error(
+      "accounting: updateAccount called with no editable fields to change",
+    )
+  }
+  sets.push(sql`updated_at = now()`)
+  const updated = await rows<{ id: string }>(
+    db,
+    sql`UPDATE account
+           SET ${sql.join(sets, sql`, `)}
+         WHERE id = ${input.id}::uuid
+           AND organization_id = ${ctx.organizationId}::uuid
+        RETURNING id`,
+  )
+  const r = updated[0]
+  if (r === undefined) {
+    throw new Error(
+      `accounting: account ${input.id} not found in this organization — nothing updated`,
+    )
+  }
+  return r.id
+}
+
+/**
  * Create a counterparty (workspace-shared). Pass selfOfOrganizationId to mint
  * the org's own identity row. Keyed on workspace_id (the workspace-shared tier).
  */

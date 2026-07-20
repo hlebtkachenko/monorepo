@@ -69,4 +69,27 @@ describe("InspectorKeyDetails", () => {
     ])
     expect(screen.getByText("Assign a project…")).toBeInTheDocument()
   })
+
+  it("fires onCommit once on blur with the settled value", () => {
+    const onCommit = vi.fn()
+    renderKeyDetails([{ label: "Name", value: "Stavby", onCommit }])
+
+    fireEvent.click(screen.getByRole("button", { name: "Stavby" }))
+    const input = screen.getByRole("textbox")
+    fireEvent.change(input, { target: { value: "Budovy" } })
+    fireEvent.blur(input)
+
+    expect(onCommit).toHaveBeenCalledTimes(1)
+    expect(onCommit).toHaveBeenCalledWith("Budovy")
+  })
+
+  it("does not fire onCommit when the field is opened and closed untouched", () => {
+    const onCommit = vi.fn()
+    renderKeyDetails([{ label: "Name", value: "Stavby", onCommit }])
+
+    fireEvent.click(screen.getByRole("button", { name: "Stavby" }))
+    fireEvent.blur(screen.getByRole("textbox"))
+
+    expect(onCommit).not.toHaveBeenCalled()
+  })
 })

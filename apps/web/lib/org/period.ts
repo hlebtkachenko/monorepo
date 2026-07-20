@@ -29,6 +29,8 @@ export interface HeaderPeriod {
   period_start: string
   period_end: string
   status: "OPEN" | "CLOSED"
+  /** Editable period code; NULL until overridden (readers derive the fiscal year). */
+  zkratka: string | null
 }
 
 /**
@@ -52,6 +54,7 @@ const getPeriods = cache(
           period_start: accounting_period.period_start,
           period_end: accounting_period.period_end,
           status: accounting_period.status,
+          zkratka: accounting_period.zkratka,
         })
         .from(accounting_period)
         .where(eq(accounting_period.organization_id, organizationId))

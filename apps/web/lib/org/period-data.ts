@@ -94,7 +94,7 @@ export async function listPeriods(input: {
           : "open"
     return {
       id: period.id,
-      zkratka: String(fiscalYear(period.period_end)),
+      zkratka: period.zkratka ?? String(fiscalYear(period.period_end)),
       od: formatCzDate(period.period_start),
       do: formatCzDate(period.period_end),
       stav,

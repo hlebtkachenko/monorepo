@@ -54,9 +54,24 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- 2. number_series gains its config-facing category -----------------------------
+-- 2. number_series gains its config-facing category + Dokladová-řada metadata ----
+-- category buckets a DOCUMENT série under a config category; name/note/description
+-- + valid-year range are the Dokladová řada editor's Identity + Platnost fields
+-- (all NULL for EVENT / ASSET / INVENTORY_COUNT séries, which have no editor).
 ALTER TABLE number_series
-  ADD COLUMN IF NOT EXISTS category document_category;  -- NULL for non-DOCUMENT séries
+  ADD COLUMN IF NOT EXISTS category        document_category,  -- NULL for non-DOCUMENT séries
+  ADD COLUMN IF NOT EXISTS name            text,               -- Název
+  ADD COLUMN IF NOT EXISTS note            text,               -- Poznámka
+  ADD COLUMN IF NOT EXISTS description     text,               -- Popis
+  ADD COLUMN IF NOT EXISTS valid_from_year integer,            -- Platí od roku
+  ADD COLUMN IF NOT EXISTS valid_to_year   integer;            -- Platí do roku
+
+ALTER TABLE number_series
+  DROP CONSTRAINT IF EXISTS number_series_valid_year_range_chk;
+ALTER TABLE number_series
+  ADD  CONSTRAINT number_series_valid_year_range_chk CHECK (
+    valid_from_year IS NULL OR valid_to_year IS NULL OR valid_to_year >= valid_from_year
+  );
 
 -- Backfill the category onto the canonical default DOCUMENT séries that predate
 -- this migration (mirrors DEFAULT_NUMBER_SERIES in @workspace/accounting; a série

@@ -10,6 +10,7 @@
  */
 import {
   bigint,
+  integer,
   pgTable,
   text,
   timestamp,
@@ -31,8 +32,14 @@ export const number_series = pgTable(
       .references(() => organization.id),
     entity_type: numberSeriesEntity("entity_type").notNull(), // EVENT | DOCUMENT | ASSET | INVENTORY_COUNT
     category: documentCategory("category"), // config bucket for Dokladové řady; NULL for non-DOCUMENT séries
-    code: text("code").notNull(), // company's série label
+    code: text("code").notNull(), // Zkratka — company's série label
     pattern: text("pattern").notNull(), // company-defined format, e.g. 'FP{YYYY}{NNNN}'
+    // Dokladová řada editor fields (NULL for non-DOCUMENT séries)
+    name: text("name"), // Název
+    note: text("note"), // Poznámka
+    description: text("description"), // Popis
+    valid_from_year: integer("valid_from_year"), // Platí od roku
+    valid_to_year: integer("valid_to_year"), // Platí do roku
     next_number: bigint("next_number", { mode: "number" }).notNull().default(1),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()

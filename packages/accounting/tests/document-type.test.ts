@@ -10,8 +10,11 @@ import { withOrganization } from "@workspace/db"
 import type { OrganizationBoundDb } from "@workspace/db"
 import {
   DOCUMENT_CATEGORIES,
+  allocateNumber,
   backfillDefaultNumberSeries,
+  createNumberSeries,
   createNumberSeriesPeriod,
+  deleteNumberSeriesPeriod,
   documentKindsFor,
   getDocumentSeries,
   getDocumentType,
@@ -20,7 +23,9 @@ import {
   listDocumentTypes,
   setDocumentTypeActive,
   setPrimaryDocumentType,
+  upsertDocumentSeries,
   upsertDocumentType,
+  upsertNumberSeriesPeriod,
 } from "../src/index"
 import type { DoubleEntrySeed } from "./fixtures"
 import {
@@ -313,6 +318,166 @@ describe("DOCUMENT number_series reads", () => {
         getDocumentSeries(db, "00000000-0000-0000-0000-000000000000"),
       ),
     ).toBeNull()
+  })
+})
+
+describe("Dokladová řada writes (number_series)", () => {
+  it("upserts a série with category + editor metadata, editable without resetting the counter", async () => {
+    const id = await onA((db) =>
+      upsertDocumentSeries(db, seed.ctx, {
+        category: "ISSUED_INVOICE",
+        code: "VF-DR",
+        name: "Vydané faktury",
+        note: "hlavní",
+        description: "popis",
+        validFromYear: 2026,
+        validToYear: 2027,
+      }),
+    )
+    let s = await onA((db) => getDocumentSeries(db, id))
+    expect(s?.series).toMatchObject({
+      category: "ISSUED_INVOICE",
+      code: "VF-DR",
+      name: "Vydané faktury",
+      note: "hlavní",
+      valid_from_year: 2026,
+      valid_to_year: 2027,
+    })
+    // Re-upsert on the same (org, DOCUMENT, code) edits metadata, same id.
+    const again = await onA((db) =>
+      upsertDocumentSeries(db, seed.ctx, {
+        category: "ISSUED_INVOICE",
+        code: "VF-DR",
+        name: "Vydané faktury (edit)",
+      }),
+    )
+    expect(again).toBe(id)
+    s = await onA((db) => getDocumentSeries(db, id))
+    expect(s?.series.name).toBe("Vydané faktury (edit)")
+    // next_number (flat counter) is never reset by a metadata edit.
+    expect(s?.series.next_number).toBe(1)
+  })
+
+  it("upserts + edits a period row's format while preserving the gapless counter", async () => {
+    const series = await onA((db) =>
+      upsertDocumentSeries(db, seed.ctx, {
+        category: "RECEIVED_INVOICE",
+        code: "FP-DR",
+      }),
+    )
+    const pid = await onA((db) =>
+      upsertNumberSeriesPeriod(db, seed.ctx, {
+        numberSeriesId: series,
+        periodId: seed.periodId,
+        numberLength: 4,
+        prefix: "FP",
+        postfix: "/{YYYY}",
+      }),
+    )
+    const first = await onA((db) =>
+      allocateNumber(db, series, "2026-02-01", "DOCUMENT", seed.periodId),
+    )
+    expect(first).toEqual({ sequenceNumber: 1, designation: "FP0001/2026" })
+    // Edit the format (length + prefix); the counter must survive, not reset to 1.
+    const pid2 = await onA((db) =>
+      upsertNumberSeriesPeriod(db, seed.ctx, {
+        numberSeriesId: series,
+        periodId: seed.periodId,
+        numberLength: 5,
+        prefix: "PF",
+        postfix: "/{YYYY}",
+      }),
+    )
+    expect(pid2).toBe(pid)
+    const next = await onA((db) =>
+      allocateNumber(db, series, "2026-02-01", "DOCUMENT", seed.periodId),
+    )
+    expect(next).toEqual({ sequenceNumber: 2, designation: "PF00002/2026" })
+  })
+
+  it("deletes an unused period row but refuses one that has issued numbers", async () => {
+    const series = await onA((db) =>
+      upsertDocumentSeries(db, seed.ctx, {
+        category: "INTERNAL",
+        code: "ID-DR",
+      }),
+    )
+    const unused = await onA((db) =>
+      upsertNumberSeriesPeriod(db, seed.ctx, {
+        numberSeriesId: series,
+        periodId: seed.periodId,
+        numberLength: 4,
+        prefix: "ID",
+      }),
+    )
+    await onA((db) => deleteNumberSeriesPeriod(db, seed.ctx, { id: unused }))
+    expect(
+      (await onA((db) => getDocumentSeries(db, series)))?.periods,
+    ).toHaveLength(0)
+
+    // Recreate, allocate once → the counter now guards deletion.
+    const used = await onA((db) =>
+      upsertNumberSeriesPeriod(db, seed.ctx, {
+        numberSeriesId: series,
+        periodId: seed.periodId,
+        numberLength: 4,
+        prefix: "ID",
+      }),
+    )
+    await onA((db) =>
+      allocateNumber(db, series, "2026-03-01", "DOCUMENT", seed.periodId),
+    )
+    await expect(
+      onA((db) => deleteNumberSeriesPeriod(db, seed.ctx, { id: used })),
+    ).rejects.toThrow(/gapless counter cannot be deleted/)
+    await expect(
+      onA((db) =>
+        deleteNumberSeriesPeriod(db, seed.ctx, {
+          id: "00000000-0000-0000-0000-000000000000",
+        }),
+      ),
+    ).rejects.toThrow(/not found/)
+  })
+
+  it("upsertNumberSeriesPeriod rejects a non-DOCUMENT série", async () => {
+    await expect(
+      onA((db) =>
+        upsertNumberSeriesPeriod(db, seed.ctx, {
+          numberSeriesId: seed.eventSeriesId,
+          periodId: seed.periodId,
+          numberLength: 4,
+        }),
+      ),
+    ).rejects.toThrow(/not DOCUMENT/)
+  })
+
+  it("surfaces the default série's Zkratka on the type via JOIN, createNumberSeries stores category", async () => {
+    const series = await onA((db) =>
+      upsertDocumentSeries(db, seed.ctx, { category: "CASH", code: "PD-DR" }),
+    )
+    const typeId = await onA((db) =>
+      upsertDocumentType(db, seed.ctx, {
+        category: "CASH",
+        code: "PDT",
+        name: "Pokladní",
+        defaultSeriesId: series,
+      }),
+    )
+    expect(
+      (await onA((db) => getDocumentType(db, typeId)))?.default_series_code,
+    ).toBe("PD-DR")
+
+    const catSeries = await onA((db) =>
+      createNumberSeries(db, seed.ctx, {
+        entityType: "DOCUMENT",
+        code: "CN-CAT",
+        pattern: "CN{NNNN}",
+        category: "TAX_APPLICATION",
+      }),
+    )
+    expect(
+      (await onA((db) => getDocumentSeries(db, catSeries)))?.series.category,
+    ).toBe("TAX_APPLICATION")
   })
 })
 

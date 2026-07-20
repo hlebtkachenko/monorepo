@@ -2408,7 +2408,13 @@ CREATE TABLE public.number_series (
     next_number bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    category public.document_category
+    category public.document_category,
+    name text,
+    note text,
+    description text,
+    valid_from_year integer,
+    valid_to_year integer,
+    CONSTRAINT number_series_valid_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
 );
 
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;

@@ -34,10 +34,14 @@ export {
   upsertDocumentType,
   setPrimaryDocumentType,
   setDocumentTypeActive,
+  upsertDocumentSeries,
+  upsertNumberSeriesPeriod,
+  deleteNumberSeriesPeriod,
   type DocumentTypeRow,
   type DocumentSeriesRow,
   type NumberSeriesPeriodRow,
   type UpsertDocumentTypeInput,
+  type UpsertDocumentSeriesInput,
 } from "./document-type"
 
 // Chart of accounts + Účetní osnova + prebuilt-template reads (the Lists-layer single source)
@@ -80,6 +84,7 @@ export {
 export {
   DEFAULT_NUMBER_SERIES,
   DEFAULT_NUMBER_SERIES_CODES,
+  defaultSeriesCategory,
 } from "./number-series-defaults"
 
 // Capture (UC-1 steps 1-3)

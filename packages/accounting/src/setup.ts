@@ -19,6 +19,7 @@ import type {
   Decimal,
   DebitCredit,
   DepreciationMethod,
+  DocumentCategory,
   FxRateKind,
   OrgCtx,
   PeriodStatus,
@@ -129,12 +130,15 @@ export async function createNumberSeries(
     code: string
     pattern: string
     nextNumber?: number
+    /** Config bucket — set for DOCUMENT séries so Dokladové řady can list per category; NULL otherwise. */
+    category?: DocumentCategory | null
   },
 ): Promise<string> {
   const r = await one<{ id: string }>(
     db,
-    sql`INSERT INTO number_series (organization_id, entity_type, code, pattern, next_number)
-        VALUES (${ctx.organizationId}::uuid, ${input.entityType}, ${input.code}, ${input.pattern}, ${input.nextNumber ?? 1})
+    sql`INSERT INTO number_series (organization_id, entity_type, category, code, pattern, next_number)
+        VALUES (${ctx.organizationId}::uuid, ${input.entityType}, ${input.category ?? null},
+                ${input.code}, ${input.pattern}, ${input.nextNumber ?? 1})
         RETURNING id`,
   )
   return r.id

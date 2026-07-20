@@ -73,3 +73,20 @@ export const DEFAULT_NUMBER_SERIES = [
 export const DEFAULT_NUMBER_SERIES_CODES = DEFAULT_NUMBER_SERIES.map(
   (series) => series.code,
 ).join(", ")
+
+/**
+ * The config category a canonical default série carries, by (entityType, code) —
+ * so a série created through a code-only path (the onboarding recovery endpoint,
+ * which seeds the canonical defaults) is bucketed like the coupled scaffold does.
+ * Returns null for a non-default or custom code (categorized later in the editor).
+ */
+export function defaultSeriesCategory(
+  entityType: string,
+  code: string,
+): DocumentCategory | null {
+  return (
+    DEFAULT_NUMBER_SERIES.find(
+      (s) => s.entityType === entityType && s.code === code,
+    )?.category ?? null
+  )
+}

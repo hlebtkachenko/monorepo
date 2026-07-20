@@ -100,6 +100,8 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "org_currency",
   // Filing domain — persisted tax-filing status, calendar grain (0080_filing_record.sql)
   "filing_record",
+  // Sub-period domain — fiscal month/quarter slots of an účetní období (0081_accounting_sub_period.sql)
+  "accounting_sub_period",
 ] as const
 
 export type OrganizationScopedTable =

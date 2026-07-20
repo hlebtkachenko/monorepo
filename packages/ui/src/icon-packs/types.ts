@@ -99,6 +99,8 @@ export const ICON_NAMES = [
   "LifeBuoy",
   "LinkIcon",
   "ListChecksIcon",
+  "ListChevronsDownUp",
+  "ListChevronsUpDown",
   "ListIcon",
   "Loader2",
   "Loader2Icon",

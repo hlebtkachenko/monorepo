@@ -247,6 +247,8 @@ export const phosphorIcons = {
   LifeBuoy: Lifebuoy,
   LinkIcon: LinkSimple,
   ListChecksIcon: ListChecks,
+  ListChevronsDownUp: ArrowsIn,
+  ListChevronsUpDown: ArrowsOut,
   ListIcon: List,
   Loader2: CircleNotch,
   Loader2Icon: CircleNotch,

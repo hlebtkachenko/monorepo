@@ -265,6 +265,8 @@ export const fontawesomeIcons = {
   LifeBuoy: wrap(faLifeRing),
   LinkIcon: wrap(faLink),
   ListChecksIcon: wrap(faListCheck),
+  ListChevronsDownUp: wrap(faCompress),
+  ListChevronsUpDown: wrap(faExpand),
   ListIcon: wrap(faList),
   Loader2: wrap(faSpinner),
   Loader2Icon: wrap(faSpinner),

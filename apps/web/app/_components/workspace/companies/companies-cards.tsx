@@ -3,7 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 
-import { ContentPanel, ContentToolbarLegacy } from "@workspace/ui/blocks/content-panel"
+import {
+  ContentPanel,
+  ContentToolbarLegacy,
+} from "@workspace/ui/blocks/content-panel"
 import { Button } from "@workspace/ui/components/button"
 import {
   Empty,
@@ -11,6 +14,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@workspace/ui/components/empty"
+import { Separator } from "@workspace/ui/components/separator"
 import { useIcons } from "@workspace/ui/icon-packs"
 
 import { ToolbarSearch } from "../_shared/toolbar-search"
@@ -29,6 +33,7 @@ export function CompaniesCards({ companies }: { companies: CompanyRow[] }) {
   const [search, setSearch] = React.useState("")
   const icons = useIcons()
   const PlusIcon = icons.Plus
+  const ChevronRightIcon = icons.ChevronRight
 
   const data = React.useMemo(() => {
     const tab = COMPANY_TABS.find((t) => t.value === activeTab)
@@ -89,6 +94,35 @@ export function CompaniesCards({ companies }: { companies: CompanyRow[] }) {
             {data.map((company) => (
               <CompanyCard key={company.id} company={company} />
             ))}
+          </div>
+
+          {/* The rebuilt org tree (`/o/[orgSlug]`) — the new way of opening a
+              company book. A full-width divider separates it from the current
+              cards; each entry opens the same book in the new workspace shell. */}
+          <div className="px-4 pb-4">
+            <Separator className="mb-4" />
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-foreground">
+                Open in the new workspace
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                The rebuilt company experience (preview).
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-2 @md:grid-cols-2 @4xl:grid-cols-3">
+              {data.map((company) => (
+                <Link
+                  key={company.id}
+                  href={`/o/${company.slug}`}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-border-subtle bg-card px-3 py-2.5 text-sm transition-colors hover:bg-accent"
+                >
+                  <span className="min-w-0 truncate font-medium">
+                    {company.legalName}
+                  </span>
+                  <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       )}

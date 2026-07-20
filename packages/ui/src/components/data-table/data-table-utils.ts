@@ -38,6 +38,13 @@ export interface DataTableColumnMeta {
    */
   trailingWidth?: number
   /**
+   * Body-cell inline padding. Default (`undefined`) keeps the standard `px-3`
+   * inset. `"none"` drops it to `px-0` — used by the Tree-table's identity
+   * column so its chevron sits flush at the cell's left edge and the whole cell
+   * is one click target. Applies to BODY cells only; the header keeps its inset.
+   */
+  cellPadding?: "none"
+  /**
    * Suppress drag-to-reorder for this header even though it is otherwise
    * interactive (sortable/hideable). Set on pivot columns: the derived
    * group/measure columns keep sorting but must not be dragged out of their

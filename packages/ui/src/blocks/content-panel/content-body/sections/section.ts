@@ -23,6 +23,7 @@ export const SECTION_KINDS = [
   "details-table",
   "table",
   "pivot-table",
+  "tree-table",
   "space",
   "details-group",
   // Inspector body sections — the same Section system, `inspector-*` prefixed,

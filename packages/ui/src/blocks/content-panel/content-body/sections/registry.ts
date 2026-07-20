@@ -4,6 +4,7 @@ import { SectionDetailsFormRenderer } from "./section-details-form-renderer"
 import { SectionDetailsTableRenderer } from "./section-details-table-renderer"
 import { SectionTableRenderer } from "./section-table-renderer"
 import { SectionPivotTableRenderer } from "./section-pivot-table-renderer"
+import { SectionTreeTableRenderer } from "./section-tree-table-renderer"
 import { SectionSpaceRenderer } from "./section-space"
 import { SectionDetailsTabsRenderer } from "./section-details-tabs-renderer"
 import {
@@ -33,6 +34,7 @@ export const SECTION_REGISTRY = {
   "details-table": SectionDetailsTableRenderer,
   table: SectionTableRenderer,
   "pivot-table": SectionPivotTableRenderer,
+  "tree-table": SectionTreeTableRenderer,
   space: SectionSpaceRenderer,
   "inspector-key-details": SectionInspectorKeyDetailsRenderer,
   "inspector-money-totals": SectionInspectorMoneyTotalsRenderer,

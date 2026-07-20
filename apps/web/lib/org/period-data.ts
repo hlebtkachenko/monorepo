@@ -17,7 +17,7 @@ import { getRequestSession } from "@/lib/org/session"
  */
 
 /** Display state of a period row. `active` = the currently-resolved period. */
-export type PeriodStav = "active" | "open" | "closed"
+type PeriodStav = "active" | "open" | "closed"
 
 /** One accounting-period row projected for the Periods table. */
 export interface PeriodListRow {
@@ -41,7 +41,7 @@ export interface PeriodListRow {
 }
 
 /** Fiscal year of a period — the calendar year in which it ends. */
-export function fiscalYear(periodEnd: string): number {
+function fiscalYear(periodEnd: string): number {
   return Number(periodEnd.slice(0, 4))
 }
 

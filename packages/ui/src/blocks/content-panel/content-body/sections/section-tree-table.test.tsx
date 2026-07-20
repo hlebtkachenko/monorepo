@@ -5,9 +5,16 @@ import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { sectionTreeTable, type TreeTableRow } from "./section-tree-table"
 import { SectionTreeTableRenderer } from "./section-tree-table-renderer"
-import { SectionTableProvider } from "./section-table-context"
+import { SectionTableProvider, useSectionTable } from "./section-table-context"
 import { isSectionDescriptor } from "./section"
 import type { TableColumnSpec } from "./section-table"
+
+/** Reflects the bridge's published selection count — the value the archetype's
+ *  selection footer reads (the footer is hidden when it is 0). */
+function SelectionProbe() {
+  const registration = useSectionTable()
+  return <div data-testid="sel-count">{registration?.selectionCount ?? 0}</div>
+}
 
 const COLUMNS: TableColumnSpec[] = [
   { id: "number", header: "Number", kind: "text", role: "id" },
@@ -125,6 +132,31 @@ describe("SectionTreeTableRenderer", () => {
     expect(
       screen.getByRole("checkbox", { name: /Select row 2/i }),
     ).toBeInTheDocument()
+  })
+
+  it("counts a NESTED selection so the selection footer can appear", () => {
+    const desc = sectionTreeTable({
+      columns: COLUMNS,
+      rows: TREE,
+      defaultExpanded: true,
+    })
+    render(
+      <IconProvider>
+        <SectionTableProvider>
+          <div className="flex h-[480px] flex-col">
+            <SectionTreeTableRenderer props={desc.props} />
+          </div>
+          <SelectionProbe />
+        </SectionTableProvider>
+      </IconProvider>,
+    )
+    expect(screen.getByTestId("sel-count")).toHaveTextContent("0")
+    // 021.001 is a nested LEAF account (under the non-selectable tier + its
+    // synthetic), NOT a top-level row. Selecting it must still register as one
+    // selected row — otherwise the footer (hidden at count 0) would never show
+    // for a tree, whose only selectable rows are all nested.
+    fireEvent.click(screen.getByRole("checkbox", { name: /Select row 3/i }))
+    expect(screen.getByTestId("sel-count")).toHaveTextContent("1")
   })
 
   it("commits an inline edit on a real child row through the bridge", () => {

@@ -57,7 +57,11 @@ export function useSectionGridTable<TData>(
   // changes. One signature superset covers both renderers: flat exercises
   // `rs`/`f`, pivot exercises `e`, and the unused slices stay inert (`{}`/`[]`).
   const state = table.getState()
-  const selectionCount = table.getFilteredSelectedRowModel().rows.length
+  // `flatRows` (not `.rows`) so a NESTED selection counts: in a Tree-table every
+  // selectable row is a nested account (the Class/Group tiers are non-selectable),
+  // so `.rows` — the top-level rows only — would always be 0 and the selection
+  // footer would never show. For a flat table `flatRows === rows`, so unchanged.
+  const selectionCount = table.getFilteredSelectedRowModel().flatRows.length
   const stateSignature = JSON.stringify({
     rs: state.rowSelection,
     s: state.sorting,

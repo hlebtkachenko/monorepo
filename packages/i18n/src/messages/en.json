@@ -1664,6 +1664,59 @@
       "empty": "No accounting periods yet.",
       "editZkratkaError": "Could not save the period code. Please try again."
     },
+    "closeWizard": {
+      "title": "Year-end close",
+      "backTo": "Accounting periods",
+      "back": "Back",
+      "status": {
+        "pass": "Passed",
+        "blocked": "Blocked",
+        "unavailable": "Not verified"
+      },
+      "config": {
+        "title": "Configuration",
+        "description": "The close posts to these statutory accounts. The values are fixed and cannot be changed here.",
+        "next": "Continue to review",
+        "togglesHint": "The options below are informational and do not yet affect this run.",
+        "accounts": {
+          "balanceClose": "Closing balance account",
+          "opening": "Opening balance account",
+          "resultClose": "Profit and loss account",
+          "result": "Retained result pending approval"
+        },
+        "toggles": {
+          "revaluation": "Revalue unpaid documents",
+          "cashReconciliation": "Reconcile bank and cash",
+          "inventory": "Carry inventory forward"
+        }
+      },
+      "review": {
+        "title": "Review",
+        "ready": "All blocking checks pass. The close can run.",
+        "blocked": "{count} check(s) block the close. Resolve them before running.",
+        "limitations": "Not verified",
+        "next": "Continue to run"
+      },
+      "run": {
+        "title": "Run",
+        "description": "Running seals the period: it posts the closing entries and carries the balances into the next year. It cannot be undone here.",
+        "action": "Run the close",
+        "forbidden": "Running the close is restricted to the owner or an administrator.",
+        "error": "Could not complete the close. Please try again.",
+        "blockedToast": "Readiness checks block the close. Review them in the Review step.",
+        "loading": {
+          "result": "Closing the result accounts…",
+          "balance": "Posting the closing balance account…",
+          "carryover": "Carrying opening balances forward…",
+          "sealing": "Sealing the period…"
+        }
+      },
+      "done": {
+        "title": "Year-end close complete",
+        "description": "The period is closed and its balances carried into the next year.",
+        "backToPeriods": "Back to accounting periods"
+      }
+    },
     "favorite": {
       "tooltip": "Favorite",
       "add": "Add to favorites",

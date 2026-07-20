@@ -3011,6 +3011,20 @@ CREATE TABLE public.party_kind (
 );
 
 --
+-- Name: payment_method; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.payment_method (
+    code text NOT NULL,
+    sort_order integer DEFAULT 0 NOT NULL,
+    is_cash boolean DEFAULT false NOT NULL,
+    requires_bank_detail boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+--
 -- Name: period_output; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4355,6 +4369,13 @@ ALTER TABLE ONLY public.partial_record
 
 ALTER TABLE ONLY public.party_kind
     ADD CONSTRAINT party_kind_pkey PRIMARY KEY (code);
+
+--
+-- Name: payment_method payment_method_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.payment_method
+    ADD CONSTRAINT payment_method_pkey PRIMARY KEY (code);
 
 --
 -- Name: period_output period_output_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -

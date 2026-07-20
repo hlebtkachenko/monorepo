@@ -98,6 +98,9 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // Finance domain — per-org currency enablement (0078_org_currency.sql). The
   // shared currency catalog is Case-B (no RLS), so it is NOT listed here.
   "org_currency",
+  // adresar (Directories) — org↔party relationship (0083_party_relationship.sql).
+  // Carries workspace_id only to close the cross-tier FK-bypass via composite FKs.
+  "party_relationship",
 ] as const
 
 export type OrganizationScopedTable =
@@ -133,6 +136,12 @@ export type OrganizationScopedTable =
  */
 export const WORKSPACE_SCOPED_TABLES = [
   "counterparty",
+  // adresar (Directories) — counterparty child detail tables (0082), each with
+  // 4 command policies on workspace_id and a composite FK to counterparty.
+  "party_address",
+  "party_contact",
+  "party_bank_account",
+  "party_identifier",
   "ocr_extraction_template",
   "brain_confident_wrong",
   "booking_template",

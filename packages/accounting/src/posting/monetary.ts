@@ -35,6 +35,7 @@ export async function postMonetary(
     depreciationPlanId: input.depreciationPlanId,
     inventoryCountId: input.inventoryCountId,
     isOpening: input.isOpening,
+    isClosing: input.isClosing,
   })
 
   const lineIds: string[] = []

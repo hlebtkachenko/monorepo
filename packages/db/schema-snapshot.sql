@@ -454,6 +454,7 @@ CREATE FUNCTION public.app_assert_posting_balanced(p_posting_id uuid) RETURNS vo
 DECLARE
   v_regime     text;
   v_is_opening boolean;
+  v_is_closing boolean;
   v_total      integer;
   v_onbal      integer;
   v_debit_n    integer;
@@ -462,7 +463,7 @@ DECLARE
   v_md         numeric(19,4);
   v_d          numeric(19,4);
 BEGIN
-  SELECT regime_code, is_opening INTO v_regime, v_is_opening FROM posting WHERE id = p_posting_id;
+  SELECT regime_code, is_opening, is_closing INTO v_regime, v_is_opening, v_is_closing FROM posting WHERE id = p_posting_id;
   IF NOT FOUND THEN RETURN; END IF;                 -- posting gone (delete is blocked anyway)
   IF v_regime <> 'DOUBLE_ENTRY' THEN RETURN; END IF;
 
@@ -507,6 +508,13 @@ BEGIN
   -- accounts (5xx/6xx) start each period at zero and never carry an opening balance (ČÚS 002).
   IF v_is_opening AND v_pl_n > 0 THEN
     RAISE EXCEPTION 'opening posting % touches a P&L (5xx/6xx) account: opening balances are balance-sheet only (ČÚS 002)', p_posting_id
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- a closing posting (702) closes balance-sheet accounts to 702; the P&L accounts were
+  -- already zeroed to 710 by the result close, so a 702 line on a 5xx/6xx account is an error.
+  IF v_is_closing AND v_pl_n > 0 THEN
+    RAISE EXCEPTION 'closing posting % touches a P&L (5xx/6xx) account: the 702 balance-close is balance-sheet only', p_posting_id
       USING ERRCODE = 'check_violation';
   END IF;
 END;
@@ -961,10 +969,18 @@ CREATE FUNCTION public.app_maintain_account_balance() RETURNS trigger
     AS $$
 DECLARE
   v_is_opening boolean;
+  v_is_closing boolean;
   v_debit  numeric(19,4) := CASE WHEN NEW.side = 'DEBIT'  THEN NEW.amount ELSE 0 END;
   v_credit numeric(19,4) := CASE WHEN NEW.side = 'CREDIT' THEN NEW.amount ELSE 0 END;
 BEGIN
-  SELECT is_opening INTO v_is_opening FROM posting WHERE id = NEW.posting_id;
+  SELECT is_opening, is_closing INTO v_is_opening, v_is_closing FROM posting WHERE id = NEW.posting_id;
+
+  IF v_is_closing THEN
+    -- 702 balance-close: a deník/audit artifact + KÚR check, NOT the balance source.
+    -- Touch nothing — closing_balance stays the konečný stav that carryover (701 next
+    -- year) and buildZaverka's rozvaha read.
+    RETURN NULL;
+  END IF;
 
   IF v_is_opening THEN
     -- opening posting (701): sets opening_balance (debit-positive), not turnover; stays in deník
@@ -1301,12 +1317,16 @@ CREATE FUNCTION public.app_reconcile_account_period(p_period_id uuid) RETURNS TA
   SELECT b.account_id, b.closing_balance,
          COALESCE((SELECT SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE -l.amount END)
                      FROM posting_double_entry_line l
-                    WHERE l.account_id = b.account_id AND l.period_id = b.period_id), 0)
+                     JOIN posting p ON p.id = l.posting_id
+                    WHERE l.account_id = b.account_id AND l.period_id = b.period_id
+                      AND NOT p.is_closing), 0)
     FROM account_period_balance b
    WHERE b.period_id = p_period_id
      AND b.closing_balance <> COALESCE((SELECT SUM(CASE WHEN l.side = 'DEBIT' THEN l.amount ELSE -l.amount END)
                      FROM posting_double_entry_line l
-                    WHERE l.account_id = b.account_id AND l.period_id = b.period_id), 0);
+                     JOIN posting p ON p.id = l.posting_id
+                    WHERE l.account_id = b.account_id AND l.period_id = b.period_id
+                      AND NOT p.is_closing), 0);
 $$;
 
 --
@@ -2910,7 +2930,9 @@ CREATE TABLE public.posting (
     is_opening boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     inbox_id uuid,
-    CONSTRAINT posting_correction_pair_chk CHECK (((corrects_posting_id IS NULL) = (correction_type IS NULL)))
+    is_closing boolean DEFAULT false NOT NULL,
+    CONSTRAINT posting_correction_pair_chk CHECK (((corrects_posting_id IS NULL) = (correction_type IS NULL))),
+    CONSTRAINT posting_open_close_excl CHECK ((NOT (is_opening AND is_closing)))
 );
 
 ALTER TABLE ONLY public.posting FORCE ROW LEVEL SECURITY;

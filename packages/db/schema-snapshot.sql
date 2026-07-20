@@ -2664,6 +2664,22 @@ CREATE TABLE public.open_item_settlement (
 ALTER TABLE ONLY public.open_item_settlement FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: org_currency; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.org_currency (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    currency_code character(3) NOT NULL,
+    enabled_at timestamp with time zone DEFAULT now() NOT NULL,
+    enabled_by_user_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.org_currency FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: organization; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4063,6 +4079,27 @@ ALTER TABLE ONLY public.open_item_settlement
     ADD CONSTRAINT open_item_settlement_pkey PRIMARY KEY (id);
 
 --
+-- Name: org_currency org_currency_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: org_currency org_currency_org_currency_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_org_currency_unique UNIQUE (organization_id, currency_code);
+
+--
+-- Name: org_currency org_currency_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_pkey PRIMARY KEY (id);
+
+--
 -- Name: organization_authorized_person organization_authorized_person_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4798,6 +4835,12 @@ CREATE INDEX open_item_settlement_posting_idx ON public.open_item_settlement USI
 --
 
 CREATE INDEX open_item_unsettled_idx ON public.open_item USING btree (organization_id, due_date) WHERE (is_settled = false);
+
+--
+-- Name: org_currency_org_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX org_currency_org_idx ON public.org_currency USING btree (organization_id);
 
 --
 -- Name: organization_authorized_person_one_primary; Type: INDEX; Schema: public; Owner: -
@@ -6227,6 +6270,27 @@ ALTER TABLE ONLY public.open_item_settlement
     ADD CONSTRAINT open_item_settlement_posting_fk FOREIGN KEY (settling_posting_id, organization_id) REFERENCES public.posting(id, organization_id);
 
 --
+-- Name: org_currency org_currency_currency_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_currency_code_fkey FOREIGN KEY (currency_code) REFERENCES public.currency(code);
+
+--
+-- Name: org_currency org_currency_enabled_by_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_enabled_by_user_id_fkey FOREIGN KEY (enabled_by_user_id) REFERENCES public.app_user(id);
+
+--
+-- Name: org_currency org_currency_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.org_currency
+    ADD CONSTRAINT org_currency_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
 -- Name: organization_authorized_person organization_authorized_person_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7063,6 +7127,12 @@ ALTER TABLE public.open_item ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.open_item_settlement ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: org_currency; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.org_currency ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: organization_membership org_membership_org_read; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7235,6 +7305,12 @@ CREATE POLICY organization_isolation ON public.open_item USING ((organization_id
 --
 
 CREATE POLICY organization_isolation ON public.open_item_settlement USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: org_currency organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.org_currency USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: organization organization_isolation; Type: POLICY; Schema: public; Owner: -

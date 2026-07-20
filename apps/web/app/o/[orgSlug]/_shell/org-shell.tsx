@@ -32,6 +32,7 @@ import {
   companyNav,
   debugNav,
   directoryNav,
+  financeNav,
   orgBottomNav,
   orgRailNav,
 } from "../_nav/org-nav"
@@ -99,6 +100,7 @@ export function OrgShell({
   const isDebugModule = active?.href === orgHref(slug, "debug")
   const isClosingModule = active?.href === orgHref(slug, "closing")
   const isDirectoryModule = active?.href === orgHref(slug, "adresar")
+  const isFinanceModule = active?.href === orgHref(slug, "finance")
   const isAccountingModule = active?.href === orgHref(slug, "accounting")
   const nav = React.useMemo<SidebarNavEntry[]>(
     () =>
@@ -108,9 +110,11 @@ export function OrgShell({
           ? closingNav(slug)
           : isDirectoryModule
             ? directoryNav(slug)
-            : isAccountingModule
-              ? accountingNav(slug)
-              : companyNav(slug)
+            : isFinanceModule
+              ? financeNav(slug)
+              : isAccountingModule
+                ? accountingNav(slug)
+                : companyNav(slug)
       ).map(({ labelKey, ...rest }) => ({
         ...rest,
         label: t(labelKey),
@@ -121,6 +125,7 @@ export function OrgShell({
       isDebugModule,
       isClosingModule,
       isDirectoryModule,
+      isFinanceModule,
       isAccountingModule,
     ],
   )

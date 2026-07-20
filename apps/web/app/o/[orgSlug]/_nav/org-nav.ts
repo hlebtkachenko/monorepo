@@ -26,6 +26,8 @@ type OrgNavLabelKey =
   | "closing"
   | "directory"
   | "states"
+  | "finance"
+  | "currencies"
   | "overview"
   | "periods"
   | "accounting"
@@ -72,6 +74,7 @@ export function orgRailNav(
       href: orgHref(slug, "accounting"),
     },
     { labelKey: "closing", icon: "Lock", href: orgHref(slug, "closing") },
+    { labelKey: "finance", icon: "PiggyBank", href: orgHref(slug, "finance") },
     { labelKey: "directory", icon: "BookUser", href: orgHref(slug, "adresar") },
   ]
   if (options.debug) {
@@ -125,6 +128,20 @@ export function directoryNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "states",
       icon: "Globe",
       href: orgHref(slug, "adresar/ciselniky/staty"),
+    },
+  ]
+}
+
+/** Sidebar tree for the Finance module — Číselníky (reference data). Flat, the
+ *  `ciselniky` grouping lives in the route (mirrors the Directory module's
+ *  `adresar/ciselniky/staty`); the module grows one leaf at a time (Měny first,
+ *  then Kurzy / Formy úhrady, then the operational bank/cash surfaces). */
+export function financeNav(slug: string): OrgSidebarNavItem[] {
+  return [
+    {
+      labelKey: "currencies",
+      icon: "Banknote",
+      href: orgHref(slug, "finance/ciselniky/meny"),
     },
   ]
 }

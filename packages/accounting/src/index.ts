@@ -34,6 +34,7 @@ export {
 
 // Directories reference registers (Adresář ▸ Veřejné číselníky)
 export { listCountries, type CountryRow } from "./countries"
+export { listCurrencies, type CurrencyRow } from "./currencies"
 
 // Master-data / setup
 export {

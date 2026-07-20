@@ -15,6 +15,7 @@ import {
   resolveFrameworkYear,
   seedChartFromDirectives,
   seedChartFromTemplate,
+  updateAccount,
   type ChartAccountRow,
   type ChartTemplateAccountRow,
   type ChartTemplateRow,
@@ -467,6 +468,29 @@ export async function addChartAccount(
       { chartId, ...input },
     )
   })
+}
+
+/**
+ * @public — inspector-action seam the chart-of-accounts UI wires to. Update one
+ * account's user-editable fields (name + the open-items / tax-relevant flags) —
+ * the only mutable columns; číslo, nature and the derived dimensions are
+ * immutable. Runs under org FORCE-RLS; the domain `updateAccount` also pins
+ * `organization_id` and throws on a no-op (unknown / cross-org id).
+ */
+export async function updateChartAccount(
+  organizationId: string,
+  workspaceId: string,
+  userId: string,
+  input: {
+    id: string
+    name?: string
+    tracksOpenItems?: boolean
+    taxRelevant?: boolean | null
+  },
+): Promise<string> {
+  return withOrganization(organizationId, userId, (db) =>
+    updateAccount(db, { organizationId, workspaceId }, input),
+  )
 }
 
 // ─────────────────────────────────── internal ───────────────────────────────────

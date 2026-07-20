@@ -26,6 +26,7 @@ export interface JournalRow {
   posting_id: string
   posting_date: string
   is_opening: boolean
+  is_closing: boolean
   summary_designation: string
   summary_type: string
   accounting_event_id: string
@@ -48,7 +49,7 @@ export function journal(
 ): Promise<JournalRow[]> {
   return rows<JournalRow>(
     db,
-    sql`SELECT p.id  AS posting_id, p.posting_date, p.is_opening,
+    sql`SELECT p.id  AS posting_id, p.posting_date, p.is_opening, p.is_closing,
                s.designation AS summary_designation, s.type AS summary_type,
                p.accounting_event_id,
                e.description AS event_description,

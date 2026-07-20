@@ -22,7 +22,13 @@ import { orgHref } from "@/lib/org/href"
 /** i18n key (under `org.nav`) for a nav entry's visible label. Local to this
  * module — only the `Org*NavItem` aliases below are consumed elsewhere. */
 type OrgNavLabelKey =
-  "company" | "overview" | "periods" | "debug" | "normalTable" | "pivotTable"
+  | "company"
+  | "closing"
+  | "overview"
+  | "periods"
+  | "debug"
+  | "normalTable"
+  | "pivotTable"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
@@ -54,6 +60,7 @@ export function orgRailNav(
 ): OrgRailNavItem[] {
   const modules: OrgRailNavItem[] = [
     { labelKey: "company", icon: "Goal", href: orgHref(slug) },
+    { labelKey: "closing", icon: "Lock", href: orgHref(slug, "closing") },
   ]
   if (options.debug) {
     modules.push({
@@ -84,12 +91,17 @@ export function orgBottomNav(
 
 /** Sidebar tree for the Company module. */
 export function companyNav(slug: string): OrgSidebarNavItem[] {
+  return [{ labelKey: "overview", icon: "Goal", href: orgHref(slug) }]
+}
+
+/** Sidebar tree for the Closing module — Overview + Účetní období (Periods). */
+export function closingNav(slug: string): OrgSidebarNavItem[] {
   return [
-    { labelKey: "overview", icon: "Goal", href: orgHref(slug) },
+    { labelKey: "overview", icon: "Lock", href: orgHref(slug, "closing") },
     {
       labelKey: "periods",
       icon: "CalendarClock",
-      href: orgHref(slug, "company/periods"),
+      href: orgHref(slug, "closing/periods"),
     },
   ]
 }

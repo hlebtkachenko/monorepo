@@ -1460,6 +1460,7 @@
   "org": {
     "nav": {
       "company": "Společnost",
+      "closing": "Uzávěrky",
       "overview": "Přehled",
       "periods": "Období",
       "debug": "Ladění",
@@ -1472,6 +1473,7 @@
       "mainContent": "Hlavní obsah"
     },
     "titles": {
+      "closing": "Uzávěrky",
       "periods": "Období",
       "settings": "Nastavení",
       "debug": "Ladění",

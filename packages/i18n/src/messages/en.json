@@ -1460,6 +1460,7 @@
   "org": {
     "nav": {
       "company": "Company",
+      "closing": "Closing",
       "overview": "Overview",
       "periods": "Periods",
       "debug": "Debug",
@@ -1472,6 +1473,7 @@
       "mainContent": "Main content"
     },
     "titles": {
+      "closing": "Closing",
       "periods": "Periods",
       "settings": "Settings",
       "debug": "Debug",

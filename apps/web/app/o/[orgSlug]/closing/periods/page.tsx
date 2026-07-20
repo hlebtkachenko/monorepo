@@ -6,13 +6,13 @@ import { ArchetypeBlank } from "@workspace/ui/blocks/archetypes"
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 
 /**
- * Company module → Periods.
+ * Closing module → Periods.
  *
  * No Periods body is designed yet, and this tree allows NO demo / placeholder
  * content, so the page renders the Blank archetype: a title plus a single
  * full-height empty section (the charter-sanctioned "no content yet" body).
  * Its favorite star is threaded through the archetype's `favorite` prop —
- * starring it pins Periods onto the Company Overview (`module_key='company'`).
+ * starring it pins Periods onto the Closing Overview (`module_key='closing'`).
  * The optimism lives in the archetype (`useOptimisticFavorite`); this page
  * supplies only the seed state + a bound server action.
  */
@@ -21,7 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("periods") }
 }
 
-export default async function CompanyPeriodsPage({
+export default async function ClosingPeriodsPage({
   params,
 }: {
   params: Promise<{ orgSlug: string }>
@@ -31,14 +31,14 @@ export default async function CompanyPeriodsPage({
   const tf = await getTranslations("org.favorite")
   const te = await getTranslations("org.empty")
   const title = t("periods")
-  const active = await isFavorited({ slug: orgSlug, route: "company/periods" })
+  const active = await isFavorited({ slug: orgSlug, route: "closing/periods" })
 
   async function onToggleFavorite() {
     "use server"
     const result = await toggleFavorite({
       slug: orgSlug,
-      route: "company/periods",
-      module: "company",
+      route: "closing/periods",
+      module: "closing",
       label: title,
     })
     if (!result.ok) throw new Error("favorite toggle failed")

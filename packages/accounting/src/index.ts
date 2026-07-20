@@ -19,6 +19,31 @@ export {
 } from "./number-series"
 export { resolveAccountId, resolveAccountIds } from "./accounts"
 
+// Typy dokladů + Dokladové řady config backend (the Lists-layer single source for
+// doklad-type/série config — every future Doklady page + table reads here)
+export {
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_SERIES_CATEGORIES,
+  DOCUMENT_KINDS_BY_CATEGORY,
+  documentKindsFor,
+  listDocumentCategories,
+  listDocumentTypes,
+  getDocumentType,
+  listDocumentSeries,
+  getDocumentSeries,
+  upsertDocumentType,
+  setPrimaryDocumentType,
+  setDocumentTypeActive,
+  upsertDocumentSeries,
+  upsertNumberSeriesPeriod,
+  deleteNumberSeriesPeriod,
+  type DocumentTypeRow,
+  type DocumentSeriesRow,
+  type NumberSeriesPeriodRow,
+  type UpsertDocumentTypeInput,
+  type UpsertDocumentSeriesInput,
+} from "./document-type"
+
 // Chart of accounts + Účetní osnova + prebuilt-template reads (the Lists-layer single source)
 export {
   listAccounts,
@@ -42,7 +67,6 @@ export {
   createVatStatus,
   createTaxProfile,
   createNumberSeries,
-  createNumberSeriesPeriod,
   backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,
@@ -63,6 +87,7 @@ export {
 export {
   DEFAULT_NUMBER_SERIES,
   DEFAULT_NUMBER_SERIES_CODES,
+  defaultSeriesCategory,
 } from "./number-series-defaults"
 
 // Capture (UC-1 steps 1-3)
@@ -166,13 +191,23 @@ export {
 export {
   closeResult,
   copyChartForward,
-  openNextPeriod,
+  openPeriod,
+  postOpeningBalances,
+  closePeriod,
   rollForwardPeriod,
+  reopenPeriod,
+  PeriodReopenBlockedError,
   type CloseResultInput,
-  type OpenNextPeriodInput,
-  type OpenNextPeriodResult,
+  type OpenPeriodInput,
+  type OpenPeriodResult,
+  type PostOpeningBalancesInput,
+  type ClosePeriodInput,
+  type ClosePeriodResult,
   type RollForwardInput,
   type RollForwardResult,
+  type ReopenPeriodInput,
+  type ReopenPeriodResult,
+  type PeriodReopenBlockReason,
 } from "./period"
 export {
   assessPeriodCloseReadiness,

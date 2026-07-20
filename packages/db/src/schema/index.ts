@@ -61,6 +61,7 @@ export * from "./dppo_annual_taxpayer_category"
 // v2 accounting — capture core (0027)
 export * from "./number_series"
 export * from "./number_series_period"
+export * from "./document_type"
 export * from "./accounting_event"
 export * from "./signature"
 export * from "./summary_record"
@@ -94,6 +95,9 @@ export * from "./monetary_period_summary"
 
 // v2 accounting — output read surface (0033)
 export * from "./period_output"
+
+// v2 accounting — period reopen audit log, org-scoped FORCE RLS (0072)
+export * from "./period_reopen_log"
 
 // Brain OCR template library — workspace-scoped learned state (0046)
 export * from "./ocr_extraction_template"

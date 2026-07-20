@@ -8,7 +8,13 @@
  * re-issues (opravná / mimořádná / mezitímní závěrka) are allowed. The append-only
  * block (no UPDATE/DELETE) is a migration trigger, not this DSL.
  */
-import { foreignKey, pgTable, timestamp, unique, uuid } from "drizzle-orm/pg-core"
+import {
+  foreignKey,
+  pgTable,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 import { periodOutputType } from "./_enums"
 import { accounting_period } from "./accounting_period"
@@ -32,16 +38,22 @@ export const period_output = pgTable(
     generated_by: uuid("generated_by")
       .notNull()
       .references(() => app_user.id), // R10 attributable
+    // Set only on a period-reopen reversal marker (migration 0077): points at the
+    // závěrka output this row voids. period_output is append-only (no delete), so a
+    // reopen inserts a marker instead of deleting the sealed output. NULL on a
+    // normally-generated output.
+    reverses_output_id: uuid("reverses_output_id"),
   },
   (t) => [
     unique("period_output_id_org_unique").on(t.id, t.organization_id),
     foreignKey({
       name: "period_output_period_fk",
       columns: [t.period_id, t.organization_id],
-      foreignColumns: [
-        accounting_period.id,
-        accounting_period.organization_id,
-      ],
+      foreignColumns: [accounting_period.id, accounting_period.organization_id],
     }),
+    // period_output_reverses_fk (reverses_output_id, organization_id) -> period_output
+    // (id, organization_id): a composite SELF-FK. Kept in the migration (authoritative);
+    // omitted from the DSL to avoid drizzle's self-referential circular type inference
+    // (same treatment as account_parent_fk).
   ],
 )

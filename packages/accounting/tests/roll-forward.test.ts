@@ -181,8 +181,10 @@ describe("rollForwardPeriod", () => {
           (SELECT count(*)::int FROM accounting_period WHERE id = ${result.newPeriodId}::uuid) AS next_periods,
           (SELECT count(*)::int FROM chart_of_accounts WHERE period_id = ${result.newPeriodId}::uuid) AS next_charts`,
       )
+      // prior period now holds three postings: the revenue, the 5xx/6xx→710→431
+      // result close, and the 702 balance-close (closePeriod adds the last).
       expect(counts).toEqual({
-        prior_postings: 2,
+        prior_postings: 3,
         next_postings: 1,
         outputs: 1,
         next_periods: 1,

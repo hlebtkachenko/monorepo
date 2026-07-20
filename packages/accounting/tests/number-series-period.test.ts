@@ -8,9 +8,9 @@ import { withOrganization } from "@workspace/db"
 import {
   allocateNumber,
   createNumberSeries,
-  createNumberSeriesPeriod,
   createPeriod,
   previewNextNumber,
+  upsertNumberSeriesPeriod,
 } from "../src/index"
 import type { DoubleEntrySeed } from "./fixtures"
 import {
@@ -50,7 +50,7 @@ async function freshConfiguredSeries(
       code: `DS${++seq}`,
       pattern: `${cfg.prefix}{${"N".repeat(cfg.length)}}${cfg.postfix}`,
     })
-    await createNumberSeriesPeriod(db, seed.ctx, {
+    await upsertNumberSeriesPeriod(db, seed.ctx, {
       numberSeriesId: seriesId,
       periodId,
       numberLength: cfg.length,
@@ -110,7 +110,7 @@ describe("number_series_period allocation", () => {
       postfix: "/{YYYY}",
     })
     await withOrganization(orgA, userId, (db) =>
-      createNumberSeriesPeriod(db, seed.ctx, {
+      upsertNumberSeriesPeriod(db, seed.ctx, {
         numberSeriesId: series,
         periodId: period2025,
         numberLength: 4,
@@ -182,10 +182,10 @@ describe("number_series_period allocation", () => {
     ).rejects.toThrow(/no dokladová řada row/)
   })
 
-  it("createNumberSeriesPeriod rejects a non-DOCUMENT série", async () => {
+  it("upsertNumberSeriesPeriod rejects a non-DOCUMENT série", async () => {
     await expect(
       withOrganization(orgA, userId, (db) =>
-        createNumberSeriesPeriod(db, seed.ctx, {
+        upsertNumberSeriesPeriod(db, seed.ctx, {
           numberSeriesId: seed.eventSeriesId,
           periodId: seed.periodId,
           numberLength: 4,

@@ -146,6 +146,40 @@ CREATE TYPE public.depreciation_plan_status AS ENUM (
 );
 
 --
+-- Name: document_category; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_category AS ENUM (
+    'RECEIVED_INVOICE',
+    'ISSUED_INVOICE',
+    'CASH',
+    'BANK',
+    'INTERNAL',
+    'SET_OFF',
+    'OTHER_RECEIVABLE',
+    'OTHER_PAYABLE',
+    'TAX_APPLICATION'
+);
+
+--
+-- Name: document_kind; Type: TYPE; Schema: public; Owner: -
+--
+
+CREATE TYPE public.document_kind AS ENUM (
+    'STANDARD',
+    'CREDIT_NOTE',
+    'ADVANCE',
+    'ADVANCE_TAX_DOC',
+    'DELIVERY_NOTE',
+    'PROFORMA',
+    'GENERAL',
+    'FX_GAIN',
+    'FX_LOSS',
+    'REMAINDER_COST',
+    'REMAINDER_REVENUE'
+);
+
+--
 -- Name: financial_account_kind; Type: TYPE; Schema: public; Owner: -
 --
 
@@ -2143,6 +2177,41 @@ CREATE TABLE public.directive_account_year (
 );
 
 --
+-- Name: document_type; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.document_type (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    category public.document_category NOT NULL,
+    code text NOT NULL,
+    name text NOT NULL,
+    kind public.document_kind,
+    default_series_id uuid,
+    is_primary boolean DEFAULT false NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    default_account text,
+    posting_prescription text,
+    cost_centre text,
+    activity text,
+    bank_account text,
+    payment_form text,
+    due_days integer,
+    vat_country text,
+    kh_section text,
+    description text,
+    valid_from_year integer,
+    valid_to_year integer,
+    external_source_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT document_type_due_days_chk CHECK (((due_days IS NULL) OR (due_days >= 0))),
+    CONSTRAINT document_type_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
+);
+
+ALTER TABLE ONLY public.document_type FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: dppo_annual_adjustment; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -2471,7 +2540,15 @@ CREATE TABLE public.number_series (
     pattern text NOT NULL,
     next_number bigint DEFAULT 1 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    category public.document_category,
+    name text,
+    note text,
+    description text,
+    valid_from_year integer,
+    valid_to_year integer,
+    CONSTRAINT number_series_category_document_chk CHECK (((category IS NULL) OR (entity_type = 'DOCUMENT'::public.number_series_entity))),
+    CONSTRAINT number_series_valid_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
 );
 
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;
@@ -2922,10 +2999,29 @@ CREATE TABLE public.period_output (
     period_id uuid NOT NULL,
     type public.period_output_type NOT NULL,
     generated_at timestamp with time zone DEFAULT now() NOT NULL,
-    generated_by uuid NOT NULL
+    generated_by uuid NOT NULL,
+    reverses_output_id uuid
 );
 
 ALTER TABLE ONLY public.period_output FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: period_reopen_log; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.period_reopen_log (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    reopened_by uuid NOT NULL,
+    reason text,
+    result_storno_posting_id uuid,
+    balance_storno_posting_id uuid,
+    opening_storno_posting_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+ALTER TABLE ONLY public.period_reopen_log FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_rule; Type: TABLE; Schema: public; Owner: -
@@ -3708,6 +3804,27 @@ ALTER TABLE ONLY public.directive_account_year
     ADD CONSTRAINT directive_account_year_pkey PRIMARY KEY (year, code);
 
 --
+-- Name: document_type document_type_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: document_type document_type_org_cat_code_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_org_cat_code_unique UNIQUE (organization_id, category, code);
+
+--
+-- Name: document_type document_type_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_pkey PRIMARY KEY (id);
+
+--
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4224,6 +4341,20 @@ ALTER TABLE ONLY public.period_output
 
 ALTER TABLE ONLY public.period_output
     ADD CONSTRAINT period_output_pkey PRIMARY KEY (id);
+
+--
+-- Name: period_reopen_log period_reopen_log_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_pkey PRIMARY KEY (id);
 
 --
 -- Name: permission_rule permission_rule_pkey; Type: CONSTRAINT; Schema: public; Owner: -
@@ -4927,6 +5058,12 @@ CREATE INDEX partial_record_line_idx ON public.partial_record USING btree (indiv
 CREATE INDEX period_output_period_idx ON public.period_output USING btree (period_id, organization_id);
 
 --
+-- Name: period_reopen_log_period_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX period_reopen_log_period_idx ON public.period_reopen_log USING btree (period_id, organization_id);
+
+--
 -- Name: permission_rule_category_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -5291,6 +5428,24 @@ CREATE TRIGGER period_output_block_update BEFORE UPDATE ON public.period_output 
 --
 
 CREATE TRIGGER period_output_completeness_gate BEFORE INSERT ON public.period_output FOR EACH ROW EXECUTE FUNCTION public.app_assert_period_complete();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_delete BEFORE DELETE ON public.period_reopen_log FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_truncate; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_truncate BEFORE TRUNCATE ON public.period_reopen_log FOR EACH STATEMENT EXECUTE FUNCTION public.app_block_truncate_accounting();
+
+--
+-- Name: period_reopen_log period_reopen_log_block_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER period_reopen_log_block_update BEFORE UPDATE ON public.period_reopen_log FOR EACH ROW EXECUTE FUNCTION public.app_block_mutation_accounting();
 
 --
 -- Name: posting posting_balanced; Type: TRIGGER; Schema: public; Owner: -
@@ -5855,6 +6010,13 @@ ALTER TABLE ONLY public.directive_account
 
 ALTER TABLE ONLY public.directive_account_year
     ADD CONSTRAINT directive_account_year_code_fkey FOREIGN KEY (code) REFERENCES public.directive_account(code);
+
+--
+-- Name: document_type document_type_series_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.document_type
+    ADD CONSTRAINT document_type_series_fk FOREIGN KEY (default_series_id, organization_id) REFERENCES public.number_series(id, organization_id);
 
 --
 -- Name: dppo_annual_adjustment dppo_annual_adjustment_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -6438,6 +6600,27 @@ ALTER TABLE ONLY public.period_output
     ADD CONSTRAINT period_output_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
 
 --
+-- Name: period_output period_output_reverses_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_output
+    ADD CONSTRAINT period_output_reverses_fk FOREIGN KEY (reverses_output_id, organization_id) REFERENCES public.period_output(id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
+-- Name: period_reopen_log period_reopen_log_reopened_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.period_reopen_log
+    ADD CONSTRAINT period_reopen_log_reopened_by_fkey FOREIGN KEY (reopened_by) REFERENCES public.app_user(id);
+
+--
 -- Name: permission_template permission_template_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6941,6 +7124,12 @@ ALTER TABLE public.demo_debug_pivot_table_record ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.depreciation_plan ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: document_type; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.document_type ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: dppo_annual_adjustment; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -7235,6 +7424,12 @@ CREATE POLICY organization_isolation ON public.demo_debug_pivot_table_record USI
 CREATE POLICY organization_isolation ON public.depreciation_plan USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: document_type organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.document_type USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: dppo_annual_adjustment organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7361,6 +7556,12 @@ CREATE POLICY organization_isolation ON public.partial_record USING ((organizati
 CREATE POLICY organization_isolation ON public.period_output USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: period_reopen_log organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.period_reopen_log USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: posting organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7467,6 +7668,12 @@ ALTER TABLE public.partial_record ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.period_output ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: period_reopen_log; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.period_reopen_log ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: permission_template; Type: ROW SECURITY; Schema: public; Owner: -

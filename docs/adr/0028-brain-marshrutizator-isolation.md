@@ -32,7 +32,7 @@ composed layers over existing substrate:
 2. **Serialization — per-(org, period) write-lock.** Inside the write endpoint's transaction, take
    `pg_advisory_xact_lock(hashInt(orgId), hashInt(periodId))` — **transaction-scoped** (auto-released on
    commit/rollback, crash-safe, pooler-safe) and keyed by **two 32-bit ints** (not one hashed 64-bit) to avoid
-   false mutual exclusion from hash collision. `closePeriod` / `openNextPeriod` acquire the **same** lock. Locks
+   false mutual exclusion from hash collision. `closePeriod` / `reopenPeriod` acquire the **same** lock. Locks
    are always taken in a fixed order (org, then period) so there is no lock-ordering deadlock. Reads take no lock.
 3. **Isolation floor.** FORCE RLS + `withOrganization` (server-injected org), unchanged.
 

@@ -34,7 +34,7 @@
  * usages across `packages/db/tests/` and `packages/auth/scripts/`).
  *
  * NOTE (scope): the REAL wiring — the accounting write endpoint taking this lock
- * around its posting logic, and `closePeriod` / `openNextPeriod` taking the SAME
+ * around its posting logic, and `closePeriod` / `reopenPeriod` taking the SAME
  * lock — is deferred to the accounting write endpoints (#395). This module is the
  * reusable, tested core only.
  */

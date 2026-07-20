@@ -1619,7 +1619,8 @@
       "financialInstitutions": "Peněžní ústavy",
       "constantSymbols": "Konstantní symboly",
       "documentTypes": "Typy dokladů",
-      "documentSeries": "Dokladové řady"
+      "documentSeries": "Dokladové řady",
+      "subjects": "Subjekty"
     },
     "a11y": {
       "skipToContent": "Přeskočit na obsah",
@@ -1643,7 +1644,8 @@
       "financialInstitutions": "Peněžní ústavy",
       "constantSymbols": "Konstantní symboly",
       "documentTypes": "Typy dokladů",
-      "documentSeries": "Dokladové řady"
+      "documentSeries": "Dokladové řady",
+      "subjects": "Subjekty"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Přijaté faktury",
@@ -1845,6 +1847,28 @@
       "breadcrumb": {
         "directory": "Adresář",
         "publicRegisters": "Veřejné číselníky"
+      },
+      "subjects": {
+        "columns": {
+          "name": "Název",
+          "kind": "Typ",
+          "ico": "IČO",
+          "dic": "DIČ",
+          "country": "Země",
+          "role": "Role"
+        },
+        "kind": {
+          "LEGAL_ENTITY": "Právnická osoba",
+          "SOLE_TRADER": "OSVČ",
+          "NATURAL_PERSON": "Fyzická osoba",
+          "PUBLIC_AUTHORITY": "Orgán veřejné moci",
+          "NON_PROFIT": "Nezisková organizace"
+        },
+        "role": {
+          "supplier": "Dodavatel",
+          "customer": "Odběratel"
+        },
+        "empty": "Žádné subjekty."
       }
     }
   },

@@ -1619,7 +1619,8 @@
       "financialInstitutions": "Financial institutions",
       "constantSymbols": "Constant symbols",
       "documentTypes": "Document types",
-      "documentSeries": "Document series"
+      "documentSeries": "Document series",
+      "subjects": "Parties"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1643,7 +1644,8 @@
       "financialInstitutions": "Financial institutions",
       "constantSymbols": "Constant symbols",
       "documentTypes": "Document types",
-      "documentSeries": "Document series"
+      "documentSeries": "Document series",
+      "subjects": "Parties"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Received invoices",
@@ -1845,6 +1847,28 @@
       "breadcrumb": {
         "directory": "Directory",
         "publicRegisters": "Public registers"
+      },
+      "subjects": {
+        "columns": {
+          "name": "Name",
+          "kind": "Kind",
+          "ico": "IČO",
+          "dic": "DIČ",
+          "country": "Country",
+          "role": "Role"
+        },
+        "kind": {
+          "LEGAL_ENTITY": "Legal entity",
+          "SOLE_TRADER": "Sole trader",
+          "NATURAL_PERSON": "Individual",
+          "PUBLIC_AUTHORITY": "Public authority",
+          "NON_PROFIT": "Non-profit"
+        },
+        "role": {
+          "supplier": "Supplier",
+          "customer": "Customer"
+        },
+        "empty": "No parties."
       }
     }
   },

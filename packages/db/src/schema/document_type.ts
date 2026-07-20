@@ -3,9 +3,9 @@
  * reads: a doklad's Druh/type carries its default číselná řada, default účtování,
  * DPH routing, and payment defaults.
  *
- * Mirrors: packages/db/migrations/0070_document_type.sql (CREATE TABLE document_type)
+ * Mirrors: packages/db/migrations/0074_document_type.sql (CREATE TABLE document_type)
  *
- * Organization-scoped (FORCE RLS + organization_isolation, applied in 0070).
+ * Organization-scoped (FORCE RLS + organization_isolation, applied in 0074).
  * Layers OVER summary_record_type (the posting-lane discriminant) — never replaces
  * it. `category` is the config-facing bucket (document_category, a superset of the
  * booked types). UNIQUE(id, organization_id) is the composite-FK target future

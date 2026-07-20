@@ -218,7 +218,7 @@ export const periodOutputType = pgEnum("period_output_type", [
   "PERSONAL_INCOME_TAX",
 ])
 
-// Mirrors: packages/db/migrations/0070_document_type.sql — CREATE TYPE document_category AS ENUM
+// Mirrors: packages/db/migrations/0074_document_type.sql — CREATE TYPE document_category AS ENUM
 export const documentCategory = pgEnum("document_category", [
   "RECEIVED_INVOICE",
   "ISSUED_INVOICE",
@@ -231,7 +231,7 @@ export const documentCategory = pgEnum("document_category", [
   "TAX_APPLICATION",
 ])
 
-// Mirrors: packages/db/migrations/0070_document_type.sql — CREATE TYPE document_kind AS ENUM
+// Mirrors: packages/db/migrations/0074_document_type.sql — CREATE TYPE document_kind AS ENUM
 export const documentKind = pgEnum("document_kind", [
   "STANDARD",
   "CREDIT_NOTE",
@@ -244,4 +244,25 @@ export const documentKind = pgEnum("document_kind", [
   "FX_LOSS",
   "REMAINDER_COST",
   "REMAINDER_REVENUE",
+])
+
+// =============================================================================
+// Finance domain enums — created in
+// packages/db/migrations/0073_financial_account.sql (CREATE TYPE ...)
+// =============================================================================
+
+// Mirrors: 0073_financial_account.sql — CREATE TYPE financial_account_kind AS ENUM
+export const financialAccountKind = pgEnum("financial_account_kind", [
+  "BANK",
+  "CASH",
+  "CASH_EQUIVALENT",
+])
+
+// Mirrors: 0073_financial_account.sql — CREATE TYPE financial_account_status AS ENUM
+export const financialAccountStatus = pgEnum("financial_account_status", [
+  "DRAFT",
+  "ACTIVE",
+  "INACTIVE",
+  "CLOSED",
+  "ARCHIVED",
 ])

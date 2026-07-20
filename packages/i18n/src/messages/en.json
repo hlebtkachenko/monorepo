@@ -8,7 +8,10 @@
         "accountType": "Type",
         "normalBalance": "Normal side",
         "tracksOpenItems": "Open items",
-        "taxRelevant": "Tax-relevant"
+        "taxRelevant": "Tax-relevant",
+        "code": "Code",
+        "balanceSheetLine": "Balance-sheet line",
+        "incomeStatementLine": "Income-statement line"
       },
       "statementClass": {
         "BALANCE_SHEET": "Balance sheet",
@@ -25,6 +28,37 @@
       "normalBalance": {
         "DEBIT": "Debit",
         "CREDIT": "Credit"
+      },
+      "classNames": {
+        "0": "Long-term assets",
+        "1": "Inventory",
+        "2": "Short-term financial assets and cash",
+        "3": "Clearing relationships",
+        "4": "Capital accounts and long-term liabilities",
+        "5": "Expenses",
+        "6": "Revenues",
+        "7": "Closing and off-balance-sheet accounts",
+        "8": "Managerial accounting",
+        "9": "Managerial accounting"
+      },
+      "boolean": {
+        "yes": "Yes",
+        "no": "No"
+      },
+      "page": {
+        "searchPlaceholder": "Search accounts",
+        "view": "All",
+        "expandAll": "Expand all",
+        "collapseAll": "Collapse all",
+        "exportFileName": "chart-of-accounts",
+        "emptyNoPeriod": "No active accounting period. Open a period to build the chart of accounts.",
+        "emptyNoChart": "This period has no chart of accounts yet."
+      },
+      "framework": {
+        "searchPlaceholder": "Search framework",
+        "view": "All",
+        "exportFileName": "chart-framework",
+        "emptyNoPeriod": "No active accounting period. Open a period to view the framework chart."
       },
       "osnovaNames": {
         "111": "Material Acquisition (Method A accumulator)",
@@ -1460,12 +1494,16 @@
   "org": {
     "nav": {
       "company": "Company",
+      "closing": "Closing",
       "overview": "Overview",
       "periods": "Periods",
       "debug": "Debug",
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
-      "treeTable": "Tree Table"
+      "treeTable": "Tree Table",
+      "accounting": "Accounting",
+      "chartOfAccounts": "Chart of accounts",
+      "chartFramework": "Chart framework"
     },
     "a11y": {
       "skipToContent": "Skip to content",
@@ -1473,12 +1511,37 @@
       "mainContent": "Main content"
     },
     "titles": {
+      "closing": "Closing",
       "periods": "Periods",
       "settings": "Settings",
       "debug": "Debug",
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
-      "treeTable": "Tree Table"
+      "treeTable": "Tree Table",
+      "chartOfAccounts": "Chart of accounts",
+      "chartFramework": "Chart framework"
+    },
+    "periods": {
+      "columns": {
+        "zkratka": "Code",
+        "od": "From",
+        "do": "To",
+        "stav": "Status",
+        "rok": "Year"
+      },
+      "stav": {
+        "active": "Active",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "views": {
+        "all": "All",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "exportFileName": "accounting-periods",
+      "empty": "No accounting periods yet.",
+      "editZkratkaError": "Could not save the period code. Please try again."
     },
     "favorite": {
       "tooltip": "Favorite",

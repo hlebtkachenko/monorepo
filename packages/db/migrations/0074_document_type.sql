@@ -1,4 +1,4 @@
--- 0070_document_type.sql
+-- 0074_document_type.sql
 --
 -- Typy dokladů (document_type) — the org-scoped config taxonomy that every future
 -- Doklady page and table reads: a doklad's Druh/type carries its default číselná

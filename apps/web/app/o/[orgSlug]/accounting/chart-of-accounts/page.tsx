@@ -1,9 +1,16 @@
 import type { Metadata } from "next"
+import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
 
 import { getTranslations } from "@workspace/i18n/server"
 
-import { getChartAccounts } from "@/lib/org/accounting"
+import {
+  getChartAccounts,
+  getChartTemplates,
+  startChartFromFramework,
+  startChartFromTemplate,
+  updateChartAccount,
+} from "@/lib/org/accounting"
 import { buildChartTree } from "@/lib/org/chart-of-accounts-tree"
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 import { getActivePeriod } from "@/lib/org/period"
@@ -17,11 +24,11 @@ import { ChartOfAccountsView } from "../../_shell/app-body/app-content/content-b
  *
  * Server-resolves the org + the URL-driven active period (`?period=`), reads the
  * period's chart under org FORCE-RLS (`getChartAccounts`), and projects it into the
- * Class → Group → Synthetic → Analytical tree the read-only Tree-table renders. The
- * layout has already gated access; the membership re-resolve only recovers the ids
- * the RSC tree can't pass down. Three states: no active period, an empty chart, and
- * the populated tree — the first two are messages (seeding lives in the human-gated
- * write batch, so there is no button here, per the o-tree "no placeholder" charter).
+ * Class → Group → Synthetic → Analytical tree the Tree-table renders. Three states:
+ * no active period (message), an empty chart (message + the two seed actions), and
+ * the populated tree. All writes (seed / edit) are human-gated and flow through the
+ * server actions defined here — the account domain is edited through the row
+ * Inspector, seeded through the toolbar.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("org.titles")
@@ -73,21 +80,77 @@ export default async function ChartOfAccountsPage({
   )
   const emptyText = active ? tp("emptyNoChart") : tp("emptyNoPeriod")
 
-  const activeFavorite = await isFavorited({
-    slug: orgSlug,
-    route: "accounting/chart-of-accounts",
-  })
+  // An empty chart on an active period is seedable. Templates power the picker.
+  const year = active ? Number(active.period_start.slice(0, 4)) : null
+  const canSeed = active != null && accounts.length === 0
+  const templates =
+    canSeed && year != null
+      ? (
+          await getChartTemplates(
+            membership.organizationId,
+            session.user.id,
+            year,
+          )
+        ).map((t) => ({ id: t.id, label: t.name, isDefault: t.isDefault }))
+      : []
+
+  const chartRoute = "accounting/chart-of-accounts"
+  const chartPath = `/o/${orgSlug}/${chartRoute}`
+
+  const activeFavorite = await isFavorited({ slug: orgSlug, route: chartRoute })
 
   async function onToggleFavorite() {
     "use server"
     const result = await toggleFavorite({
       slug: orgSlug,
-      route: "accounting/chart-of-accounts",
+      route: chartRoute,
       module: "accounting",
       label: title,
     })
     if (!result.ok) throw new Error("favorite toggle failed")
     return result.favorited
+  }
+
+  async function onSeedFromFramework() {
+    "use server"
+    if (!active) return
+    await startChartFromFramework(
+      membership!.organizationId,
+      membership!.workspaceId,
+      session!.user.id,
+      active.id,
+      Number(active.period_start.slice(0, 4)),
+    )
+    revalidatePath(chartPath)
+  }
+
+  async function onSeedFromTemplate(templateId: string) {
+    "use server"
+    if (!active) return
+    await startChartFromTemplate(
+      membership!.organizationId,
+      membership!.workspaceId,
+      session!.user.id,
+      active.id,
+      templateId,
+    )
+    revalidatePath(chartPath)
+  }
+
+  async function onUpdateAccount(input: {
+    id: string
+    name?: string
+    tracksOpenItems?: boolean
+    taxRelevant?: boolean | null
+  }) {
+    "use server"
+    await updateChartAccount(
+      membership!.organizationId,
+      membership!.workspaceId,
+      session!.user.id,
+      input,
+    )
+    revalidatePath(chartPath)
   }
 
   return (
@@ -103,6 +166,11 @@ export default async function ChartOfAccountsPage({
       }}
       tree={tree}
       emptyText={emptyText}
+      canSeed={canSeed}
+      templates={templates}
+      onSeedFromFramework={onSeedFromFramework}
+      onSeedFromTemplate={onSeedFromTemplate}
+      onUpdateAccount={onUpdateAccount}
     />
   )
 }

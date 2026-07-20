@@ -75,6 +75,7 @@ export {
   resolveFrameworkYear,
   DEFAULT_OPEN_ITEM_ACCOUNTS,
   createAccount,
+  updateAccount,
   createCounterparty,
   createCategory,
   createAsset,

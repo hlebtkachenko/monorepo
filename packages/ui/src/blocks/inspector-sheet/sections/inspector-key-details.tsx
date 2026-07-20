@@ -67,6 +67,14 @@ export interface InspectorKeyLine {
    */
   action?: { label: string; icon?: IconName; onClick: (value: string) => void }
   onChange?: (value: string) => void
+  /**
+   * Fired when the value SETTLES — input blur / Enter, or a select / date pick —
+   * with the final value, and only when it actually changed from the incoming
+   * value. Unlike `onChange` (which fires on every keystroke), this is the commit
+   * boundary: persist here so a save + re-render can't tear down the still-open
+   * editor mid-edit and drop keystrokes.
+   */
+  onCommit?: (value: string) => void
 }
 
 export interface InspectorKeyDetailsProps {
@@ -208,6 +216,14 @@ function InlineValue({ line }: { line: InspectorKeyLine }) {
   const closeLocal = () => {
     if (!globalEditing) setLocalEditing(false)
   }
+  // Commit boundary: fire onCommit with the settled value (only when it actually
+  // changed from `incoming`, so opening and closing a field untouched is a no-op),
+  // then close. Callers persist here — never per keystroke — so the save-driven
+  // re-render lands after the editor is already gone.
+  const commitAndClose = (value: string) => {
+    if (value !== incoming) line.onCommit?.(value)
+    closeLocal()
+  }
 
   if (line.readOnly) {
     return (
@@ -254,7 +270,7 @@ function InlineValue({ line }: { line: InspectorKeyLine }) {
         value={committed}
         onValueChange={(v) => {
           set(v)
-          closeLocal()
+          commitAndClose(v)
         }}
         onOpenChange={(open) => {
           if (!open) closeLocal()
@@ -282,7 +298,7 @@ function InlineValue({ line }: { line: InspectorKeyLine }) {
         placeholder={line.placeholder}
         onCommit={(v) => {
           set(v)
-          closeLocal()
+          commitAndClose(v)
         }}
       />
     )
@@ -305,7 +321,7 @@ function InlineValue({ line }: { line: InspectorKeyLine }) {
       value={committed}
       placeholder={line.placeholder}
       onChange={(e) => set(e.target.value)}
-      onBlur={closeLocal}
+      onBlur={() => commitAndClose(committed)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === "Escape") {
           e.preventDefault()

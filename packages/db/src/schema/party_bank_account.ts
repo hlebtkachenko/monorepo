@@ -14,10 +14,12 @@ import {
   char,
   date,
   foreignKey,
+  index,
   pgTable,
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
@@ -56,10 +58,18 @@ export const party_bank_account = pgTable(
   },
   (t) => [
     unique("party_bank_account_id_workspace_unique").on(t.id, t.workspace_id),
+    unique("party_bank_account_id_counterparty_unique").on(
+      t.id,
+      t.counterparty_id,
+    ),
     foreignKey({
       name: "party_bank_account_counterparty_fk",
       columns: [t.counterparty_id, t.workspace_id],
       foreignColumns: [counterparty.id, counterparty.workspace_id],
     }),
+    index("party_bank_account_counterparty_idx").on(t.counterparty_id),
+    uniqueIndex("party_bank_account_one_primary")
+      .on(t.counterparty_id)
+      .where(sql`${t.is_primary} AND ${t.valid_to} IS NULL`),
   ],
 )

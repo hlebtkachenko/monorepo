@@ -17,6 +17,7 @@ import {
   char,
   date,
   foreignKey,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -75,8 +76,12 @@ export const party_relationship = pgTable(
     }),
     foreignKey({
       name: "party_relationship_bank_account_fk",
-      columns: [t.default_bank_account_id, t.workspace_id],
-      foreignColumns: [party_bank_account.id, party_bank_account.workspace_id],
+      columns: [t.default_bank_account_id, t.counterparty_id],
+      foreignColumns: [
+        party_bank_account.id,
+        party_bank_account.counterparty_id,
+      ],
     }),
+    index("party_relationship_bank_account_idx").on(t.default_bank_account_id),
   ],
 )

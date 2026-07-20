@@ -26,9 +26,11 @@ let workspaceB: string
 let orgAId: string
 let orgBId: string
 let counterpartyA: string // in workspace A
+let counterpartyA2: string // a SECOND party in workspace A
 let counterpartyB: string // in workspace B
 let relationshipAId: string
 let addressAId: string
+let bankAccountA: string // belongs to counterpartyA
 
 beforeAll(async () => {
   adminSql = adminClient()
@@ -63,6 +65,17 @@ beforeAll(async () => {
     INSERT INTO party_address (workspace_id, counterparty_id, purpose)
     VALUES (${workspaceA}, ${counterpartyA}, 'REGISTERED') RETURNING id`
   addressAId = addr!.id
+
+  // A second party in workspace A + a bank account owned by counterpartyA, for the
+  // cross-party default-bank-account FK test.
+  const [cpA2] = await adminSql<Array<{ id: string }>>`
+    INSERT INTO counterparty (workspace_id, name)
+    VALUES (${workspaceA}, 'Second Party in WS A') RETURNING id`
+  counterpartyA2 = cpA2!.id
+  const [bank] = await adminSql<Array<{ id: string }>>`
+    INSERT INTO party_bank_account (workspace_id, counterparty_id, account_number)
+    VALUES (${workspaceA}, ${counterpartyA}, '111222333') RETURNING id`
+  bankAccountA = bank!.id
 })
 
 afterAll(async () => {
@@ -128,6 +141,40 @@ describe("party_relationship — cross-tier FK lock", () => {
       }),
     ).rejects.toThrow(/foreign key|violates/i)
   })
+
+  it("rejects a forged workspace_id even with the correct org (org composite FK)", async () => {
+    // org A is really in workspace A; forging workspace_id = workspace B (the
+    // counterparty FK would pass for counterpartyB) still fails the org FK
+    // (organization_id, workspace_id) -> organization, since org A is not in WS B.
+    await expect(
+      userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgAId}', true)`,
+        )
+        await tx.unsafe(
+          `INSERT INTO party_relationship (organization_id, workspace_id, counterparty_id)
+           VALUES ('${orgAId}'::uuid, '${workspaceB}'::uuid, '${counterpartyB}'::uuid)`,
+        )
+      }),
+    ).rejects.toThrow(/foreign key|violates/i)
+  })
+
+  it("rejects a default bank account belonging to ANOTHER party (bank FK)", async () => {
+    // bankAccountA belongs to counterpartyA; using it as the default on a
+    // relationship to counterpartyA2 fails (default_bank_account_id, counterparty_id)
+    // -> party_bank_account(id, counterparty_id).
+    await expect(
+      userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.organization_id', '${orgAId}', true)`,
+        )
+        await tx.unsafe(
+          `INSERT INTO party_relationship (organization_id, workspace_id, counterparty_id, default_bank_account_id)
+           VALUES ('${orgAId}'::uuid, '${workspaceA}'::uuid, '${counterpartyA2}'::uuid, '${bankAccountA}'::uuid)`,
+        )
+      }),
+    ).rejects.toThrow(/foreign key|violates/i)
+  })
 })
 
 describe("party_address — workspace isolation", () => {
@@ -155,5 +202,22 @@ describe("party_address — workspace isolation", () => {
         )
       }),
     ).rejects.toThrow(/row-level security/)
+  })
+
+  it("cannot attach a child to a counterparty in another workspace (composite FK)", async () => {
+    // Own workspace passes the RLS WITH CHECK, but the composite FK
+    // (counterparty_id, workspace_id) -> counterparty rejects a foreign-workspace
+    // counterparty: (counterpartyB, workspaceA) has no target.
+    await expect(
+      userSql.begin(async (tx) => {
+        await tx.unsafe(
+          `SELECT set_config('app.workspace_id', '${workspaceA}', true)`,
+        )
+        await tx.unsafe(
+          `INSERT INTO party_address (workspace_id, counterparty_id, purpose)
+           VALUES ('${workspaceA}'::uuid, '${counterpartyB}'::uuid, 'REGISTERED')`,
+        )
+      }),
+    ).rejects.toThrow(/foreign key|violates/i)
   })
 })

@@ -4505,6 +4505,13 @@ ALTER TABLE ONLY public.party_address
     ADD CONSTRAINT party_address_pkey PRIMARY KEY (id);
 
 --
+-- Name: party_bank_account party_bank_account_id_counterparty_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_id_counterparty_unique UNIQUE (id, counterparty_id);
+
+--
 -- Name: party_bank_account party_bank_account_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5282,6 +5289,42 @@ CREATE UNIQUE INDEX organization_workspace_slug_unique ON public.organization US
 --
 
 CREATE INDEX partial_record_line_idx ON public.partial_record USING btree (individual_record_id);
+
+--
+-- Name: party_address_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_address_counterparty_idx ON public.party_address USING btree (counterparty_id);
+
+--
+-- Name: party_bank_account_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_bank_account_counterparty_idx ON public.party_bank_account USING btree (counterparty_id);
+
+--
+-- Name: party_bank_account_one_primary; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX party_bank_account_one_primary ON public.party_bank_account USING btree (counterparty_id) WHERE (is_primary AND (valid_to IS NULL));
+
+--
+-- Name: party_contact_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_contact_counterparty_idx ON public.party_contact USING btree (counterparty_id);
+
+--
+-- Name: party_identifier_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_identifier_counterparty_idx ON public.party_identifier USING btree (counterparty_id);
+
+--
+-- Name: party_relationship_bank_account_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_relationship_bank_account_idx ON public.party_relationship USING btree (default_bank_account_id);
 
 --
 -- Name: period_output_period_idx; Type: INDEX; Schema: public; Owner: -
@@ -6885,7 +6928,7 @@ ALTER TABLE ONLY public.party_identifier
 --
 
 ALTER TABLE ONLY public.party_relationship
-    ADD CONSTRAINT party_relationship_bank_account_fk FOREIGN KEY (default_bank_account_id, workspace_id) REFERENCES public.party_bank_account(id, workspace_id);
+    ADD CONSTRAINT party_relationship_bank_account_fk FOREIGN KEY (default_bank_account_id, counterparty_id) REFERENCES public.party_bank_account(id, counterparty_id);
 
 --
 -- Name: party_relationship party_relationship_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -

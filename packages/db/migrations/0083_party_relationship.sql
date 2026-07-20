@@ -43,7 +43,9 @@ CREATE TABLE party_relationship (
   created_at              timestamptz NOT NULL DEFAULT now(),
   updated_at              timestamptz NOT NULL DEFAULT now(),
 
-  -- One relationship row per (org, party).
+  -- Deliberate SINGLETON: one relationship row per (org, party). valid_from/valid_to
+  -- are "since-when this classification applies", NOT bitemporal history — a future
+  -- relationship-history feature would drop this constraint.
   CONSTRAINT party_relationship_org_counterparty_unique
     UNIQUE (organization_id, counterparty_id),
   -- Two composite FKs sharing workspace_id — the cross-tier isolation lock.
@@ -53,9 +55,12 @@ CREATE TABLE party_relationship (
   CONSTRAINT party_relationship_counterparty_fk
     FOREIGN KEY (counterparty_id, workspace_id)
     REFERENCES counterparty (id, workspace_id),
+  -- The default bank account must belong to THIS relationship's counterparty (not
+  -- just the same workspace) — pins it to (id, counterparty_id), so a default can
+  -- never be another party's account. NULL default stays allowed (MATCH SIMPLE).
   CONSTRAINT party_relationship_bank_account_fk
-    FOREIGN KEY (default_bank_account_id, workspace_id)
-    REFERENCES party_bank_account (id, workspace_id),
+    FOREIGN KEY (default_bank_account_id, counterparty_id)
+    REFERENCES party_bank_account (id, counterparty_id),
   CONSTRAINT party_relationship_type_chk
     CHECK (relationship_type IS NULL
            OR relationship_type IN ('CUSTOMER', 'SUPPLIER', 'OWNER', 'PARTNER', 'OTHER')),
@@ -66,6 +71,11 @@ CREATE TABLE party_relationship (
   CONSTRAINT party_relationship_payment_terms_chk
     CHECK (default_payment_terms IS NULL OR default_payment_terms >= 0)
 );
+
+-- Serve the default-bank-account FK check (the org UNIQUE already leads with
+-- organization_id, so the counterparty join is covered).
+CREATE INDEX party_relationship_bank_account_idx
+  ON party_relationship (default_bank_account_id);
 
 -- Org-scoped RLS: FORCE + the standard organization_isolation policy (NULLIF guard).
 ALTER TABLE party_relationship ENABLE ROW LEVEL SECURITY;

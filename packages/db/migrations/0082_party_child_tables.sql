@@ -13,12 +13,16 @@
 -- mirroring counterparty (0035) / inbox_attachment (0057).
 --
 -- GDPR: party_contact and party_address may hold NATURAL-PERSON personal data
--- (a contact's name / e-mail / phone; an OSVČ's residence). Lawful basis is the
--- same as the counterparty.name already processed — Art. 6(1)(c), statutory
--- accounting/tax record-keeping (ZoÚ 563/1991, §31–32 archival periods), not
--- Art. 9 special category. Retention follows the statutory archival period;
--- erasure is archival/anonymisation, NEVER a hard delete of booked history.
--- `valid_to` retires a detail without destroying it.
+-- (a contact's name / e-mail / phone; an OSVČ's residence), never Art. 9 special
+-- category. Lawful basis is MIXED by purpose: Art. 6(1)(c) (statutory accounting /
+-- tax record-keeping, ZoÚ 563/1991 §31–32) for statutory-record contacts (the
+-- person on the invoice, a statutory representative), and Art. 6(1)(f) legitimate
+-- interest for operational / CRM contacts (purpose SALES / TECHNICAL / GENERAL),
+-- which carry an erasure / objection right. The tables support both: full DELETE +
+-- UPDATE policies (no append-only lock), and nothing booked FK-references them, so
+-- lawful erasure / anonymisation never corrupts booked history; `valid_to` retires
+-- a detail without destroying it. The ROPA entry + retention / anonymisation
+-- runbook are tracked as an operational follow-up (not schema).
 --
 -- party_bank_account.published / blocked / verified are security-sensitive (they
 -- feed CRPDPH "zveřejněný účet" trust): all default FALSE, so an unverified,
@@ -108,8 +112,11 @@ CREATE TABLE party_bank_account (
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
-  -- Composite-FK target for party_relationship.default_bank_account_id.
+  -- Composite-FK targets: (id, workspace_id) for org-tier refs; (id, counterparty_id)
+  -- so party_relationship.default_bank_account_id can only point at an account of the
+  -- SAME party (prevents a "pay another party's IBAN" foot-gun).
   CONSTRAINT party_bank_account_id_workspace_unique UNIQUE (id, workspace_id),
+  CONSTRAINT party_bank_account_id_counterparty_unique UNIQUE (id, counterparty_id),
   CONSTRAINT party_bank_account_counterparty_fk
     FOREIGN KEY (counterparty_id, workspace_id)
     REFERENCES counterparty (id, workspace_id),
@@ -146,7 +153,19 @@ CREATE TABLE party_identifier (
 );
 
 -- =============================================================================
--- 5. RLS — every child is workspace-scoped, 4 command-specific policies each
+-- 5. Indexes — child lookups + parent-delete FK checks filter on counterparty_id;
+--    at most one primary bank account per party (a retired primary may coexist).
+-- =============================================================================
+CREATE INDEX party_address_counterparty_idx      ON party_address (counterparty_id);
+CREATE INDEX party_contact_counterparty_idx      ON party_contact (counterparty_id);
+CREATE INDEX party_bank_account_counterparty_idx ON party_bank_account (counterparty_id);
+CREATE INDEX party_identifier_counterparty_idx   ON party_identifier (counterparty_id);
+
+CREATE UNIQUE INDEX party_bank_account_one_primary
+  ON party_bank_account (counterparty_id) WHERE is_primary AND valid_to IS NULL;
+
+-- =============================================================================
+-- 6. RLS — every child is workspace-scoped, 4 command-specific policies each
 -- =============================================================================
 DO $$
 DECLARE
@@ -180,7 +199,7 @@ END
 $$;
 
 -- =============================================================================
--- 6. app_user grant — full DML on every child (same tier as counterparty)
+-- 7. app_user grant — full DML on every child (same tier as counterparty)
 -- =============================================================================
 DO $$
 DECLARE

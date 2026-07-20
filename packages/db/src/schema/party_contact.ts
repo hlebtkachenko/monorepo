@@ -11,6 +11,7 @@
 import {
   date,
   foreignKey,
+  index,
   pgTable,
   text,
   timestamp,
@@ -51,5 +52,6 @@ export const party_contact = pgTable(
       columns: [t.counterparty_id, t.workspace_id],
       foreignColumns: [counterparty.id, counterparty.workspace_id],
     }),
+    index("party_contact_counterparty_idx").on(t.counterparty_id),
   ],
 )

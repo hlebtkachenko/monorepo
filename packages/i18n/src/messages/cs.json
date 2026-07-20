@@ -1664,6 +1664,59 @@
       "empty": "Zatím žádná účetní období.",
       "editZkratkaError": "Zkratku se nepodařilo uložit. Zkuste to prosím znovu."
     },
+    "closeWizard": {
+      "title": "Účetní závěrka",
+      "backTo": "Účetní období",
+      "back": "Zpět",
+      "status": {
+        "pass": "Splněno",
+        "blocked": "Blokuje",
+        "unavailable": "Neověřeno"
+      },
+      "config": {
+        "title": "Konfigurace",
+        "description": "Uzávěrka zaúčtuje na tyto zákonné účty. Hodnoty jsou pevné, nelze je zde měnit.",
+        "next": "Pokračovat na kontrolu",
+        "togglesHint": "Následující volby jsou informativní a tento běh zatím neovlivní.",
+        "accounts": {
+          "balanceClose": "Konečný účet rozvažný",
+          "opening": "Počáteční účet rozvažný",
+          "resultClose": "Účet zisků a ztrát",
+          "result": "Výsledek hospodaření ve schvalovacím řízení"
+        },
+        "toggles": {
+          "revaluation": "Přecenění neuhrazených dokladů",
+          "cashReconciliation": "Odsouhlasení banky a pokladny",
+          "inventory": "Převod skladu"
+        }
+      },
+      "review": {
+        "title": "Kontrola",
+        "ready": "Všechny blokující kontroly jsou splněny. Uzávěrku lze spustit.",
+        "blocked": "Uzávěrku blokuje {count} kontrol. Vyřešte je před spuštěním.",
+        "limitations": "Neověřené oblasti",
+        "next": "Pokračovat na spuštění"
+      },
+      "run": {
+        "title": "Spuštění",
+        "description": "Spuštěním se období zapečetí: zaúčtují se uzávěrkové operace a stav se převede do dalšího roku. Akci zde nelze vzít zpět.",
+        "action": "Spustit uzávěrku",
+        "forbidden": "Spuštění uzávěrky je vyhrazeno vlastníkovi nebo správci.",
+        "error": "Uzávěrku se nepodařilo dokončit. Zkuste to prosím znovu.",
+        "blockedToast": "Uzávěrku blokují kontroly. Zkontrolujte je v kroku Kontrola.",
+        "loading": {
+          "result": "Uzavírají se výsledkové účty…",
+          "balance": "Zaúčtuje se konečný účet rozvažný…",
+          "carryover": "Převádí se počáteční stavy…",
+          "sealing": "Období se zapečeťuje…"
+        }
+      },
+      "done": {
+        "title": "Účetní závěrka dokončena",
+        "description": "Období bylo uzavřeno a stav byl převeden do dalšího roku.",
+        "backToPeriods": "Zpět na účetní období"
+      }
+    },
     "favorite": {
       "tooltip": "Oblíbené",
       "add": "Přidat do oblíbených",

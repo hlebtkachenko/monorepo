@@ -30,6 +30,7 @@ import {
   closingNav,
   companyNav,
   debugNav,
+  directoryNav,
   orgBottomNav,
   orgRailNav,
 } from "../_nav/org-nav"
@@ -95,18 +96,21 @@ export function OrgShell({
   // the default; Closing and Debug each own their tree.
   const isDebugModule = active?.href === orgHref(slug, "debug")
   const isClosingModule = active?.href === orgHref(slug, "closing")
+  const isDirectoryModule = active?.href === orgHref(slug, "adresar")
   const nav = React.useMemo<SidebarNavEntry[]>(
     () =>
       (isDebugModule
         ? debugNav(slug)
         : isClosingModule
           ? closingNav(slug)
-          : companyNav(slug)
+          : isDirectoryModule
+            ? directoryNav(slug)
+            : companyNav(slug)
       ).map(({ labelKey, ...rest }) => ({
         ...rest,
         label: t(labelKey),
       })),
-    [slug, t, isDebugModule, isClosingModule],
+    [slug, t, isDebugModule, isClosingModule, isDirectoryModule],
   )
   const title = active?.label ?? t("company")
 

@@ -24,6 +24,8 @@ import { orgHref } from "@/lib/org/href"
 type OrgNavLabelKey =
   | "company"
   | "closing"
+  | "directory"
+  | "states"
   | "overview"
   | "periods"
   | "debug"
@@ -62,6 +64,7 @@ export function orgRailNav(
   const modules: OrgRailNavItem[] = [
     { labelKey: "company", icon: "Goal", href: orgHref(slug) },
     { labelKey: "closing", icon: "Lock", href: orgHref(slug, "closing") },
+    { labelKey: "directory", icon: "BookUser", href: orgHref(slug, "adresar") },
   ]
   if (options.debug) {
     modules.push({
@@ -103,6 +106,17 @@ export function closingNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "periods",
       icon: "CalendarClock",
       href: orgHref(slug, "closing/periods"),
+    },
+  ]
+}
+
+/** Sidebar tree for the Directory (Adresář) module — Veřejné číselníky (Státy). */
+export function directoryNav(slug: string): OrgSidebarNavItem[] {
+  return [
+    {
+      labelKey: "states",
+      icon: "Globe",
+      href: orgHref(slug, "adresar/ciselniky/staty"),
     },
   ]
 }

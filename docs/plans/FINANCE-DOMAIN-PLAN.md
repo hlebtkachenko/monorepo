@@ -27,6 +27,28 @@
 - Deferred with cause (Advisor): `view_bank_detail` capability (no guard consumer until the bank UI, Phase 2)
   and a `no-direct-fx-lookup` ESLint rule (a turbo cache-buster; its own PR once Phase-2 consumers multiply).
 
+**Phase 1 Reference — 3 of 4 pages SHIPPED (2026-07-20):**
+
+- **Měny** (currencies) — `org_currency` enablement table (migration 0078, org-scoped FORCE RLS, **enablement-only**:
+  the functional currency stays on `accounting_period.accounting_currency`, never here) + `listCurrencies` (catalog
+  LEFT JOIN org_currency + functional subquery) + enable/disable server action — **PR #916 (merged)**.
+- **Kurzy** (FX rates) — read-only Table over the shared `fx_rate` store + `listFxRates` (raw kurz + množství verbatim)
+  — **PR #917 (merged)**. ČNB-import + manual override **DEFERRED**: `apps/web` has no worker-enqueue seam (no
+  `@workspace/workers` dep / `handleCnbFxDaily` unexported / no pg-boss producer). Plan: extract `importCnbRates` into
+  `@workspace/accounting` (web action + the live `cnb-fx-daily` worker share it), gate finance-member+ and audit.
+- **Formy úhrady** (payment methods) — `payment_method` shared **Case-B** vocabulary (migration 0079, `cash|transfer|card|other`
+  from the intake IR, i18n names keyed by code) + `listPaymentMethods` — **PR #919 (merged)**.
+- **Peněžní ústavy** (financial_institution) — **NOT built.** Blocked on an authoritative **ČNB bank-code list** (the
+  country register used a Hleb-provided ČSÚ dataset; there is no bank equivalent, and I will not fabricate one). Options:
+  (a) provide the list → gen the seed; (b) fetch+vendor from cnb.cz (+ its update-check / prettierignore / gitleaks
+  governance); (c) defer to **Phase 2** (the Advisor's original home — `financial_account.bank_code` is plain text, no
+  consumer yet).
+- **Build decisions (verified in-repo):** flat `financeNav` with the `ciselniky` grouping in the route
+  (`finance/ciselniky/{meny,kurzy,formy-uhrady}`), mirroring the just-merged **Directory** module — **not** a grouped
+  sidebar (deviates from the Advisor's grouped-now on the strength of the fresher sibling precedent). Finance reads live
+  in `@workspace/accounting` (Phase-0 precedent, no `@workspace/finance` split). Reference-name i18n = generated next-intl
+  message-map keyed by code. All three pages are the existing **Table** archetype (no new chrome).
+
 **Finanční majetek / cenné papíry — decision (Advisor 2026-07-20; resolves §12 open item #5):**
 
 - **ONE `security_holding` table** covers BOTH tradeable securities (25x) and equity participations
@@ -55,17 +77,17 @@
 
 **Next tasks — what each PR lands (critical path, ≤800-line PRs, built only in `o/[orgSlug]`):**
 
-| #   | Phase / task                          | What it lands                                                                                                                                                                                              |
-| --- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| —   | ČNB backfill wiring                   | enqueue `cnb-fx-daily {date}` for the last N business days so the store has history, not forward-only                                                                                                      |
-| —   | Wire resolver into a first consumer   | capture stamps `effectiveRate` onto `partial_record.fx_rate`, or a CZK-equivalent display — the resolver's first real reader                                                                               |
-| 1   | **Reference data**                    | `payment_method` (Formy úhrady) · `financial_institution` (Peněžní ústavy) · Měny (currency enablement) · Kurzy (fx_rate Table + ČNB-import action) — reference Table pages + their tables                 |
-| 2   | **Bank + Cash**                       | `financial_account` writes + `/v1` + `lib/org` reads; Bankovní / Pokladní účty (Table+Details); create form + opening balance; migration detect→draft; `view_bank_detail` capability + its guard land here |
-| 3   | **Reconciliation**                    | `statement_import`/`statement_line` + CAMT/MT940/ABO parsers; line matching (reuse `open_item_settlement`); `money_transfer` + Peníze na cestě (Table + inspector confirm-match)                           |
-| 4   | **Relationships**                     | `employee_balance` / `shareholder_balance` views (over saldokonto + read-model) + pages + counterparty tabs                                                                                                |
-| 5   | **Facilities**                        | `financing_facility` + drawdown / repayment / schedule; `reclass_mode` engine (§5.1); Financování page                                                                                                     |
-| 6   | **Cenné papíry a podíly**             | `security_holding` + `security_transaction` register (Table+Details); acquisition/disposal/dividend/interest/manual-impairment postings — **on demand**                                                    |
-| 7   | **Overview + period-end revaluation** | overview (Table/Details composition, the cross-object roll-up) + a period-end action running FX **and** securities fair-value / impairment remeasurement                                                   |
+| #   | Phase / task                           | What it lands                                                                                                                                                                                                                                          |
+| --- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| —   | ČNB backfill wiring                    | enqueue `cnb-fx-daily {date}` for the last N business days so the store has history, not forward-only                                                                                                                                                  |
+| —   | Wire resolver into a first consumer    | capture stamps `effectiveRate` onto `partial_record.fx_rate`, or a CZK-equivalent display — the resolver's first real reader                                                                                                                           |
+| 1   | **Reference data** _(3/4 merged — §0)_ | ✅ Měny (`org_currency` 0078, #916) · ✅ Kurzy (`fx_rate` read-only, #917) · ✅ Formy úhrady (`payment_method` 0079, #919) · ⬜ Peněžní ústavy (`financial_institution` — blocked on ČNB bank-code source; §0) · ⬜ Kurzy ČNB-import (worker seam; §0) |
+| 2   | **Bank + Cash**                        | `financial_account` writes + `/v1` + `lib/org` reads; Bankovní / Pokladní účty (Table+Details); create form + opening balance; migration detect→draft; `view_bank_detail` capability + its guard land here                                             |
+| 3   | **Reconciliation**                     | `statement_import`/`statement_line` + CAMT/MT940/ABO parsers; line matching (reuse `open_item_settlement`); `money_transfer` + Peníze na cestě (Table + inspector confirm-match)                                                                       |
+| 4   | **Relationships**                      | `employee_balance` / `shareholder_balance` views (over saldokonto + read-model) + pages + counterparty tabs                                                                                                                                            |
+| 5   | **Facilities**                         | `financing_facility` + drawdown / repayment / schedule; `reclass_mode` engine (§5.1); Financování page                                                                                                                                                 |
+| 6   | **Cenné papíry a podíly**              | `security_holding` + `security_transaction` register (Table+Details); acquisition/disposal/dividend/interest/manual-impairment postings — **on demand**                                                                                                |
+| 7   | **Overview + period-end revaluation**  | overview (Table/Details composition, the cross-object roll-up) + a period-end action running FX **and** securities fair-value / impairment remeasurement                                                                                               |
 
 **Resolved (Hleb 2026-07-20):** securities build **on demand** (spec now, build Phase 6 when a real client
 actually holds securities/participations — do NOT pre-build); the **one `security_holding` table** decision +
@@ -160,16 +182,16 @@ Finance  (new rail module — orgRailNav gains a "finance" entry; sidebar = fina
 
 ### 2.1 IA decisions
 
-| Question                              | Decision                                                                                                                                 | Ground                                                              |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Finance as its own module?            | Yes — a new rail module, sidebar grows page-by-page                                                                                      | new-tree nav model [B§1]                                            |
-| Overview page?                        | **Later phase, built from existing Table/Details + inspector** (no Dashboard archetype)                                                  | [Hleb: no new archetypes/variants]                                  |
-| Credit types = one page or four?      | One `financing_facility` entity; **UI = a faceted Table** (kind filter) with an option to split into 4 sidebar leaves later              | task §2.2 allows shared model + separate pages; keep nav lean first |
-| Employee/shareholder money?           | A Finance Table **and** a contextual tab on the counterparty                                                                             | same view, two entry points                                         |
-| Reference data placement?             | Under a Finance **Číselníky** sidebar group                                                                                              | Finance-operational; currency/FX are platform data surfaced here    |
-| Peněžní ústavy?                       | Shared system directory (Case B), org rows only where needed                                                                             | avoid per-org duplication (task §3.2)                               |
-| Reconciliation (bank statement ↔ GL)? | **Table + inspector** — statement/transfer rows in the Table, match candidates + confirm-match action in the inspector; no new archetype | [Hleb: no new archetypes/variants]                                  |
-| Securities?                           | Deferred (Blank placeholder)                                                                                                             | net-new + valuation complexity; §12                                 |
+| Question                              | Decision                                                                                                                                            | Ground                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Finance as its own module?            | Yes — a new rail module, sidebar grows page-by-page                                                                                                 | new-tree nav model [B§1]                                            |
+| Overview page?                        | **Later phase, built from existing Table/Details + inspector** (no Dashboard archetype)                                                             | [Hleb: no new archetypes/variants]                                  |
+| Credit types = one page or four?      | One `financing_facility` entity; **UI = a faceted Table** (kind filter) with an option to split into 4 sidebar leaves later                         | task §2.2 allows shared model + separate pages; keep nav lean first |
+| Employee/shareholder money?           | A Finance Table **and** a contextual tab on the counterparty                                                                                        | same view, two entry points                                         |
+| Reference data placement?             | Finance **Číselníky** — flat `financeNav`, `ciselniky` in the route (`finance/ciselniky/*`), mirroring the Directory module (NOT a grouped sidebar) | Finance-operational; matches the fresher in-tree sibling precedent  |
+| Peněžní ústavy?                       | Shared system directory (Case B), org rows only where needed                                                                                        | avoid per-org duplication (task §3.2)                               |
+| Reconciliation (bank statement ↔ GL)? | **Table + inspector** — statement/transfer rows in the Table, match candidates + confirm-match action in the inspector; no new archetype            | [Hleb: no new archetypes/variants]                                  |
+| Securities?                           | Deferred (Blank placeholder)                                                                                                                        | net-new + valuation complexity; §12                                 |
 
 ---
 

@@ -121,6 +121,13 @@ export {
   revalueOpenItemFx,
   type FxSettlementInput,
   type FxRevaluationInput,
+  resolveFxRate,
+  effectiveRate,
+  convertAmount,
+  convertAmountAt,
+  FxRateNotFoundError,
+  type ResolvedFxRate,
+  type FxRateQuery,
 } from "./fx/index"
 
 // Saldokonto (open items)

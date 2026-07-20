@@ -27,6 +27,7 @@ import type { DeploymentIdentity } from "@workspace/ui/lib/deployment-version"
 import { orgBasePath, orgHref } from "@/lib/org/href"
 
 import {
+  accountingNav,
   closingNav,
   companyNav,
   debugNav,
@@ -91,22 +92,26 @@ export function OrgShell({
     [slug, t, showDebug],
   )
   const active = activeRailEntry(rail, pathname)
-  // Pick the active module's sidebar tree from the active rail entry. Company is
-  // the default; Closing and Debug each own their tree.
+  // Pick the active module's sidebar tree, matched on the module ROOT href (so it
+  // matches `activeRailEntry`'s longest-prefix resolution). Company is the default;
+  // each module is one additive arm here plus its `*Nav` in `_nav/org-nav.ts`.
   const isDebugModule = active?.href === orgHref(slug, "debug")
   const isClosingModule = active?.href === orgHref(slug, "closing")
+  const isAccountingModule = active?.href === orgHref(slug, "accounting")
   const nav = React.useMemo<SidebarNavEntry[]>(
     () =>
       (isDebugModule
         ? debugNav(slug)
         : isClosingModule
           ? closingNav(slug)
-          : companyNav(slug)
+          : isAccountingModule
+            ? accountingNav(slug)
+            : companyNav(slug)
       ).map(({ labelKey, ...rest }) => ({
         ...rest,
         label: t(labelKey),
       })),
-    [slug, t, isDebugModule, isClosingModule],
+    [slug, t, isDebugModule, isClosingModule, isAccountingModule],
   )
   const title = active?.label ?? t("company")
 

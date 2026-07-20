@@ -49,7 +49,6 @@ export interface DocumentSeriesView {
   description: string | null
   validFromYear: number | null
   validToYear: number | null
-  nextNumber: number
   periods: NumberSeriesPeriodView[]
 }
 
@@ -83,7 +82,6 @@ function toSeriesView(
     description: series.description,
     validFromYear: series.valid_from_year,
     validToYear: series.valid_to_year,
-    nextNumber: series.next_number,
     periods: periods.map(toPeriodView),
   }
 }

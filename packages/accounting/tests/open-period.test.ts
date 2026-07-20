@@ -1,10 +1,10 @@
 /**
  * openPeriod — decoupled period open (create + copy chart forward, NO 701), on a real PG18.
  *
- * openPeriod is the "start a new účetní období while the prior one is still OPEN" half of
- * the old openNextPeriod: it creates the period and carries the chart forward, but does NOT
- * post the 701 opening balances (those are posted exactly once by closePeriod's carryover,
- * because a period opened early has no final opening balances yet).
+ * openPeriod is the "start a new účetní období while the prior one is still OPEN" primitive:
+ * it creates the period and carries the chart forward, but does NOT post the 701 opening
+ * balances (those are posted exactly once by closePeriod's carryover, because a period
+ * opened early has no final opening balances yet).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import { withOrganization } from "@workspace/db"

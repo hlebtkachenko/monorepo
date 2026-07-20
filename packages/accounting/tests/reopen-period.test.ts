@@ -533,6 +533,82 @@ describe("reopenPeriod", () => {
     expect(status?.status).toBe("CLOSED")
   })
 
+  it("refuses to reopen after a SUPPLEMENTARY (doplňkový) 431 distribution in a later period", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2125-01-01",
+      periodEnd: "2125-12-31",
+    })
+    await postPair(
+      s,
+      "2125-06-01",
+      { number: "221", amount: "1000.00" },
+      { number: "602", amount: "1000.00" },
+    )
+    await postPair(
+      s,
+      "2125-06-02",
+      { number: "504", amount: "300.00" },
+      { number: "321", amount: "300.00" },
+    )
+    const close = await withOrganization(orgA, userId, (db) =>
+      closePeriod(db, s.ctx, {
+        priorPeriodId: s.periodId,
+        responsibleUserId: userId,
+      }),
+    )
+    const nPlus1 = close.newPeriodId
+    expect(close.openingPostingId).not.toBeNull()
+
+    // A doplňkový (SUPPLEMENTARY) correction on 431 in N+1: MD 431 / D 428 = 700 — a
+    // genuine, NON-reversed distribution of the výsledek hospodaření booked as a
+    // SUPPLEMENTARY correction (correctsPostingId set) rather than a plain posting.
+    // The guard must still trip: it now keys on correction_type IS DISTINCT FROM
+    // 'REVERSAL' (not corrects_posting_id IS NULL), so a SUPPLEMENTARY — which by
+    // definition carries a corrects_posting_id — is no longer wrongly skipped.
+    const debit431 = await accountIdInPeriod(nPlus1, "431")
+    const credit428 = await accountIdInPeriod(nPlus1, "428")
+    await withOrganization(orgA, userId, async (db) => {
+      const event = await createEvent(db, s.ctx, {
+        periodId: nPlus1,
+        seriesId: s.eventSeriesId,
+        description: "Doplňkový zápis rozdělení VH",
+        occurredAt: "2126-03-01",
+        responsibleUserId: userId,
+      })
+      const doc = await captureDocument(db, s.ctx, {
+        periodId: nPlus1,
+        seriesId: s.documentSeriesId,
+        type: "INTERNAL",
+        issuedAt: "2126-03-01",
+        lines: [],
+      })
+      await postDoubleEntry(db, s.ctx, {
+        periodId: nPlus1,
+        summaryRecordId: doc.summaryRecordId,
+        accountingEventId: event.eventId,
+        postingDate: "2126-03-01",
+        responsibleUserId: userId,
+        correctsPostingId: close.openingPostingId!,
+        correctionType: "SUPPLEMENTARY",
+        lines: [
+          { accountId: debit431, side: "DEBIT", amount: "700.00" },
+          { accountId: credit428, side: "CREDIT", amount: "700.00" },
+        ],
+      })
+    })
+
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        reopenPeriod(db, s.ctx, { periodId: s.periodId, reopenedBy: userId }),
+      ),
+    ).rejects.toThrow(/distributed/)
+
+    // N stayed CLOSED (the refusal rolled the whole tx back).
+    const [status] = await admin<Array<{ status: string }>>`
+      SELECT status FROM accounting_period WHERE id = ${s.periodId}::uuid`
+    expect(status?.status).toBe("CLOSED")
+  })
+
   it("reverses only the 701 carry in N+1 and preserves N+1's own postings", async () => {
     const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
       periodStart: "2130-01-01",

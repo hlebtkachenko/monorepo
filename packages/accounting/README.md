@@ -102,8 +102,10 @@ monetaryJournal / monetarySummary
 
 ```ts
 assessPeriodCloseReadiness(db, ctx, periodId) // structured blockers + explicit limitations
-rollForwardPeriod(db, ctx, input) // guarded output → close → next period
-openNextPeriod(db, ctx, input) // low-level new period + chart + 701 opening balances
+closePeriod(db, ctx, input) // year-end close: result → 702 → output → carryover 701
+rollForwardPeriod(db, ctx, input) // thin compatibility wrapper over closePeriod
+openPeriod(db, ctx, input) // decoupled new period + chart forward (NO 701)
+postOpeningBalances(db, ctx, input) // low-level 701 opening carry into a target period
 ```
 
 `rollForwardPeriod` is the public close path. It acquires the period advisory

@@ -209,7 +209,7 @@ export async function scaffoldAccountingPeriod(
   // (RLS-scoped; the explicit organization_id filter is belt-and-suspenders)
   // BEFORE any INSERT. Standard half-open-agnostic interval-overlap predicate:
   // existing.start <= req.end AND existing.end >= req.start. The internal period-
-  // progression callers (openNextPeriod / rollForwardPeriod) go through the lower-
+  // progression callers (closePeriod / rollForwardPeriod) go through the lower-
   // level createPeriod primitive, not this scaffold, so their non-overlapping
   // roll-forward is untouched.
   const overlap = await executeRows<{

@@ -241,8 +241,8 @@ export interface OpenPeriodResult {
  * (same regime + accounting currency + fx_rate_policy as the prior) and copy its
  * chart of accounts forward. It does NOT post opening balances (701): a period N+1
  * may be opened while N is still OPEN, so its opening balances are not yet final —
- * `closePeriod` posts the 701 exactly once as part of the carryover. (Historically
- * `openNextPeriod` did open + 701 in one shot; it now = `openPeriod` + the 701 post.)
+ * `closePeriod` posts the 701 exactly once as part of the carryover. That 701 post
+ * is the `postOpeningBalances` primitive, invoked only from that carryover.
  */
 export async function openPeriod(
   db: RowExecutor,
@@ -280,54 +280,37 @@ export async function openPeriod(
   return { newPeriodId, newChartId: chartId, regimeCode: p.regime_code }
 }
 
-export interface OpenNextPeriodInput {
+export interface PostOpeningBalancesInput {
+  /** The just-closed period whose konečné stavy seed the carry. */
   priorPeriodId: string
-  periodStart: string
-  periodEnd: string
+  /** The period the 701 opening posts INTO (its chart must already exist). */
+  targetPeriodId: string
   /** number_series (EVENT) for the internal opening case. */
   eventSeriesId: string
   /** number_series (DOCUMENT) for the internal opening doklad. */
   documentSeriesId: string
   responsibleUserId: string
-  /** Defaults to the prior period's accounting currency. */
-  accountingCurrency?: string
-  /** Defaults to the prior period's fx_rate_policy. */
-  fxRatePolicy?: FxRateKind | null
   /** počáteční účet rozvažný; defaults to "701". */
   openingAccountNumber?: string
-  /** Opening posting date; defaults to the new period start. */
-  postingDate?: string
-}
-
-export interface OpenNextPeriodResult {
-  newPeriodId: string
-  newChartId: string
-  /** null when the prior period had no nonzero balance-sheet balances to carry. */
-  openingPostingId: string | null
+  /** Opening posting date (deník order + period membership). */
+  postingDate: string
 }
 
 /**
  * Post the 701 opening balances (počáteční účet rozvažný) INTO a target period:
  * for every balance-sheet account (ASSET / LIABILITY / EQUITY) with a nonzero
  * prior closing balance, carry that balance onto its natural side with a 701
- * contra, as ONE is_opening posting. Extracted so openNextPeriod (open + carry in
- * one shot) and closePeriod (carry into a possibly pre-opened next period) share a
- * single sign convention. The read-model trigger feeds opening_balance (not
- * turnover) from an is_opening line; the balance trigger rejects an opening
- * posting touching a P&L account. Returns null when there is nothing to carry.
+ * contra, as ONE is_opening posting. `closePeriod` calls this exactly once during
+ * its carryover — after finding-or-creating the successor — to seed that period's
+ * opening balances (the single production caller). The read-model trigger feeds
+ * opening_balance (not turnover) from an is_opening line; the balance trigger
+ * rejects an opening posting touching a P&L account. Returns null when there is
+ * nothing to carry.
  */
-async function postOpeningBalances(
+export async function postOpeningBalances(
   db: RowExecutor,
   ctx: OrgCtx,
-  input: {
-    priorPeriodId: string
-    targetPeriodId: string
-    eventSeriesId: string
-    documentSeriesId: string
-    responsibleUserId: string
-    openingAccountNumber?: string
-    postingDate: string
-  },
+  input: PostOpeningBalancesInput,
 ): Promise<string | null> {
   // Prior closing balances of balance-sheet accounts (sign + abs computed in SQL).
   const balances = await rows<{ number: string; sgn: number; amt: string }>(
@@ -401,38 +384,6 @@ async function postOpeningBalances(
   })
 
   return posting.postingId
-}
-
-/** Open the next period and post opening balances against 701 (R12, ČÚS 002). */
-export async function openNextPeriod(
-  db: RowExecutor,
-  ctx: OrgCtx,
-  input: OpenNextPeriodInput,
-): Promise<OpenNextPeriodResult> {
-  const { newPeriodId, newChartId, regimeCode } = await openPeriod(db, ctx, {
-    priorPeriodId: input.priorPeriodId,
-    periodStart: input.periodStart,
-    periodEnd: input.periodEnd,
-    accountingCurrency: input.accountingCurrency,
-    fxRatePolicy: input.fxRatePolicy,
-  })
-
-  // Opening balances are a DOUBLE_ENTRY concern only (cash regimes have no chart).
-  if (regimeCode !== "DOUBLE_ENTRY") {
-    return { newPeriodId, newChartId, openingPostingId: null }
-  }
-
-  const openingPostingId = await postOpeningBalances(db, ctx, {
-    priorPeriodId: input.priorPeriodId,
-    targetPeriodId: newPeriodId,
-    eventSeriesId: input.eventSeriesId,
-    documentSeriesId: input.documentSeriesId,
-    responsibleUserId: input.responsibleUserId,
-    openingAccountNumber: input.openingAccountNumber,
-    postingDate: input.postingDate ?? input.periodStart,
-  })
-
-  return { newPeriodId, newChartId, openingPostingId }
 }
 
 // ---------------------------------------------------------------------------
@@ -605,11 +556,13 @@ export interface ClosePeriodResult {
  *   3. 702 balance-close of every balance-sheet account incl. 431, with the KÚR
  *      balance-equation check (read-model-neutral, is_closing);
  *   4. generate the účetní závěrka output; 5. mark the period CLOSED;
- *   6. carryover: find-or-create the next period (bounds = day after this end),
- *      then post the 701 opening ONCE — refused if the target already carries live
- *      opening balances (double-open guard).
+ *   6. carryover: find-or-create the successor (keyed by its start = day after this
+ *      end, invariant regardless of fiscal-year length), then post the 701 opening
+ *      ONCE — refused if the target already carries live opening balances
+ *      (double-open guard).
  * Monetary regimes (single-entry / daňová evidence) skip 2/3 and the 701: they
- * gate, output, close, and open a bare next period (no chart, no opening posting).
+ * gate, output, close, and find-or-create a bare next period (no chart, no opening
+ * posting).
  * Everything is one tx — any throw rolls the whole close back.
  */
 export async function closePeriod(
@@ -710,16 +663,29 @@ export async function closePeriod(
   })
   await markPeriodClosed(db, input.priorPeriodId)
 
-  // 6. Carryover. Monetary regimes have no chart / opening balances — open a bare
-  // next period and stop.
+  // 6. Carryover. Monetary regimes have no chart / opening balances — find-or-create
+  // a bare next period and stop. Keyed by START ONLY (the day after this period's
+  // end is invariant regardless of the successor's fiscal-year length), so an
+  // early-opened N+1 with an irregular / short end is matched, never duplicated.
   if (p.regime_code !== "DOUBLE_ENTRY") {
-    const newPeriodId = await createPeriod(db, ctx, {
-      periodStart: bounds.periodStart,
-      periodEnd: bounds.periodEnd,
-      regimeCode: p.regime_code,
-      accountingCurrency: p.accounting_currency,
-      fxRatePolicy: p.fx_rate_policy,
-    })
+    const existingMonetary = await rows<{ id: string }>(
+      db,
+      sql`SELECT id
+            FROM accounting_period
+           WHERE organization_id = ${ctx.organizationId}::uuid
+             AND period_start = ${bounds.periodStart}::date
+           ORDER BY created_at, id
+           LIMIT 1`,
+    )
+    const newPeriodId =
+      existingMonetary[0]?.id ??
+      (await createPeriod(db, ctx, {
+        periodStart: bounds.periodStart,
+        periodEnd: bounds.periodEnd,
+        regimeCode: p.regime_code,
+        accountingCurrency: p.accounting_currency,
+        fxRatePolicy: p.fx_rate_policy,
+      }))
     return {
       closeResultPostingId,
       closingPostingId,
@@ -730,16 +696,18 @@ export async function closePeriod(
     }
   }
 
-  // Double-entry carryover: target an already-open next period with these exact
-  // bounds if one exists (the "open N+1 early" path), else create it (chart copied
-  // forward, no 701). The 701 opening is posted exactly once, only here.
+  // Double-entry carryover: target an already-open next period if one exists (the
+  // "open N+1 early" path), else create it (chart copied forward, no 701). The
+  // successor is keyed by its START ONLY — the day after this period's end, an
+  // invariant regardless of the successor's fiscal-year length — so an early-opened
+  // N+1 with an irregular / short end is still matched (never duplicated into an
+  // overlapping period). The 701 opening is posted exactly once, only here.
   const existing = await rows<{ id: string }>(
     db,
     sql`SELECT id
           FROM accounting_period
          WHERE organization_id = ${ctx.organizationId}::uuid
            AND period_start = ${bounds.periodStart}::date
-           AND period_end = ${bounds.periodEnd}::date
          ORDER BY created_at, id
          LIMIT 1`,
   )
@@ -960,13 +928,18 @@ export async function reopenPeriod(
     )
   }
 
-  // 3. The 431 result must NOT have been distributed in any later period. The 701
-  //    opening (is_opening) also touches 431 in the successor but is excluded, and — the
-  //    fix for the reverse-chronological deadlock — a successor's ALREADY-REVERSED
-  //    result-close (a normal MD 710/D 431 posting whose REVERSAL storno exists) is
-  //    excluded too, mirroring findLiveClosePosting's live-generation filter. Any
-  //    remaining NORMAL, non-reversed posting on 431 after N is a genuine VH-distribution
-  //    (e.g. 431→428) that reopening would corrupt.
+  // 3. The 431 result must NOT have been distributed in any later period. Excluded:
+  //    the 701 opening (is_opening) + 702 close (is_closing), which touch 431 in the
+  //    successor mechanically; every REVERSAL storno itself (correction_type =
+  //    'REVERSAL'); and — the fix for the reverse-chronological deadlock — an
+  //    ALREADY-REVERSED original whose REVERSAL storno exists (a successor's own
+  //    result-close reversed during its earlier reopen), mirroring
+  //    findLiveClosePosting's live-generation filter. Any remaining live posting on
+  //    431 after N is a genuine VH-distribution reopening would corrupt — a plain
+  //    posting (431→428) OR a doplňkový SUPPLEMENTARY correction on 431. The
+  //    predicate keys on correction_type (IS DISTINCT FROM 'REVERSAL'), NOT on
+  //    corrects_posting_id IS NULL, so a SUPPLEMENTARY — which carries a
+  //    corrects_posting_id — is no longer wrongly skipped.
   const [distribution] = await rows<{ n: number }>(
     db,
     sql`SELECT count(*)::int AS n
@@ -979,7 +952,7 @@ export async function reopenPeriod(
            AND a.number = ${UZAVERKA_ACCOUNT.result}
            AND p.is_opening = false
            AND p.is_closing = false
-           AND p.corrects_posting_id IS NULL
+           AND p.correction_type IS DISTINCT FROM 'REVERSAL'
            AND NOT EXISTS (
              SELECT 1 FROM posting r
               WHERE r.corrects_posting_id = p.id

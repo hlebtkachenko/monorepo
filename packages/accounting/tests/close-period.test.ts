@@ -15,14 +15,16 @@ import {
   captureDocument,
   closePeriod,
   createEvent,
+  createPeriod,
   generalLedger,
-  openNextPeriod,
   openPeriod,
   postDoubleEntry,
+  postOpeningBalances,
   reconcileReadModel,
 } from "../src/index"
 import {
   adminClient,
+  seedCashOrg,
   seedDoubleEntryOrg,
   seedTwoOrganizations,
   type DoubleEntrySeed,
@@ -31,6 +33,7 @@ import {
 let admin: ReturnType<typeof adminClient>
 let workspaceId: string
 let orgA: string
+let orgB: string
 let userId: string
 
 beforeAll(async () => {
@@ -38,6 +41,7 @@ beforeAll(async () => {
   const seed = await seedTwoOrganizations(admin)
   workspaceId = seed.workspaceId
   orgA = seed.orgAId
+  orgB = seed.orgBId
   userId = seed.userAId
 })
 
@@ -210,18 +214,24 @@ describe("closePeriod", () => {
       { number: "321", amount: "500.00" },
     )
 
-    // Open the next period EARLY and post its 701 opening balances directly, so the
-    // target already carries live opening balances before closePeriod's carryover.
-    await withOrganization(orgA, userId, (db) =>
-      openNextPeriod(db, s.ctx, {
+    // Open the next period EARLY via openPeriod (chart forward, NO 701), then seed its
+    // 701 opening balances directly through the postOpeningBalances primitive, so the
+    // target already carries live opening balances before closePeriod's carryover runs.
+    await withOrganization(orgA, userId, async (db) => {
+      const opened = await openPeriod(db, s.ctx, {
         priorPeriodId: s.periodId,
         periodStart: "2082-01-01",
         periodEnd: "2082-12-31",
+      })
+      await postOpeningBalances(db, s.ctx, {
+        priorPeriodId: s.periodId,
+        targetPeriodId: opened.newPeriodId,
         eventSeriesId: s.eventSeriesId,
         documentSeriesId: s.documentSeriesId,
         responsibleUserId: userId,
-      }),
-    )
+        postingDate: "2082-01-01",
+      })
+    })
 
     // closePeriod reaches its carryover, finds the pre-opened 2082 with live opening
     // balances, and refuses rather than double-posting the 701.
@@ -300,5 +310,108 @@ describe("closePeriod", () => {
     )
     expect(priorDrift).toEqual([])
     expect(nextDrift).toEqual([])
+  })
+
+  it("closes N into a next period opened early with an IRREGULAR (short) end — targets it by start, no duplicate", async () => {
+    const s = await seedDoubleEntryOrg(orgA, workspaceId, userId, {
+      periodStart: "2085-01-01",
+      periodEnd: "2085-12-31",
+    })
+
+    // Balance-sheet activity to carry: MD 221 / D 321 = 900.
+    await postPair(
+      s,
+      "2085-06-01",
+      { number: "221", amount: "900.00" },
+      { number: "321", amount: "900.00" },
+    )
+
+    // Open N+1 EARLY via openPeriod as a SHORT fiscal year: irregular end 2086-06-30,
+    // NOT the 2086-12-31 that nextPeriodBounds computes. The successor START
+    // (2086-01-01, the day after N ends) is invariant regardless of that length —
+    // matching on start+end would MISS this period and create a duplicate overlapping
+    // full-calendar-year 2086, posting the 701 into the wrong period.
+    const opened = await withOrganization(orgA, userId, (db) =>
+      openPeriod(db, s.ctx, {
+        priorPeriodId: s.periodId,
+        periodStart: "2086-01-01",
+        periodEnd: "2086-06-30",
+      }),
+    )
+
+    const result = await withOrganization(orgA, userId, (db) =>
+      closePeriod(db, s.ctx, {
+        priorPeriodId: s.periodId,
+        responsibleUserId: userId,
+      }),
+    )
+
+    // Targeted the pre-opened irregular period and posted the 701 into it.
+    expect(result.newPeriodId).toBe(opened.newPeriodId)
+    expect(result.openingPostingId).not.toBeNull()
+
+    // Exactly ONE period starts on 2086-01-01, and its end is still the irregular
+    // 2086-06-30 — no duplicate full-calendar-year successor was created.
+    const periods = await admin<Array<{ id: string; period_end: string }>>`
+      SELECT id, period_end::text AS period_end FROM accounting_period
+       WHERE organization_id = ${orgA}::uuid AND period_start = '2086-01-01'`
+    expect(periods).toHaveLength(1)
+    expect(periods[0]!.id).toBe(opened.newPeriodId)
+    expect(periods[0]!.period_end).toBe("2086-06-30")
+
+    // The 701 carried the intact balances into the pre-opened period.
+    await withOrganization(orgA, userId, async (db) => {
+      const ledger = await generalLedger(db, result.newPeriodId)
+      const opening = (num: string) =>
+        ledger.find((r) => r.account_number === num)?.opening_balance ??
+        "0.0000"
+      expect(opening("221")).toBe("900.0000")
+      expect(opening("321")).toBe("-900.0000")
+    })
+
+    const priorDrift = await withOrganization(orgA, userId, (db) =>
+      reconcileReadModel(db, s.periodId),
+    )
+    const nextDrift = await withOrganization(orgA, userId, (db) =>
+      reconcileReadModel(db, result.newPeriodId),
+    )
+    expect(priorDrift).toEqual([])
+    expect(nextDrift).toEqual([])
+  })
+
+  it("monetary: closes N into a bare next period opened early with an irregular end — finds it by start, no duplicate", async () => {
+    const s = await seedCashOrg(orgB, workspaceId, userId, "TAX_RECORDS")
+
+    // Pre-open the successor EARLY as a bare SHORT year (2027-01-01..2027-06-30). Cash
+    // regimes have no chart, so this is a plain createPeriod, not openPeriod.
+    const earlyId = await withOrganization(orgB, userId, (db) =>
+      createPeriod(db, s.ctx, {
+        periodStart: "2027-01-01",
+        periodEnd: "2027-06-30",
+        regimeCode: "TAX_RECORDS",
+        accountingCurrency: "CZK",
+      }),
+    )
+
+    // Closing 2026 must FIND the pre-opened 2027 by START (matching on both start+end
+    // would create a second full 2027 calendar year) and post no 701 (monetary).
+    const result = await withOrganization(orgB, userId, (db) =>
+      closePeriod(db, s.ctx, {
+        priorPeriodId: s.periodId,
+        responsibleUserId: userId,
+      }),
+    )
+
+    expect(result.newPeriodId).toBe(earlyId)
+    expect(result.newChartId).toBeNull()
+    expect(result.openingPostingId).toBeNull()
+
+    // Exactly ONE period starts on 2027-01-01, end still 2027-06-30 (no duplicate).
+    const periods = await admin<Array<{ id: string; period_end: string }>>`
+      SELECT id, period_end::text AS period_end FROM accounting_period
+       WHERE organization_id = ${orgB}::uuid AND period_start = '2027-01-01'`
+    expect(periods).toHaveLength(1)
+    expect(periods[0]!.id).toBe(earlyId)
+    expect(periods[0]!.period_end).toBe("2027-06-30")
   })
 })

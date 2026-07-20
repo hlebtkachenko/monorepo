@@ -4,7 +4,11 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import type { Table } from "@tanstack/react-table"
 
-import type { FxRateKind } from "@workspace/accounting"
+import type {
+  CloseCheckStatus,
+  FxRateKind,
+  PeriodCloseCheck,
+} from "@workspace/accounting"
 import { useTranslations } from "@workspace/i18n/client"
 import { ArchetypeTable } from "@workspace/ui/blocks/archetypes"
 import type { ArchetypeTableSelectionHelpers } from "@workspace/ui/blocks/archetypes"
@@ -29,6 +33,7 @@ import type {
   ViewTab,
 } from "@workspace/ui/blocks/content-panel"
 import type { InspectorTab } from "@workspace/ui/blocks/inspector-sheet"
+import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import {
   Dialog,
@@ -50,7 +55,12 @@ import {
 } from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
 
-import { openPeriodAction, updatePeriodZkratka } from "@/lib/org/period-actions"
+import {
+  getPeriodCloseReadinessAction,
+  openPeriodAction,
+  updatePeriodZkratka,
+  type PeriodCloseReadinessView,
+} from "@/lib/org/period-actions"
 import type { PeriodListRow } from "@/lib/org/period-data"
 
 /**
@@ -103,6 +113,159 @@ function oneYearEndIso(startIso: string): string {
   date.setUTCFullYear(date.getUTCFullYear() + 1)
   date.setUTCDate(date.getUTCDate() - 1)
   return date.toISOString().slice(0, 10)
+}
+
+/**
+ * Inspector "Uzávěrka" tab — the period-close readiness checklist plus the run
+ * entry for one selected period. It fetches readiness on mount (and whenever the
+ * inspected period changes) via `getPeriodCloseReadinessAction`, then renders the
+ * domain checks split by severity: BLOCKER checks first, WARNING checks below,
+ * each with a status badge. An OPEN period shows "Spustit uzávěrku" for
+ * owner/admin (the DTO's `canManage` flag) linking to the close wizard route; a
+ * CLOSED period shows a closed notice and leaves a seam for the P12 reopen entry.
+ * The check `label`/`message` render as-is from the domain (their localization is
+ * out of scope); only the tab chrome is translated.
+ */
+function PeriodUzaverkaTab({
+  slug,
+  periodId,
+  stav,
+}: {
+  slug: string
+  periodId: string
+  stav: string
+}) {
+  const t = useTranslations("org.periods")
+  const router = useRouter()
+  const [loading, setLoading] = React.useState(true)
+  const [failed, setFailed] = React.useState(false)
+  const [readiness, setReadiness] =
+    React.useState<PeriodCloseReadinessView | null>(null)
+
+  React.useEffect(() => {
+    let ignore = false
+    setLoading(true)
+    setFailed(false)
+    setReadiness(null)
+    void (async () => {
+      const result = await getPeriodCloseReadinessAction({ slug, periodId })
+      if (ignore) return
+      if (result.ok) setReadiness(result.readiness)
+      else setFailed(true)
+      setLoading(false)
+    })()
+    return () => {
+      ignore = true
+    }
+  }, [slug, periodId])
+
+  const isClosed = stav === "closed"
+
+  const statusLabel = React.useCallback(
+    (status: CloseCheckStatus): string =>
+      status === "PASS"
+        ? t("uzaverka.status.pass")
+        : status === "FAIL"
+          ? t("uzaverka.status.fail")
+          : t("uzaverka.status.unavailable"),
+    [t],
+  )
+
+  // Per-check status → badge tone. Severity (BLOCKER vs WARNING) is conveyed by
+  // the section a check sits in; the badge reports its individual status.
+  const statusVariant = (status: CloseCheckStatus) =>
+    status === "PASS"
+      ? ("secondary" as const)
+      : status === "FAIL"
+        ? ("destructive" as const)
+        : ("outline" as const)
+
+  const renderCheck = (check: PeriodCloseCheck) => (
+    <li
+      key={check.code}
+      className="flex items-start justify-between gap-3 rounded-lg border border-border-subtle px-3 py-2"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground">{check.label}</p>
+        <p className="text-xs text-muted-foreground">{check.message}</p>
+      </div>
+      <Badge variant={statusVariant(check.status)}>
+        {statusLabel(check.status)}
+      </Badge>
+    </li>
+  )
+
+  const blockers =
+    readiness?.checks.filter((check) => check.severity === "BLOCKER") ?? []
+  const warnings =
+    readiness?.checks.filter((check) => check.severity !== "BLOCKER") ?? []
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground">
+          {t("uzaverka.heading")}
+        </h3>
+        {readiness && !isClosed ? (
+          <Badge variant={readiness.ready ? "default" : "destructive"}>
+            {readiness.ready ? t("uzaverka.ready") : t("uzaverka.notReady")}
+          </Badge>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          {t("uzaverka.loading")}
+        </p>
+      ) : null}
+      {failed ? (
+        <p className="text-sm text-destructive" role="alert">
+          {t("uzaverka.error")}
+        </p>
+      ) : null}
+
+      {readiness ? (
+        <div className="flex flex-col gap-4">
+          {blockers.length > 0 ? (
+            <section className="space-y-2">
+              <h4 className="text-xs font-semibold text-foreground">
+                {t("uzaverka.blockers")}
+              </h4>
+              <ul className="space-y-2">{blockers.map(renderCheck)}</ul>
+            </section>
+          ) : null}
+          {warnings.length > 0 ? (
+            <section className="space-y-2">
+              <h4 className="text-xs font-semibold text-muted-foreground">
+                {t("uzaverka.warnings")}
+              </h4>
+              <ul className="space-y-2">{warnings.map(renderCheck)}</ul>
+            </section>
+          ) : null}
+        </div>
+      ) : null}
+
+      {isClosed ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm text-muted-foreground">
+            {t("uzaverka.closed")}
+          </p>
+          {/* P12: the reopen action button mounts here for a closed period. */}
+        </div>
+      ) : readiness?.canManage ? (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            onClick={() =>
+              router.push(`/${slug}/closing/periods/${periodId}/close`)
+            }
+          >
+            {t("uzaverka.run")}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 export function ClosingPeriodsView({
@@ -349,9 +512,20 @@ export function ClosingPeriodsView({
             ]}
           />
         ),
+        // The Inspector rail exposes a fixed tab union with no dedicated close
+        // slot, so the Uzávěrka tab rides the cross-cutting "more" slot — the
+        // most semantically appropriate existing slot for a secondary,
+        // action-oriented panel on the record.
+        more: (
+          <PeriodUzaverkaTab
+            slug={slug}
+            periodId={id}
+            stav={String(row.stav ?? "")}
+          />
+        ),
       }
     },
-    [t, commitZkratka, stavLabel, regimeLabel, fxLabel],
+    [t, slug, commitZkratka, stavLabel, regimeLabel, fxLabel],
   )
 
   // ── "Otevřít období": create the next period from the newest one (rows are

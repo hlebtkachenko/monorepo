@@ -1693,6 +1693,22 @@
         "success": "The accounting period was opened.",
         "error": "Could not open the accounting period.",
         "forbidden": "Only an owner or admin can open a period."
+      },
+      "uzaverka": {
+        "heading": "Close",
+        "loading": "Checking close readiness…",
+        "error": "Close readiness could not be loaded.",
+        "ready": "Ready to close",
+        "notReady": "Not ready to close",
+        "blockers": "Blocking checks",
+        "warnings": "Warnings",
+        "status": {
+          "pass": "OK",
+          "fail": "Blocked",
+          "unavailable": "Not verified"
+        },
+        "run": "Run close",
+        "closed": "This period is closed."
       }
     },
     "favorite": {

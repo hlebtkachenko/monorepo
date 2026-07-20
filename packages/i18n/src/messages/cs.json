@@ -1693,6 +1693,22 @@
         "success": "Účetní období bylo otevřeno.",
         "error": "Účetní období se nepodařilo otevřít.",
         "forbidden": "Otevřít období může jen vlastník nebo administrátor."
+      },
+      "uzaverka": {
+        "heading": "Uzávěrka",
+        "loading": "Načítání kontrol připravenosti…",
+        "error": "Kontroly připravenosti se nepodařilo načíst.",
+        "ready": "Připraveno k uzávěrce",
+        "notReady": "Není připraveno k uzávěrce",
+        "blockers": "Blokující kontroly",
+        "warnings": "Upozornění",
+        "status": {
+          "pass": "OK",
+          "fail": "Blokuje",
+          "unavailable": "Neověřeno"
+        },
+        "run": "Spustit uzávěrku",
+        "closed": "Období je uzavřené."
       }
     },
     "favorite": {

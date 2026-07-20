@@ -7,6 +7,7 @@ import { auth } from "@workspace/auth/server"
 import { withOrganization } from "@workspace/db"
 import { accounting_period } from "@workspace/db/schema"
 import {
+  assessPeriodCloseReadiness,
   closePeriod,
   openPeriod,
   reopenPeriod,
@@ -16,6 +17,7 @@ import {
 import type {
   ClosePeriodResult,
   FxRateKind,
+  PeriodCloseCheck,
   PeriodCloseReadiness,
   ReopenPeriodResult,
 } from "@workspace/accounting"
@@ -109,6 +111,71 @@ export async function updatePeriodZkratka(input: {
 
   revalidatePath(orgHref(input.slug, PERIODS_ROUTE))
   return { ok: true }
+}
+
+/**
+ * Serializable close-readiness DTO surfaced to the Inspector Uzávěrka tab. The
+ * checks ride verbatim from the domain assessment (`PeriodCloseCheck` is already
+ * a plain, serializable shape); `canManage` mirrors the owner/admin gate so the
+ * client can hide the run entry for non-managers without ever seeing the role.
+ */
+export interface PeriodCloseReadinessView {
+  periodId: string
+  ready: boolean
+  canManage: boolean
+  checks: PeriodCloseCheck[]
+}
+
+type PeriodCloseReadinessActionResult =
+  | { ok: true; readiness: PeriodCloseReadinessView }
+  | { ok: false; error?: string }
+
+/**
+ * Read the close readiness of one accounting period for the Inspector Uzávěrka
+ * tab. Reading is not a mutation, so there is no owner/admin gate — an active
+ * membership is enough; the returned `canManage` flag reports whether the caller
+ * may run the close. Tenancy is derived server-side (`userId` from the session,
+ * `organizationId` + `workspaceId` from `resolveMembership`); the assessment runs
+ * under `withOrganization` (FORCE RLS), mirroring the shipped settings reader.
+ * `slug` is a routing key, never a tenant id.
+ */
+export async function getPeriodCloseReadinessAction(input: {
+  slug: string
+  periodId: string
+}): Promise<PeriodCloseReadinessActionResult> {
+  if (!UUID_RE.test(input.periodId)) return { ok: false }
+
+  const session = await getRequestSession()
+  const userId = session?.user?.id
+  if (!userId) return { ok: false }
+
+  const membership = await resolveMembership({ slug: input.slug, userId })
+  if (!membership) return { ok: false }
+  const { organizationId, workspaceId, role } = membership
+
+  try {
+    const readiness = await withOrganization(organizationId, userId, (db) =>
+      assessPeriodCloseReadiness(
+        db,
+        { organizationId, workspaceId },
+        input.periodId,
+      ),
+    )
+    return {
+      ok: true,
+      readiness: {
+        periodId: readiness.periodId,
+        ready: readiness.ready,
+        canManage: isOrgManager(role),
+        checks: readiness.checks,
+      },
+    }
+  } catch (e) {
+    // Log the raw error server-side; return a generic message so no internal
+    // identifier / SQL text leaks to the client.
+    console.error("getPeriodCloseReadinessAction failed", e)
+    return { ok: false, error: "Could not load period close readiness." }
+  }
 }
 
 // ---------------------------------------------------------------------------

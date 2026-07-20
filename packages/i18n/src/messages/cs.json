@@ -1611,6 +1611,7 @@
       "states": "Státy",
       "finance": "Finance",
       "currencies": "Měny",
+      "rates": "Kurzy",
       "paymentMethods": "Formy úhrady",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
@@ -1632,6 +1633,7 @@
       "chartFramework": "Účetní osnova",
       "states": "Státy",
       "currencies": "Měny",
+      "rates": "Kurzy",
       "paymentMethods": "Formy úhrady",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
@@ -1714,6 +1716,22 @@
       "no": "Ne",
       "all": "Vše",
       "empty": "Žádné formy úhrady.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Číselníky"
+      }
+    },
+    "fxRates": {
+      "columns": {
+        "pair": "Pár",
+        "date": "Datum",
+        "kind": "Druh",
+        "unit": "Množství",
+        "rate": "Kurz",
+        "source": "Zdroj"
+      },
+      "all": "Vše",
+      "empty": "Zatím žádné kurzy. Načtěte kurz ČNB.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Číselníky"

@@ -1611,6 +1611,7 @@
       "states": "Countries",
       "finance": "Finance",
       "currencies": "Currencies",
+      "rates": "Rates",
       "paymentMethods": "Payment methods",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
@@ -1632,6 +1633,7 @@
       "chartFramework": "Chart framework",
       "states": "Countries",
       "currencies": "Currencies",
+      "rates": "Rates",
       "paymentMethods": "Payment methods",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
@@ -1714,6 +1716,22 @@
       "no": "No",
       "all": "All",
       "empty": "No payment methods.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "fxRates": {
+      "columns": {
+        "pair": "Pair",
+        "date": "Date",
+        "kind": "Kind",
+        "unit": "Unit",
+        "rate": "Rate",
+        "source": "Source"
+      },
+      "all": "All",
+      "empty": "No exchange rates yet. Import the ČNB fix to populate.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"

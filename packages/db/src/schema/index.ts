@@ -59,6 +59,7 @@ export * from "./dppo_annual_taxpayer_category"
 
 // v2 accounting — capture core (0027)
 export * from "./number_series"
+export * from "./number_series_period"
 export * from "./accounting_event"
 export * from "./signature"
 export * from "./summary_record"
@@ -111,6 +112,11 @@ export * from "./brain_admission_slot"
 
 // Org favorites — per-user, per-org starred pages, org-scoped FORCE RLS (0064)
 export * from "./favorite_page"
+
+// Finance domain — FX rate store: shared ČNB reference (no RLS) + org overrides
+// (FORCE RLS) (0072)
+export * from "./fx_rate"
+export * from "./fx_rate_override"
 
 // Debug/reference demo tables — dev-seeded, org-scoped FORCE RLS (0067). Feed the
 // Debug → Archetype Table reference pages; never real product data.

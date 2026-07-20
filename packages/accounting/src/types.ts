@@ -281,6 +281,8 @@ export interface PostingBase {
   inventoryCountId?: string | null
   /** 701 opening posting (B2) — excluded from turnover, sets opening_balance. */
   isOpening?: boolean
+  /** 702 balance-close posting — excluded from turnover AND reconcile (read-model-neutral); balance-sheet only. */
+  isClosing?: boolean
 }
 
 export interface DoubleEntryLineInput {

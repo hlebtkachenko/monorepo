@@ -7,6 +7,7 @@ const p = (id: string, status: "OPEN" | "CLOSED"): HeaderPeriod => ({
   period_start: "2026-01-01",
   period_end: "2026-12-31",
   status,
+  zkratka: null,
 })
 
 describe("resolveActivePeriod precedence", () => {

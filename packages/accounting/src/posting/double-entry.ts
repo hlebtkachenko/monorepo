@@ -32,6 +32,7 @@ export async function postDoubleEntry(
     depreciationPlanId: input.depreciationPlanId,
     inventoryCountId: input.inventoryCountId,
     isOpening: input.isOpening,
+    isClosing: input.isClosing,
   })
 
   const lineIds: string[] = []

@@ -23,8 +23,16 @@ export interface Lane<TData = unknown> {
    * pg-boss's scheduler, so the lane self-triggers with no external cron (e.g.
    * a periodic backstop reaper). Lanes without a schedule fire only when a job
    * is enqueued into their queue by some other path.
+   *
+   * `tz` is an IANA timezone for the cron (pg-boss defaults to UTC); set it when
+   * the cadence must track wall-clock in a specific zone across DST (e.g. the
+   * ČNB fix at 14:40 Europe/Prague). Omit to keep UTC.
    */
-  readonly schedule?: { readonly cron: string; readonly data?: object | null }
+  readonly schedule?: {
+    readonly cron: string
+    readonly tz?: string
+    readonly data?: object | null
+  }
 }
 
 const REGISTRY = new Map<string, Lane>()

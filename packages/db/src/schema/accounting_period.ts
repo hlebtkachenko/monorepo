@@ -40,6 +40,10 @@ export const accounting_period = pgTable(
     period_start: date("period_start").notNull(),
     period_end: date("period_end").notNull(),
     status: periodStatus("status").notNull().default("OPEN"),
+    // Editable short code (zkratka) shown in the Closing → Účetní období list.
+    // Defaults to the fiscal year (set by the app on create); NULL until
+    // overridden, readers COALESCE to the derived fiscal year. See migration 0069.
+    zkratka: text("zkratka"),
     regime_code: text("regime_code")
       .notNull()
       .references(() => regime.code),

@@ -89,6 +89,9 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "demo_debug_pivot_table_record",
   // Finance domain — operational money-place entity (0073_financial_account.sql)
   "financial_account",
+  // Finance domain — org FX rate overrides (0072_fx_rate.sql). The shared
+  // fx_rate table is Case-B (no RLS), so it is deliberately NOT listed here.
+  "fx_rate_override",
 ] as const
 
 export type OrganizationScopedTable =

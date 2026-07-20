@@ -9,7 +9,69 @@
 > Task: "determine what should exist" — a fresh design, not a copy of any current IA.
 > **Citations:** inline `file:line` are the load-bearing anchors (verified directly). `[B§n]` / `[A##]`
 > tags point at the workspace research trail (`.context/finance-redo/`) kept for provenance.
-> **No implementation** until the open decisions (§12) are resolved.
+> **Status update 2026-07-20:** REVIEWED → **IN EXECUTION.** Phase 0 shipped; the securities/investment
+> tier was re-scoped by a follow-up Advisor pass. The dated **§0** immediately below is the authoritative
+> current state + roadmap and supersedes the securities framing in §7/§12/§13 where they differ.
+
+---
+
+## 0. Execution status + roadmap (2026-07-20)
+
+**Phase 0 Foundation — DONE (shipped):**
+
+- `fx_rate` (shared ČNB reference) + `fx_rate_override` (org) store, the resolver
+  (`resolveFxRate`/`convertAmount`/`effectiveRate`/`convertAmountAt`, money math in SQL), and the **ČNB daily
+  ingest** (`cnb-fx-daily` pg-boss lane, tz-pinned 14:40 Europe/Prague; RAW rate+množství storage) — **PR #903 (merged)**.
+- `financial_account` (bank / cash / ceniny) schema + `accountBalance(db,{accountNumber,periodId})` read
+  primitive — **PR #901**.
+- Deferred with cause (Advisor): `view_bank_detail` capability (no guard consumer until the bank UI, Phase 2)
+  and a `no-direct-fx-lookup` ESLint rule (a turbo cache-buster; its own PR once Phase-2 consumers multiply).
+
+**Finanční majetek / cenné papíry — decision (Advisor 2026-07-20; resolves §12 open item #5):**
+
+- **ONE `security_holding` table** covers BOTH tradeable securities (25x) and equity participations
+  (061/062/063), mirroring `financial_account`'s `kind`-discriminator + `financing_facility`'s pattern.
+  Discriminators: `classification` SHORT_TERM|LONG_TERM · `instrument_kind`
+  EQUITY_PARTICIPATION|EQUITY_TRADEABLE|DEBT_SECURITY|TREASURY_OWN · `control_class` (061/062/063 by stake) ·
+  `valuation_model` COST|FAIR_VALUE_PL|FAIR_VALUE_EQUITY|AMORTIZED_COST (stored — a per-holding policy). GL link
+  1:1 like `financial_account`; `carrying_value` event-sourced. Sub-tables `security_transaction` +
+  `security_revaluation`.
+- **Why one table, not two:** the equity / ekvivalence method is **consolidation-only** (§65); in the
+  individual (standalone) books this product produces, a participation 061/062/063 is carried at **cost less
+  impairment (096/579)** — structurally the same register as a tradeable security, just a different
+  `valuation_model`. Documented split-trigger: promote participations to their own table ONLY if a
+  consolidation tier is ever built.
+- **Phase 6 upgraded from a dead `Blank` stub to a real minimal register** (Table+Details): acquisition,
+  disposal (561/661), dividend income (665), interest income (662), manual impairment (579/096/291); COST
+  model + a manual fair-value field. Built **on demand** (first client that actually holds securities/
+  participations), not speculatively.
+- **Deferred to Phase 7:** the automatic year-end fair-value / impairment **revaluation engine**
+  (251/253 → 564/664; 257 → 414; 065/256 amortized cost) — co-located with the FX rozvahový-den revaluation
+  (ČÚS 006 + ČÚS 008 share the same balance-sheet-date trigger). Equity method + consolidation: out of scope.
+- **IA — NO "Finanční majetek" nav grouping** (it is a rozvaha-presentation taxonomy, which contradicts the
+  real-world-object thesis §1). One leaf **"Cenné papíry a podíly"** (Table→Details, faceted by
+  `instrument_kind`). The cross-object "all financial assets in one place" total lives in the Phase-7
+  **Overview** (existing Table/Details archetype — no new chrome).
+
+**Next tasks — what each PR lands (critical path, ≤800-line PRs, built only in `o/[orgSlug]`):**
+
+| #   | Phase / task                          | What it lands                                                                                                                                                                                              |
+| --- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —   | ČNB backfill wiring                   | enqueue `cnb-fx-daily {date}` for the last N business days so the store has history, not forward-only                                                                                                      |
+| —   | Wire resolver into a first consumer   | capture stamps `effectiveRate` onto `partial_record.fx_rate`, or a CZK-equivalent display — the resolver's first real reader                                                                               |
+| 1   | **Reference data**                    | `payment_method` (Formy úhrady) · `financial_institution` (Peněžní ústavy) · Měny (currency enablement) · Kurzy (fx_rate Table + ČNB-import action) — reference Table pages + their tables                 |
+| 2   | **Bank + Cash**                       | `financial_account` writes + `/v1` + `lib/org` reads; Bankovní / Pokladní účty (Table+Details); create form + opening balance; migration detect→draft; `view_bank_detail` capability + its guard land here |
+| 3   | **Reconciliation**                    | `statement_import`/`statement_line` + CAMT/MT940/ABO parsers; line matching (reuse `open_item_settlement`); `money_transfer` + Peníze na cestě (Table + inspector confirm-match)                           |
+| 4   | **Relationships**                     | `employee_balance` / `shareholder_balance` views (over saldokonto + read-model) + pages + counterparty tabs                                                                                                |
+| 5   | **Facilities**                        | `financing_facility` + drawdown / repayment / schedule; `reclass_mode` engine (§5.1); Financování page                                                                                                     |
+| 6   | **Cenné papíry a podíly**             | `security_holding` + `security_transaction` register (Table+Details); acquisition/disposal/dividend/interest/manual-impairment postings — **on demand**                                                    |
+| 7   | **Overview + period-end revaluation** | overview (Table/Details composition, the cross-object roll-up) + a period-end action running FX **and** securities fair-value / impairment remeasurement                                                   |
+
+**Still open for Hleb (product):** securities build **on-demand vs speculative** (Advisor recommends on-demand
+— spec now, build when a real client holds them); confirm the one-`security_holding`-table decision + its
+split-trigger. Carried from §12: ceniny kind-vs-sub-ledger, persist const/spec symbol, Financování
+one-page-vs-four. Accounting-advisor bucket: 067-vs-069, 249 fit, 471→361, 479 attribution, 063 cost-vs-FV
+default, FX/securities revaluation cadence.
 
 ---
 
@@ -82,7 +144,7 @@ Finance  (new rail module — orgRailNav gains a "finance" entry; sidebar = fina
 ├── Financování              Table  → Details            (financing_facility; facility_kind filter)
 │      (one page, faceted by kind: Bankovní / Nebankovní / Vnitroskupinové / Půjčky — OR 4 sidebar
 │       leaves over the same entity; §2.1 decides)
-├── Cenné papíry             Blank (v1) → Details later   (security_holding; DEFERRED, §12)
+├── Cenné papíry a podíly    Table → Details (on demand)  (security_holding; register, §0 — not Blank)
 └── Číselníky (reference)
     ├── Formy úhrady         Table                        (payment_method)
     ├── Peněžní ústavy       Table                        (financial_institution — shared directory)
@@ -286,20 +348,20 @@ pagination); inspector rail (Details + a money-totals block, Activity, Attachmen
 Documents, Schedule/Interest (facilities), Currency, Attachments, Audit, Period history} +
 `details-table` sections. Governed by `ARCHETYPE_SECTION_POLICY` (table/details only) [B§2].
 
-| Page                 | Archetype         | Primary entity                 | Header extras                                    | Key columns                                                                                                                | Detail adds                                  | Primary actions                   |
-| -------------------- | ----------------- | ------------------------------ | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | --------------------------------- |
-| Bankovní účty        | Table+Details     | financial_account(BANK)        | balance summary, currency chips, missing-GL warn | name, code, institution, IBAN(masked), currency, GL acct, accounting balance, statement balance, diff, status, default-pay | Reconciliation tab                           | New account, Import statement     |
-| Pokladní účty        | Table+Details     | financial_account(CASH/CENINY) | cash total, over-limit warn                      | +responsible, cash_limit, kind                                                                                             | Cash-count tab                               | New desk, Cash count              |
-| Peníze na cestě      | Table + inspector | money_transfer / 261           | 261 balance, >5d ageing                          | source, dest, amount, dates, match state                                                                                   | inspector = match candidates + confirm-match | New transfer, Confirm match       |
-| Peníze u zaměstnanců | Table             | employee_balance view          | net/receivable/payable totals                    | counterparty, net, receivable(335), payable(333), currency, overdue                                                        | contextual                                   | Issue advance, Settle             |
-| Peníze u společníků  | Table             | shareholder_balance view       | net, ST/LT                                       | counterparty, net, receivable(355), payable(365/479), ST/LT, overdue                                                       | contextual                                   | Record loan, Repay                |
-| Financování          | Table+Details     | financing_facility             | drawn/outstanding/limit, next repayment          | counterparty, kind, direction, limit, drawn, outstanding, ST/LT, next repay, overdue, currency, status                     | Schedule + Interest tabs                     | New facility, Drawdown, Repayment |
-| Cenné papíry         | Blank (v1)        | security_holding               | —                                                | (DEFERRED)                                                                                                                 | —                                            | —                                 |
-| Formy úhrady         | Table             | payment_method                 | —                                                | code, name, type, flags                                                                                                    | inline                                       | New method                        |
-| Peněžní ústavy       | Table             | financial_institution          | system/org badge                                 | name, bank_code, BIC, country                                                                                              | inline                                       | Add org bank                      |
-| Měny                 | Table             | currency + org_currency        | functional badge                                 | code, name, enabled                                                                                                        | toggle                                       | Enable/disable                    |
-| Kurzy                | Table             | fx_rate                        | rate date, source                                | pair, date, type, rate, source, locked                                                                                     | inline (manual)                              | Import ČNB, Override              |
-| Konstantní symboly   | Table (opt)       | constant_symbol                | —                                                | code, description                                                                                                          | inline                                       | New                               |
+| Page                  | Archetype         | Primary entity                 | Header extras                                    | Key columns                                                                                                                             | Detail adds                                                   | Primary actions                                             |
+| --------------------- | ----------------- | ------------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| Bankovní účty         | Table+Details     | financial_account(BANK)        | balance summary, currency chips, missing-GL warn | name, code, institution, IBAN(masked), currency, GL acct, accounting balance, statement balance, diff, status, default-pay              | Reconciliation tab                                            | New account, Import statement                               |
+| Pokladní účty         | Table+Details     | financial_account(CASH/CENINY) | cash total, over-limit warn                      | +responsible, cash_limit, kind                                                                                                          | Cash-count tab                                                | New desk, Cash count                                        |
+| Peníze na cestě       | Table + inspector | money_transfer / 261           | 261 balance, >5d ageing                          | source, dest, amount, dates, match state                                                                                                | inspector = match candidates + confirm-match                  | New transfer, Confirm match                                 |
+| Peníze u zaměstnanců  | Table             | employee_balance view          | net/receivable/payable totals                    | counterparty, net, receivable(335), payable(333), currency, overdue                                                                     | contextual                                                    | Issue advance, Settle                                       |
+| Peníze u společníků   | Table             | shareholder_balance view       | net, ST/LT                                       | counterparty, net, receivable(355), payable(365/479), ST/LT, overdue                                                                    | contextual                                                    | Record loan, Repay                                          |
+| Financování           | Table+Details     | financing_facility             | drawn/outstanding/limit, next repayment          | counterparty, kind, direction, limit, drawn, outstanding, ST/LT, next repay, overdue, currency, status                                  | Schedule + Interest tabs                                      | New facility, Drawdown, Repayment                           |
+| Cenné papíry a podíly | Table+Details     | security_holding               | portfolio total, kind chips                      | kind, classification, issuer/investee, ownership %, ISIN, quantity, acquisition cost, carrying value, currency, valuation model, status | Transactions + Income tabs (revaluation deferred, §0/Phase 7) | Record acquisition, disposal, dividend/interest, impairment |
+| Formy úhrady          | Table             | payment_method                 | —                                                | code, name, type, flags                                                                                                                 | inline                                                        | New method                                                  |
+| Peněžní ústavy        | Table             | financial_institution          | system/org badge                                 | name, bank_code, BIC, country                                                                                                           | inline                                                        | Add org bank                                                |
+| Měny                  | Table             | currency + org_currency        | functional badge                                 | code, name, enabled                                                                                                                     | toggle                                                        | Enable/disable                                              |
+| Kurzy                 | Table             | fx_rate                        | rate date, source                                | pair, date, type, rate, source, locked                                                                                                  | inline (manual)                                               | Import ČNB, Override                                        |
+| Konstantní symboly    | Table (opt)       | constant_symbol                | —                                                | code, description                                                                                                                       | inline                                                        | New                                                         |
 
 ---
 
@@ -416,8 +478,10 @@ Phase 3 Reconcile    statement_import + parsers; line matching (reuse open_item_
                      Peníze na cestě as a Table + inspector (confirm-match in inspector — no new chrome)
 Phase 4 Relationships employee_balance / shareholder_balance views + pages (over saldokonto) + contextual tabs
 Phase 5 Facilities   financing_facility + drawdown/repayment/schedule; reclass_mode engine (§5.1); Financování page
-Phase 6 Securities   security_holding — DEFERRED
-Phase 7 Overview+FX  overview as a Table/Details + inspector composition + period-end "revalue FX balances" action
+Phase 6 Cenné papíry a podíly  security_holding + security_transaction register (Table+Details, on demand);
+                     acquisition/disposal/dividend(665)/interest(662)/manual-impairment(579/096) — §0
+Phase 7 Overview + revaluation overview (Table/Details composition) + period-end action revaluing FX AND
+                     securities (fair-value 564/664/414 + impairment) at rozvahový den (ČÚS 006 + 008) — §0
 ```
 
 Each node carries: goal · deps · domain/backend/frontend/migration/testing · open-qs · acceptance

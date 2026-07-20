@@ -153,9 +153,12 @@ export {
 export {
   closeResult,
   copyChartForward,
+  openPeriod,
   openNextPeriod,
   rollForwardPeriod,
   type CloseResultInput,
+  type OpenPeriodInput,
+  type OpenPeriodResult,
   type OpenNextPeriodInput,
   type OpenNextPeriodResult,
   type RollForwardInput,

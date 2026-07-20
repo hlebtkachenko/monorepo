@@ -203,6 +203,68 @@ export async function copyChartForward(
   return { chartId, accountIdByNumber: byNumber }
 }
 
+export interface OpenPeriodInput {
+  /** The period to copy chart + regime / currency / fx forward from. */
+  priorPeriodId: string
+  periodStart: string
+  periodEnd: string
+  /** Defaults to the prior period's accounting currency. */
+  accountingCurrency?: string
+  /** Defaults to the prior period's fx_rate_policy. */
+  fxRatePolicy?: FxRateKind | null
+}
+
+export interface OpenPeriodResult {
+  newPeriodId: string
+  newChartId: string
+  /** Regime copied from the prior period — lets a caller gate double-entry-only follow-ups (e.g. the 701 post). */
+  regimeCode: Regime
+}
+
+/**
+ * Open a new účetní období DECOUPLED from closing the prior one: create the period
+ * (same regime + accounting currency + fx_rate_policy as the prior) and copy its
+ * chart of accounts forward. It does NOT post opening balances (701): a period N+1
+ * may be opened while N is still OPEN, so its opening balances are not yet final —
+ * `closePeriod` posts the 701 exactly once as part of the carryover. (Historically
+ * `openNextPeriod` did open + 701 in one shot; it now = `openPeriod` + the 701 post.)
+ */
+export async function openPeriod(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: OpenPeriodInput,
+): Promise<OpenPeriodResult> {
+  const prior = await rows<{
+    regime_code: Regime
+    accounting_currency: string
+    fx_rate_policy: FxRateKind | null
+  }>(
+    db,
+    sql`SELECT regime_code, accounting_currency, fx_rate_policy
+          FROM accounting_period WHERE id = ${input.priorPeriodId}::uuid`,
+  )
+  const p = prior[0]
+  if (!p)
+    throw new Error(`accounting: prior period ${input.priorPeriodId} not found`)
+
+  const newPeriodId = await createPeriod(db, ctx, {
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    regimeCode: p.regime_code,
+    accountingCurrency: input.accountingCurrency ?? p.accounting_currency,
+    fxRatePolicy: input.fxRatePolicy ?? p.fx_rate_policy,
+  })
+
+  const { chartId } = await copyChartForward(
+    db,
+    ctx,
+    input.priorPeriodId,
+    newPeriodId,
+  )
+
+  return { newPeriodId, newChartId: chartId, regimeCode: p.regime_code }
+}
+
 export interface OpenNextPeriodInput {
   priorPeriodId: string
   periodStart: string
@@ -235,37 +297,17 @@ export async function openNextPeriod(
   ctx: OrgCtx,
   input: OpenNextPeriodInput,
 ): Promise<OpenNextPeriodResult> {
-  const prior = await rows<{
-    regime_code: Regime
-    accounting_currency: string
-    fx_rate_policy: FxRateKind | null
-  }>(
-    db,
-    sql`SELECT regime_code, accounting_currency, fx_rate_policy
-          FROM accounting_period WHERE id = ${input.priorPeriodId}::uuid`,
-  )
-  const p = prior[0]
-  if (!p)
-    throw new Error(`accounting: prior period ${input.priorPeriodId} not found`)
-
-  const newPeriodId = await createPeriod(db, ctx, {
+  const { newPeriodId, newChartId, regimeCode } = await openPeriod(db, ctx, {
+    priorPeriodId: input.priorPeriodId,
     periodStart: input.periodStart,
     periodEnd: input.periodEnd,
-    regimeCode: p.regime_code,
-    accountingCurrency: input.accountingCurrency ?? p.accounting_currency,
-    fxRatePolicy: input.fxRatePolicy ?? p.fx_rate_policy,
+    accountingCurrency: input.accountingCurrency,
+    fxRatePolicy: input.fxRatePolicy,
   })
 
-  const { chartId } = await copyChartForward(
-    db,
-    ctx,
-    input.priorPeriodId,
-    newPeriodId,
-  )
-
   // Opening balances are a DOUBLE_ENTRY concern only (cash regimes have no chart).
-  if (p.regime_code !== "DOUBLE_ENTRY") {
-    return { newPeriodId, newChartId: chartId, openingPostingId: null }
+  if (regimeCode !== "DOUBLE_ENTRY") {
+    return { newPeriodId, newChartId, openingPostingId: null }
   }
 
   // Prior closing balances of balance-sheet accounts (sign + abs computed in SQL).
@@ -282,7 +324,7 @@ export async function openNextPeriod(
          ORDER BY a.number`,
   )
   if (balances.length === 0) {
-    return { newPeriodId, newChartId: chartId, openingPostingId: null }
+    return { newPeriodId, newChartId, openingPostingId: null }
   }
 
   const openingNumber = input.openingAccountNumber ?? "701"
@@ -344,7 +386,7 @@ export async function openNextPeriod(
 
   return {
     newPeriodId,
-    newChartId: chartId,
+    newChartId,
     openingPostingId: posting.postingId,
   }
 }

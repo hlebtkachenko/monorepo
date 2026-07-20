@@ -62,6 +62,13 @@ export { listCountries, type CountryRow } from "./countries"
 export { listCurrencies, type CurrencyRow } from "./currencies"
 export { listPaymentMethods, type PaymentMethodRow } from "./payment-methods"
 
+// Finance reference registers (Finance ▸ Číselníky)
+export {
+  listFinancialInstitutions,
+  type FinancialInstitutionRow,
+} from "./financial-institutions"
+export { listConstantSymbols, type ConstantSymbolRow } from "./constant-symbols"
+
 // Master-data / setup
 export {
   createPeriod,

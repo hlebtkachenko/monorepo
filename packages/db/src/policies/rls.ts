@@ -41,7 +41,8 @@
  *     trigger writes through (0034 §3). Not in this org-isolation list.
  *   - regime, legal_form, legal_form_allowed_regime, accounting_size,
  *     vat_regime, currency, country, business_activity, account_group,
- *     directive_account, depreciation_group — reference (system/law) tables,
+ *     directive_account, depreciation_group, payment_method,
+ *     financial_institution, constant_symbol — reference (system/law) tables,
  *     shared across all tenants, no RLS.
  */
 export const ORGANIZATION_SCOPED_TABLES = [

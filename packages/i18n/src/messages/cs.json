@@ -1480,6 +1480,27 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka"
     },
+    "periods": {
+      "columns": {
+        "zkratka": "Zkratka",
+        "od": "Od",
+        "do": "Do",
+        "stav": "Stav",
+        "rok": "Rok"
+      },
+      "stav": {
+        "active": "Aktivní",
+        "open": "Otevřené",
+        "closed": "Uzavřené"
+      },
+      "views": {
+        "all": "Vše",
+        "open": "Otevřená",
+        "closed": "Uzavřená"
+      },
+      "exportFileName": "ucetni-obdobi",
+      "empty": "Zatím žádná účetní období."
+    },
     "favorite": {
       "tooltip": "Oblíbené",
       "add": "Přidat do oblíbených",

@@ -1,20 +1,22 @@
 import type { Metadata } from "next"
 
 import { getTranslations } from "@workspace/i18n/server"
-import { ArchetypeBlank } from "@workspace/ui/blocks/archetypes"
+import type { TableSectionRow } from "@workspace/ui/blocks/content-panel"
 
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
+import { listPeriods } from "@/lib/org/period-data"
+
+import { ClosingPeriodsView } from "../../_shell/app-body/app-content/content-body/closing-periods-view"
 
 /**
- * Closing module → Periods.
+ * Closing module → Účetní období (Periods).
  *
- * No Periods body is designed yet, and this tree allows NO demo / placeholder
- * content, so the page renders the Blank archetype: a title plus a single
- * full-height empty section (the charter-sanctioned "no content yet" body).
- * Its favorite star is threaded through the archetype's `favorite` prop —
- * starring it pins Periods onto the Closing Overview (`module_key='closing'`).
- * The optimism lives in the archetype (`useOptimisticFavorite`); this page
- * supplies only the seed state + a bound server action.
+ * A read-only Table archetype over the org's REAL accounting periods, projected
+ * server-side by `listPeriods` (one cached read, shared with the header
+ * switcher). The `?period=` param threads into the active resolution so the
+ * "Aktivní" row matches the switcher. The favorite star pins Periods onto the
+ * Closing Overview (`module_key='closing'`). Open / close / edit actions arrive
+ * in later slices; this slice is the read-only list.
  */
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("org.titles")
@@ -23,21 +25,39 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ClosingPeriodsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ period?: string | string[] }>
 }) {
   const { orgSlug } = await params
+  const sp = await searchParams
+  const requested = typeof sp.period === "string" ? sp.period : undefined
+
   const t = await getTranslations("org.titles")
   const tf = await getTranslations("org.favorite")
-  const te = await getTranslations("org.empty")
   const title = t("periods")
-  const active = await isFavorited({ slug: orgSlug, route: "closing/periods" })
+  const route = "closing/periods"
+
+  const [periods, active] = await Promise.all([
+    listPeriods({ slug: orgSlug, requestedPeriod: requested }),
+    isFavorited({ slug: orgSlug, route }),
+  ])
+
+  const rows: readonly TableSectionRow[] = periods.map((period) => ({
+    id: period.id,
+    zkratka: period.zkratka,
+    od: period.od,
+    do: period.do,
+    stav: period.stav,
+    rok: period.rok,
+  }))
 
   async function onToggleFavorite() {
     "use server"
     const result = await toggleFavorite({
       slug: orgSlug,
-      route: "closing/periods",
+      route,
       module: "closing",
       label: title,
     })
@@ -46,9 +66,10 @@ export default async function ClosingPeriodsPage({
   }
 
   return (
-    <ArchetypeBlank
+    <ClosingPeriodsView
+      key={orgSlug}
       title={title}
-      emptyTitle={te("title")}
+      rows={rows}
       favorite={{
         initialActive: active,
         onToggle: onToggleFavorite,

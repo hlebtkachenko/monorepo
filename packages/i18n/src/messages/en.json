@@ -1480,6 +1480,27 @@
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table"
     },
+    "periods": {
+      "columns": {
+        "zkratka": "Code",
+        "od": "From",
+        "do": "To",
+        "stav": "Status",
+        "rok": "Year"
+      },
+      "stav": {
+        "active": "Active",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "views": {
+        "all": "All",
+        "open": "Open",
+        "closed": "Closed"
+      },
+      "exportFileName": "accounting-periods",
+      "empty": "No accounting periods yet."
+    },
     "favorite": {
       "tooltip": "Favorite",
       "add": "Add to favorites",

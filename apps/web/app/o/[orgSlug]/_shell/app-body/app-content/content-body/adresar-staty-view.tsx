@@ -50,6 +50,15 @@ export function StatyRegisterView({
   const [view, setView] = React.useState("all")
   const [search, setSearch] = React.useState("")
 
+  // Deep link: `…?inspect=<iso2>` opens that row's Inspector on load — the target
+  // the footer "Copy link" action writes.
+  const [openRowId] = React.useState<string | undefined>(() =>
+    typeof window === "undefined"
+      ? undefined
+      : (new URLSearchParams(window.location.search).get("inspect") ??
+        undefined),
+  )
+
   const columns: TableColumnSpec[] = React.useMemo(
     () => [
       {
@@ -175,6 +184,7 @@ export function StatyRegisterView({
           emptyText: t("empty"),
         }),
       ]}
+      openRowId={openRowId}
       inspectorRowTitle={(row) => String(row.name ?? "")}
       inspectorRowName={(row) => String(row.code ?? "")}
       inspectorRowContent={inspectorContent}

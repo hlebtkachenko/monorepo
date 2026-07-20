@@ -1608,6 +1608,7 @@
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "directory": "Directory",
+      "assets": "Assets",
       "states": "Countries",
       "finance": "Finance",
       "currencies": "Currencies",
@@ -1636,7 +1637,8 @@
       "rates": "Rates",
       "paymentMethods": "Payment methods",
       "documentTypes": "Document types",
-      "documentSeries": "Document series"
+      "documentSeries": "Document series",
+      "assets": "Assets"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Received invoices",

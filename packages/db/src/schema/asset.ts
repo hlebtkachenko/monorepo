@@ -1,7 +1,7 @@
 /**
  * asset — fixed-asset register card (majetek §5.7, ČÚS 013). DFM excluded (D1).
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE asset)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE asset)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * oprávky/ZC derived not stored (D3). account_number references the balance-sheet

@@ -25,6 +25,7 @@ type OrgNavLabelKey =
   | "company"
   | "closing"
   | "directory"
+  | "assets"
   | "states"
   | "finance"
   | "currencies"
@@ -80,6 +81,7 @@ export function orgRailNav(
     { labelKey: "closing", icon: "Lock", href: orgHref(slug, "closing") },
     { labelKey: "finance", icon: "PiggyBank", href: orgHref(slug, "finance") },
     { labelKey: "directory", icon: "BookUser", href: orgHref(slug, "adresar") },
+    { labelKey: "assets", icon: "Building2", href: orgHref(slug, "majetek") },
   ]
   if (options.debug) {
     modules.push({
@@ -133,6 +135,14 @@ export function directoryNav(slug: string): OrgSidebarNavItem[] {
       icon: "Globe",
       href: orgHref(slug, "adresar/ciselniky/staty"),
     },
+  ]
+}
+
+/** Sidebar tree for the Assets (Majetek) module. Flat — grows one page at a
+ *  time as the register / operations / settings surfaces are built. */
+export function assetsNav(slug: string): OrgSidebarNavItem[] {
+  return [
+    { labelKey: "overview", icon: "Building2", href: orgHref(slug, "majetek") },
   ]
 }
 

@@ -2,7 +2,7 @@
  * inventory_count — inventurní soupis (ZoÚ §29–30). Below books; differences generate
  * postings. Append-only at migration. Označení (D6).
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE inventory_count)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE inventory_count)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * Triggers / RLS / CHECK constraints live in the migration, not this DSL.

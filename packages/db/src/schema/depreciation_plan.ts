@@ -2,7 +2,7 @@
  * depreciation_plan — ÚČETNÍ odpisový plán; drives MD 551 / D 08x monthly (ČÚS 013,
  * Vyhláška §56). Revision history (D4). Closes posting.depreciation_plan_id.
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE depreciation_plan)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE depreciation_plan)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * Self-FK supersedes_plan_id keeps revision history (D4). Account references are

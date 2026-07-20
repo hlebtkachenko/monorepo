@@ -2,7 +2,7 @@
  * tax_depreciation — DAŇOVÉ odpisy per asset (1:1); NOT posted. Feeds DPPO + odložená
  * daň (ČÚS 003). accumulated_amount STORED (annual, can be suspended — not derivable).
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE tax_depreciation)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE tax_depreciation)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * UNIQUE(asset_id, organization_id) enforces the 1:1 to asset. Triggers / RLS / CHECK

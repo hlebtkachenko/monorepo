@@ -34,9 +34,27 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@workspace/ui/components/dialog"
+import { Input } from "@workspace/ui/components/input"
+import { Label } from "@workspace/ui/components/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { toast } from "@workspace/ui/components/sonner"
 
 import { orgHref } from "@/lib/org/href"
+import {
+  ACCOUNT_NATURES,
+  EMPTY_ADD_ACCOUNT_FORM,
+  isAddFormValid,
+  toAddAccountInput,
+  validateAddForm,
+  type AddAccountForm,
+  type AddAccountInput,
+} from "@/lib/org/chart-of-accounts-add"
 
 /**
  * ChartOfAccountsView — the Účtový rozvrh (chart of accounts) page body.
@@ -88,6 +106,13 @@ export interface ChartTemplateOption {
   isDefault: boolean
 }
 
+/** A synthetic account the add-form offers as a parent for a new analytical. */
+export interface SyntheticOption {
+  id: string
+  number: string
+  name: string
+}
+
 export function ChartOfAccountsView({
   slug,
   title,
@@ -95,10 +120,13 @@ export function ChartOfAccountsView({
   tree,
   emptyText,
   canSeed,
+  canAdd,
   templates,
+  synthetics,
   onSeedFromFramework,
   onSeedFromTemplate,
   onUpdateAccount,
+  onAddAccount,
 }: {
   slug: string
   title: string
@@ -107,10 +135,15 @@ export function ChartOfAccountsView({
   emptyText: string
   /** True when the active period has an empty chart — the seed actions show. */
   canSeed: boolean
+  /** True when a chart exists — the "add account" toolbar action shows. */
+  canAdd: boolean
   templates: readonly ChartTemplateOption[]
+  /** Synthetic accounts, offered as the optional parent of a new analytical. */
+  synthetics: readonly SyntheticOption[]
   onSeedFromFramework: () => Promise<void>
   onSeedFromTemplate: (templateId: string) => Promise<void>
   onUpdateAccount: (input: UpdateAccountInput) => Promise<void>
+  onAddAccount: (input: AddAccountInput) => Promise<void>
 }) {
   const tn = useTranslations("org.nav")
   const tc = useTranslations("accounting.chartOfAccounts.columns")
@@ -199,7 +232,7 @@ export function ChartOfAccountsView({
           ? { id, name: raw }
           : field === "tracksOpenItems"
             ? { id, tracksOpenItems: raw === "yes" }
-            : { id, taxRelevant: raw === "yes" }
+            : { id, taxRelevant: raw === "none" ? null : raw === "yes" }
       startEdit(async () => {
         try {
           await onUpdateAccount(input)
@@ -264,6 +297,27 @@ export function ChartOfAccountsView({
     [canSeed, seedPending, templates.length, runFramework, tp],
   )
 
+  // ── Add: a page-owned inspector panel (a new account has no row, so it can't
+  // use the row-rail). The toolbar "Add account" opens it; the form persists once
+  // through `onAddAccount` and the server action revalidates the tree. ──
+  const [addOpen, setAddOpen] = React.useState(false)
+  const [addPending, startAdd] = React.useTransition()
+
+  const submitAdd = React.useCallback(
+    (input: AddAccountInput) => {
+      startAdd(async () => {
+        try {
+          await onAddAccount(input)
+          toast.success(tp("addSuccess"))
+          setAddOpen(false)
+        } catch {
+          toast.error(tp("addFailed"))
+        }
+      })
+    },
+    [onAddAccount, tp],
+  )
+
   const buildToolbar = React.useCallback(
     (
       table: Table<TableSectionRow> | null,
@@ -280,8 +334,11 @@ export function ChartOfAccountsView({
         },
         filter,
         actions: seedActions.length > 0 ? seedActions : undefined,
+        add: canAdd
+          ? { label: tp("addAccount"), onAdd: () => setAddOpen(true) }
+          : undefined,
       }),
-    [search, filter, tp, seedActions],
+    [search, filter, tp, seedActions, canAdd],
   )
 
   const selectionActions = React.useCallback(
@@ -309,6 +366,13 @@ export function ChartOfAccountsView({
       const flagValue = (v: string | number | null | undefined) =>
         v == null || v === "" ? "" : String(v)
       const boolOptions = BOOLEANS.map((v) => ({ value: v, label: tb(v) }))
+      // Tax-relevance is boolean|null — a third "clear" option resets it to NULL
+      // (a real value, not "No"), for balance / closing accounts that carry no tax
+      // relevance. Radix forbids an empty option value, so the sentinel is "none".
+      const taxOptions = [
+        ...boolOptions,
+        { value: "none", label: tp("taxClear") },
+      ]
       return {
         details: (
           <SectionList
@@ -352,7 +416,7 @@ export function ChartOfAccountsView({
                     label: tc("taxRelevant"),
                     value: flagValue(row.taxRelevant),
                     type: "select",
-                    options: boolOptions,
+                    options: taxOptions,
                     placeholder: "—",
                     onCommit: (v) => commitField(id, "taxRelevant", v),
                   },
@@ -363,7 +427,7 @@ export function ChartOfAccountsView({
         ),
       }
     },
-    [tc, tsc, tat, tnb, tb, commitField],
+    [tc, tsc, tat, tnb, tb, tp, commitField],
   )
 
   return (
@@ -384,6 +448,20 @@ export function ChartOfAccountsView({
         inspectorRowTitle={(row) => String(row.number ?? "")}
         inspectorRowName={(row) => String(row.name ?? "")}
         inspectorRowContent={inspectorContent}
+        inspector={
+          addOpen ? (
+            <AddAccountForm
+              synthetics={synthetics}
+              pending={addPending}
+              onSubmit={submitAdd}
+              onCancel={() => setAddOpen(false)}
+            />
+          ) : null
+        }
+        inspectorOpen={addOpen}
+        inspectorMode="panel"
+        onInspectorOpenChange={setAddOpen}
+        inspectorTitle={tp("addPanelTitle")}
         sections={[
           sectionTreeTable({
             anchor: "chart",
@@ -424,5 +502,198 @@ export function ChartOfAccountsView({
         </DialogContent>
       </Dialog>
     </>
+  )
+}
+
+/**
+ * AddAccountForm — the page-owned inspector panel body for adding a new account.
+ * It holds its own field state (remounted fresh on each open), validates at the
+ * boundary (number shape, name, nature), and hands a clean `AddAccountInput` to
+ * `onSubmit`. Shared field labels reuse the column i18n; nature + add-only chrome
+ * come from the page namespace. Minted inside this client boundary.
+ */
+function AddAccountForm({
+  synthetics,
+  pending,
+  onSubmit,
+  onCancel,
+}: {
+  synthetics: readonly SyntheticOption[]
+  pending: boolean
+  onSubmit: (input: AddAccountInput) => void
+  onCancel: () => void
+}) {
+  const tc = useTranslations("accounting.chartOfAccounts.columns")
+  const tp = useTranslations("accounting.chartOfAccounts.page")
+  const tb = useTranslations("accounting.chartOfAccounts.boolean")
+  const tnb = useTranslations("accounting.chartOfAccounts.normalBalance")
+  const tnat = useTranslations("accounting.chartOfAccounts.nature")
+
+  const [form, setForm] = React.useState<AddAccountForm>(EMPTY_ADD_ACCOUNT_FORM)
+  const [attempted, setAttempted] = React.useState(false)
+  const set = (patch: Partial<AddAccountForm>) =>
+    setForm((f) => ({ ...f, ...patch }))
+
+  const errors = validateAddForm(form)
+
+  // Picking a synthetic parent prefills the number with its prefix (e.g. "311.")
+  // — but only while the user hasn't started typing a number themselves.
+  const onParent = (value: string) => {
+    if (value === "none") {
+      set({ parentId: "" })
+      return
+    }
+    const parent = synthetics.find((s) => s.id === value)
+    setForm((f) => ({
+      ...f,
+      parentId: value,
+      number: f.number === "" && parent ? `${parent.number}.` : f.number,
+    }))
+  }
+
+  const submit = () => {
+    setAttempted(true)
+    if (!isAddFormValid(form)) return
+    onSubmit(toAddAccountInput(form))
+  }
+
+  const err = (key: "number" | "name" | "nature", message: string) =>
+    attempted && errors[key] ? (
+      <p className="text-xs text-destructive">{message}</p>
+    ) : null
+
+  return (
+    <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-parent">{tp("addParent")}</Label>
+        <Select
+          value={form.parentId === "" ? "none" : form.parentId}
+          onValueChange={onParent}
+        >
+          <SelectTrigger id="add-parent">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{tp("addParentNone")}</SelectItem>
+            {synthetics.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.number} — {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-number">{tc("number")}</Label>
+        <Input
+          id="add-number"
+          value={form.number}
+          placeholder="311"
+          aria-invalid={attempted && Boolean(errors.number)}
+          onChange={(e) => set({ number: e.target.value })}
+        />
+        {err("number", tp("addNumberInvalid"))}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-name">{tc("name")}</Label>
+        <Input
+          id="add-name"
+          value={form.name}
+          aria-invalid={attempted && Boolean(errors.name)}
+          onChange={(e) => set({ name: e.target.value })}
+        />
+        {err("name", tp("addNameRequired"))}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-nature">{tp("addNature")}</Label>
+        <Select
+          value={form.nature === "" ? undefined : form.nature}
+          onValueChange={(v) => set({ nature: v as AddAccountForm["nature"] })}
+        >
+          <SelectTrigger
+            id="add-nature"
+            aria-invalid={attempted && Boolean(errors.nature)}
+          >
+            <SelectValue placeholder={tp("addNaturePlaceholder")} />
+          </SelectTrigger>
+          <SelectContent>
+            {ACCOUNT_NATURES.map((n) => (
+              <SelectItem key={n} value={n}>
+                {tnat(n)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {err("nature", tp("addNatureRequired"))}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-normal">{tc("normalBalance")}</Label>
+        <Select
+          value={form.normalBalance === "" ? "auto" : form.normalBalance}
+          onValueChange={(v) =>
+            set({
+              normalBalance: v === "auto" ? "" : (v as "DEBIT" | "CREDIT"),
+            })
+          }
+        >
+          <SelectTrigger id="add-normal">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{tp("addNormalBalanceAuto")}</SelectItem>
+            <SelectItem value="DEBIT">{tnb("DEBIT")}</SelectItem>
+            <SelectItem value="CREDIT">{tnb("CREDIT")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-open-items">{tc("tracksOpenItems")}</Label>
+        <Select
+          value={form.tracksOpenItems}
+          onValueChange={(v) => set({ tracksOpenItems: v as "yes" | "no" })}
+        >
+          <SelectTrigger id="add-open-items">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="no">{tb("no")}</SelectItem>
+            <SelectItem value="yes">{tb("yes")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="add-tax">{tc("taxRelevant")}</Label>
+        <Select
+          value={form.taxRelevant}
+          onValueChange={(v) =>
+            set({ taxRelevant: v as "yes" | "no" | "none" })
+          }
+        >
+          <SelectTrigger id="add-tax">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">{tp("taxClear")}</SelectItem>
+            <SelectItem value="yes">{tb("yes")}</SelectItem>
+            <SelectItem value="no">{tb("no")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <Button variant="outline" disabled={pending} onClick={onCancel}>
+          {tp("addCancel")}
+        </Button>
+        <Button disabled={pending} onClick={submit}>
+          {tp("addSubmit")}
+        </Button>
+      </div>
+    </div>
   )
 }

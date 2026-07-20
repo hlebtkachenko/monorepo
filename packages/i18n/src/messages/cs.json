@@ -124,6 +124,15 @@
         "DEBIT": "Má dáti",
         "CREDIT": "Dal"
       },
+      "nature": {
+        "ASSET": "Aktivum",
+        "LIABILITY": "Závazek",
+        "EQUITY": "Vlastní kapitál",
+        "EXPENSE": "Náklad",
+        "REVENUE": "Výnos",
+        "CLOSING": "Závěrkový",
+        "OFF_BALANCE": "Podrozvahový"
+      },
       "classNames": {
         "0": "Dlouhodobý majetek",
         "1": "Zásoby",
@@ -155,7 +164,22 @@
         "updateFailed": "Změnu se nepodařilo uložit",
         "templatePickerTitle": "Vyberte šablonu",
         "templatePickerDescription": "Založit účtový rozvrh z připravené šablony pro toto období.",
-        "templateDefault": "Výchozí"
+        "templateDefault": "Výchozí",
+        "addAccount": "Přidat účet",
+        "addPanelTitle": "Nový účet",
+        "addParent": "Syntetický účet (rodič)",
+        "addParentNone": "Žádný (syntetický účet)",
+        "addNature": "Charakter",
+        "addNaturePlaceholder": "Vyberte charakter",
+        "addNormalBalanceAuto": "Automaticky",
+        "addSubmit": "Přidat účet",
+        "addCancel": "Zrušit",
+        "addSuccess": "Účet byl přidán",
+        "addFailed": "Účet se nepodařilo přidat",
+        "addNumberInvalid": "Zadejte platné číslo účtu (např. 311 nebo 311.001).",
+        "addNameRequired": "Název je povinný.",
+        "addNatureRequired": "Vyberte charakter.",
+        "taxClear": "Nerelevantní"
       },
       "framework": {
         "searchPlaceholder": "Hledat v osnově",

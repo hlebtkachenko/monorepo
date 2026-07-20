@@ -1,4 +1,4 @@
--- 0072_country.sql
+-- 0074_country.sql
 --
 -- country — ISO 3166-1 country reference register (Adresář ▸ Veřejné číselníky ▸ Státy).
 --
@@ -15,7 +15,7 @@
 -- table is a 5-row functional-currency subset, while a country register spans every world
 -- currency. No FK is added onto existing `country_code` columns either (additive migration).
 --
--- Conventions (ADR-0009): handwritten SQL, snake_case, full words only. Rows seeded in 0073.
+-- Conventions (ADR-0009): handwritten SQL, snake_case, full words only. Rows seeded in 0075.
 
 BEGIN;
 

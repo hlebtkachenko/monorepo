@@ -1,9 +1,9 @@
 /**
  * country — ISO 3166-1 country reference register (Adresář ▸ Veřejné číselníky ▸ Státy).
  *
- * Mirrors: packages/db/migrations/0072_country.sql (CREATE TABLE country).
+ * Mirrors: packages/db/migrations/0074_country.sql (CREATE TABLE country).
  *
- * Reference (system) table — shared, NOT tenant-scoped, no RLS. Rows seeded in 0073.
+ * Reference (system) table — shared, NOT tenant-scoped, no RLS. Rows seeded in 0075.
  * Display names are NOT stored here — they localize via next-intl (`countryNames`, keyed
  * by iso2). currency_code is a plain ISO-4217 code (no FK — the currency table is a 5-row
  * functional-currency subset). CHECK constraints live in the migration, not this DSL.

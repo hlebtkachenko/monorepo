@@ -1,9 +1,15 @@
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
-import { and, desc, eq, gt } from "drizzle-orm"
+import { and, desc, eq, gt, sql } from "drizzle-orm"
 import { auth } from "@workspace/auth/server"
 import { withAdminBypass } from "@workspace/db"
-import { api_key, auth_session, organization } from "@workspace/db/schema"
+import {
+  api_key,
+  auth_session,
+  oauth_client,
+  oauth_consent,
+  organization,
+} from "@workspace/db/schema"
 
 import { ProfileSecurity } from "@/app/_components/workspace/profile/profile-security"
 
@@ -15,9 +21,9 @@ export default async function ProfileSecurityPage() {
   const session = await auth.api.getSession({ headers: await headers() })
   if (!session) redirect("/auth/login")
 
-  const [{ sessions, apiKeys }, danger] = await Promise.all([
+  const [{ sessions, apiKeys, connectedApps }, danger] = await Promise.all([
     withAdminBypass(async (db) => {
-      const [sessions, apiKeys] = await Promise.all([
+      const [sessions, apiKeys, connectedApps] = await Promise.all([
         db
           .select({
             id: auth_session.id,
@@ -47,8 +53,29 @@ export default async function ProfileSecurityPage() {
           .innerJoin(organization, eq(organization.id, api_key.organization_id))
           .where(eq(api_key.created_by_user_id, session.user.id))
           .orderBy(desc(api_key.created_at)),
+        db
+          .select({
+            id: oauth_consent.id,
+            name: oauth_client.name,
+            organization: organization.legal_name,
+            scopes: oauth_consent.scopes,
+            createdAt: oauth_consent.createdAt,
+          })
+          .from(oauth_consent)
+          .leftJoin(
+            oauth_client,
+            eq(oauth_client.clientId, oauth_consent.clientId),
+          )
+          // reference_id is text; organization.id is uuid — compare as text so a
+          // null / non-matching binding just yields a null organization.
+          .leftJoin(
+            organization,
+            eq(sql`${organization.id}::text`, oauth_consent.referenceId),
+          )
+          .where(eq(oauth_consent.userId, session.user.id))
+          .orderBy(desc(oauth_consent.createdAt)),
       ])
-      return { sessions, apiKeys }
+      return { sessions, apiKeys, connectedApps }
     }),
     getDangerAvailabilityAction(),
   ])
@@ -71,6 +98,13 @@ export default async function ProfileSecurityPage() {
         scopes: key.scopes,
         lastUsed: key.lastUsedAt?.toLocaleString() ?? "Never",
         revoked: key.revokedAt !== null,
+      }))}
+      connectedApps={connectedApps.map((app) => ({
+        id: app.id,
+        name: app.name ?? "Unknown application",
+        organization: app.organization ?? "—",
+        scopes: app.scopes,
+        authorizedAt: app.createdAt.toLocaleString(),
       }))}
       danger={{
         workspaceName: danger.workspaceName,

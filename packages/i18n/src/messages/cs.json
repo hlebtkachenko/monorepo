@@ -1612,6 +1612,7 @@
       "finance": "Finance",
       "currencies": "Měny",
       "rates": "Kurzy",
+      "paymentMethods": "Formy úhrady",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
     },
@@ -1633,6 +1634,7 @@
       "states": "Státy",
       "currencies": "Měny",
       "rates": "Kurzy",
+      "paymentMethods": "Formy úhrady",
       "documentTypes": "Typy dokladů",
       "documentSeries": "Dokladové řady"
     },
@@ -1692,6 +1694,28 @@
       "empty": "Žádné měny.",
       "functionalNote": "Účetní měna, vždy dostupná.",
       "toggleError": "Změnu měny se nepodařilo uložit. Zkuste to prosím znovu.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Číselníky"
+      }
+    },
+    "paymentMethods": {
+      "columns": {
+        "code": "Kód",
+        "name": "Název",
+        "cash": "Hotovost",
+        "bankDetail": "Bankovní údaj"
+      },
+      "names": {
+        "cash": "Hotovost",
+        "transfer": "Bankovní převod",
+        "card": "Karta",
+        "other": "Jiné"
+      },
+      "yes": "Ano",
+      "no": "Ne",
+      "all": "Vše",
+      "empty": "Žádné formy úhrady.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Číselníky"

@@ -60,6 +60,7 @@ export {
 // Directories reference registers (Adresář ▸ Veřejné číselníky)
 export { listCountries, type CountryRow } from "./countries"
 export { listCurrencies, type CurrencyRow } from "./currencies"
+export { listPaymentMethods, type PaymentMethodRow } from "./payment-methods"
 
 // Master-data / setup
 export {

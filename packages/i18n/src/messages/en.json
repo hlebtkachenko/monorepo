@@ -1612,6 +1612,7 @@
       "finance": "Finance",
       "currencies": "Currencies",
       "rates": "Rates",
+      "paymentMethods": "Payment methods",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1633,6 +1634,7 @@
       "states": "Countries",
       "currencies": "Currencies",
       "rates": "Rates",
+      "paymentMethods": "Payment methods",
       "documentTypes": "Document types",
       "documentSeries": "Document series"
     },
@@ -1692,6 +1694,28 @@
       "empty": "No currencies.",
       "functionalNote": "Functional (accounting) currency — always available.",
       "toggleError": "Could not save the currency change. Please try again.",
+      "breadcrumb": {
+        "finance": "Finance",
+        "references": "Reference"
+      }
+    },
+    "paymentMethods": {
+      "columns": {
+        "code": "Code",
+        "name": "Name",
+        "cash": "Cash",
+        "bankDetail": "Bank detail"
+      },
+      "names": {
+        "cash": "Cash",
+        "transfer": "Bank transfer",
+        "card": "Card",
+        "other": "Other"
+      },
+      "yes": "Yes",
+      "no": "No",
+      "all": "All",
+      "empty": "No payment methods.",
       "breadcrumb": {
         "finance": "Finance",
         "references": "Reference"

@@ -13,7 +13,6 @@ import {
   allocateNumber,
   backfillDefaultNumberSeries,
   createNumberSeries,
-  createNumberSeriesPeriod,
   deleteNumberSeriesPeriod,
   documentKindsFor,
   getDocumentSeries,
@@ -295,7 +294,7 @@ describe("DOCUMENT number_series reads", () => {
 
   it("reads a série with its per-období numbering rows, or null for a missing id", async () => {
     await onA((db) =>
-      createNumberSeriesPeriod(db, seed.ctx, {
+      upsertNumberSeriesPeriod(db, seed.ctx, {
         numberSeriesId: seed.documentSeriesId,
         periodId: seed.periodId,
         numberLength: 4,
@@ -449,6 +448,34 @@ describe("Dokladová řada writes (number_series)", () => {
         }),
       ),
     ).rejects.toThrow(/not DOCUMENT/)
+  })
+
+  it("upsertDocumentType refuses a non-DOCUMENT default série", async () => {
+    await expect(
+      onA((db) =>
+        upsertDocumentType(db, seed.ctx, {
+          category: "INTERNAL",
+          code: "BADREF",
+          name: "x",
+          defaultSeriesId: seed.eventSeriesId, // an EVENT série
+        }),
+      ),
+    ).rejects.toThrow(/not a DOCUMENT number series/)
+  })
+
+  it("createNumberSeries refuses a config category on a non-DOCUMENT série", async () => {
+    // The DB CHECK (category IS NULL OR entity_type='DOCUMENT') rejects the INSERT;
+    // the driver surfaces it as a failed number_series query.
+    await expect(
+      onA((db) =>
+        createNumberSeries(db, seed.ctx, {
+          entityType: "EVENT",
+          code: "EV-CAT",
+          pattern: "EV{NNNN}",
+          category: "INTERNAL",
+        }),
+      ),
+    ).rejects.toThrow(/Failed query: INSERT INTO number_series/)
   })
 
   it("surfaces the default série's Zkratka on the type via JOIN, createNumberSeries stores category", async () => {

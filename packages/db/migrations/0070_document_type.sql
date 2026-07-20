@@ -73,6 +73,15 @@ ALTER TABLE number_series
     valid_from_year IS NULL OR valid_to_year IS NULL OR valid_to_year >= valid_from_year
   );
 
+-- The config category is a DOCUMENT-série concept: an EVENT / ASSET /
+-- INVENTORY_COUNT série must never carry one (it has no Dokladová řada editor).
+ALTER TABLE number_series
+  DROP CONSTRAINT IF EXISTS number_series_category_document_chk;
+ALTER TABLE number_series
+  ADD  CONSTRAINT number_series_category_document_chk CHECK (
+    category IS NULL OR entity_type = 'DOCUMENT'
+  );
+
 -- Backfill the category onto the canonical default DOCUMENT séries that predate
 -- this migration (mirrors DEFAULT_NUMBER_SERIES in @workspace/accounting; a série
 -- with a custom code stays NULL and is categorized later via the Dokladové řady

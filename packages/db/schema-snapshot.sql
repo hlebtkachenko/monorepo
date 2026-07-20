@@ -2414,6 +2414,7 @@ CREATE TABLE public.number_series (
     description text,
     valid_from_year integer,
     valid_to_year integer,
+    CONSTRAINT number_series_category_document_chk CHECK (((category IS NULL) OR (entity_type = 'DOCUMENT'::public.number_series_entity))),
     CONSTRAINT number_series_valid_year_range_chk CHECK (((valid_from_year IS NULL) OR (valid_to_year IS NULL) OR (valid_to_year >= valid_from_year)))
 );
 

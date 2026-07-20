@@ -301,6 +301,22 @@ export async function upsertDocumentType(
       )
     }
   }
+  // The default série must be a DOCUMENT série — the composite FK enforces org
+  // membership but not entity_type, and a doklad Označení can only be drawn from a
+  // DOCUMENT série (EVENT/ASSET/INVENTORY_COUNT use a different counter). RLS scopes
+  // the lookup to this org, so a foreign or non-DOCUMENT id yields no row and throws.
+  if (input.defaultSeriesId != null) {
+    const series = await rows<{ id: string }>(
+      db,
+      sql`SELECT id FROM number_series
+           WHERE id = ${input.defaultSeriesId}::uuid AND entity_type = 'DOCUMENT'`,
+    )
+    if (series[0] === undefined) {
+      throw new Error(
+        `document type: default série ${input.defaultSeriesId} is not a DOCUMENT number series`,
+      )
+    }
+  }
   const r = await one<{ id: string }>(
     db,
     sql`INSERT INTO document_type

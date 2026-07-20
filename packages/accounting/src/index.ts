@@ -63,7 +63,6 @@ export {
   createVatStatus,
   createTaxProfile,
   createNumberSeries,
-  createNumberSeriesPeriod,
   backfillDefaultNumberSeries,
   createChart,
   seedChartFromDirectives,

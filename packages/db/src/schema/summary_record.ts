@@ -76,8 +76,12 @@ export const summary_record = pgTable(
       columns: [t.number_series_id, t.organization_id],
       foreignColumns: [number_series.id, number_series.organization_id],
     }),
+    // Gapless Označení is unique per (série, PERIOD, sequence): per-period counters
+    // (number_series_period) restart at 1, so the série+sequence pair repeats across
+    // účetní období. Widened in 0069.
     unique("summary_record_cislena_rada_unique").on(
       t.number_series_id,
+      t.period_id,
       t.sequence_number,
     ),
     unique("summary_record_id_org_unique").on(t.id, t.organization_id),

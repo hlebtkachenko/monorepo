@@ -2344,6 +2344,26 @@ CREATE TABLE public.number_series (
 ALTER TABLE ONLY public.number_series FORCE ROW LEVEL SECURITY;
 
 --
+-- Name: number_series_period; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.number_series_period (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    number_series_id uuid NOT NULL,
+    period_id uuid NOT NULL,
+    number_length integer NOT NULL,
+    prefix text DEFAULT ''::text NOT NULL,
+    postfix text DEFAULT ''::text NOT NULL,
+    current_number bigint DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT number_series_period_length_chk CHECK (((number_length >= 1) AND (number_length <= 18)))
+);
+
+ALTER TABLE ONLY public.number_series_period FORCE ROW LEVEL SECURITY;
+
+--
 -- Name: oauth_access_token; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -3712,6 +3732,27 @@ ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_org_entity_code_unique UNIQUE (organization_id, entity_type, code);
 
 --
+-- Name: number_series_period number_series_period_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.number_series_period
+    ADD CONSTRAINT number_series_period_id_org_unique UNIQUE (id, organization_id);
+
+--
+-- Name: number_series_period number_series_period_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.number_series_period
+    ADD CONSTRAINT number_series_period_pkey PRIMARY KEY (id);
+
+--
+-- Name: number_series_period number_series_period_series_period_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.number_series_period
+    ADD CONSTRAINT number_series_period_series_period_unique UNIQUE (number_series_id, period_id);
+
+--
 -- Name: number_series number_series_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -4045,7 +4086,7 @@ ALTER TABLE ONLY public.signature
 --
 
 ALTER TABLE ONLY public.summary_record
-    ADD CONSTRAINT summary_record_cislena_rada_unique UNIQUE (number_series_id, sequence_number);
+    ADD CONSTRAINT summary_record_cislena_rada_unique UNIQUE (number_series_id, period_id, sequence_number);
 
 --
 -- Name: summary_record summary_record_id_org_unique; Type: CONSTRAINT; Schema: public; Owner: -
@@ -5740,6 +5781,20 @@ ALTER TABLE ONLY public.number_series
     ADD CONSTRAINT number_series_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
 
 --
+-- Name: number_series_period number_series_period_period_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.number_series_period
+    ADD CONSTRAINT number_series_period_period_fk FOREIGN KEY (period_id, organization_id) REFERENCES public.accounting_period(id, organization_id);
+
+--
+-- Name: number_series_period number_series_period_series_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.number_series_period
+    ADD CONSTRAINT number_series_period_series_fk FOREIGN KEY (number_series_id, organization_id) REFERENCES public.number_series(id, organization_id);
+
+--
 -- Name: oauth_access_token oauth_access_token_client_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6656,6 +6711,12 @@ ALTER TABLE public.monetary_period_summary ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.number_series ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: number_series_period; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.number_series_period ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: ocr_extraction_template; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -6840,6 +6901,12 @@ CREATE POLICY organization_isolation ON public.inventory_count_line USING ((orga
 --
 
 CREATE POLICY organization_isolation ON public.number_series USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: number_series_period organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.number_series_period USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
 -- Name: open_item organization_isolation; Type: POLICY; Schema: public; Owner: -

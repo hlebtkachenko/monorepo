@@ -59,6 +59,7 @@ export * from "./dppo_annual_taxpayer_category"
 
 // v2 accounting — capture core (0027)
 export * from "./number_series"
+export * from "./number_series_period"
 export * from "./accounting_event"
 export * from "./signature"
 export * from "./summary_record"

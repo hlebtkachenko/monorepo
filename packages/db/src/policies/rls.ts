@@ -53,6 +53,7 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "accounting_period",
   "vat_status",
   "number_series",
+  "number_series_period",
   "accounting_event",
   "signature",
   "summary_record",

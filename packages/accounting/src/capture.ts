@@ -198,6 +198,7 @@ export async function captureDocument(
     input.seriesId,
     input.issuedAt,
     "DOCUMENT",
+    input.periodId,
   )
 
   const doc = await one<{ id: string }>(

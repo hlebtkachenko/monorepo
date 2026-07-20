@@ -141,6 +141,36 @@ export async function createNumberSeries(
 }
 
 /**
+ * Configure one účetní-období row of a DOCUMENT dokladová řada (the Dokladové řady
+ * editor grid: Účetní období · Délka čísla · Prefix · Postfix · Akt.číslo). Each
+ * period row carries its own gapless `current_number`, so allocation restarts per
+ * period. `currentNumber` seeds an imported historical sequence; it defaults to 1.
+ */
+export async function createNumberSeriesPeriod(
+  db: RowExecutor,
+  ctx: OrgCtx,
+  input: {
+    numberSeriesId: string
+    periodId: string
+    numberLength: number
+    prefix?: string
+    postfix?: string
+    currentNumber?: number
+  },
+): Promise<string> {
+  const r = await one<{ id: string }>(
+    db,
+    sql`INSERT INTO number_series_period
+          (organization_id, number_series_id, period_id, number_length, prefix, postfix, current_number)
+        VALUES
+          (${ctx.organizationId}::uuid, ${input.numberSeriesId}::uuid, ${input.periodId}::uuid,
+           ${input.numberLength}, ${input.prefix ?? ""}, ${input.postfix ?? ""}, ${input.currentNumber ?? 1})
+        RETURNING id`,
+  )
+  return r.id
+}
+
+/**
  * Default číselné řady aligned to the capture layer's document kinds. Canonical
  * home for the scaffolding protocol (`scaffoldOrganization`) AND the Settings →
  * Number series "restore default series" backfill — both call sites must agree

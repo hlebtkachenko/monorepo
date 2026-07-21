@@ -22,7 +22,9 @@ import {
   varchar,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
+import { legal_form } from "./legal_form"
 import { organization } from "./organization"
+import { party_kind } from "./party_kind"
 import { workspace } from "./workspace"
 
 export const counterparty = pgTable(
@@ -50,6 +52,19 @@ export const counterparty = pgTable(
     updated_at: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // Party-identity overlay (adresar M1, migrations 0086/0087). All additive +
+    // nullable; Directories owns these. `name` stays the resolveCounterparty dedup
+    // key — these overlays never feed dedup. The data_box_id / verification_source
+    // CHECK constraints and the FK constraints live in the migration, not this DSL.
+    party_kind_code: text("party_kind_code").references(() => party_kind.code),
+    legal_name: text("legal_name"),
+    display_name: text("display_name"),
+    legal_form_code: text("legal_form_code").references(() => legal_form.code),
+    data_box_id: varchar("data_box_id", { length: 7 }),
+    registration_status: text("registration_status"),
+    verification_source: text("verification_source"),
+    last_verified_at: timestamp("last_verified_at", { withTimezone: true }),
+    archived_at: timestamp("archived_at", { withTimezone: true }),
   },
   (t) => [
     unique("counterparty_id_workspace_unique").on(t.id, t.workspace_id),

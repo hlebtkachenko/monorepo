@@ -1,7 +1,7 @@
 /**
  * party_address — a counterparty's postal addresses (sídlo / korespondenční / …).
  *
- * Mirrors: packages/db/migrations/0086_party_child_tables.sql
+ * Mirrors: packages/db/migrations/0088_party_child_tables.sql
  *
  * WORKSPACE-scoped child of counterparty: composite FK (counterparty_id,
  * workspace_id) -> counterparty(id, workspace_id), FORCE RLS + 4 command policies

@@ -1,7 +1,7 @@
 /**
  * party_contact — named people at a counterparty (jméno / funkce / e-mail / tel.).
  *
- * Mirrors: packages/db/migrations/0086_party_child_tables.sql
+ * Mirrors: packages/db/migrations/0088_party_child_tables.sql
  *
  * WORKSPACE-scoped child of counterparty (composite FK + 4 command policies in the
  * migration). May hold natural-person PII — lawful basis Art. 6(1)(c), same as

@@ -1,4 +1,4 @@
--- 0084_party_kind.sql
+-- 0086_party_kind.sql
 --
 -- party_kind — Directories party taxonomy (Adresář). What KIND of subject a
 -- counterparty is: a company, an OSVČ, a private individual, a public authority,

@@ -1,4 +1,4 @@
--- 0086_party_child_tables.sql
+-- 0088_party_child_tables.sql
 --
 -- adresar (Directories) M1 PR 1b — the counterparty's child detail tables:
 -- addresses, contacts, bank accounts, extra identifiers. All WORKSPACE-scoped

@@ -1,7 +1,7 @@
 /**
  * party_bank_account — a counterparty's bank accounts (číslo účtu / IBAN / …).
  *
- * Mirrors: packages/db/migrations/0086_party_child_tables.sql
+ * Mirrors: packages/db/migrations/0088_party_child_tables.sql
  *
  * WORKSPACE-scoped child of counterparty (composite FK + 4 command policies in the
  * migration). `published` / `blocked` / `verified` are security-sensitive (CRPDPH

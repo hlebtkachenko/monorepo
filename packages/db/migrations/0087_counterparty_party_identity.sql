@@ -1,4 +1,4 @@
--- 0085_counterparty_party_identity.sql
+-- 0087_counterparty_party_identity.sql
 --
 -- adresar (Directories) M1 PR 1a — grow the workspace-shared counterparty from a
 -- bare tax-identity row into a full PARTY IDENTITY record. The counterparty table
@@ -9,7 +9,7 @@
 --
 -- Columns (all additive + nullable; existing rows keep working):
 --   party_kind_code     — FK party_kind(code): LEGAL_ENTITY / SOLE_TRADER /
---                         NATURAL_PERSON / PUBLIC_AUTHORITY / NON_PROFIT (0084).
+--                         NATURAL_PERSON / PUBLIC_AUTHORITY / NON_PROFIT (0086).
 --   legal_name          — official registered name (obchodní firma / plné jméno).
 --   display_name        — short UI label; falls back to name/legal_name.
 --   legal_form_code     — FK legal_form(code) (s.r.o., a.s., OSVČ, spolek, …).

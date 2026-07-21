@@ -1,0 +1,66 @@
+[
+  {
+    "code": "DOBIRKA",
+    "name": "Dobírkou",
+    "phrase": "dobírkou",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  },
+  {
+    "code": "HOTOVE",
+    "name": "Hotově",
+    "phrase": "hotově",
+    "offerInvoice": true,
+    "offerCashDesk": true,
+    "offerPos": true
+  },
+  {
+    "code": "KARTA",
+    "name": "Platební kartou",
+    "phrase": "platební kartou",
+    "offerInvoice": true,
+    "offerCashDesk": true,
+    "offerPos": true
+  },
+  {
+    "code": "NESPECIFIKOVANO",
+    "name": "Nespecifikováno",
+    "phrase": "jinou formou",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  },
+  {
+    "code": "PREVOD",
+    "name": "Převodem",
+    "phrase": "převodem",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  },
+  {
+    "code": "SEK",
+    "name": "Šekem",
+    "phrase": "šekem",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  },
+  {
+    "code": "SLOZENKA",
+    "name": "Složenkou",
+    "phrase": "složenkou",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  },
+  {
+    "code": "ZAPOCET",
+    "name": "Zápočtem",
+    "phrase": "zápočtem",
+    "offerInvoice": true,
+    "offerCashDesk": false,
+    "offerPos": false
+  }
+]

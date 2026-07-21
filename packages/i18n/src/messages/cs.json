@@ -1706,18 +1706,14 @@
         "references": "Číselníky"
       }
     },
-    "paymentMethods": {
+    "paymentForms": {
       "columns": {
         "code": "Kód",
         "name": "Název",
-        "cash": "Hotovost",
-        "bankDetail": "Bankovní údaj"
-      },
-      "names": {
-        "cash": "Hotovost",
-        "transfer": "Bankovní převod",
-        "card": "Karta",
-        "other": "Jiné"
+        "phrase": "Na faktuře",
+        "invoice": "Faktury",
+        "cashDesk": "Pokladna",
+        "pos": "Kasa"
       },
       "yes": "Ano",
       "no": "Ne",
@@ -2173,5 +2169,25 @@
     "0479": "Vrácené mzdy",
     "0558": "Finanční platby ostatní",
     "0748": "Důchodová daň"
+  },
+  "paymentFormNames": {
+    "DOBIRKA": "Dobírkou",
+    "HOTOVE": "Hotově",
+    "KARTA": "Platební kartou",
+    "NESPECIFIKOVANO": "Nespecifikováno",
+    "PREVOD": "Převodem",
+    "SEK": "Šekem",
+    "SLOZENKA": "Složenkou",
+    "ZAPOCET": "Zápočtem"
+  },
+  "paymentFormPhrases": {
+    "DOBIRKA": "dobírkou",
+    "HOTOVE": "hotově",
+    "KARTA": "platební kartou",
+    "NESPECIFIKOVANO": "jinou formou",
+    "PREVOD": "převodem",
+    "SEK": "šekem",
+    "SLOZENKA": "složenkou",
+    "ZAPOCET": "zápočtem"
   }
 }

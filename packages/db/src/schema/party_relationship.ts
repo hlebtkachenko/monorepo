@@ -4,7 +4,7 @@
  * Supplier/customer stay DERIVED from open_item.direction; only curated defaults
  * live here.
  *
- * Mirrors: packages/db/migrations/0087_party_relationship.sql
+ * Mirrors: packages/db/migrations/0089_party_relationship.sql
  *
  * ORG-scoped (organization_isolation, FORCE RLS in the migration). Carries
  * workspace_id ONLY to close the cross-tier FK-bypass hole via TWO composite FKs

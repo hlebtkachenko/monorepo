@@ -1,0 +1,68 @@
+/* Print styling for the Výkazy builder. On screen everything shows; on print
+   only the statement + its header remain, laid out for A4 like the paper form. */
+
+@media screen {
+  .print-only {
+    display: none;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  /* Force the white paper surface and black text regardless of theme. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Screen-only chrome (toolbar, org form, deník panel, nav links) is hidden. */
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Drop shell padding so the form uses the full printable width. */
+  .vykaz-page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Each statement section starts on its own page; the first has no break. */
+  .vykaz-statement + .vykaz-statement {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Keep the identification footer intact and with the last page's content. */
+  .vykaz-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 8mm;
+  }
+
+  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>. */
+  .vykaz-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  /* Never split a row across pages; repeat the header on each printed page. */
+  .vykaz-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .vykaz-table thead {
+    display: table-header-group;
+  }
+}

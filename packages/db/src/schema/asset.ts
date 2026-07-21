@@ -1,7 +1,7 @@
 /**
  * asset — fixed-asset register card (majetek §5.7, ČÚS 013). DFM excluded (D1).
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE asset)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE asset)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * oprávky/ZC derived not stored (D3). account_number references the balance-sheet
@@ -22,8 +22,14 @@ import {
   uuid,
 } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
-import { assetCategory, assetDisposalMethod } from "./_enums"
+import {
+  assetCategory,
+  assetDisposalMethod,
+  holdingIntent,
+  valuationMethod,
+} from "./_enums"
 import { app_user } from "./app_user"
+import { asset_type } from "./asset_type"
 import { directive_account } from "./directive_account"
 import { number_series } from "./number_series"
 import { organization } from "./organization"
@@ -42,6 +48,9 @@ export const asset = pgTable(
     designation: text("designation").notNull(), // FROZEN inventární číslo
     name: text("name").notNull(),
     category: assetCategory("category").notNull(),
+    asset_type_id: uuid("asset_type_id"), // Typy majetku link (composite FK); NULL until typed
+    holding_intent: holdingIntent("holding_intent"), // záměr držby; NULL until classified
+    valuation_method: valuationMethod("valuation_method"), // způsob ocenění §25
     account_number: text("account_number").notNull(), // D8: balance-sheet majetkový účet number (02x/01x/03x)
     directive_code: char("directive_code", { length: 3 }), // D8 anchor
     acquisition_date: date("acquisition_date"), // datum pořízení
@@ -78,6 +87,11 @@ export const asset = pgTable(
       name: "asset_directive_fk",
       columns: [t.directive_code],
       foreignColumns: [directive_account.code],
+    }),
+    foreignKey({
+      name: "asset_asset_type_fk",
+      columns: [t.asset_type_id, t.organization_id],
+      foreignColumns: [asset_type.id, asset_type.organization_id],
     }),
   ],
 )

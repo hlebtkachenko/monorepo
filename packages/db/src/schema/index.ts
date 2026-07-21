@@ -80,6 +80,7 @@ export * from "./posting_monetary_line"
 
 // v2 accounting — supporting: asset / depreciation / inventory (0030)
 export * from "./asset"
+export * from "./asset_type"
 export * from "./depreciation_plan"
 export * from "./tax_depreciation"
 export * from "./inventory_count"

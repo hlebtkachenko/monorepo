@@ -1611,6 +1611,7 @@
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "directory": "Adresář",
+      "assets": "Majetek",
       "states": "Státy",
       "finance": "Finance",
       "currencies": "Měny",
@@ -1643,7 +1644,8 @@
       "financialInstitutions": "Peněžní ústavy",
       "constantSymbols": "Konstantní symboly",
       "documentTypes": "Typy dokladů",
-      "documentSeries": "Dokladové řady"
+      "documentSeries": "Dokladové řady",
+      "assets": "Majetek"
     },
     "docCategory": {
       "RECEIVED_INVOICE": "Přijaté faktury",

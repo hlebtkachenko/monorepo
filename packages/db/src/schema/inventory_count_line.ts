@@ -1,7 +1,7 @@
 /**
  * inventory_count_line — položka soupisu (D7): one counted item, book vs actual.
  *
- * Mirrors: packages/db/migrations/0030_accounting_supporting.sql (CREATE TABLE inventory_count_line)
+ * Mirrors: packages/db/migrations/0031_accounting_supporting.sql (CREATE TABLE inventory_count_line)
  *
  * Organization-scoped (FORCE RLS + organization_isolation, applied in 0034).
  * The difference_kind ↔ (actual vs book) consistency CHECK lives in the migration,
@@ -35,7 +35,10 @@ export const inventory_count_line = pgTable(
     asset_id: uuid("asset_id"), // counted asset; NULL for stock/cash
     description: text("description").notNull(),
     book_value: numeric("book_value", { precision: 19, scale: 4 }).notNull(), // účetní stav
-    actual_value: numeric("actual_value", { precision: 19, scale: 4 }).notNull(), // skutečný stav
+    actual_value: numeric("actual_value", {
+      precision: 19,
+      scale: 4,
+    }).notNull(), // skutečný stav
     difference_kind: inventoryDifference("difference_kind").notNull(), // sign(actual − book)
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()

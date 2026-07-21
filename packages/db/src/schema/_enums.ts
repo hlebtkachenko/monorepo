@@ -190,6 +190,23 @@ export const assetDisposalMethod = pgEnum("asset_disposal_method", [
   "CONTRIBUTION",
 ])
 
+// Mirrors: 0079_asset_type.sql — CREATE TYPE holding_intent AS ENUM (záměr držby)
+export const holdingIntent = pgEnum("holding_intent", [
+  "OWN_USE",
+  "LONG_TERM_RENTAL",
+  "SALE",
+  "MIXED",
+  "UNDECIDED",
+])
+
+// Mirrors: 0079_asset_type.sql — CREATE TYPE valuation_method AS ENUM (způsob ocenění §25)
+export const valuationMethod = pgEnum("valuation_method", [
+  "ACQUISITION_PRICE",
+  "OWN_COST",
+  "REPRODUCTION_PRICE",
+  "NOMINAL",
+])
+
 // Mirrors: 0024_accounting_enums_reference.sql — CREATE TYPE depreciation_plan_status AS ENUM
 export const depreciationPlanStatus = pgEnum("depreciation_plan_status", [
   "ACTIVE",

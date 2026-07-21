@@ -68,6 +68,7 @@ export const ORGANIZATION_SCOPED_TABLES = [
   "posting_double_entry_line",
   "posting_monetary_line",
   "asset",
+  "asset_type",
   "depreciation_plan",
   "tax_depreciation",
   "inventory_count",

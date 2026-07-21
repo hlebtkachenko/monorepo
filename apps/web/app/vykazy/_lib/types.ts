@@ -11,7 +11,7 @@ export type Rozsah = "plny" | "zkraceny"
 export type ColKey = "brutto" | "korekce" | "netto" | "bezne" | "minule"
 
 // input = editable leaf cell (rendered white); calc = computed (rendered grey).
-export type CellKind = "input" | "calc"
+type CellKind = "input" | "calc"
 
 export interface VykazLine {
   /** Označení, e.g. "B.II.", "A.1.", "*", "**", "***", or "" (blank). */

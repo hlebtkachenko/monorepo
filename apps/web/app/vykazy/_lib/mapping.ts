@@ -43,7 +43,7 @@
 import { OSNOVA } from "../_data/osnova"
 import type { VykazValues } from "./types"
 
-export interface AccountTarget {
+interface AccountTarget {
   statement: "rozvaha-aktiva" | "rozvaha-pasiva" | "vzz"
   rada: string // a LEAF řádek in that statement
   col: "brutto" | "korekce" | "bezne"
@@ -432,7 +432,7 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
  * Returns null for technical accounts (701 počáteční, 702/710 závěrkové) and any
  * synthetic with no leaf.
  */
-export function mapAccount(
+function mapAccount(
   synteticky: string,
   opravkovy: boolean,
 ): AccountTarget | null {

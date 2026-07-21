@@ -65,7 +65,7 @@ export interface MinuleJson {
 }
 
 /** All-empty identification block — no org or personal data hardcoded. */
-export function emptyOrg(): OrgConfig {
+function emptyOrg(): OrgConfig {
   return {
     nazev: "",
     ico: "",
@@ -203,7 +203,7 @@ function coerceOverrides(input: unknown): VykazyDoc["overrides"] {
 
 /** Coerce arbitrary parsed JSON into a well-formed VykazyDoc. Back-compatible:
  * a v1 doc with no `denik`/`overrides` normalizes to a doc with neither. */
-export function normalizeDoc(input: unknown): VykazyDoc {
+function normalizeDoc(input: unknown): VykazyDoc {
   const base = emptyDoc()
   if (!isRecord(input)) return base
   const values = isRecord(input.values) ? input.values : undefined
@@ -264,7 +264,7 @@ export async function importJson(file: File): Promise<VykazyDoc> {
 // --- minulé období (prior-year) import ---------------------------------------
 
 /** Shape guard for the prior-year import file (kind + version tag). */
-export function isMinuleJson(input: unknown): input is MinuleJson {
+function isMinuleJson(input: unknown): input is MinuleJson {
   return (
     isRecord(input) &&
     input.kind === "vykazy-minule" &&

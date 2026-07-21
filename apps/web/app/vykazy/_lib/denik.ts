@@ -394,7 +394,7 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
 // are required.
 
 /** Ordered columns of the downloadable CSV template. */
-export const DENIK_CSV_TEMPLATE_HEADERS = [
+const DENIK_CSV_TEMPLATE_HEADERS = [
   "Datum",
   "Číslo",
   "Zdroj",

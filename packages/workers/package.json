@@ -28,8 +28,8 @@
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "@types/node": "^26.0.1",
-    "eslint": "^9.39.2",
-    "typescript": "^6.0.3",
+    "eslint": "^9.39.5",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
 }

@@ -39,10 +39,10 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/testcontainers": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
-    "eslint": "^9.39.2",
+    "eslint": "^9.39.5",
     "postgres": "^3.4.7",
     "react": "^19.2.7",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {

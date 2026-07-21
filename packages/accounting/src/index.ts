@@ -61,6 +61,16 @@ export {
 export { listCountries, type CountryRow } from "./countries"
 export { listCurrencies, type CurrencyRow } from "./currencies"
 
+// Directories — party reads (Adresář ▸ Subjekty)
+export {
+  listParties,
+  getParty,
+  listPartyRelationships,
+  type PartyListRow,
+  type PartyRelationshipRow,
+  type PartyDetail,
+} from "./parties"
+
 // Finance reference registers (Finance ▸ Číselníky)
 export { listPaymentForms, type PaymentFormRow } from "./payment-forms"
 export {

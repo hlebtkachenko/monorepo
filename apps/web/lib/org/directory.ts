@@ -1,7 +1,7 @@
 import "server-only"
 
 import { withOrgReadonly } from "@workspace/db"
-import { listCountries } from "@workspace/accounting"
+import { listCountries, listParties } from "@workspace/accounting"
 
 /**
  * App-edge reads for the Directories (Adresář) module. Opens the org-bound
@@ -31,5 +31,40 @@ export async function getCountryRegister(input: {
   return rows.map((row) => ({
     iso2: row.iso2,
     currencyCode: row.currency_code,
+  }))
+}
+
+/** One party as the Subjekty register page renders it. party_kind + the derived
+ *  supplier/customer role are localized separately (next-intl) at the page. */
+export interface PartyRegisterEntry {
+  id: string
+  name: string
+  partyKindCode: string | null
+  ico: string | null
+  dic: string | null
+  countryCode: string | null
+  isSupplier: boolean
+  isCustomer: boolean
+  archived: boolean
+}
+
+export async function getPartyRegister(input: {
+  organizationId: string
+  userId: string | null
+}): Promise<PartyRegisterEntry[]> {
+  const rows = await withOrgReadonly(input.organizationId, input.userId, (db) =>
+    listParties(db, { activeOnly: true }),
+  )
+  return rows.map((row) => ({
+    id: row.id,
+    // Directories display precedence: display_name → legal_name → dedup name.
+    name: row.display_name ?? row.legal_name ?? row.name ?? "",
+    partyKindCode: row.party_kind_code,
+    ico: row.ico,
+    dic: row.tax_id,
+    countryCode: row.country_code,
+    isSupplier: row.is_supplier,
+    isCustomer: row.is_customer,
+    archived: row.archived_at != null,
   }))
 }

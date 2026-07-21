@@ -25,6 +25,7 @@ type OrgNavLabelKey =
   | "company"
   | "closing"
   | "directory"
+  | "subjects"
   | "states"
   | "finance"
   | "currencies"
@@ -127,9 +128,14 @@ export function closingNav(slug: string): OrgSidebarNavItem[] {
   ]
 }
 
-/** Sidebar tree for the Directory (Adresář) module — Veřejné číselníky (Státy). */
+/** Sidebar tree for the Directory (Adresář) module — Subjekty + Veřejné číselníky (Státy). */
 export function directoryNav(slug: string): OrgSidebarNavItem[] {
   return [
+    {
+      labelKey: "subjects",
+      icon: "BookUser",
+      href: orgHref(slug, "adresar/subjekty"),
+    },
     {
       labelKey: "states",
       icon: "Globe",

@@ -1,18 +1,15 @@
 "use client"
 
-// React context holding the whole editable /fakturace document. Auto-persists to
-// localStorage on every change (crash recovery) and mirrors the parties to a
-// separate key so they survive a services reset / seed next month's invoice.
-// Hydrates from localStorage on mount (server render uses the empty doc so the
-// first client render matches — no hydration mismatch).
+// React context holding the whole editable /fakturace document. State lives only
+// in memory; the sole persistence is the explicit local XML working file
+// (see xml.ts) the user saves and reloads — nothing is written to browser
+// storage, so no data (incl. bank details) is ever persisted client-side.
 
 import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
-  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -28,15 +25,7 @@ import type {
   Zaloha,
 } from "./types"
 import { computeTotals, type Totals } from "./calc"
-import {
-  emptyDoc,
-  loadLocal,
-  loadParties,
-  newService,
-  newZaloha,
-  saveLocal,
-  saveParties,
-} from "./xml"
+import { emptyDoc, newService, newZaloha } from "./xml"
 
 /** Which party block a mutation targets. */
 export type PartyKey = "supplier" | "customer"
@@ -60,43 +49,12 @@ interface FakturaceContextValue {
   resetAll: () => void
   /** Clear only services + zálohy + meta, keeping the parties + bank. */
   resetServices: () => void
-  /** Seed the parties + bank from the stored parties key; true when applied. */
-  loadStoredParties: () => boolean
 }
 
 const FakturaceContext = createContext<FakturaceContextValue | null>(null)
 
 export function FakturaceProvider({ children }: { children: ReactNode }) {
   const [doc, setDoc] = useState<FakturaceDoc>(emptyDoc)
-  const hydrated = useRef(false)
-
-  useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect -- one-shot client-only localStorage hydration on mount; server render intentionally starts from the empty doc */
-    const stored = loadLocal()
-    if (stored) {
-      setDoc(stored)
-    } else {
-      // No prior draft: seed the parties from their own key if present.
-      const parties = loadParties()
-      if (parties) {
-        setDoc((prev) => ({
-          ...prev,
-          supplier: parties.supplier,
-          bank: parties.bank,
-          customer: parties.customer,
-        }))
-      }
-    }
-    hydrated.current = true
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [])
-
-  // Persist after hydration so the initial empty state never clobbers stored data.
-  useEffect(() => {
-    if (!hydrated.current) return
-    saveLocal(doc)
-    saveParties(doc)
-  }, [doc])
 
   const totals = useMemo(() => computeTotals(doc), [doc])
 
@@ -177,18 +135,6 @@ export function FakturaceProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const loadStoredParties = useCallback((): boolean => {
-    const parties = loadParties()
-    if (!parties) return false
-    setDoc((prev) => ({
-      ...prev,
-      supplier: parties.supplier,
-      bank: parties.bank,
-      customer: parties.customer,
-    }))
-    return true
-  }, [])
-
   const value: FakturaceContextValue = {
     doc,
     totals,
@@ -205,7 +151,6 @@ export function FakturaceProvider({ children }: { children: ReactNode }) {
     loadDoc,
     resetAll,
     resetServices,
-    loadStoredParties,
   }
 
   return (

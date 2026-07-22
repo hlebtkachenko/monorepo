@@ -1,8 +1,10 @@
-// Local XML working file for /fakturace — the ONLY persistence (no server).
-// serializeDoc is a pure string builder (node-testable); parseDoc uses the
-// browser DOMParser and coerces every field at the boundary, tolerating missing
-// or extra nodes so a hand-edited or older file still loads. localStorage mirrors
-// the current draft (crash recovery) and the parties (reused across months).
+// Local XML working file for /fakturace — the ONLY persistence (no server, no
+// browser storage of the data). serializeDoc is a pure string builder;
+// parseDoc validates + parses with fast-xml-parser (no DOM, no external-entity
+// resolution) and coerces every field at the boundary, tolerating missing or
+// extra nodes so a hand-edited or older file still loads.
+
+import { XMLParser, XMLValidator } from "fast-xml-parser"
 
 import type {
   BankInfo,
@@ -16,9 +18,6 @@ import type {
   Zaloha,
 } from "./types"
 import { kindUnit } from "./types"
-
-const DOC_STORAGE_KEY = "fakturace-doc"
-const PARTIES_STORAGE_KEY = "fakturace-parties"
 
 const SERVICE_KIND_SET = new Set<ServiceKind>([
   "mesicni",
@@ -86,7 +85,7 @@ export function emptyDoc(): FakturaceDoc {
 }
 
 /** Runtime-only id for a service / záloha row (React key; never serialized). */
-export function newId(): string {
+function newId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
@@ -259,100 +258,108 @@ export function serializeDoc(doc: FakturaceDoc): string {
 
 // --- parse (DOMParser, boundary coercion) ------------------------------------
 
-function text(parent: Element | null, tag: string): string {
-  if (!parent) return ""
-  const node = parent.getElementsByTagName(tag)[0]
-  return node?.textContent ?? ""
+type XmlObj = Record<string, unknown>
+
+function isObj(v: unknown): v is XmlObj {
+  return typeof v === "object" && v !== null && !Array.isArray(v)
 }
 
-function num(parent: Element | null, tag: string): number {
-  const raw = text(parent, tag).trim().replace(",", ".")
+/** Coerce a parsed node value to a plain string ("" for absent/empty/object). */
+function str(v: unknown): string {
+  if (typeof v === "string") return v
+  if (typeof v === "number" || typeof v === "boolean") return String(v)
+  return ""
+}
+
+function field(parent: XmlObj | null, tag: string): string {
+  return parent ? str(parent[tag]) : ""
+}
+
+function num(parent: XmlObj | null, tag: string): number {
+  const raw = field(parent, tag).trim().replace(",", ".")
   if (raw === "") return 0
   const n = Number(raw)
   return Number.isFinite(n) ? n : 0
 }
 
-function child(parent: Element | null, tag: string): Element | null {
-  return parent?.getElementsByTagName(tag)[0] ?? null
+function attr(parent: XmlObj | null, name: string): string {
+  return parent ? str(parent[`@_${name}`]) : ""
 }
 
-function parseParty(el: Element | null): Party {
+function child(parent: XmlObj | null, tag: string): XmlObj | null {
+  const v = parent?.[tag]
+  return isObj(v) ? v : null
+}
+
+/** A repeated element is an array when >1, a bare object when exactly 1. */
+function asArray(v: unknown): XmlObj[] {
+  if (Array.isArray(v)) return v.filter(isObj)
+  return isObj(v) ? [v] : []
+}
+
+function parseParty(el: XmlObj | null): Party {
   const base = emptyParty()
   if (!el) return base
   return {
-    nazev: text(el, "nazev"),
-    ico: text(el, "ico"),
-    dic: text(el, "dic"),
-    ulice: text(el, "ulice"),
-    cislo: text(el, "cislo"),
-    psc: text(el, "psc"),
-    obec: text(el, "obec"),
-    stat: text(el, "stat") || base.stat,
-    email: text(el, "email"),
-    telefon: text(el, "telefon"),
-    zapisRejstrik: text(el, "zapisRejstrik"),
+    nazev: field(el, "nazev"),
+    ico: field(el, "ico"),
+    dic: field(el, "dic"),
+    ulice: field(el, "ulice"),
+    cislo: field(el, "cislo"),
+    psc: field(el, "psc"),
+    obec: field(el, "obec"),
+    stat: field(el, "stat") || base.stat,
+    email: field(el, "email"),
+    telefon: field(el, "telefon"),
+    zapisRejstrik: field(el, "zapisRejstrik"),
   }
 }
 
-function parseBank(el: Element | null): BankInfo {
+function parseBank(el: XmlObj | null): BankInfo {
   if (!el) return emptyBank()
   return {
-    cisloUctu: text(el, "cisloUctu"),
-    kodBanky: text(el, "kodBanky"),
-    nazevBanky: text(el, "nazevBanky"),
-    iban: text(el, "iban"),
-    bic: text(el, "bic"),
+    cisloUctu: field(el, "cisloUctu"),
+    kodBanky: field(el, "kodBanky"),
+    nazevBanky: field(el, "nazevBanky"),
+    iban: field(el, "iban"),
+    bic: field(el, "bic"),
   }
 }
 
-function parseServices(root: Element): ServiceItem[] {
-  const container = child(root, "services")
-  if (!container) return []
-  const out: ServiceItem[] = []
-  const rows = container.getElementsByTagName("service")
-  for (let i = 0; i < rows.length; i++) {
-    const el = rows[i]!
-    const kindAttr = el.getAttribute("kind") ?? ""
+function parseServices(root: XmlObj | null): ServiceItem[] {
+  return asArray(child(root, "services")?.service).map((el) => {
+    const kindAttr = attr(el, "kind")
     const kind = SERVICE_KIND_SET.has(kindAttr as ServiceKind)
       ? (kindAttr as ServiceKind)
       : "jednorazova"
-    out.push({
+    return {
       id: newId(),
       kind,
-      popis: text(el, "popis"),
+      popis: field(el, "popis"),
       mnozstvi: num(el, "mnozstvi"),
-      jednotka: text(el, "jednotka") || kindUnit(kind),
+      jednotka: field(el, "jednotka") || kindUnit(kind),
       cena: num(el, "cena"),
-      obdobi: text(el, "obdobi"),
-      poznamka: text(el, "poznamka"),
-    })
-  }
-  return out
+      obdobi: field(el, "obdobi"),
+      poznamka: field(el, "poznamka"),
+    }
+  })
 }
 
-function parseZalohy(root: Element): Zaloha[] {
-  const container = child(root, "zalohy")
-  if (!container) return []
-  const out: Zaloha[] = []
-  const rows = container.getElementsByTagName("zaloha")
-  for (let i = 0; i < rows.length; i++) {
-    const el = rows[i]!
-    out.push({
-      id: newId(),
-      cisloDokladu: text(el, "cisloDokladu"),
-      datumUhrady: text(el, "datumUhrady"),
-      castka: num(el, "castka"),
-      popis: text(el, "popis"),
-    })
-  }
-  return out
+function parseZalohy(root: XmlObj | null): Zaloha[] {
+  return asArray(child(root, "zalohy")?.zaloha).map((el) => ({
+    id: newId(),
+    cisloDokladu: field(el, "cisloDokladu"),
+    datumUhrady: field(el, "datumUhrady"),
+    castka: num(el, "castka"),
+    popis: field(el, "popis"),
+  }))
 }
 
-function parseSleva(root: Element): Sleva {
+function parseSleva(root: XmlObj | null): Sleva {
   const el = child(root, "sleva")
   const base = emptySleva()
   if (!el) return base
-  const modeAttr = el.getAttribute("mode") ?? ""
+  const modeAttr = attr(el, "mode")
   const mode: SlevaMode =
     modeAttr === "percent" || modeAttr === "fixed" || modeAttr === "none"
       ? modeAttr
@@ -361,36 +368,46 @@ function parseSleva(root: Element): Sleva {
     mode,
     percent: num(el, "percent"),
     fixed: num(el, "fixed"),
-    label: text(el, "label") || base.label,
+    label: field(el, "label") || base.label,
   }
 }
 
-function parseMeta(root: Element): InvoiceMeta {
+function parseMeta(root: XmlObj | null): InvoiceMeta {
   const el = child(root, "meta")
   const base = emptyMeta()
   if (!el) return base
   return {
-    cisloFaktury: text(el, "cisloFaktury"),
-    variabilniSymbol: text(el, "variabilniSymbol"),
-    datumVystaveni: text(el, "datumVystaveni"),
-    datumSplatnosti: text(el, "datumSplatnosti"),
-    datumUskutecneni: text(el, "datumUskutecneni"),
-    obdobi: text(el, "obdobi"),
-    zpusobUhrady: text(el, "zpusobUhrady") || base.zpusobUhrady,
-    vystavil: text(el, "vystavil"),
-    poznamkaFaktura: text(el, "poznamkaFaktura"),
-    poznamkaReport: text(el, "poznamkaReport"),
+    cisloFaktury: field(el, "cisloFaktury"),
+    variabilniSymbol: field(el, "variabilniSymbol"),
+    datumVystaveni: field(el, "datumVystaveni"),
+    datumSplatnosti: field(el, "datumSplatnosti"),
+    datumUskutecneni: field(el, "datumUskutecneni"),
+    obdobi: field(el, "obdobi"),
+    zpusobUhrady: field(el, "zpusobUhrady") || base.zpusobUhrady,
+    vystavil: field(el, "vystavil"),
+    poznamkaFaktura: field(el, "poznamkaFaktura"),
+    poznamkaReport: field(el, "poznamkaReport"),
   }
 }
 
-/** Parse a working-file XML string into a document. Throws only on malformed
- * XML (a `<parsererror>` node); every field otherwise coerces to a safe value. */
+const PARSER = new XMLParser({
+  ignoreAttributes: false,
+  attributeNamePrefix: "@_",
+  // Keep every value a string (leading zeros in IČO / VS / account numbers must
+  // survive); numeric fields are coerced explicitly in `num`.
+  parseTagValue: false,
+  parseAttributeValue: false,
+  trimValues: true,
+})
+
+/** Parse a working-file XML string into a document. Throws on malformed XML;
+ * every field otherwise coerces to a safe value, tolerating missing/extra nodes. */
 export function parseDoc(xml: string): FakturaceDoc {
-  const dom = new DOMParser().parseFromString(xml, "application/xml")
-  if (dom.getElementsByTagName("parsererror").length > 0) {
+  if (XMLValidator.validate(xml) !== true) {
     throw new Error("Neplatný XML soubor.")
   }
-  const root = dom.documentElement
+  const tree = PARSER.parse(xml) as XmlObj
+  const root = child(tree, "fakturace-draft")
   return {
     version: 1,
     supplier: parseParty(child(root, "supplier")),
@@ -438,66 +455,4 @@ export function downloadXml(filename: string, xml: string): void {
 /** Read + parse a user-selected working file into a document. */
 export async function importDocFile(file: File): Promise<FakturaceDoc> {
   return parseDoc(await file.text())
-}
-
-// --- localStorage ------------------------------------------------------------
-
-export function saveLocal(doc: FakturaceDoc): void {
-  if (typeof window === "undefined") return
-  try {
-    window.localStorage.setItem(DOC_STORAGE_KEY, serializeDoc(doc))
-  } catch {
-    // storage full / unavailable — non-fatal.
-  }
-}
-
-export function loadLocal(): FakturaceDoc | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = window.localStorage.getItem(DOC_STORAGE_KEY)
-    if (!raw) return null
-    return parseDoc(raw)
-  } catch {
-    return null
-  }
-}
-
-/** Persist ONLY the parties (supplier + bank + customer) so they survive a
- * services reset and can seed next month's invoice. */
-export function saveParties(doc: FakturaceDoc): void {
-  if (typeof window === "undefined") return
-  try {
-    const xml = [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      "<fakturace-parties>",
-      partyXml("supplier", doc.supplier),
-      bankXml(doc.bank),
-      partyXml("customer", doc.customer),
-      "</fakturace-parties>",
-    ].join("")
-    window.localStorage.setItem(PARTIES_STORAGE_KEY, xml)
-  } catch {
-    // non-fatal
-  }
-}
-
-export function loadParties(): Pick<
-  FakturaceDoc,
-  "supplier" | "bank" | "customer"
-> | null {
-  if (typeof window === "undefined") return null
-  try {
-    const raw = window.localStorage.getItem(PARTIES_STORAGE_KEY)
-    if (!raw) return null
-    const dom = new DOMParser().parseFromString(raw, "application/xml")
-    if (dom.getElementsByTagName("parsererror").length > 0) return null
-    const root = dom.documentElement
-    return {
-      supplier: parseParty(child(root, "supplier")),
-      bank: parseBank(child(root, "bank")),
-      customer: parseParty(child(root, "customer")),
-    }
-  } catch {
-    return null
-  }
 }

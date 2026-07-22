@@ -24,12 +24,12 @@ export function lineTotal(item: ServiceItem): number {
   return round2(dec(item.mnozstvi).times(dec(item.cena))).toNumber()
 }
 
-export interface LineCalc {
+interface LineCalc {
   item: ServiceItem
   total: number
 }
 
-export interface GroupCalc {
+interface GroupCalc {
   kind: ServiceKind
   items: LineCalc[]
   subtotal: number

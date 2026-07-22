@@ -16,8 +16,7 @@ import {
 } from "../_lib/xml"
 
 export function Toolbar() {
-  const { doc, loadDoc, resetAll, resetServices, loadStoredParties } =
-    useFakturace()
+  const { doc, loadDoc, resetAll, resetServices } = useFakturace()
   const fileInput = useRef<HTMLInputElement>(null)
 
   const handleImport = async (file: File | undefined) => {
@@ -62,18 +61,6 @@ export function Toolbar() {
 
       <span className="mx-1 h-5 w-px bg-neutral-200" />
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          if (!loadStoredParties()) {
-            window.alert("Žádné uložené strany nebyly nalezeny.")
-          }
-        }}
-      >
-        Načíst strany
-      </Button>
       <Button
         type="button"
         variant="ghost"

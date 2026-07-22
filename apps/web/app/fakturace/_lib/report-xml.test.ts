@@ -1,5 +1,5 @@
-// @vitest-environment jsdom
 import { describe, expect, it } from "vitest"
+import { XMLValidator } from "fast-xml-parser"
 
 import { serializeReport } from "./report-xml"
 import { emptyDoc, newService } from "./xml"
@@ -26,11 +26,9 @@ function reportDoc(): FakturaceDoc {
 describe("fakturace report XML", () => {
   it("is well-formed and carries the work breakdown + summary", () => {
     const xml = serializeReport(reportDoc())
-    // parses without a parsererror (round-trip through the working-file parser's
-    // DOMParser is enough to confirm well-formedness here).
-    const dom = new DOMParser().parseFromString(xml, "application/xml")
-    expect(dom.getElementsByTagName("parsererror").length).toBe(0)
-    expect(dom.documentElement.tagName).toBe("vykaz-prace")
+    // well-formed XML with the expected root + content.
+    expect(XMLValidator.validate(xml)).toBe(true)
+    expect(xml).toContain("<vykaz-prace>")
     expect(xml).toContain("<popis>Vedení účetnictví</popis>")
     expect(xml).toContain("<poznamka>42 dokladů</poznamka>")
     expect(xml).toContain("<mezisoucet>5000.00</mezisoucet>")

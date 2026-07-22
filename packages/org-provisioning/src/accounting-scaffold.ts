@@ -16,6 +16,7 @@ import { executeRows } from "@workspace/db"
 import type { OrganizationBoundDb } from "@workspace/db"
 import type { FxRateKind, OrgCtx, PeriodStatus } from "@workspace/accounting"
 import {
+  backfillDefaultDocumentTypes,
   backfillDefaultNumberSeries,
   createChart,
   createPeriod,
@@ -182,6 +183,8 @@ export interface AccountingScaffoldResult {
   accountsSeeded: number
   /** Default number series inserted (0 when the org already had all of them). */
   seriesCreated: number
+  /** Default doklad types seeded (0 when the org already had all of them). */
+  typesSeeded: number
 }
 
 /**
@@ -261,6 +264,9 @@ export async function scaffoldAccountingPeriod(
   }
 
   const seriesCreated = await backfillDefaultNumberSeries(db, orgCtx)
+  // Seed the default doklad types AFTER the séries — each type links to its série by
+  // code, so the séries must exist first (same org-bound transaction).
+  const typesSeeded = await backfillDefaultDocumentTypes(db, orgCtx)
 
-  return { periodId, chartId, accountsSeeded, seriesCreated }
+  return { periodId, chartId, accountsSeeded, seriesCreated, typesSeeded }
 }

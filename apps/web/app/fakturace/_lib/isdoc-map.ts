@@ -49,14 +49,15 @@ export function mapToIsdoc(doc: FakturaceDoc): IsdocInvoiceInput {
     vat_rate: "0",
   }))
 
-  // Whole-invoice discount → one negative rate-0 line (folds into the single
-  // 0% aggregate; net TaxableAmount = services − sleva).
-  if (totals.slevaAmount > 0) {
+  // Per-item discounts are summed into ONE negative rate-0 line (the human docs
+  // show them per line; ISDOC nets to the same total). Folds into the single 0%
+  // aggregate → TaxableAmount = servicesGross − Σ item discounts = servicesNet.
+  if (totals.slevaTotal > 0) {
     lines.push({
-      description: doc.sleva.label || "Sleva",
+      description: "Sleva",
       qty: "1",
       unit: "ks",
-      unit_price_base: String(-totals.slevaAmount),
+      unit_price_base: String(-totals.slevaTotal),
       vat_rate: "0",
     })
   }
@@ -87,8 +88,8 @@ export function mapToIsdoc(doc: FakturaceDoc): IsdocInvoiceInput {
     input.variable_symbol = doc.meta.variabilniSymbol
   }
 
-  // Prepaid advances → already_claimed (clamped to ≤ afterSleva in calc), so the
-  // ISDOC PayableAmount = (services − sleva) − deposits.
+  // Prepaid advances → already_claimed (clamped to ≤ servicesNet in calc), so the
+  // ISDOC PayableAmount = (servicesGross − discounts) − deposits.
   if (totals.zalohyApplied > 0) {
     const amount = totals.zalohyApplied.toFixed(2)
     input.already_claimed = {

@@ -24,8 +24,13 @@ function reportDoc(): FakturaceDoc {
 }
 
 describe("fakturace report XML", () => {
-  it("is well-formed and carries the work breakdown + summary", () => {
-    const xml = serializeReport(reportDoc())
+  it("is well-formed and carries the work breakdown, metrics, filings + summary", () => {
+    const doc = reportDoc()
+    doc.reportMetrics = [{ id: "m", label: "Zpracované doklady", value: "42" }]
+    doc.filings = [
+      { id: "f", nazev: "Přehled OSSZ 06/2025", datum: "2025-07-10" },
+    ]
+    const xml = serializeReport(doc)
     // well-formed XML with the expected root + content.
     expect(XMLValidator.validate(xml)).toBe(true)
     expect(xml).toContain("<vykaz-prace>")
@@ -33,6 +38,10 @@ describe("fakturace report XML", () => {
     expect(xml).toContain("<poznamka>42 dokladů</poznamka>")
     expect(xml).toContain("<mezisoucet>5000.00</mezisoucet>")
     expect(xml).toContain("<kUhrade>5000.00</kUhrade>")
+    // structured report detail (separate from billing)
+    expect(xml).toContain("<popis>Zpracované doklady</popis>")
+    expect(xml).toContain("<hodnota>42</hodnota>")
+    expect(xml).toContain("<nazev>Přehled OSSZ 06/2025</nazev>")
   })
 
   it("escapes special characters", () => {

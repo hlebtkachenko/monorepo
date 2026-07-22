@@ -46,11 +46,8 @@ function DateRow({ label, value }: { label: string; value: string }) {
 
 export function InvoiceDoc() {
   const { doc, totals } = useFakturace()
-  const { meta, sleva } = doc
-  const slevaBase =
-    sleva.mode === "percent"
-      ? `Sleva ${formatNum(sleva.percent)} % z ${formatKc(totals.servicesSum)}`
-      : sleva.label || "Sleva"
+  const { meta } = doc
+  const hasSleva = totals.slevaTotal > 0
 
   return (
     <article className="fakturace-invoice mx-auto max-w-3xl bg-white p-6 text-black">
@@ -99,6 +96,10 @@ export function InvoiceDoc() {
             <th className="py-1 text-right font-medium">Množství</th>
             <th className="py-1 text-left font-medium">MJ</th>
             <th className="py-1 text-right font-medium">Cena/MJ</th>
+            <th className="py-1 text-right font-medium">Cena</th>
+            {hasSleva ? (
+              <th className="py-1 text-right font-medium">Sleva</th>
+            ) : null}
             <th className="py-1 text-right font-medium">Celkem</th>
           </tr>
         </thead>
@@ -120,7 +121,13 @@ export function InvoiceDoc() {
                 </td>
                 <td className="py-1">{lc.item.jednotka}</td>
                 <td className="py-1 text-right">{formatKc(lc.item.cena)}</td>
-                <td className="py-1 text-right">{formatKc(lc.total)}</td>
+                <td className="py-1 text-right">{formatKc(lc.gross)}</td>
+                {hasSleva ? (
+                  <td className="py-1 text-right">
+                    {lc.discount > 0 ? `−${formatKc(lc.discount)}` : ""}
+                  </td>
+                ) : null}
+                <td className="py-1 text-right">{formatKc(lc.net)}</td>
               </tr>
             )),
           )}
@@ -130,13 +137,19 @@ export function InvoiceDoc() {
       <section className="mt-3 ml-auto max-w-xs space-y-1 text-sm">
         <div className="flex justify-between">
           <span className="text-neutral-600">Součet služeb</span>
-          <span>{formatKc(totals.servicesSum)}</span>
+          <span>{formatKc(totals.servicesGross)}</span>
         </div>
-        {totals.slevaAmount > 0 ? (
-          <div className="flex justify-between text-neutral-700">
-            <span>{slevaBase}</span>
-            <span>−{formatKc(totals.slevaAmount)}</span>
-          </div>
+        {hasSleva ? (
+          <>
+            <div className="flex justify-between text-neutral-700">
+              <span>Sleva</span>
+              <span>−{formatKc(totals.slevaTotal)}</span>
+            </div>
+            <div className="flex justify-between text-neutral-700">
+              <span>Základ po slevě</span>
+              <span>{formatKc(totals.servicesNet)}</span>
+            </div>
+          </>
         ) : null}
         {totals.zalohyApplied > 0 ? (
           <div className="flex justify-between text-neutral-700">

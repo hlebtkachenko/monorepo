@@ -55,6 +55,17 @@ export interface ServiceItem {
   obdobi: string
   /** Report-only note — carries the actual work detail for flat-fee lines. */
   poznamka: string
+  /** Per-line discount (applied to THIS item, not to the invoice total). */
+  sleva: ItemSleva
+}
+
+export type SlevaMode = "none" | "percent" | "fixed"
+
+/** Per-item discount: `percent` of the line's gross, or a `fixed` Kč amount off
+ * the line. Clamped to the line gross in calc. */
+export interface ItemSleva {
+  mode: SlevaMode
+  value: number // percent when mode==="percent", Kč when mode==="fixed"
 }
 
 /**
@@ -71,15 +82,20 @@ export interface Zaloha {
   popis: string
 }
 
-export type SlevaMode = "none" | "percent" | "fixed"
+/** One work-volume metric for the report — decoupled from billing (e.g.
+ * "Zpracované doklady" = "42", "Zaměstnanců na mzdách" = "5"). Free label/value
+ * so the report can carry ANY activity count the účetní needs. */
+export interface ReportMetric {
+  id: string
+  label: string
+  value: string
+}
 
-/** Whole-invoice discount, applied to the services subtotal before záloha
- * deduction. `percent` of the subtotal, or a `fixed` Kč amount. */
-export interface Sleva {
-  mode: SlevaMode
-  percent: number // when mode === "percent"
-  fixed: number // Kč, when mode === "fixed"
-  label: string // free label rendered on the invoice
+/** One submitted filing listed on the report (podané hlášení / přiznání). */
+export interface Filing {
+  id: string
+  nazev: string // e.g. "Přehled OSSZ 06/2025"
+  datum: string // datum podání
 }
 
 /** Invoice-level metadata (identity of the document + its dates). */
@@ -106,7 +122,10 @@ export interface FakturaceDoc {
   customer: Party
   services: ServiceItem[]
   zalohy: Zaloha[]
-  sleva: Sleva
+  /** Structured work-volume metrics for the report (separate from billing). */
+  reportMetrics: ReportMetric[]
+  /** Submitted filings listed on the report. */
+  filings: Filing[]
   meta: InvoiceMeta
 }
 

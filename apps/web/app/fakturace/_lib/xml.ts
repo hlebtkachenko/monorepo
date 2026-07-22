@@ -9,11 +9,13 @@ import { XMLParser, XMLValidator } from "fast-xml-parser"
 import type {
   BankInfo,
   FakturaceDoc,
+  Filing,
   InvoiceMeta,
+  ItemSleva,
   Party,
+  ReportMetric,
   ServiceItem,
   ServiceKind,
-  Sleva,
   SlevaMode,
   Zaloha,
 } from "./types"
@@ -66,10 +68,6 @@ function emptyMeta(): InvoiceMeta {
   }
 }
 
-function emptySleva(): Sleva {
-  return { mode: "none", percent: 0, fixed: 0, label: "Sleva" }
-}
-
 /** A fresh, fully blank document. */
 export function emptyDoc(): FakturaceDoc {
   return {
@@ -79,7 +77,8 @@ export function emptyDoc(): FakturaceDoc {
     customer: emptyParty(),
     services: [],
     zalohy: [],
-    sleva: emptySleva(),
+    reportMetrics: [],
+    filings: [],
     meta: emptyMeta(),
   }
 }
@@ -102,6 +101,7 @@ export function newService(kind: ServiceKind): ServiceItem {
     cena: 0,
     obdobi: "",
     poznamka: "",
+    sleva: { mode: "none", value: 0 },
   }
 }
 
@@ -113,6 +113,14 @@ export function newZaloha(): Zaloha {
     castka: 0,
     popis: "",
   }
+}
+
+export function newMetric(): ReportMetric {
+  return { id: newId(), label: "", value: "" }
+}
+
+export function newFiling(): Filing {
+  return { id: newId(), nazev: "", datum: "" }
 }
 
 // --- serialize (pure) --------------------------------------------------------
@@ -192,6 +200,9 @@ function servicesXml(items: ServiceItem[]): string {
         leaf("cena", s.cena),
         leaf("obdobi", s.obdobi),
         leaf("poznamka", s.poznamka),
+        `<sleva mode="${clean(s.sleva.mode)}">`,
+        leaf("value", s.sleva.value),
+        "</sleva>",
         "</service>",
       ].join(""),
     )
@@ -215,14 +226,32 @@ function zalohyXml(items: Zaloha[]): string {
   return `<zalohy>${rows}</zalohy>`
 }
 
-function slevaXml(s: Sleva): string {
-  return [
-    `<sleva mode="${clean(s.mode)}">`,
-    leaf("percent", s.percent),
-    leaf("fixed", s.fixed),
-    leaf("label", s.label),
-    "</sleva>",
-  ].join("")
+function metricsXml(items: ReportMetric[]): string {
+  const rows = items
+    .map((m) =>
+      [
+        "<metric>",
+        leaf("label", m.label),
+        leaf("value", m.value),
+        "</metric>",
+      ].join(""),
+    )
+    .join("")
+  return `<reportMetrics>${rows}</reportMetrics>`
+}
+
+function filingsXml(items: Filing[]): string {
+  const rows = items
+    .map((f) =>
+      [
+        "<filing>",
+        leaf("nazev", f.nazev),
+        leaf("datum", f.datum),
+        "</filing>",
+      ].join(""),
+    )
+    .join("")
+  return `<filings>${rows}</filings>`
 }
 
 function metaXml(m: InvoiceMeta): string {
@@ -250,7 +279,8 @@ export function serializeDoc(doc: FakturaceDoc): string {
     partyXml("customer", doc.customer),
     servicesXml(doc.services),
     zalohyXml(doc.zalohy),
-    slevaXml(doc.sleva),
+    metricsXml(doc.reportMetrics),
+    filingsXml(doc.filings),
     metaXml(doc.meta),
   ].join("")
   return `<?xml version="1.0" encoding="UTF-8"?>\n<fakturace-draft version="1">${body}</fakturace-draft>\n`
@@ -341,8 +371,33 @@ function parseServices(root: XmlObj | null): ServiceItem[] {
       cena: num(el, "cena"),
       obdobi: field(el, "obdobi"),
       poznamka: field(el, "poznamka"),
+      sleva: parseItemSleva(child(el, "sleva")),
     }
   })
+}
+
+function parseItemSleva(el: XmlObj | null): ItemSleva {
+  if (!el) return { mode: "none", value: 0 }
+  const modeAttr = attr(el, "mode")
+  const mode: SlevaMode =
+    modeAttr === "percent" || modeAttr === "fixed" ? modeAttr : "none"
+  return { mode, value: num(el, "value") }
+}
+
+function parseMetrics(root: XmlObj | null): ReportMetric[] {
+  return asArray(child(root, "reportMetrics")?.metric).map((el) => ({
+    id: newId(),
+    label: field(el, "label"),
+    value: field(el, "value"),
+  }))
+}
+
+function parseFilings(root: XmlObj | null): Filing[] {
+  return asArray(child(root, "filings")?.filing).map((el) => ({
+    id: newId(),
+    nazev: field(el, "nazev"),
+    datum: field(el, "datum"),
+  }))
 }
 
 function parseZalohy(root: XmlObj | null): Zaloha[] {
@@ -353,23 +408,6 @@ function parseZalohy(root: XmlObj | null): Zaloha[] {
     castka: num(el, "castka"),
     popis: field(el, "popis"),
   }))
-}
-
-function parseSleva(root: XmlObj | null): Sleva {
-  const el = child(root, "sleva")
-  const base = emptySleva()
-  if (!el) return base
-  const modeAttr = attr(el, "mode")
-  const mode: SlevaMode =
-    modeAttr === "percent" || modeAttr === "fixed" || modeAttr === "none"
-      ? modeAttr
-      : "none"
-  return {
-    mode,
-    percent: num(el, "percent"),
-    fixed: num(el, "fixed"),
-    label: field(el, "label") || base.label,
-  }
 }
 
 function parseMeta(root: XmlObj | null): InvoiceMeta {
@@ -415,7 +453,8 @@ export function parseDoc(xml: string): FakturaceDoc {
     customer: parseParty(child(root, "customer")),
     services: parseServices(root),
     zalohy: parseZalohy(root),
-    sleva: parseSleva(root),
+    reportMetrics: parseMetrics(root),
+    filings: parseFilings(root),
     meta: parseMeta(root),
   }
 }

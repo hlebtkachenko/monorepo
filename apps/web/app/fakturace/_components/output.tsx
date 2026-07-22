@@ -17,6 +17,7 @@ import { serializeReport } from "../_lib/report-xml"
 import { docFilename, downloadXml } from "../_lib/xml"
 import { Section, TextArea, TextField } from "./fields"
 import { InvoiceDoc } from "./invoice-doc"
+import { ReportDetails } from "./report-details"
 import { ReportDoc } from "./report-doc"
 
 type PrintTarget = "invoice" | "report"
@@ -182,6 +183,12 @@ export function Output() {
         description="Doplňte údaje faktury a stáhněte oba dokumenty. Nic dalšího se nevyplňuje."
       >
         <InvoiceMetaForm />
+        <div className="mt-4 border-t border-neutral-200 pt-3">
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-neutral-500 uppercase">
+            Detaily pro report práce
+          </h3>
+          <ReportDetails />
+        </div>
         <div className="mt-4 border-t border-neutral-200 pt-3">
           <ExportBar />
         </div>

@@ -69,7 +69,9 @@ export function serializeReport(doc: FakturaceDoc): string {
             leaf("mnozstvi", lc.item.mnozstvi),
             leaf("jednotka", lc.item.jednotka),
             leaf("cena", money(lc.item.cena)),
-            leaf("celkem", money(lc.total)),
+            leaf("cenaCelkem", money(lc.gross)),
+            leaf("sleva", money(lc.discount)),
+            leaf("celkem", money(lc.net)),
             leaf("poznamka", lc.item.poznamka),
             "</polozka>",
           ].join(""),
@@ -78,10 +80,32 @@ export function serializeReport(doc: FakturaceDoc): string {
       return [
         `<skupina kind="${clean(g.kind)}" nazev="${clean(kindLabel(g.kind))}">`,
         items,
-        leaf("mezisoucet", money(g.subtotal)),
+        leaf("mezisoucet", money(g.subtotalNet)),
         "</skupina>",
       ].join("")
     })
+    .join("")
+
+  const metrics = doc.reportMetrics
+    .map((m) =>
+      [
+        "<metrika>",
+        leaf("popis", m.label),
+        leaf("hodnota", m.value),
+        "</metrika>",
+      ].join(""),
+    )
+    .join("")
+
+  const filings = doc.filings
+    .map((f) =>
+      [
+        "<hlaseni>",
+        leaf("nazev", f.nazev),
+        leaf("datum", f.datum),
+        "</hlaseni>",
+      ].join(""),
+    )
     .join("")
 
   const body = [
@@ -93,9 +117,12 @@ export function serializeReport(doc: FakturaceDoc): string {
     leaf("obdobi", doc.meta.obdobi),
     "</faktura>",
     `<skupiny>${groups}</skupiny>`,
+    `<prehledCinnosti>${metrics}</prehledCinnosti>`,
+    `<podanaHlaseni>${filings}</podanaHlaseni>`,
     "<souhrn>",
-    leaf("sluzbyCelkem", money(totals.servicesSum)),
-    leaf("sleva", money(totals.slevaAmount)),
+    leaf("sluzbyCelkem", money(totals.servicesGross)),
+    leaf("sleva", money(totals.slevaTotal)),
+    leaf("zaklad", money(totals.servicesNet)),
     leaf("zalohy", money(totals.zalohyApplied)),
     leaf("kUhrade", money(totals.kUhrade)),
     leaf("hodinCelkem", totals.hoursTotal),

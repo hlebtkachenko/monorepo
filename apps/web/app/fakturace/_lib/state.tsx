@@ -17,15 +17,16 @@ import {
 import type {
   BankInfo,
   FakturaceDoc,
+  Filing,
   InvoiceMeta,
   Party,
+  ReportMetric,
   ServiceItem,
   ServiceKind,
-  Sleva,
   Zaloha,
 } from "./types"
 import { computeTotals, type Totals } from "./calc"
-import { emptyDoc, newService, newZaloha } from "./xml"
+import { emptyDoc, newFiling, newMetric, newService, newZaloha } from "./xml"
 
 /** Which party block a mutation targets. */
 export type PartyKey = "supplier" | "customer"
@@ -41,7 +42,12 @@ interface FakturaceContextValue {
   addZaloha: () => void
   updateZaloha: (id: string, patch: Partial<Zaloha>) => void
   removeZaloha: (id: string) => void
-  setSleva: (patch: Partial<Sleva>) => void
+  addMetric: () => void
+  updateMetric: (id: string, patch: Partial<ReportMetric>) => void
+  removeMetric: (id: string) => void
+  addFiling: () => void
+  updateFiling: (id: string, patch: Partial<Filing>) => void
+  removeFiling: (id: string) => void
   setMeta: (patch: Partial<InvoiceMeta>) => void
   /** Replace the whole document (working-file import). */
   loadDoc: (doc: FakturaceDoc) => void
@@ -110,8 +116,48 @@ export function FakturaceProvider({ children }: { children: ReactNode }) {
     }))
   }, [])
 
-  const setSleva = useCallback((patch: Partial<Sleva>) => {
-    setDoc((prev) => ({ ...prev, sleva: { ...prev.sleva, ...patch } }))
+  const addMetric = useCallback(() => {
+    setDoc((prev) => ({
+      ...prev,
+      reportMetrics: [...prev.reportMetrics, newMetric()],
+    }))
+  }, [])
+
+  const updateMetric = useCallback(
+    (id: string, patch: Partial<ReportMetric>) => {
+      setDoc((prev) => ({
+        ...prev,
+        reportMetrics: prev.reportMetrics.map((m) =>
+          m.id === id ? { ...m, ...patch } : m,
+        ),
+      }))
+    },
+    [],
+  )
+
+  const removeMetric = useCallback((id: string) => {
+    setDoc((prev) => ({
+      ...prev,
+      reportMetrics: prev.reportMetrics.filter((m) => m.id !== id),
+    }))
+  }, [])
+
+  const addFiling = useCallback(() => {
+    setDoc((prev) => ({ ...prev, filings: [...prev.filings, newFiling()] }))
+  }, [])
+
+  const updateFiling = useCallback((id: string, patch: Partial<Filing>) => {
+    setDoc((prev) => ({
+      ...prev,
+      filings: prev.filings.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    }))
+  }, [])
+
+  const removeFiling = useCallback((id: string) => {
+    setDoc((prev) => ({
+      ...prev,
+      filings: prev.filings.filter((f) => f.id !== id),
+    }))
   }, [])
 
   const setMeta = useCallback((patch: Partial<InvoiceMeta>) => {
@@ -146,7 +192,12 @@ export function FakturaceProvider({ children }: { children: ReactNode }) {
     addZaloha,
     updateZaloha,
     removeZaloha,
-    setSleva,
+    addMetric,
+    updateMetric,
+    removeMetric,
+    addFiling,
+    updateFiling,
+    removeFiling,
     setMeta,
     loadDoc,
     resetAll,

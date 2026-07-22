@@ -41,6 +41,8 @@ export function ReportDoc() {
                   <th className="py-1 text-right font-medium">Množství</th>
                   <th className="py-1 text-left font-medium">MJ</th>
                   <th className="py-1 text-right font-medium">Cena/MJ</th>
+                  <th className="py-1 text-right font-medium">Cena</th>
+                  <th className="py-1 text-right font-medium">Sleva</th>
                   <th className="py-1 text-right font-medium">Celkem</th>
                 </tr>
               </thead>
@@ -68,22 +70,64 @@ export function ReportDoc() {
                     <td className="py-1 text-right">
                       {formatKc(lc.item.cena)}
                     </td>
-                    <td className="py-1 text-right">{formatKc(lc.total)}</td>
+                    <td className="py-1 text-right">{formatKc(lc.gross)}</td>
+                    <td className="py-1 text-right">
+                      {lc.discount > 0 ? `−${formatKc(lc.discount)}` : "—"}
+                    </td>
+                    <td className="py-1 text-right">{formatKc(lc.net)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="font-semibold">
-                  <td className="py-1" colSpan={5}>
+                  <td className="py-1" colSpan={7}>
                     Mezisoučet
                   </td>
-                  <td className="py-1 text-right">{formatKc(g.subtotal)}</td>
+                  <td className="py-1 text-right">{formatKc(g.subtotalNet)}</td>
                 </tr>
               </tfoot>
             </table>
           </section>
         ))
       )}
+
+      {doc.reportMetrics.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-1 text-sm font-semibold text-neutral-700">
+            Přehled činností
+          </h2>
+          <table className="w-full max-w-md border-collapse text-xs">
+            <tbody>
+              {doc.reportMetrics.map((m) => (
+                <tr key={m.id} className="border-b border-neutral-100">
+                  <td className="py-1">{m.label || "—"}</td>
+                  <td className="py-1 text-right font-medium">{m.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
+      {doc.filings.length > 0 ? (
+        <section className="mt-6">
+          <h2 className="mb-1 text-sm font-semibold text-neutral-700">
+            Podaná hlášení
+          </h2>
+          <table className="w-full max-w-md border-collapse text-xs">
+            <tbody>
+              {doc.filings.map((f) => (
+                <tr key={f.id} className="border-b border-neutral-100">
+                  <td className="py-1">{f.nazev || "—"}</td>
+                  <td className="py-1 text-right text-neutral-500">
+                    {f.datum || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       <section className="mt-6 ml-auto max-w-xs space-y-1 text-sm">
         {totals.hoursTotal > 0 ? (
@@ -94,13 +138,19 @@ export function ReportDoc() {
         ) : null}
         <div className="flex justify-between">
           <span className="text-neutral-600">Součet služeb</span>
-          <span>{formatKc(totals.servicesSum)}</span>
+          <span>{formatKc(totals.servicesGross)}</span>
         </div>
-        {totals.slevaAmount > 0 ? (
-          <div className="flex justify-between text-neutral-700">
-            <span>Sleva</span>
-            <span>−{formatKc(totals.slevaAmount)}</span>
-          </div>
+        {totals.slevaTotal > 0 ? (
+          <>
+            <div className="flex justify-between text-neutral-700">
+              <span>Sleva</span>
+              <span>−{formatKc(totals.slevaTotal)}</span>
+            </div>
+            <div className="flex justify-between text-neutral-700">
+              <span>Základ po slevě</span>
+              <span>{formatKc(totals.servicesNet)}</span>
+            </div>
+          </>
         ) : null}
         {totals.zalohyApplied > 0 ? (
           <div className="flex justify-between text-neutral-700">

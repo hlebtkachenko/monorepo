@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest"
 
-import { computeTotals, lineTotal } from "./calc"
+import { computeTotals, lineDiscount, lineTotal } from "./calc"
 import { emptyDoc, newService, newZaloha } from "./xml"
-import type { FakturaceDoc, ServiceKind } from "./types"
+import type { FakturaceDoc, ServiceKind, SlevaMode } from "./types"
 
 function docWith(
-  services: { kind: ServiceKind; mnozstvi: number; cena: number }[],
+  services: {
+    kind: ServiceKind
+    mnozstvi: number
+    cena: number
+    sleva?: { mode: SlevaMode; value: number }
+  }[],
 ): FakturaceDoc {
   const doc = emptyDoc()
   doc.services = services.map((s) => ({
     ...newService(s.kind),
     mnozstvi: s.mnozstvi,
     cena: s.cena,
+    sleva: s.sleva ?? { mode: "none", value: 0 },
   }))
   return doc
 }
@@ -27,29 +33,44 @@ describe("fakturace calc", () => {
     ).toBe(2.12)
   })
 
-  it("sums non-empty groups in SERVICE_KINDS order", () => {
+  it("per-item percent discount reduces the line net", () => {
+    const item = {
+      ...newService("mesicni"),
+      mnozstvi: 1,
+      cena: 5000,
+      sleva: { mode: "percent" as SlevaMode, value: 10 },
+    }
+    expect(lineDiscount(item)).toBe(500)
+    expect(lineTotal(item)).toBe(4500)
+  })
+
+  it("per-item fixed discount is clamped to the line gross", () => {
+    const item = {
+      ...newService("mesicni"),
+      mnozstvi: 1,
+      cena: 5000,
+      sleva: { mode: "fixed" as SlevaMode, value: 9999 },
+    }
+    expect(lineDiscount(item)).toBe(5000)
+    expect(lineTotal(item)).toBe(0)
+  })
+
+  it("sums groups (in SERVICE_KINDS order) with per-item discounts", () => {
     const doc = docWith([
       { kind: "zaverka", mnozstvi: 1, cena: 5000 },
-      { kind: "mesicni", mnozstvi: 1, cena: 3000 },
+      {
+        kind: "mesicni",
+        mnozstvi: 1,
+        cena: 3000,
+        sleva: { mode: "percent", value: 10 },
+      },
     ])
     const t = computeTotals(doc)
-    expect(t.servicesSum).toBe(8000)
+    expect(t.servicesGross).toBe(8000)
+    expect(t.slevaTotal).toBe(300) // 10% of 3000
+    expect(t.servicesNet).toBe(7700)
     // mesicni is earlier than zaverka in SERVICE_KINDS.
     expect(t.groups.map((g) => g.kind)).toEqual(["mesicni", "zaverka"])
-  })
-
-  it("percent discount is % of servicesSum", () => {
-    const doc = docWith([{ kind: "mesicni", mnozstvi: 1, cena: 5000 }])
-    doc.sleva = { mode: "percent", percent: 10, fixed: 0, label: "Sleva" }
-    const t = computeTotals(doc)
-    expect(t.slevaAmount).toBe(500)
-    expect(t.afterSleva).toBe(4500)
-  })
-
-  it("fixed discount is clamped to [0, servicesSum]", () => {
-    const doc = docWith([{ kind: "mesicni", mnozstvi: 1, cena: 5000 }])
-    doc.sleva = { mode: "fixed", percent: 0, fixed: 9999, label: "Sleva" }
-    expect(computeTotals(doc).slevaAmount).toBe(5000)
   })
 
   it("deposits are summed and clamped so k úhradě is never negative", () => {
@@ -60,16 +81,23 @@ describe("fakturace calc", () => {
     ]
     const t = computeTotals(doc)
     expect(t.zalohySum).toBe(6000)
-    expect(t.zalohyApplied).toBe(5000) // clamped to afterSleva
+    expect(t.zalohyApplied).toBe(5000) // clamped to servicesNet
     expect(t.kUhrade).toBe(0)
   })
 
-  it("k úhradě = services − sleva − deposits", () => {
-    const doc = docWith([{ kind: "mesicni", mnozstvi: 1, cena: 5000 }])
-    doc.sleva = { mode: "percent", percent: 10, fixed: 0, label: "Sleva" }
+  it("k úhradě = servicesNet − deposits", () => {
+    const doc = docWith([
+      {
+        kind: "mesicni",
+        mnozstvi: 1,
+        cena: 5000,
+        sleva: { mode: "percent", value: 10 },
+      },
+    ])
     doc.zalohy = [{ ...newZaloha(), castka: 1000 }]
     const t = computeTotals(doc)
-    expect(t.slevaAmount).toBe(500)
+    expect(t.slevaTotal).toBe(500)
+    expect(t.servicesNet).toBe(4500)
     expect(t.kUhrade).toBe(3500)
   })
 

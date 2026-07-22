@@ -24,15 +24,16 @@ function fullDoc(): FakturaceDoc {
       popis: "Vedení účetnictví",
       mnozstvi: 1,
       cena: 5000,
+      sleva: { mode: "percent", value: 10 },
     },
-    { ...newService("hodinova"), popis: "Konzultace", mnozstvi: 2, cena: 800 },
+    {
+      ...newService("hodinova"),
+      popis: "Konzultace",
+      mnozstvi: 2,
+      cena: 800,
+      sleva: { mode: "percent", value: 10 },
+    },
   ]
-  doc.sleva = {
-    mode: "percent",
-    percent: 10,
-    fixed: 0,
-    label: "Množstevní sleva",
-  }
   doc.zalohy = [
     {
       ...newZaloha(),

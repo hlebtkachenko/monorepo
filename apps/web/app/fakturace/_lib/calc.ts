@@ -19,30 +19,65 @@ function dec(x: number): Decimal {
   return Number.isFinite(x) ? new Decimal(x) : new Decimal(0)
 }
 
-/** Line total in Kč = round2(mnozstvi × cena). */
+/** Line gross in Kč = round2(mnozstvi × cena) — before the per-item discount. */
+function lineGrossDec(item: ServiceItem): Decimal {
+  return round2(dec(item.mnozstvi).times(dec(item.cena)))
+}
+
+/** Per-item discount in Kč, clamped to [0, gross]. */
+function lineDiscountDec(item: ServiceItem, gross: Decimal): Decimal {
+  let d = new Decimal(0)
+  if (item.sleva.mode === "percent") {
+    d = round2(gross.times(dec(item.sleva.value)).div(100))
+  } else if (item.sleva.mode === "fixed") {
+    d = round2(dec(item.sleva.value))
+  }
+  if (d.lessThan(0)) return new Decimal(0)
+  return d.greaterThan(gross) ? gross : d
+}
+
+/** Line net in Kč = gross − per-item discount. */
 export function lineTotal(item: ServiceItem): number {
-  return round2(dec(item.mnozstvi).times(dec(item.cena))).toNumber()
+  const gross = lineGrossDec(item)
+  return gross.minus(lineDiscountDec(item, gross)).toNumber()
+}
+
+/** Line gross in Kč = round2(mnozstvi × cena). */
+export function lineGross(item: ServiceItem): number {
+  return lineGrossDec(item).toNumber()
+}
+
+/** Per-item discount in Kč (clamped). */
+export function lineDiscount(item: ServiceItem): number {
+  return lineDiscountDec(item, lineGrossDec(item)).toNumber()
 }
 
 interface LineCalc {
   item: ServiceItem
-  total: number
+  gross: number
+  discount: number
+  net: number
 }
 
 interface GroupCalc {
   kind: ServiceKind
   items: LineCalc[]
-  subtotal: number
+  subtotalGross: number
+  subtotalDiscount: number
+  subtotalNet: number
 }
 
 export interface Totals {
   /** Non-empty service groups in SERVICE_KINDS order. */
   groups: GroupCalc[]
-  servicesSum: number
-  slevaAmount: number
-  afterSleva: number
+  /** Σ line gross (before per-item discounts). */
+  servicesGross: number
+  /** Σ per-item discounts. */
+  slevaTotal: number
+  /** Σ line net (= servicesGross − slevaTotal). */
+  servicesNet: number
   zalohySum: number
-  /** Deposit deduction clamped to ≤ afterSleva (never a negative payable). */
+  /** Deposit deduction clamped to ≤ servicesNet (never a negative payable). */
   zalohyApplied: number
   kUhrade: number
   /** Sum of hours across all "hodinova" lines (for the report). */
@@ -52,49 +87,57 @@ export interface Totals {
 /** Compute every derived amount from the document. */
 export function computeTotals(doc: FakturaceDoc): Totals {
   const groups: GroupCalc[] = []
-  let servicesSum = new Decimal(0)
+  let servicesGross = new Decimal(0)
+  let slevaTotal = new Decimal(0)
   let hoursTotal = new Decimal(0)
 
   for (const { kind } of SERVICE_KINDS) {
     const items = doc.services.filter((s) => s.kind === kind)
     if (items.length === 0) continue
-    let subtotal = new Decimal(0)
+    let gGross = new Decimal(0)
+    let gDiscount = new Decimal(0)
+    let gNet = new Decimal(0)
     const lineCalcs: LineCalc[] = items.map((item) => {
-      const total = round2(dec(item.mnozstvi).times(dec(item.cena)))
-      subtotal = subtotal.plus(total)
+      const gross = lineGrossDec(item)
+      const discount = lineDiscountDec(item, gross)
+      const net = gross.minus(discount)
+      gGross = gGross.plus(gross)
+      gDiscount = gDiscount.plus(discount)
+      gNet = gNet.plus(net)
       if (kind === "hodinova") hoursTotal = hoursTotal.plus(dec(item.mnozstvi))
-      return { item, total: total.toNumber() }
+      return {
+        item,
+        gross: gross.toNumber(),
+        discount: discount.toNumber(),
+        net: net.toNumber(),
+      }
     })
-    servicesSum = servicesSum.plus(subtotal)
-    groups.push({ kind, items: lineCalcs, subtotal: subtotal.toNumber() })
+    servicesGross = servicesGross.plus(gGross)
+    slevaTotal = slevaTotal.plus(gDiscount)
+    groups.push({
+      kind,
+      items: lineCalcs,
+      subtotalGross: gGross.toNumber(),
+      subtotalDiscount: gDiscount.toNumber(),
+      subtotalNet: gNet.toNumber(),
+    })
   }
 
-  const { sleva } = doc
-  let slevaAmount = new Decimal(0)
-  if (sleva.mode === "percent") {
-    slevaAmount = round2(servicesSum.times(dec(sleva.percent)).div(100))
-  } else if (sleva.mode === "fixed") {
-    slevaAmount = round2(dec(sleva.fixed))
-  }
-  // Clamp the discount to [0, servicesSum].
-  if (slevaAmount.lessThan(0)) slevaAmount = new Decimal(0)
-  if (slevaAmount.greaterThan(servicesSum)) slevaAmount = servicesSum
-
-  const afterSleva = servicesSum.minus(slevaAmount)
+  const servicesNet = servicesGross.minus(slevaTotal)
 
   let zalohySum = new Decimal(0)
   for (const z of doc.zalohy) zalohySum = zalohySum.plus(round2(dec(z.castka)))
   // Clamp the deposit deduction so k úhradě is never negative.
-  const zalohyApplied = zalohySum.greaterThan(afterSleva)
-    ? afterSleva
+  const zalohyApplied = zalohySum.greaterThan(servicesNet)
+    ? servicesNet
     : zalohySum
-  const kUhrade = afterSleva.minus(zalohyApplied)
+  const kUhrade = servicesNet.minus(zalohyApplied)
 
   return {
     groups,
-    servicesSum: servicesSum.toNumber(),
-    slevaAmount: slevaAmount.toNumber(),
-    afterSleva: afterSleva.toNumber(),
+    servicesGross: servicesGross.toNumber(),
+    slevaTotal: slevaTotal.toNumber(),
+    servicesNet: servicesNet.toNumber(),
     zalohySum: zalohySum.toNumber(),
     zalohyApplied: zalohyApplied.toNumber(),
     kUhrade: kUhrade.toNumber(),

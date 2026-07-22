@@ -1,13 +1,19 @@
 "use client"
 
-// Section 3 — the services, grouped by facturing type, plus the whole-invoice
-// discount (sleva) and the prepaid advances (zálohy). This section routes into
+// Section 3 — the services, grouped by facturing type, with a PER-ITEM discount
+// on each line, plus the prepaid advances (zálohy). This section routes into
 // BOTH output documents with no further entry.
 
 import { Button } from "@workspace/ui/components/button"
 
-import { SERVICE_KINDS, type ServiceKind } from "../_lib/types"
-import { formatKc, formatNum, lineTotal } from "../_lib/calc"
+import { SERVICE_KINDS, type ServiceKind, type SlevaMode } from "../_lib/types"
+import {
+  formatKc,
+  formatNum,
+  lineDiscount,
+  lineGross,
+  lineTotal,
+} from "../_lib/calc"
 import { useFakturace } from "../_lib/state"
 import { INPUT_CLASS, NumberField, Section, TextField } from "./fields"
 
@@ -49,28 +55,61 @@ function ServiceRow({ id }: { id: string }) {
           value={item.obdobi}
           onChange={(v) => updateService(id, { obdobi: v })}
           placeholder="např. 06/2025"
-          className="sm:col-span-4"
+          className="sm:col-span-3"
         />
         <TextField
           label="Poznámka do reportu"
           value={item.poznamka}
           onChange={(v) => updateService(id, { poznamka: v })}
           placeholder="co bylo uděláno (pro klientovu účetní)"
-          className="sm:col-span-6"
+          className="sm:col-span-5"
         />
-        <div className="flex items-end justify-between gap-2 sm:col-span-2">
-          <span className="text-sm font-semibold text-black">
-            {formatKc(lineTotal(item))}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => removeService(id)}
+        <label className="flex flex-col gap-1 sm:col-span-2">
+          <span className="text-xs font-medium text-neutral-600">Sleva</span>
+          <select
+            value={item.sleva.mode}
+            onChange={(e) =>
+              updateService(id, {
+                sleva: { ...item.sleva, mode: e.target.value as SlevaMode },
+              })
+            }
+            className={INPUT_CLASS}
           >
-            Smazat
-          </Button>
-        </div>
+            <option value="none">Žádná</option>
+            <option value="percent">%</option>
+            <option value="fixed">Kč</option>
+          </select>
+        </label>
+        {item.sleva.mode === "none" ? (
+          <div className="sm:col-span-2" />
+        ) : (
+          <NumberField
+            label={item.sleva.mode === "percent" ? "Sleva (%)" : "Sleva (Kč)"}
+            value={item.sleva.value}
+            onChange={(v) =>
+              updateService(id, { sleva: { ...item.sleva, value: v } })
+            }
+            className="sm:col-span-2"
+          />
+        )}
+      </div>
+      <div className="mt-2 flex items-center justify-end gap-3 text-sm">
+        {lineDiscount(item) > 0 ? (
+          <span className="text-xs text-neutral-500">
+            {formatKc(lineGross(item))} − {formatKc(lineDiscount(item))} =
+          </span>
+        ) : null}
+        <span className="font-semibold text-black">
+          {formatKc(lineTotal(item))}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => removeService(id)}
+        >
+          Smazat
+        </Button>
       </div>
     </div>
   )
@@ -101,65 +140,6 @@ function KindGroup({ kind, label }: { kind: ServiceKind; label: string }) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function SlevaEditor() {
-  const { doc, setSleva, totals } = useFakturace()
-  const { sleva } = doc
-  return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-3">
-      <h3 className="mb-2 text-sm font-semibold text-neutral-700">Sleva</h3>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-        <label className="flex flex-col gap-1 sm:col-span-3">
-          <span className="text-xs font-medium text-neutral-600">
-            Typ slevy
-          </span>
-          <select
-            value={sleva.mode}
-            onChange={(e) =>
-              setSleva({ mode: e.target.value as typeof sleva.mode })
-            }
-            className={INPUT_CLASS}
-          >
-            <option value="none">Žádná</option>
-            <option value="percent">Procenta</option>
-            <option value="fixed">Pevná částka</option>
-          </select>
-        </label>
-        {sleva.mode === "percent" ? (
-          <NumberField
-            label="Sleva (%)"
-            value={sleva.percent}
-            onChange={(v) => setSleva({ percent: v })}
-            className="sm:col-span-3"
-          />
-        ) : null}
-        {sleva.mode === "fixed" ? (
-          <NumberField
-            label="Sleva (Kč)"
-            value={sleva.fixed}
-            onChange={(v) => setSleva({ fixed: v })}
-            className="sm:col-span-3"
-          />
-        ) : null}
-        {sleva.mode !== "none" ? (
-          <>
-            <TextField
-              label="Popis slevy"
-              value={sleva.label}
-              onChange={(v) => setSleva({ label: v })}
-              className="sm:col-span-4"
-            />
-            <div className="flex items-end sm:col-span-2">
-              <span className="text-sm font-semibold text-black">
-                −{formatKc(totals.slevaAmount)}
-              </span>
-            </div>
-          </>
-        ) : null}
-      </div>
     </div>
   )
 }
@@ -246,10 +226,12 @@ export function Services() {
         {SERVICE_KINDS.map((k) => (
           <KindGroup key={k.kind} kind={k.kind} label={k.label} />
         ))}
-        <SlevaEditor />
         <ZalohyEditor />
         <p className="text-right text-sm">
-          Součet služeb: <strong>{formatKc(totals.servicesSum)}</strong>
+          Součet služeb: <strong>{formatKc(totals.servicesGross)}</strong>
+          {totals.slevaTotal > 0
+            ? ` · sleva −${formatKc(totals.slevaTotal)} · po slevě ${formatKc(totals.servicesNet)}`
+            : ""}
           {totals.hoursTotal > 0
             ? ` · ${formatNum(totals.hoursTotal)} hod`
             : ""}

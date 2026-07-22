@@ -12,12 +12,12 @@ export function TotalsBar() {
     <div className="no-print sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-x-5 gap-y-1 border-t border-neutral-200 bg-white/95 px-3 py-2 text-sm backdrop-blur">
       <span className="text-neutral-500">
         Služby:{" "}
-        <span className="text-black">{formatKc(totals.servicesSum)}</span>
+        <span className="text-black">{formatKc(totals.servicesGross)}</span>
       </span>
-      {totals.slevaAmount > 0 ? (
+      {totals.slevaTotal > 0 ? (
         <span className="text-neutral-500">
           Sleva:{" "}
-          <span className="text-black">−{formatKc(totals.slevaAmount)}</span>
+          <span className="text-black">−{formatKc(totals.slevaTotal)}</span>
         </span>
       ) : null}
       {totals.zalohyApplied > 0 ? (

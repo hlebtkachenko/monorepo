@@ -242,6 +242,10 @@ regexes = [
   # the archetype-details debug page + its story). Not a real account. Gitleaks
   # scans every fetched ref, so an unlisted fixture on ANY branch fails all PR scans.
   '''CZ12[ ]?2010[ ]?0000[ ]?0029[ ]?0148[ ]?1234''',
+  # Canonical dummy Czech account number used as a form placeholder + type-doc
+  # comment on the standalone /fakturace invoicing tool (supplier bank field).
+  # Not a real account.
+  '''\b123456789/0800\b''',
 ]
 
 stopwords = []

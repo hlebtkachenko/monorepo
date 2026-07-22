@@ -53,6 +53,7 @@ const nextConfig = {
     "@workspace/observability",
     "@workspace/shared",
     "@workspace/email",
+    "@workspace/filing",
   ],
   output: "standalone",
   poweredByHeader: false,

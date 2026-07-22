@@ -429,6 +429,9 @@ importers:
       '@workspace/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@workspace/filing':
+        specifier: workspace:*
+        version: link:../../packages/filing
       '@workspace/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -453,6 +456,9 @@ importers:
       better-auth:
         specifier: 1.6.13
         version: 1.6.13(@cloudflare/workers-types@5.20260706.1)(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@cloudflare/workers-types@5.20260706.1)(@opentelemetry/api@1.9.1)(kysely@0.28.17)(pg@8.22.0)(postgres@3.4.9))(next@16.2.10(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(pg@8.22.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vitest@4.1.10)
+      decimal.js-light:
+        specifier: ^2.5.1
+        version: 2.5.1
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@cloudflare/workers-types@5.20260706.1)(@opentelemetry/api@1.9.1)(kysely@0.28.17)(pg@8.22.0)(postgres@3.4.9)

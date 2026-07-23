@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "decimal.js-light": "^2.5.1",
-    "fast-xml-parser": "^5.9.3",
+    "fast-xml-parser": "^5.10.1",
     "xmllint-wasm": "^5.2.0",
     "zod": "^4.4.3"
   },

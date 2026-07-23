@@ -139,8 +139,12 @@ export async function buildDppo(
   }>(
     db,
     sql`SELECT p.period_start, p.period_end,
+               -- ř.10 = výsledek hospodaření PŘED zdaněním: náklady excluding
+               -- účtová skupina 59 (daň z příjmů + převodové účty), which the VZZ
+               -- excludes before "Daň z příjmů". Without this, a booked 591/592
+               -- balance would turn ř.10 into VH po zdanění.
                (COALESCE(SUM(-b.closing_balance) FILTER (WHERE a.nature = 'REVENUE'), 0)
-                - COALESCE(SUM(b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE'), 0))::numeric(19,4)
+                - COALESCE(SUM(b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE' AND a.group_code <> '59'), 0))::numeric(19,4)
                  AS accounting_result
           FROM accounting_period p
           LEFT JOIN account_period_balance b ON b.period_id = p.id
@@ -223,10 +227,12 @@ export async function buildDppo(
     db,
     sql`
       WITH result AS (
-        -- účetní výsledek = Σ výnosy − Σ náklady, from the read-model closing balances
+        -- účetní výsledek PŘED zdaněním = Σ výnosy − Σ náklady, from the read-model
+        -- closing balances. Náklady exclude účtová skupina 59 (daň z příjmů +
+        -- převodové účty) so ř.10 is before-tax (matches the header query above).
         SELECT
           COALESCE(SUM(-b.closing_balance) FILTER (WHERE a.nature = 'REVENUE'), 0)::numeric AS vynosy,
-          COALESCE(SUM( b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE'), 0)::numeric AS naklady
+          COALESCE(SUM( b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE' AND a.group_code <> '59'), 0)::numeric AS naklady
           FROM account_period_balance b
           JOIN account a ON a.id = b.account_id
          WHERE b.period_id = ${periodId}::uuid

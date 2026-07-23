@@ -5,12 +5,14 @@ import { redirect } from "next/navigation"
 import { getTranslations } from "@workspace/i18n/server"
 
 import {
+  addChartAccount,
   getChartAccounts,
   getChartTemplates,
   startChartFromFramework,
   startChartFromTemplate,
   updateChartAccount,
 } from "@/lib/org/accounting"
+import type { AddAccountInput } from "@/lib/org/chart-of-accounts-add"
 import { buildChartTree } from "@/lib/org/chart-of-accounts-tree"
 import { isFavorited, toggleFavorite } from "@/lib/org/favorite-actions"
 import { getActivePeriod } from "@/lib/org/period"
@@ -94,6 +96,12 @@ export default async function ChartOfAccountsPage({
         ).map((t) => ({ id: t.id, label: t.name, isDefault: t.isDefault }))
       : []
 
+  // A populated chart can take a new account; the synthetics feed the parent picker.
+  const canAdd = accounts.length > 0
+  const synthetics = accounts
+    .filter((a) => a.isSynthetic)
+    .map((a) => ({ id: a.id, number: a.number, name: a.name }))
+
   const chartRoute = "accounting/chart-of-accounts"
   const chartPath = `/o/${orgSlug}/${chartRoute}`
 
@@ -153,6 +161,18 @@ export default async function ChartOfAccountsPage({
     revalidatePath(chartPath)
   }
 
+  async function onAddAccount(input: AddAccountInput) {
+    "use server"
+    if (!active) return
+    await addChartAccount(
+      membership!.organizationId,
+      membership!.workspaceId,
+      session!.user.id,
+      { periodId: active.id, ...input },
+    )
+    revalidatePath(chartPath)
+  }
+
   return (
     <ChartOfAccountsView
       slug={orgSlug}
@@ -167,10 +187,13 @@ export default async function ChartOfAccountsPage({
       tree={tree}
       emptyText={emptyText}
       canSeed={canSeed}
+      canAdd={canAdd}
       templates={templates}
+      synthetics={synthetics}
       onSeedFromFramework={onSeedFromFramework}
       onSeedFromTemplate={onSeedFromTemplate}
       onUpdateAccount={onUpdateAccount}
+      onAddAccount={onAddAccount}
     />
   )
 }

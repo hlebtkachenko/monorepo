@@ -54,6 +54,17 @@ export default function VykazyPage() {
             Výsledovka (druhové členění)
           </span>
         </Link>
+        <Link
+          href="/vykazy/dppo"
+          className="rounded-lg border border-neutral-200 bg-white p-4 transition-colors hover:border-blue-400 hover:bg-blue-50 sm:col-span-2"
+        >
+          <span className="block text-base font-semibold text-black">
+            Přiznání k dani z příjmů (DPPO)
+          </span>
+          <span className="block text-sm text-neutral-600">
+            XML pro EPO z účetního výsledku a daňových úprav
+          </span>
+        </Link>
       </nav>
     </main>
   )

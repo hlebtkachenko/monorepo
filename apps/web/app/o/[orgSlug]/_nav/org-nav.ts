@@ -44,6 +44,7 @@ type OrgNavLabelKey =
   | "normalTable"
   | "pivotTable"
   | "treeTable"
+  | "dokladAllocator"
 
 /** A rail entry as authored here: the i18n label key plus the rest of the item. */
 export type OrgRailNavItem = Omit<RailMenuItem, "label"> & {
@@ -230,6 +231,11 @@ export function debugNav(slug: string): OrgSidebarNavItem[] {
       labelKey: "treeTable",
       icon: "Workflow",
       href: orgHref(slug, "debug/archetype-table/tree-table"),
+    },
+    {
+      labelKey: "dokladAllocator",
+      icon: "HashIcon",
+      href: orgHref(slug, "debug/doklad-allocator"),
     },
   ]
 }

@@ -1597,6 +1597,21 @@
     "ossImport": "Import scheme",
     "ossValidFrom": "OSS valid from"
   },
+  "debug": {
+    "dokladAllocator": {
+      "intro": "Pick a document type — it draws its number from the číselná řada it is wired to. Allocating burns that série's next gapless number in the active accounting period.",
+      "typeLabel": "Document type",
+      "typePlaceholder": "Select a document type",
+      "seriesLabel": "Number series",
+      "periodLabel": "Accounting period",
+      "noPeriod": "No open period",
+      "allocate": "Allocate number",
+      "allocated": "Allocated {designation}",
+      "allocateError": "Could not allocate a number",
+      "noTypes": "No document types with a number series yet. Seed the defaults or create one on the Document types page.",
+      "resultsHeading": "Allocated numbers"
+    }
+  },
   "org": {
     "nav": {
       "company": "Company",
@@ -1607,6 +1622,7 @@
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
       "treeTable": "Tree Table",
+      "dokladAllocator": "Doklad allocator",
       "accounting": "Accounting",
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
@@ -1635,6 +1651,7 @@
       "normalTable": "Normal Table",
       "pivotTable": "Pivot Table",
       "treeTable": "Tree Table",
+      "dokladAllocator": "Doklad allocator",
       "chartOfAccounts": "Chart of accounts",
       "chartFramework": "Chart framework",
       "states": "Countries",

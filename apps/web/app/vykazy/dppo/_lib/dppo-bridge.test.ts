@@ -106,7 +106,9 @@ function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
     zdobdDo: "31.12.2024",
     ucetniVysledek: "400000",
     nedanoveNaklady: "",
+    odpisyUcetniNadDanove: "",
     osvobozeneVynosy: "",
+    odpisyDanoveNadUcetni: "",
     odpocetZtraty: "",
     slevy: "",
     sazba: "0.21",
@@ -150,6 +152,13 @@ describe("toFigures", () => {
     expect(
       toFigures(form({ typPopldpp: "3", excludeLoss: "5000" })).exclude_loss,
     ).toBe("5000")
+  })
+  it("maps the odpisy differences (ř.50 / ř.150) when non-zero, drops zero", () => {
+    const f = toFigures(
+      form({ odpisyUcetniNadDanove: "30000", odpisyDanoveNadUcetni: "0" }),
+    )
+    expect(f.odpisy_ucetni_nad_danove).toBe("30000")
+    expect(f.odpisy_danove_nad_ucetni).toBeUndefined()
   })
 })
 

@@ -80,7 +80,11 @@ export interface DppoFormState {
   /** Účetní výsledek ř.10 — prefilled from the deník, user-overridable. */
   ucetniVysledek: string
   nedanoveNaklady: string
+  /** ř.50 — účetní odpisy převyšují daňové (base-increasing). */
+  odpisyUcetniNadDanove: string
   osvobozeneVynosy: string
+  /** ř.150 — daňové odpisy převyšují účetní (base-decreasing). */
+  odpisyDanoveNadUcetni: string
   odpocetZtraty: string
   slevy: string
   /** Decimal fraction, e.g. "0.21". */
@@ -117,6 +121,12 @@ export function toFigures(form: DppoFormState): DppoFigures {
     odpocet_ztraty: kc(form.odpocetZtraty),
     slevy: kc(form.slevy),
     sazba: normalizeSazba(form.sazba),
+  }
+  if (kc(form.odpisyUcetniNadDanove) !== "0") {
+    figures.odpisy_ucetni_nad_danove = kc(form.odpisyUcetniNadDanove)
+  }
+  if (kc(form.odpisyDanoveNadUcetni) !== "0") {
+    figures.odpisy_danove_nad_ucetni = kc(form.odpisyDanoveNadUcetni)
   }
   if (form.typPopldpp === "3" && kc(form.excludeLoss) !== "0") {
     figures.exclude_loss = kc(form.excludeLoss)

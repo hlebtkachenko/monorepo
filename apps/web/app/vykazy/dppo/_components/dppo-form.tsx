@@ -40,7 +40,9 @@ function initForm(ico: string, rok: string, ucetni: string): DppoFormState {
     zdobdDo,
     ucetniVysledek: ucetni,
     nedanoveNaklady: "",
+    odpisyUcetniNadDanove: "",
     osvobozeneVynosy: "",
+    odpisyDanoveNadUcetni: "",
     odpocetZtraty: "",
     slevy: "",
     sazba: defaultSazba(zdobdOd),
@@ -211,10 +213,10 @@ export function DppoForm() {
           Daňová část (II. oddíl)
         </h2>
         <p className="mb-3 text-xs text-neutral-500">
-          Zjednodušený souhrn: úpravy se knihují na obecné řádky (ř.40 / ř.110).
-          Daň i základ vyjdou správně, ale přiznání není řádek po řádku úplné —
-          rozdíl odpisů (ř.50 / ř.150), Přílohu č. 1 (Tabulky A/E/G/H k ř.
-          40/230/300) a případnou přílohu k ř.62 dokončete v EPO.
+          Zjednodušený souhrn: ostatní úpravy se knihují na obecné řádky (ř.40 /
+          ř.110). Daň i základ vyjdou správně, ale přiznání není řádek po řádku
+          úplné — Přílohu č. 1 (Tabulky A/E/G/H k ř. 40/230/300) a případnou
+          přílohu k ř.62 dokončete v EPO.
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1">
@@ -235,18 +237,32 @@ export function DppoForm() {
             ) : null}
           </div>
           <TextField
-            label="Položky zvyšující základ (souhrn)"
+            label="ř.40 Položky zvyšující základ (souhrn)"
             value={form.nedanoveNaklady}
             onChange={(v) => set("nedanoveNaklady", v)}
             numeric
-            hint="Neuznatelné náklady §25 aj. Knihuje se na obecný ř.40 — rozdíl odpisů (ř.50) a detail Tabulky A dokončete v EPO."
+            hint="Neuznatelné náklady §25 aj. (bez odpisů — ty na ř.50). Detail Tabulky A dokončete v EPO."
           />
           <TextField
-            label="Položky snižující základ (souhrn)"
+            label="ř.50 Účetní odpisy > daňové"
+            value={form.odpisyUcetniNadDanove}
+            onChange={(v) => set("odpisyUcetniNadDanove", v)}
+            numeric
+            hint="Rozdíl, o který účetní odpisy převyšují daňové (§26–33)."
+          />
+          <TextField
+            label="ř.110 Položky snižující základ (souhrn)"
             value={form.osvobozeneVynosy}
             onChange={(v) => set("osvobozeneVynosy", v)}
             numeric
-            hint="Osvobozené výnosy §19, srážka aj. Knihuje se na obecný ř.110 — rozdíl odpisů (ř.150) doplňte v EPO."
+            hint="Osvobozené výnosy §19, srážka aj. (bez odpisů — ty na ř.150)."
+          />
+          <TextField
+            label="ř.150 Daňové odpisy > účetní"
+            value={form.odpisyDanoveNadUcetni}
+            onChange={(v) => set("odpisyDanoveNadUcetni", v)}
+            numeric
+            hint="Rozdíl, o který daňové odpisy převyšují účetní (opak ř.50)."
           />
           <TextField
             label="ř.230 Odečet daňové ztráty (§34)"

@@ -1,0 +1,41 @@
+/* Print styling for /fakturace. On screen the whole editor + both document
+   previews show; on print only ONE document remains, selected by the
+   body[data-print] flag set right before window.print(). */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  /* Force a white paper surface + black text regardless of theme. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Screen-only chrome (toolbar, nav, editor sections, totals bar). */
+  .no-print {
+    display: none !important;
+  }
+
+  /* Print exactly the chosen document; hide the other. */
+  body[data-print="invoice"] .fakturace-report {
+    display: none !important;
+  }
+  body[data-print="report"] .fakturace-invoice {
+    display: none !important;
+  }
+
+  /* Never split a table row across pages; repeat table headers per page. */
+  .fakturace-invoice tr,
+  .fakturace-report tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .fakturace-invoice thead,
+  .fakturace-report thead {
+    display: table-header-group;
+  }
+}

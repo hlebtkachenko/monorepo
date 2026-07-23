@@ -17,16 +17,18 @@ import { buildDppoXml, type DppoActionResult } from "../_lib/dppo-action"
 import {
   deriveUcetniVysledek,
   defaultSazba,
+  filingYear,
+  applyFieldChange,
   toFigures,
   toMeta,
   missingRequired,
-  type DppoForm,
+  type DppoFormState,
 } from "../_lib/dppo-bridge"
 
 const INPUT_CLASS =
   "rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm text-black outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
 
-function initForm(ico: string, rok: string, ucetni: string): DppoForm {
+function initForm(ico: string, rok: string, ucetni: string): DppoFormState {
   const zdobdOd = rok ? `1.1.${rok}` : ""
   const zdobdDo = rok ? `31.12.${rok}` : ""
   return {
@@ -44,11 +46,6 @@ function initForm(ico: string, rok: string, ucetni: string): DppoForm {
     sazba: defaultSazba(zdobdOd),
     excludeLoss: "",
   }
-}
-
-function parseYear(date: string): number | null {
-  const m = date.match(/\.(\d{4})\s*$/) ?? date.match(/^(\d{4})-/)
-  return m ? Number(m[1]) : null
 }
 
 function downloadXml(xml: string, name: string): void {
@@ -103,20 +100,20 @@ export function DppoForm() {
   const derived = useMemo(() => deriveUcetniVysledek(predvaha), [predvaha])
   const hasDenik = predvaha.ucty.length > 0
 
-  const [form, setForm] = useState<DppoForm>(() =>
+  const [form, setForm] = useState<DppoFormState>(() =>
     initForm(org.ico, org.rok, derived),
   )
   const [result, setResult] = useState<DppoActionResult | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const set = (key: keyof DppoForm, value: string) => {
-    setForm((f) => ({ ...f, [key]: value }))
+  const set = (key: keyof DppoFormState, value: string) => {
+    setForm((f) => applyFieldChange(f, key, value))
     setResult(null)
   }
 
   const missing = missingRequired(form)
   const canGenerate = missing.length === 0 && !busy
-  const year = parseYear(form.zdobdOd)
+  const year = filingYear(form.zdobdOd)
   const periodOutOfRange = year !== null && year > 2025
   const zeroResult = !form.ucetniVysledek.trim() || form.ucetniVysledek === "0"
 
@@ -210,9 +207,15 @@ export function DppoForm() {
       </section>
 
       <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-neutral-700">
+        <h2 className="mb-1 text-sm font-semibold text-neutral-700">
           Daňová část (II. oddíl)
         </h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Zjednodušený souhrn: úpravy se knihují na obecné řádky (ř.40 / ř.110).
+          Daň i základ vyjdou správně, ale přiznání není řádek po řádku úplné —
+          rozdíl odpisů (ř.50 / ř.150), Přílohu č. 1 (Tabulky A/E/G/H k ř.
+          40/230/300) a případnou přílohu k ř.62 dokončete v EPO.
+        </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="flex flex-col gap-1">
             <TextField
@@ -232,18 +235,18 @@ export function DppoForm() {
             ) : null}
           </div>
           <TextField
-            label="Položky zvyšující základ (ř.20–62)"
+            label="Položky zvyšující základ (souhrn)"
             value={form.nedanoveNaklady}
             onChange={(v) => set("nedanoveNaklady", v)}
             numeric
-            hint="Daňově neuznatelné náklady (§25), rozdíl účetních a daňových odpisů aj. — souhrn."
+            hint="Neuznatelné náklady §25 aj. Knihuje se na obecný ř.40 — rozdíl odpisů (ř.50) a detail Tabulky A dokončete v EPO."
           />
           <TextField
-            label="Položky snižující základ (ř.100–162)"
+            label="Položky snižující základ (souhrn)"
             value={form.osvobozeneVynosy}
             onChange={(v) => set("osvobozeneVynosy", v)}
             numeric
-            hint="Osvobozené a nezahrnované výnosy (§19), příjmy zdaněné srážkou aj."
+            hint="Osvobozené výnosy §19, srážka aj. Knihuje se na obecný ř.110 — rozdíl odpisů (ř.150) doplňte v EPO."
           />
           <TextField
             label="ř.230 Odečet daňové ztráty (§34)"
@@ -262,7 +265,7 @@ export function DppoForm() {
             value={form.sazba}
             onChange={(v) => set("sazba", v)}
             numeric
-            hint="Desetinný zlomek: 0.21 (od 2024), 0.19 (2021–2023)."
+            hint="Zadejte 21 nebo 0,21 (od 2024), 19 nebo 0,19 (2021–2023)."
           />
           {form.typPopldpp === "3" ? (
             <TextField

@@ -6,10 +6,12 @@ import {
   deriveUcetniVysledek,
   splitSidlo,
   defaultSazba,
+  normalizeSazba,
+  applyFieldChange,
   toFigures,
   toMeta,
   missingRequired,
-  type DppoForm,
+  type DppoFormState,
 } from "./dppo-bridge"
 
 function ucet(
@@ -94,7 +96,7 @@ describe("defaultSazba", () => {
   })
 })
 
-function form(overrides: Partial<DppoForm> = {}): DppoForm {
+function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
   return {
     dic: "CZ12345679",
     cUfoCil: "451",
@@ -175,5 +177,41 @@ describe("missingRequired", () => {
       "DIČ",
       "Finanční úřad",
     ])
+  })
+})
+
+describe("normalizeSazba", () => {
+  it("passes a fraction through", () => {
+    expect(normalizeSazba("0.21")).toBe("0.21")
+    expect(normalizeSazba("0,19")).toBe("0.19")
+  })
+  it("treats a whole percent (≥ 1) as a fraction", () => {
+    expect(normalizeSazba("21")).toBe("0.21")
+    expect(normalizeSazba("19")).toBe("0.19")
+  })
+  it("blank / non-numeric → 21 %", () => {
+    expect(normalizeSazba("")).toBe("0.21")
+    expect(normalizeSazba("abc")).toBe("0.21")
+  })
+})
+
+describe("applyFieldChange", () => {
+  it("re-derives sazba when the zdaňovací období changes", () => {
+    const f2023 = applyFieldChange(
+      form({ sazba: "0.21" }),
+      "zdobdOd",
+      "1.1.2023",
+    )
+    expect(f2023.sazba).toBe("0.19")
+    const f2024 = applyFieldChange(f2023, "zdobdOd", "1.1.2024")
+    expect(f2024.sazba).toBe("0.21")
+  })
+  it("leaves sazba untouched for a non-period field", () => {
+    expect(
+      applyFieldChange(form({ sazba: "0.19" }), "slevy", "500").sazba,
+    ).toBe("0.19")
+  })
+  it("applies the edited field's value", () => {
+    expect(applyFieldChange(form(), "dic", "CZ99").dic).toBe("CZ99")
   })
 })

@@ -56,11 +56,12 @@ export function splitSidlo(sidlo: string): { ulice: string; c_pop: string } {
  * Reads the year from a D.M.YYYY / ISO `zdobd_od`; defaults to 21 % when unknown.
  */
 export function defaultSazba(zdobdOd: string): string {
-  const year = parseYear(zdobdOd)
+  const year = filingYear(zdobdOd)
   return year !== null && year < 2024 ? "0.19" : "0.21"
 }
 
-function parseYear(date: string): number | null {
+/** Extract the four-digit year from a D.M.YYYY or ISO date, or null. */
+export function filingYear(date: string): number | null {
   const iso = date.match(/^(\d{4})-\d{2}-\d{2}/)
   if (iso) return Number(iso[1])
   const cz = date.match(/\.(\d{4})\s*$/)
@@ -69,7 +70,7 @@ function parseYear(date: string): number | null {
 }
 
 /** The editable DPPO form state (all fields as entered strings). */
-export interface DppoForm {
+export interface DppoFormState {
   dic: string
   cUfoCil: string
   cNace: string
@@ -95,14 +96,27 @@ function kc(v: string): string {
   return cleaned
 }
 
-export function toFigures(form: DppoForm): DppoFigures {
+/**
+ * Normalize the sazba input to a decimal fraction. Accepts both a fraction
+ * ("0.21") and a whole percent ("21") — a value ≥ 1 is treated as a percent and
+ * divided by 100, so a user typing "21" does not emit "2100" (which would blow
+ * the XSD `totalDigits=2` on ř.280). Blank / non-numeric → 21 %.
+ */
+export function normalizeSazba(v: string): string {
+  const cleaned = v.replace(/\s/g, "").replace(",", ".").trim()
+  const n = Number(cleaned)
+  if (!cleaned || !Number.isFinite(n)) return "0.21"
+  return n >= 1 ? String(n / 100) : cleaned
+}
+
+export function toFigures(form: DppoFormState): DppoFigures {
   const figures: DppoFigures = {
     ucetni_vysledek: kc(form.ucetniVysledek),
     nedanove_naklady: kc(form.nedanoveNaklady),
     osvobozene_vynosy: kc(form.osvobozeneVynosy),
     odpocet_ztraty: kc(form.odpocetZtraty),
     slevy: kc(form.slevy),
-    sazba: form.sazba.trim() || "0.21",
+    sazba: normalizeSazba(form.sazba),
   }
   if (form.typPopldpp === "3" && kc(form.excludeLoss) !== "0") {
     figures.exclude_loss = kc(form.excludeLoss)
@@ -110,7 +124,7 @@ export function toFigures(form: DppoForm): DppoFigures {
   return figures
 }
 
-export function toMeta(form: DppoForm, org: OrgConfig): DppoFilingMeta {
+export function toMeta(form: DppoFormState, org: OrgConfig): DppoFilingMeta {
   const { ulice, c_pop } = splitSidlo(org.sidlo)
   const meta: DppoFilingMeta = {
     zdobd_od: form.zdobdOd.trim(),
@@ -135,11 +149,26 @@ export function toMeta(form: DppoForm, org: OrgConfig): DppoFilingMeta {
  * The page disables Generate until these are present; XSD validation server-side
  * is the hard gate.
  */
-export function missingRequired(form: DppoForm): string[] {
+export function missingRequired(form: DppoFormState): string[] {
   const missing: string[] = []
   if (!form.dic.trim()) missing.push("DIČ")
   if (!form.cUfoCil.trim()) missing.push("Finanční úřad")
   if (!form.zdobdOd.trim()) missing.push("Zdaňovací období od")
   if (!form.zdobdDo.trim()) missing.push("Zdaňovací období do")
   return missing
+}
+
+/**
+ * Apply one field edit to the form state. The statutory rate follows the
+ * zdaňovací období, so editing `zdobdOd` re-derives `sazba` in the same update —
+ * a return never keeps the prior year's rate.
+ */
+export function applyFieldChange(
+  form: DppoFormState,
+  key: keyof DppoFormState,
+  value: string,
+): DppoFormState {
+  const next = { ...form, [key]: value }
+  if (key === "zdobdOd") next.sazba = defaultSazba(value)
+  return next
 }

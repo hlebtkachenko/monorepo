@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./isdoc": "./src/cz/isdoc/index.ts",
+    "./dppo": "./src/cz/fu/dppo/index.ts",
     "./dphdp3-compute": "./src/cz/fu/dphdp3/compute.ts",
     "./dppo-compute": "./src/cz/fu/dppo/compute.ts",
     "./dppo-checks": "./src/cz/fu/dppo/checks.ts",

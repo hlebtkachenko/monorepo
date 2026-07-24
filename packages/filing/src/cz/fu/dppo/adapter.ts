@@ -55,8 +55,19 @@ export interface DppoFigures {
   ucetni_vysledek: string
   /** ř.40 — daňově neuznatelné náklady (§24/25), add-back. */
   nedanove_naklady: string
+  /**
+   * ř.50 — rozdíl, o který účetní odpisy převyšují daňové (§26–33), add-back.
+   * The XSD ř.40 definition explicitly excludes this, so it is its own line.
+   * Optional; omit when zero.
+   */
+  odpisy_ucetni_nad_danove?: string
   /** ř.110 — osvobozené / nezahrnované výnosy (§19), reduction. */
   osvobozene_vynosy: string
+  /**
+   * ř.150 — rozdíl, o který daňové odpisy převyšují účetní, reduction (opak
+   * ř.50). Optional; omit when zero.
+   */
+  odpisy_danove_nad_ucetni?: string
   /**
    * ř.62 — §18a/1 removal of a loss-making hlavní činnost for a veřejně prospěšný
    * poplatník (increases the base toward 0). Optional; only VPP orgs set it.
@@ -91,8 +102,10 @@ export function buildDppoFromAccounting(
   const vetaO = nonZeroKoruna({
     kc_ii10_10: figures.ucetni_vysledek, // ř.10 výsledek hospodaření
     kc_ii50_40: figures.nedanove_naklady, // ř.40 §24/25 add-back
+    kc_ii60_50: figures.odpisy_ucetni_nad_danove, // ř.50 účetní > daňové odpisy
     kc_ii72_62: figures.exclude_loss, // ř.62 §18a VPP removal (ostatní zvýšení)
     kc_ii120_110: figures.osvobozene_vynosy, // ř.110 §19 osvobozené
+    kc_ii170_150: figures.odpisy_danove_nad_ucetni, // ř.150 daňové > účetní odpisy
     kc_ii210_230: figures.odpocet_ztraty, // ř.230 odečet daňové ztráty §34/1
     // ř.280 sazba as a whole percent (0.21 → "21").
     kc_ii270_280: new Decimal(figures.sazba || 0).times(100).toFixed(0),

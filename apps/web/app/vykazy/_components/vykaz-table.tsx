@@ -112,7 +112,7 @@ export function VykazTable({
   hideEmpty = false,
   onCellChange,
 }: VykazTableProps) {
-  const { crVariant, denikLoaded, isSourced, overrideCell } = useOrg()
+  const { denikLoaded, isSourced, overrideCell } = useOrg()
   // Each statement selects its own values map by id: "rozvaha-aktiva",
   // "rozvaha-pasiva", or "vzz" all match a StatementKey one-to-one.
   const statementKey = statement.id as StatementKey
@@ -124,11 +124,9 @@ export function VykazTable({
   const groups = headerGroups(statement)
   const short = rozsah !== "plny"
 
+  // The statement handed in is already the one the chosen časové-rozlišení
+  // layout prints (see _data/rozvaha.ts), so only rozsah filtering happens here.
   const visibleLines = statement.lines.filter((line) => {
-    // § 3 odst. 3 a 4 vyhlášky: the rozvaha carries ONE časové-rozlišení layout.
-    if (line.crVariant !== undefined && line.crVariant !== crVariant) {
-      return false
-    }
     if (!inRozsah(statement.id, line, rozsah)) return false
     if (hideEmpty && isHidable(line)) {
       const allZero = statement.columns.every(

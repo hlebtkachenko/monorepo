@@ -6,7 +6,8 @@
 
 import { describe, expect, it } from "vitest"
 
-import { ROZVAHA_AKTIVA, ROZVAHA_PASIVA } from "../_data/rozvaha"
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
+import { VZZ } from "../_data/vzz"
 import { computeColumn } from "./engine"
 import { mapPredvahaToValues } from "./mapping"
 
@@ -74,6 +75,75 @@ describe("mapPredvahaToValues — rozvaha leaves", () => {
     expect(c.rozvahaPasiva["067"]).toBeUndefined()
   })
 
+  it("ties AKTIVA to PASIVA when per-cell rounding would not", () => {
+    // 1 500 + 1 500 Kč of aktiva against 3 000 Kč of pasiva. Rounding each cell
+    // on its own prints AKTIVA 2 + 2 = 4 against PASIVA 3 — the classic 1 tis.
+    // gap. The allocation rounds each side to the tisíc it actually totals.
+    const mapped = mapPredvahaToValues([
+      ucet("211", 1_500),
+      ucet("221", 1_500),
+      ucet("411", -3_000),
+    ])
+    const aktiva = computeColumn(
+      rozvahaAktiva("D"),
+      "netto",
+      mapped.rozvahaAktiva,
+    )
+    const pasiva = computeColumn(
+      rozvahaPasiva("D"),
+      "bezne",
+      mapped.rozvahaPasiva,
+    )
+    expect(aktiva["001"]).toBe(3)
+    expect(pasiva["001"]).toBe(3)
+    // The 1 tis. is taken off one cell, not invented on a plug line.
+    expect(
+      (mapped.rozvahaAktiva["076"]?.brutto ?? 0) +
+        (mapped.rozvahaAktiva["077"]?.brutto ?? 0),
+    ).toBe(3)
+  })
+
+  it("ties both sides when the výsledek hospodaření carries the rounding", () => {
+    // Aktiva 10 400,50; závazky 400,50; the rest is the výsledek from a výnos.
+    const mapped = mapPredvahaToValues([
+      {
+        ucet: "221000",
+        synteticky: "221",
+        ks: 10_400.5,
+        obratMD: 0,
+        obratDal: 0,
+      },
+      {
+        ucet: "321000",
+        synteticky: "321",
+        ks: -400.5,
+        obratMD: 0,
+        obratDal: 0,
+      },
+      {
+        ucet: "602000",
+        synteticky: "602",
+        ks: -10_000,
+        obratMD: 0,
+        obratDal: 10_000,
+      },
+    ])
+    const aktiva = computeColumn(
+      rozvahaAktiva("D"),
+      "netto",
+      mapped.rozvahaAktiva,
+    )
+    const pasiva = computeColumn(
+      rozvahaPasiva("D"),
+      "bezne",
+      mapped.rozvahaPasiva,
+    )
+    expect(aktiva["001"]).toBe(pasiva["001"])
+    // Rozvaha A.V. and VZZ ř. 55 must report the same figure.
+    const vzz = computeColumn(VZZ, "bezne", mapped.vzz)
+    expect(mapped.rozvahaPasiva["021"]?.bezne).toBe(vzz["055"])
+  })
+
   it("balances a minimal book under either layout", () => {
     // 100k stavby + 20k náklady příštích období against 120k základní kapitál.
     const rows = [
@@ -84,12 +154,12 @@ describe("mapPredvahaToValues — rozvaha leaves", () => {
     for (const variant of ["C", "D"] as const) {
       const mapped = mapPredvahaToValues(rows, variant)
       const aktiva = computeColumn(
-        ROZVAHA_AKTIVA,
-        "brutto",
+        rozvahaAktiva(variant),
+        "netto",
         mapped.rozvahaAktiva,
       )
       const pasiva = computeColumn(
-        ROZVAHA_PASIVA,
+        rozvahaPasiva(variant),
         "bezne",
         mapped.rozvahaPasiva,
       )

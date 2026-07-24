@@ -3,8 +3,8 @@
 // Sb.). No org or personal data — only the statutory položky, formulas and
 // rendering flags.
 //
-// Two statements: ROZVAHA_AKTIVA (brutto / korekce / netto / minulé) and
-// ROZVAHA_PASIVA (běžné / minulé). Engine rules live in ../_lib/types.ts:
+// Two statements: rozvahaAktiva(cr) (brutto / korekce / netto / minulé) and
+// rozvahaPasiva(cr) (běžné / minulé). Engine rules live in ../_lib/types.ts:
 //   - kind "calc"  -> value = signed sum of `formula` refs in the SAME column.
 //   - kind "input" -> user-entered leaf (netto still auto-derived on aktiva).
 //   - aktiva netto is ALWAYS derived (netto = brutto + korekce); `formula` is
@@ -13,17 +13,19 @@
 //
 // Časové rozlišení: § 3 odst. 3 a 4 vyhlášky give the účetní jednotka a choice
 // between two mutually exclusive layouts, and the rozvaha contains only the
-// chosen one. Both are carried here and selected by `crVariant`:
+// chosen one:
 //   "C" -> "C.II.3. Časové rozlišení aktiv" + "C.III. Časové rozlišení pasiv"
 //   "D" -> "D. Časové rozlišení aktiv"     + "D. Časové rozlišení pasiv"
-// The aggregate formulas add both blocks; the unused one stays empty, so the
-// totals hold under either choice.
+// Both are written out below, but the exported forms are BUILT PER VARIANT
+// (rozvahaAktiva(cr) / rozvahaPasiva(cr)): the deselected block is dropped from
+// the lines and from the aggregate formulas, so it cannot contribute to a total
+// that no visible řádek explains.
 //
 // Čísla řádků: the vyhláška prescribes položky and their označení, NOT řádek
 // numbers — those are a form convention. The numbering used here is the plain
 // sequential one over the statutory položky (aktiva 001–081, pasiva 001–068),
 // with both časové-rozlišení variants numbered in place.
-import type { VykazLine, VykazStatement } from "../_lib/types"
+import type { CasoveRozliseni, VykazLine, VykazStatement } from "../_lib/types"
 
 /**
  * One statutory row: [označení, číslo řádku, text, formula, flags].
@@ -265,16 +267,111 @@ const PASIVA_ROWS: readonly Row[] = [
   ["D.2.", "068", "Výnosy příštích období", "", "D"],
 ]
 
-export const ROZVAHA_AKTIVA: VykazStatement = {
-  id: "rozvaha-aktiva",
-  heading: "ROZVAHA",
-  columns: ["brutto", "korekce", "netto", "minule"],
-  lines: toLines(AKTIVA_ROWS),
+/**
+ * Aggregates that name the časové-rozlišení block, per variant. Under "C" the
+ * rozvaha has no "D." položka at all, so the totals must not reference it (and
+ * vice versa) — otherwise a value left on the deselected block would still reach
+ * AKTIVA / PASIVA CELKEM while no visible řádek explains it.
+ */
+const AKTIVA_CR_FORMULAS: Record<CasoveRozliseni, Record<string, string>> = {
+  C: { "001": "002+003+037", "046": "047+057+068" },
+  D: { "001": "002+003+037+078", "046": "047+057" },
 }
 
-export const ROZVAHA_PASIVA: VykazStatement = {
-  id: "rozvaha-pasiva",
-  heading: "ROZVAHA",
-  columns: ["bezne", "minule"],
-  lines: toLines(PASIVA_ROWS),
+const PASIVA_CR_FORMULAS: Record<CasoveRozliseni, Record<string, string>> = {
+  C: { "001": "002+023", "029": "030+045+063" },
+  D: { "001": "002+023+066", "029": "030+045" },
+}
+
+function build(
+  id: string,
+  columns: VykazStatement["columns"],
+  rows: readonly Row[],
+  formulas: Record<string, string>,
+  cr: CasoveRozliseni,
+): VykazStatement {
+  return {
+    id,
+    heading: "ROZVAHA",
+    columns,
+    lines: toLines(rows)
+      .filter((line) => line.crVariant === undefined || line.crVariant === cr)
+      .map((line) =>
+        formulas[line.rada] === undefined
+          ? line
+          : { ...line, formula: formulas[line.rada] },
+      ),
+  }
+}
+
+// Built once per variant: the statement object identity has to stay stable so
+// the React memo in VykazTable is not defeated on every render.
+const AKTIVA: Record<CasoveRozliseni, VykazStatement> = {
+  C: build(
+    "rozvaha-aktiva",
+    ["brutto", "korekce", "netto", "minule"],
+    AKTIVA_ROWS,
+    AKTIVA_CR_FORMULAS.C,
+    "C",
+  ),
+  D: build(
+    "rozvaha-aktiva",
+    ["brutto", "korekce", "netto", "minule"],
+    AKTIVA_ROWS,
+    AKTIVA_CR_FORMULAS.D,
+    "D",
+  ),
+}
+
+const PASIVA: Record<CasoveRozliseni, VykazStatement> = {
+  C: build(
+    "rozvaha-pasiva",
+    ["bezne", "minule"],
+    PASIVA_ROWS,
+    PASIVA_CR_FORMULAS.C,
+    "C",
+  ),
+  D: build(
+    "rozvaha-pasiva",
+    ["bezne", "minule"],
+    PASIVA_ROWS,
+    PASIVA_CR_FORMULAS.D,
+    "D",
+  ),
+}
+
+/**
+ * The same položka in the other časové-rozlišení layout, per statement — e.g.
+ * aktiva "D.1. Náklady příštích období" (079) is "C.II.3.1." (069). Symmetric,
+ * so one lookup serves both directions; a řádek outside the two blocks is absent.
+ */
+export const CR_COUNTERPART: Record<string, Record<string, string>> = {
+  "rozvaha-aktiva": {
+    "068": "078",
+    "069": "079",
+    "070": "080",
+    "071": "081",
+    "078": "068",
+    "079": "069",
+    "080": "070",
+    "081": "071",
+  },
+  "rozvaha-pasiva": {
+    "063": "066",
+    "064": "067",
+    "065": "068",
+    "066": "063",
+    "067": "064",
+    "068": "065",
+  },
+}
+
+/** The aktiva form as the chosen časové-rozlišení layout prints it. */
+export function rozvahaAktiva(cr: CasoveRozliseni): VykazStatement {
+  return AKTIVA[cr]
+}
+
+/** The pasiva form as the chosen časové-rozlišení layout prints it. */
+export function rozvahaPasiva(cr: CasoveRozliseni): VykazStatement {
+  return PASIVA[cr]
 }

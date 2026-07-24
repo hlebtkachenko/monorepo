@@ -180,6 +180,25 @@ function remapOverrides(
   return [...new Set(out)]
 }
 
+/**
+ * Move a pre-v3 statement's `${rada}:${col}` override keys onto the current
+ * řádek numbers. Exported because the deník blob keeps its own copy of these
+ * sets, outside the VykazyDoc — see org-context loadDenikLocal.
+ */
+export function migrateOverrideKeys(
+  keys: string[],
+  statement: "rozvaha-aktiva" | "rozvaha-pasiva",
+  version: number,
+): string[] {
+  if (version >= 3) return keys
+  return remapOverrides(
+    keys,
+    statement === "rozvaha-aktiva"
+      ? (rada) => AKTIVA_V2_TO_V3[rada] ?? rada
+      : pasivaV2ToV3,
+  )
+}
+
 /** Move a pre-v3 document's rozvaha values onto the current řádek numbers. */
 export function migrateRozvahaRadky(doc: VykazyDoc): VykazyDoc {
   if (doc.version >= 3) return doc
@@ -323,13 +342,22 @@ function coerceRozsah(input: unknown): Rozsah {
 
 /** Coerce arbitrary parsed JSON into a well-formed VykazyDoc. Back-compatible:
  * a v1 doc with no `denik`/`overrides` normalizes to a doc with neither, and a
- * pre-v3 doc is migrated onto the current rozvaha řádek numbers. */
+ * pre-v3 doc is migrated onto the current rozvaha řádek numbers.
+ *
+ * Throws when `version` is missing or not a number: the version decides whether
+ * the rozvaha řádky are migrated, so guessing it would silently reinterpret a v2
+ * file's řádky as v3 položky. Every document this app has ever written carries a
+ * numeric version, and both callers already handle the throw (the toolbar shows
+ * an error, loadLocal falls back to null). */
 function normalizeDoc(input: unknown): VykazyDoc {
   const base = emptyDoc()
   if (!isRecord(input)) return base
+  if (typeof input.version !== "number") {
+    throw new Error("Neplatný soubor výkazů: chybí verze dokumentu.")
+  }
   const values = isRecord(input.values) ? input.values : undefined
   const doc: VykazyDoc = {
-    version: typeof input.version === "number" ? input.version : DOC_VERSION,
+    version: input.version,
     org: coerceOrg(input.org),
     values: {
       rozvahaAktiva: coerceValues(values?.rozvahaAktiva),

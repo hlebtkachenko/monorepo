@@ -5,7 +5,11 @@
 
 import { describe, expect, it } from "vitest"
 
-import { DOC_VERSION, migrateRozvahaRadky } from "./storage"
+import {
+  DOC_VERSION,
+  migrateOverrideKeys,
+  migrateRozvahaRadky,
+} from "./storage"
 import type { VykazyDoc } from "./storage"
 
 function v2Doc(partial: Partial<VykazyDoc>): VykazyDoc {
@@ -131,5 +135,19 @@ describe("migrateRozvahaRadky", () => {
       },
     })
     expect(migrateRozvahaRadky(doc)).toBe(doc)
+  })
+
+  it("migrates the deník blob's own override keys, and only when stale", () => {
+    // The deník keeps its override sets outside the document, so they need the
+    // same řádek migration or a stale key pins a value onto a different položka.
+    expect(
+      migrateOverrideKeys(["073:brutto", "017:brutto"], "rozvaha-aktiva", 2),
+    ).toEqual(["077:brutto", "017:brutto"])
+    expect(migrateOverrideKeys(["022:bezne"], "rozvaha-pasiva", 2)).toEqual([
+      "021:bezne",
+    ])
+    expect(migrateOverrideKeys(["073:brutto"], "rozvaha-aktiva", 3)).toEqual([
+      "073:brutto",
+    ])
   })
 })

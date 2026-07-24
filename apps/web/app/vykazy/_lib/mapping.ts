@@ -41,12 +41,17 @@
 //  - 701 (počáteční účet rozvažný), 702/710 (závěrkové účty) are technical. The
 //    opening balances they carried already flow into the výkaz through each
 //    rozvahový účet's KS, so mapping them would double-count.
-//  - Pasiva A.V. (řádek 021, Výsledek hospodaření běžného účetního období) is
-//    deliberately left empty here — it is filled from the VZZ result by the
-//    engine, not by any single account. No account maps to it.
+//  - Pasiva A.V. (VYSLEDEK_RADA) has no account of its own — it is stamped in
+//    from the VZZ result at the end of mapPredvahaToValues.
 
 import { OSNOVA } from "../_data/osnova"
+import { CR_COUNTERPART } from "../_data/rozvaha"
+import { VZZ } from "../_data/vzz"
+import { computeColumn } from "./engine"
 import type { CasoveRozliseni, VykazValues } from "./types"
+
+/** Pasiva A.V. Výsledek hospodaření běžného účetního období. */
+const VYSLEDEK_RADA = "021"
 
 interface AccountTarget {
   statement: "rozvaha-aktiva" | "rozvaha-pasiva" | "vzz"
@@ -428,21 +433,15 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
 }
 
 /**
- * "D" řádek -> "C" řádek for the časové-rozlišení block, per statement.
- * Aktiva: D.1/D.2/D.3 (079–081) -> C.II.3.1/.2/.3 (069–071).
- * Pasiva: D.1/D.2 (067–068)     -> C.III.1/.2 (064–065).
+ * The table below names the "D" řádky; under the "C" layout the same položka
+ * sits elsewhere (aktiva D.1 079 -> C.II.3.1 069, pasiva D.1 067 -> C.III.1 064).
  */
-const CR_VARIANT_C: Record<string, Record<string, string>> = {
-  "rozvaha-aktiva": { "079": "069", "080": "070", "081": "071" },
-  "rozvaha-pasiva": { "067": "064", "068": "065" },
-}
-
 function applyCrVariant(
   target: AccountTarget,
   crVariant: CasoveRozliseni,
 ): AccountTarget {
   if (crVariant === "D") return target
-  const rada = CR_VARIANT_C[target.statement]?.[target.rada]
+  const rada = CR_COUNTERPART[target.statement]?.[target.rada]
   return rada === undefined ? target : { ...target, rada }
 }
 
@@ -490,10 +489,20 @@ const OSNOVA_INDEX: Map<string, boolean> = (() => {
  *
  * For each account: resolve its opravkovy flag from the směrná osnova (exact
  * 6-digit match; if absent, fall back to false — the synthetic-nature default),
- * map it, accumulate its contribution per (statement, řádek, column) in Kč, then
- * — per the výkaz unit "v celých tisících Kč" — divide by 1000 and round each
- * cell once (Math.round). Rounding is done per cell, not per account, so cent
- * differences do not accumulate.
+ * map it, and accumulate its contribution per (statement, řádek, column) in Kč.
+ *
+ * The výkaz is filed "v celých tisících Kč", and rounding every cell on its own
+ * breaks the bilanční rovnost: Σ round(x) is not round(Σ x), so a book that ties
+ * to the haléř in the deník can print AKTIVA 118 450 against PASIVA 118 449. The
+ * conversion is therefore an ALLOCATION, not a per-cell rounding — each side is
+ * rounded to the thousand it actually totals, and the 1 tis. difference is dealt
+ * out (largest remainder first) to the cells that lost the most in rounding. No
+ * cell moves by more than 1 tis., and no cell is a hardcoded plug.
+ *
+ * A.V. Výsledek hospodaření (pasiva ř. 021) is not an accumulated leaf: it is the
+ * VZZ result, so it is stamped in as a FIXED member of the pasiva side and the
+ * remaining pasiva leaves absorb the residual. That keeps rozvaha A.V. and VZZ
+ * ř. 55 identical while the rozvaha still foots.
  *
  * Aktiva, pasiva, and VZZ each get their own map (aktiva + pasiva řádek numbers
  * overlap). Accounts with no mapping (incl. the technical 701/702/710) land in
@@ -528,6 +537,9 @@ export function mapPredvahaToValues(
     Partial<Record<AccountTarget["col"], number>>
   > = {}
   const unmapped: string[] = []
+  // Výsledek hospodaření in Kč: výnosy − náklady. Kept exact so the pasiva side
+  // can be rounded against its true total rather than against rounded leaves.
+  let vysledekKc = 0
 
   for (const row of ucty) {
     const syn = row.synteticky.slice(0, 3)
@@ -545,6 +557,7 @@ export function mapPredvahaToValues(
         ? row.obratMD - row.obratDal
         : row.obratDal - row.obratMD
       contributionKc = netMovement * target.sign
+      vysledekKc += syn.startsWith("5") ? -netMovement : netMovement
     } else {
       // Stavová hodnota: konečný zůstatek.
       contributionKc = row.ks * target.sign
@@ -560,27 +573,91 @@ export function mapPredvahaToValues(
     line[target.col] = (line[target.col] ?? 0) + contributionKc
   }
 
+  // The VZZ is a side of its own: its result must equal the rozvaha A.V., so it
+  // is allocated against the same exact figure the pasiva side is told about.
+  const vzz = allocateTisice(vzzKc, null)
+  const vysledekTis = computeColumn(VZZ, "bezne", vzz)["055"] ?? 0
+
+  const aktivaTarget = Math.round(sumKc(rozvahaAktivaKc) / 1000)
+  const pasivaTarget = Math.round((sumKc(rozvahaPasivaKc) + vysledekKc) / 1000)
+  const rozvahaPasiva = allocateTisice(
+    rozvahaPasivaKc,
+    pasivaTarget - vysledekTis,
+  )
+  rozvahaPasiva[VYSLEDEK_RADA] = {
+    ...(rozvahaPasiva[VYSLEDEK_RADA] ?? {}),
+    bezne: vysledekTis,
+  }
+
   return {
-    rozvahaAktiva: toTisice(rozvahaAktivaKc),
-    rozvahaPasiva: toTisice(rozvahaPasivaKc),
-    vzz: toTisice(vzzKc),
+    rozvahaAktiva: allocateTisice(rozvahaAktivaKc, aktivaTarget),
+    rozvahaPasiva,
+    vzz,
     unmapped,
   }
 }
 
-// v celých tisících Kč: divide each accumulated cell by 1000 and round once.
-function toTisice(
-  accumulator: Record<string, Partial<Record<AccountTarget["col"], number>>>,
+type KcAccumulator = Record<
+  string,
+  Partial<Record<AccountTarget["col"], number>>
+>
+
+function sumKc(accumulator: KcAccumulator): number {
+  let total = 0
+  for (const rada in accumulator) {
+    const cols = accumulator[rada]
+    for (const col in cols) total += cols[col as AccountTarget["col"]] ?? 0
+  }
+  return total
+}
+
+/**
+ * Convert one side's Kč cells to celé tisíce so they sum to `targetTis`.
+ *
+ * Every cell is rounded normally first; the leftover (never more than one unit
+ * per cell that was rounded the "wrong" way) is then handed out largest-residual
+ * first, so the cells that lost the most in rounding are the ones corrected.
+ * `targetTis === null` skips the allocation and rounds each cell on its own —
+ * used for the VZZ, whose side total is not a filing constraint.
+ */
+function allocateTisice(
+  accumulator: KcAccumulator,
+  targetTis: number | null,
 ): VykazValues {
   const out: VykazValues = {}
+  const cells: { rada: string; col: AccountTarget["col"]; residual: number }[] =
+    []
+
   for (const rada in accumulator) {
     const cols = accumulator[rada]
     const cell: Partial<Record<AccountTarget["col"], number>> = {}
     for (const col in cols) {
       const key = col as AccountTarget["col"]
-      cell[key] = Math.round((cols[key] ?? 0) / 1000)
+      const exact = (cols[key] ?? 0) / 1000
+      const rounded = Math.round(exact)
+      cell[key] = rounded
+      cells.push({ rada, col: key, residual: exact - rounded })
     }
     out[rada] = cell
+  }
+
+  if (targetTis === null) return out
+
+  let diff =
+    targetTis - cells.reduce((sum, c) => sum + (out[c.rada]?.[c.col] ?? 0), 0)
+  if (diff === 0 || cells.length === 0) return out
+
+  const step = diff > 0 ? 1 : -1
+  // diff > 0 -> the side was rounded down, so lift the cells with the largest
+  // positive residual (they were closest to rounding up), and vice versa.
+  cells.sort((a, b) =>
+    step === 1 ? b.residual - a.residual : a.residual - b.residual,
+  )
+  for (let i = 0; diff !== 0; i += 1) {
+    const cell = cells[i % cells.length]!
+    const row = out[cell.rada]!
+    row[cell.col] = (row[cell.col] ?? 0) + step
+    diff -= step
   }
   return out
 }

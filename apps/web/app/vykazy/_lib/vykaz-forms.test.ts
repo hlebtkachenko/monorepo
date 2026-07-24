@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest"
 
-import { ROZVAHA_AKTIVA, ROZVAHA_PASIVA } from "../_data/rozvaha"
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { computeColumn } from "./engine"
 import { inRozsah } from "./rozsah"
@@ -170,7 +170,22 @@ const PASIVA_OZN = [
   "D.2.",
 ]
 
+// The "D" layout is the default one; the "C" statements are exercised on their own.
+const ROZVAHA_AKTIVA = rozvahaAktiva("D")
+const ROZVAHA_PASIVA = rozvahaPasiva("D")
 const STATEMENTS = [ROZVAHA_AKTIVA, ROZVAHA_PASIVA, VZZ]
+
+/** The full statutory item list = the "D" form plus the "C"-only blocks. */
+function allOzn(side: "aktiva" | "pasiva"): string[] {
+  const d = side === "aktiva" ? rozvahaAktiva("D") : rozvahaPasiva("D")
+  const c = side === "aktiva" ? rozvahaAktiva("C") : rozvahaPasiva("C")
+  const cOnly = c.lines.filter(
+    (line) => !d.lines.some((other) => other.rada === line.rada),
+  )
+  return [...d.lines, ...cOnly]
+    .sort((a, b) => a.rada.localeCompare(b.rada))
+    .map((line) => line.ozn)
+}
 
 function radaSet(statement: VykazStatement): Set<string> {
   return new Set(statement.lines.map((line) => line.rada))
@@ -178,11 +193,11 @@ function radaSet(statement: VykazStatement): Set<string> {
 
 describe("statutory item list", () => {
   it("rozvaha aktiva matches příloha č. 1 (both časové-rozlišení variants)", () => {
-    expect(ROZVAHA_AKTIVA.lines.map((l) => l.ozn)).toEqual(AKTIVA_OZN)
+    expect(allOzn("aktiva")).toEqual(AKTIVA_OZN)
   })
 
   it("rozvaha pasiva matches příloha č. 1 (both časové-rozlišení variants)", () => {
-    expect(ROZVAHA_PASIVA.lines.map((l) => l.ozn)).toEqual(PASIVA_OZN)
+    expect(allOzn("pasiva")).toEqual(PASIVA_OZN)
   })
 
   it("A.IV. carries the two položky the current form has", () => {
@@ -244,29 +259,60 @@ describe("structure", () => {
   })
 
   it.each(["C", "D"] as CasoveRozliseni[])(
-    "časové rozlišení in variant %s reaches AKTIVA/PASIVA CELKEM",
+    "časové rozlišení in the selected layout %s reaches AKTIVA/PASIVA CELKEM",
     (variant) => {
       const aktivaLeaf = variant === "C" ? "069" : "079"
       const pasivaLeaf = variant === "C" ? "064" : "067"
       expect(
-        computeColumn(ROZVAHA_AKTIVA, "brutto", {
+        computeColumn(rozvahaAktiva(variant), "brutto", {
           [aktivaLeaf]: { brutto: 7 },
         })["001"],
       ).toBe(7)
       expect(
-        computeColumn(ROZVAHA_PASIVA, "bezne", { [pasivaLeaf]: { bezne: 7 } })[
-          "001"
-        ],
+        computeColumn(rozvahaPasiva(variant), "bezne", {
+          [pasivaLeaf]: { bezne: 7 },
+        })["001"],
       ).toBe(7)
     },
   )
 
-  it("every časové-rozlišení line belongs to exactly one variant", () => {
-    for (const statement of [ROZVAHA_AKTIVA, ROZVAHA_PASIVA]) {
-      const cr = statement.lines.filter((l) =>
-        l.text.startsWith("Časové rozlišení"),
-      )
-      expect(cr.every((l) => l.crVariant !== undefined)).toBe(true)
+  it.each(["C", "D"] as CasoveRozliseni[])(
+    "a value stranded on the layout %s does NOT print or count once the other is chosen",
+    (variant) => {
+      // § 3 odst. 3 a 4: the rozvaha contains one layout. A number left behind
+      // on the other one must not silently inflate a total no řádek explains.
+      const other = variant === "C" ? "D" : "C"
+      const strandedAktiva = variant === "C" ? "069" : "079"
+      const strandedPasiva = variant === "C" ? "064" : "067"
+      const aktiva = rozvahaAktiva(other)
+      const pasiva = rozvahaPasiva(other)
+      expect(radaSet(aktiva)).not.toContain(strandedAktiva)
+      expect(radaSet(pasiva)).not.toContain(strandedPasiva)
+      expect(
+        computeColumn(aktiva, "brutto", { [strandedAktiva]: { brutto: 7 } })[
+          "001"
+        ],
+      ).toBe(0)
+      expect(
+        computeColumn(pasiva, "bezne", { [strandedPasiva]: { bezne: 7 } })[
+          "001"
+        ],
+      ).toBe(0)
+    },
+  )
+
+  it("each built form carries exactly one časové-rozlišení block per side", () => {
+    for (const variant of ["C", "D"] as CasoveRozliseni[]) {
+      for (const statement of [
+        rozvahaAktiva(variant),
+        rozvahaPasiva(variant),
+      ]) {
+        const cr = statement.lines.filter((line) =>
+          line.text.startsWith("Časové rozlišení"),
+        )
+        expect(cr).toHaveLength(1)
+        expect(cr[0]?.crVariant).toBe(variant)
+      }
     }
   })
 })
@@ -290,6 +336,10 @@ describe("§ 3a rozsah subsets", () => {
   })
 
   it("malá rozvaha adds římské číslice plus C.II.1–C.II.3", () => {
+    // In the "C" layout the third of those, C.II.3. Časové rozlišení aktiv,
+    // exists and must be shown; in "D" it is not part of the form at all.
+    expect(shown(rozvahaAktiva("C"), "mala")).toContain("C.II.3.")
+    expect(shown(rozvahaAktiva("C"), "mala")).not.toContain("D.")
     expect(shown(ROZVAHA_AKTIVA, "mala")).toEqual([
       "",
       "A.",
@@ -302,7 +352,6 @@ describe("§ 3a rozsah subsets", () => {
       "C.II.",
       "C.II.1.",
       "C.II.2.",
-      "C.II.3.",
       "C.III.",
       "C.IV.",
       "D.",
@@ -321,9 +370,12 @@ describe("§ 3a rozsah subsets", () => {
       "C.",
       "C.I.",
       "C.II.",
-      "C.III.",
       "D.",
     ])
+    // Pasiva C.III. is the "C"-layout časové rozlišení pasiv, and is a římská
+    // číslice, so it belongs in the malá subset of that layout.
+    expect(shown(rozvahaPasiva("C"), "mala")).toContain("C.III.")
+    expect(shown(rozvahaPasiva("C"), "mala")).not.toContain("D.")
   })
 
   it("zkrácený VZZ keeps the 26 římské / písmenné / výpočtové položky", () => {

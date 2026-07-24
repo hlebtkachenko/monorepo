@@ -8,7 +8,7 @@
 // výkazy. The deník is a plain DenikRow[]; importing an XLSX, editing a cell,
 // appending a row, or deleting a row all funnel through one central
 // `recomputeFromDenik(rows)` that rebuilds the obratová předvaha, maps it onto
-// the rozvaha/VZZ leaves, links the VZZ result into rozvaha A.V. (řádek 022), and
+// the rozvaha/VZZ leaves (the mapper links the VZZ result into rozvaha A.V.), and
 // writes those derived values into the three value maps — touching ONLY the
 // bezne/brutto/korekce columns. The `minule` column (prior-year import) is left
 // intact, and any cell the user has overridden keeps its manual value. So editing
@@ -43,11 +43,11 @@ import type {
 import type { DenikParseResult, DenikRow } from "./denik"
 import { buildPredvaha, type Predvaha } from "./predvaha"
 import { mapPredvahaToValues } from "./mapping"
-import { computeColumn } from "./engine"
-import { VZZ } from "../_data/vzz"
+import { CR_COUNTERPART } from "../_data/rozvaha"
 import {
   DOC_VERSION,
   emptyDoc,
+  migrateOverrideKeys,
   loadLocal,
   saveLocal,
   VALUES_KEY,
@@ -220,6 +220,7 @@ function saveDenikLocal(
       return
     }
     const payload = JSON.stringify({
+      version: DOC_VERSION,
       rows,
       loaded,
       overrides: {
@@ -259,6 +260,30 @@ function coerceRows(v: unknown): DenikRow[] {
   return rows
 }
 
+/** Move every časové-rozlišení cell onto its counterpart in the other layout. */
+function relocateCrValues(values: VykazValues, statement: string): VykazValues {
+  const out: VykazValues = {}
+  for (const [rada, cells] of Object.entries(values)) {
+    out[CR_COUNTERPART[statement]?.[rada] ?? rada] = cells
+  }
+  return out
+}
+
+/** The same move for the `${rada}:${col}` override keys. */
+function relocateOverrides(keys: Set<string>, statement: string): Set<string> {
+  const out = new Set<string>()
+  for (const key of keys) {
+    const sep = key.indexOf(":")
+    if (sep < 0) {
+      out.add(key)
+      continue
+    }
+    const rada = key.slice(0, sep)
+    out.add(`${CR_COUNTERPART[statement]?.[rada] ?? rada}${key.slice(sep)}`)
+  }
+  return out
+}
+
 function loadDenikLocal(): {
   rows: DenikRow[]
   overrides: OverrideSets
@@ -271,11 +296,22 @@ function loadDenikLocal(): {
     const parsed: unknown = JSON.parse(raw)
     if (!isRecord(parsed) || !Array.isArray(parsed.rows)) return null
     const overridesRaw = isRecord(parsed.overrides) ? parsed.overrides : {}
+    // The deník blob predates the v3 rozvaha renumbering and carries override
+    // keys of the shape `${rada}:${col}`. An unstamped blob is a v2 one, whose
+    // řádky mean different položky now, so its keys are migrated exactly like a
+    // document's are — otherwise a stale key pins a value onto the wrong line.
+    const version = typeof parsed.version === "number" ? parsed.version : 2
+    const aktiva = toStringSet(overridesRaw["rozvaha-aktiva"])
+    const pasiva = toStringSet(overridesRaw["rozvaha-pasiva"])
     return {
       rows: coerceRows(parsed.rows),
       overrides: {
-        "rozvaha-aktiva": toStringSet(overridesRaw["rozvaha-aktiva"]),
-        "rozvaha-pasiva": toStringSet(overridesRaw["rozvaha-pasiva"]),
+        "rozvaha-aktiva": new Set(
+          migrateOverrideKeys([...aktiva], "rozvaha-aktiva", version),
+        ),
+        "rozvaha-pasiva": new Set(
+          migrateOverrideKeys([...pasiva], "rozvaha-pasiva", version),
+        ),
         vzz: toStringSet(overridesRaw.vzz),
       },
       loaded: parsed.loaded !== false,
@@ -320,18 +356,14 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // The single recompute path shared by import + every row edit. Rebuilds the
-  // předvaha, maps it onto the leaves, links the VZZ result into rozvaha A.V.
-  // (řádek 021), then merges those derived numbers into the value maps —
-  // preserving `minule` and any overridden cell.
+  // předvaha and maps it onto the leaves — the mapper links the VZZ result into
+  // rozvaha A.V. itself, so both statements report the same figure — then merges
+  // those derived numbers into the value maps, preserving `minule` and any
+  // overridden cell.
   const recomputeFromDenik = useCallback(
     (rows: DenikRow[], crVariant: CasoveRozliseni) => {
       const pv = buildPredvaha(rows)
       const mapped = mapPredvahaToValues(pv.ucty, crVariant)
-      const vh = computeColumn(VZZ, "bezne", mapped.vzz)["055"] ?? 0
-      mapped.rozvahaPasiva["021"] = {
-        ...(mapped.rozvahaPasiva["021"] ?? {}),
-        bezne: vh,
-      }
       const ov = overridesRef.current
       setDoc((prev) => ({
         ...prev,
@@ -419,17 +451,44 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     setDoc((prev) => ({ ...prev, rozsah }))
   }, [])
 
-  // Switching the layout re-maps the deník (the časové-rozlišení účty land on a
-  // different položka), so the values follow the choice instead of going stale.
+  // Switching the layout moves každá časové-rozlišení hodnota onto the položka
+  // the other layout uses (§ 3 odst. 3 a 4 — the form carries one of them), so
+  // nothing is stranded on a řádek the rozvaha no longer prints. A loaded deník
+  // is then re-mapped so the derived cells follow too.
   const setCrVariant = useCallback(
     (crVariant: CasoveRozliseni) => {
       crVariantRef.current = crVariant
-      setDoc((prev) => ({ ...prev, crVariant }))
+      writeOverrides({
+        ...overridesRef.current,
+        "rozvaha-aktiva": relocateOverrides(
+          overridesRef.current["rozvaha-aktiva"],
+          "rozvaha-aktiva",
+        ),
+        "rozvaha-pasiva": relocateOverrides(
+          overridesRef.current["rozvaha-pasiva"],
+          "rozvaha-pasiva",
+        ),
+      })
+      setDoc((prev) => ({
+        ...prev,
+        crVariant,
+        values: {
+          ...prev.values,
+          rozvahaAktiva: relocateCrValues(
+            prev.values.rozvahaAktiva,
+            "rozvaha-aktiva",
+          ),
+          rozvahaPasiva: relocateCrValues(
+            prev.values.rozvahaPasiva,
+            "rozvaha-pasiva",
+          ),
+        },
+      }))
       if (denikLoadedRef.current) {
         recomputeFromDenik(denikRowsRef.current, crVariant)
       }
     },
-    [recomputeFromDenik],
+    [recomputeFromDenik, writeOverrides],
   )
 
   const setCell = useCallback(

@@ -65,4 +65,10 @@
   .vykaz-table thead {
     display: table-header-group;
   }
+
+  /* The obratová předvaha has 8 columns (2 label + 6 numeric) — drop a point so
+     all fit the A4 portrait width. */
+  .predvaha-table {
+    font-size: 7.5pt;
+  }
 }

@@ -54,6 +54,18 @@ export default function VykazyPage() {
             Výsledovka (druhové členění)
           </span>
         </Link>
+        <Link
+          href="/vykazy/predvaha"
+          className="rounded-lg border border-neutral-200 bg-white p-4 transition-colors hover:border-blue-400 hover:bg-blue-50 sm:col-span-2"
+        >
+          <span className="block text-base font-semibold text-black">
+            Obratová předvaha
+          </span>
+          <span className="block text-sm text-neutral-600">
+            Počáteční stav, obrat a konečný stav po účtech (z deníku) — PDF /
+            CSV
+          </span>
+        </Link>
       </nav>
     </main>
   )

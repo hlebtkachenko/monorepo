@@ -15,160 +15,43 @@ import { computeColumn } from "./engine"
 import { inRozsah } from "./rozsah"
 import type { CasoveRozliseni, VykazStatement } from "./types"
 
-const AKTIVA_OZN = [
-  "",
-  "A.",
-  "B.",
-  "B.I.",
-  "B.I.1.",
-  "B.I.2.",
-  "B.I.2.1.",
-  "B.I.2.2.",
-  "B.I.3.",
-  "B.I.4.",
-  "B.I.5.",
-  "B.I.5.1.",
-  "B.I.5.2.",
-  "B.II.",
-  "B.II.1.",
-  "B.II.1.1.",
-  "B.II.1.2.",
-  "B.II.2.",
-  "B.II.3.",
-  "B.II.4.",
-  "B.II.4.1.",
-  "B.II.4.2.",
-  "B.II.4.3.",
-  "B.II.5.",
-  "B.II.5.1.",
-  "B.II.5.2.",
-  "B.III.",
-  "B.III.1.",
-  "B.III.2.",
-  "B.III.3.",
-  "B.III.4.",
-  "B.III.5.",
-  "B.III.6.",
-  "B.III.7.",
-  "B.III.7.1.",
-  "B.III.7.2.",
-  "C.",
-  "C.I.",
-  "C.I.1.",
-  "C.I.2.",
-  "C.I.3.",
-  "C.I.3.1.",
-  "C.I.3.2.",
-  "C.I.4.",
-  "C.I.5.",
-  "C.II.",
-  "C.II.1.",
-  "C.II.1.1.",
-  "C.II.1.2.",
-  "C.II.1.3.",
-  "C.II.1.4.",
-  "C.II.1.5.",
-  "C.II.1.5.1.",
-  "C.II.1.5.2.",
-  "C.II.1.5.3.",
-  "C.II.1.5.4.",
-  "C.II.2.",
-  "C.II.2.1.",
-  "C.II.2.2.",
-  "C.II.2.3.",
-  "C.II.2.4.",
-  "C.II.2.4.1.",
-  "C.II.2.4.2.",
-  "C.II.2.4.3.",
-  "C.II.2.4.4.",
-  "C.II.2.4.5.",
-  "C.II.2.4.6.",
-  "C.II.3.",
-  "C.II.3.1.",
-  "C.II.3.2.",
-  "C.II.3.3.",
-  "C.III.",
-  "C.III.1.",
-  "C.III.2.",
-  "C.IV.",
-  "C.IV.1.",
-  "C.IV.2.",
-  "D.",
-  "D.1.",
-  "D.2.",
-  "D.3.",
-]
+/**
+ * Transcribe an annex item list: whitespace-separated označení in statutory
+ * order, with "~" standing for the AKTIVA / PASIVA CELKEM row, whose označení is
+ * empty. Kept as one string so the list diffs against the annex text itself
+ * rather than against 80 lines of quoting.
+ */
+function ozn(list: string): string[] {
+  return list
+    .trim()
+    .split(/\s+/)
+    .map((o) => (o === "~" ? "" : o))
+}
 
-const PASIVA_OZN = [
-  "",
-  "A.",
-  "A.I.",
-  "A.I.1.",
-  "A.I.2.",
-  "A.I.3.",
-  "A.II.",
-  "A.II.1.",
-  "A.II.2.",
-  "A.II.2.1.",
-  "A.II.2.2.",
-  "A.II.2.3.",
-  "A.II.2.4.",
-  "A.II.2.5.",
-  "A.III.",
-  "A.III.1.",
-  "A.III.2.",
-  "A.IV.",
-  "A.IV.1.",
-  "A.IV.2.",
-  "A.V.",
-  "A.VI.",
-  "B.+C.",
-  "B.",
-  "B.1.",
-  "B.2.",
-  "B.3.",
-  "B.4.",
-  "C.",
-  "C.I.",
-  "C.I.1.",
-  "C.I.1.1.",
-  "C.I.1.2.",
-  "C.I.2.",
-  "C.I.3.",
-  "C.I.4.",
-  "C.I.5.",
-  "C.I.6.",
-  "C.I.7.",
-  "C.I.8.",
-  "C.I.9.",
-  "C.I.9.1.",
-  "C.I.9.2.",
-  "C.I.9.3.",
-  "C.II.",
-  "C.II.1.",
-  "C.II.1.1.",
-  "C.II.1.2.",
-  "C.II.2.",
-  "C.II.3.",
-  "C.II.4.",
-  "C.II.5.",
-  "C.II.6.",
-  "C.II.7.",
-  "C.II.8.",
-  "C.II.8.1.",
-  "C.II.8.2.",
-  "C.II.8.3.",
-  "C.II.8.4.",
-  "C.II.8.5.",
-  "C.II.8.6.",
-  "C.II.8.7.",
-  "C.III.",
-  "C.III.1.",
-  "C.III.2.",
-  "D.",
-  "D.1.",
-  "D.2.",
-]
+const AKTIVA_OZN = ozn(`
+  ~ A. B. B.I. B.I.1. B.I.2. B.I.2.1. B.I.2.2. B.I.3. B.I.4. B.I.5.
+  B.I.5.1. B.I.5.2. B.II. B.II.1. B.II.1.1. B.II.1.2. B.II.2. B.II.3.
+  B.II.4. B.II.4.1. B.II.4.2. B.II.4.3. B.II.5. B.II.5.1. B.II.5.2.
+  B.III. B.III.1. B.III.2. B.III.3. B.III.4. B.III.5. B.III.6.
+  B.III.7. B.III.7.1. B.III.7.2. C. C.I. C.I.1. C.I.2. C.I.3. C.I.3.1.
+  C.I.3.2. C.I.4. C.I.5. C.II. C.II.1. C.II.1.1. C.II.1.2. C.II.1.3.
+  C.II.1.4. C.II.1.5. C.II.1.5.1. C.II.1.5.2. C.II.1.5.3. C.II.1.5.4.
+  C.II.2. C.II.2.1. C.II.2.2. C.II.2.3. C.II.2.4. C.II.2.4.1.
+  C.II.2.4.2. C.II.2.4.3. C.II.2.4.4. C.II.2.4.5. C.II.2.4.6. C.II.3.
+  C.II.3.1. C.II.3.2. C.II.3.3. C.III. C.III.1. C.III.2. C.IV. C.IV.1.
+  C.IV.2. D. D.1. D.2. D.3.
+`)
+
+const PASIVA_OZN = ozn(`
+  ~ A. A.I. A.I.1. A.I.2. A.I.3. A.II. A.II.1. A.II.2. A.II.2.1.
+  A.II.2.2. A.II.2.3. A.II.2.4. A.II.2.5. A.III. A.III.1. A.III.2.
+  A.IV. A.IV.1. A.IV.2. A.V. A.VI. B.+C. B. B.1. B.2. B.3. B.4. C.
+  C.I. C.I.1. C.I.1.1. C.I.1.2. C.I.2. C.I.3. C.I.4. C.I.5. C.I.6.
+  C.I.7. C.I.8. C.I.9. C.I.9.1. C.I.9.2. C.I.9.3. C.II. C.II.1.
+  C.II.1.1. C.II.1.2. C.II.2. C.II.3. C.II.4. C.II.5. C.II.6. C.II.7.
+  C.II.8. C.II.8.1. C.II.8.2. C.II.8.3. C.II.8.4. C.II.8.5. C.II.8.6.
+  C.II.8.7. C.III. C.III.1. C.III.2. D. D.1. D.2.
+`)
 
 // The "D" layout is the default one; the "C" statements are exercised on their own.
 const ROZVAHA_AKTIVA = rozvahaAktiva("D")

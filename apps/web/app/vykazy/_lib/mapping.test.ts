@@ -167,4 +167,32 @@ describe("mapPredvahaToValues — rozvaha leaves", () => {
       expect(pasiva["001"], variant).toBe(120)
     }
   })
+
+  it("reports the rezerva na daň z příjmů (599) as L.1, not as a provozní rezerva", () => {
+    // § 27 vyhlášky limits "F.4. Rezervy v provozní oblasti" to účtová skupina
+    // 55, so 599 belongs to "L.1. Daň z příjmů splatná" — otherwise the VZZ
+    // understates ř.049 Výsledek hospodaření před zdaněním by the provision.
+    const { vzz } = mapPredvahaToValues([
+      {
+        ucet: "599000",
+        synteticky: "599",
+        ks: 0,
+        obratMD: 40_000,
+        obratDal: 0,
+      },
+      {
+        ucet: "602000",
+        synteticky: "602",
+        ks: 0,
+        obratMD: 0,
+        obratDal: 200_000,
+      },
+    ])
+    expect(vzz["051"]).toEqual({ bezne: 40 })
+    expect(vzz["028"]).toBeUndefined()
+    const computed = computeColumn(VZZ, "bezne", vzz)
+    expect(computed["049"]).toBe(200) // VH před zdaněním — nedotčen rezervou
+    expect(computed["050"]).toBe(40) // L. Daň z příjmů
+    expect(computed["055"]).toBe(160)
+  })
 })

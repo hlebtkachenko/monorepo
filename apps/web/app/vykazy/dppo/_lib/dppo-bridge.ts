@@ -8,16 +8,35 @@ import type { OrgConfig } from "../../_lib/types"
 import type { Predvaha } from "../../_lib/predvaha"
 
 /**
+ * Náklady that sit BELOW "** Výsledek hospodaření před zdaněním" on the VZZ, so
+ * they must not reduce DPPO ř.10: the daň z příjmů (590/591/592/595 and 599, the
+ * rezerva na daň z příjmů) and 596, which is položka "M. Převod podílu na
+ * výsledku hospodaření společníkům" — reported below ř.053, not ř.049.
+ *
+ * The rest of skupina 59, i.e. the převodové účty 597 a 598, DOES belong in the
+ * result: they are reported in "F.5. Jiné provozní náklady" / "K. Ostatní
+ * finanční náklady" and cancel against their 697 / 698 counterparts, which are
+ * třída 6 and therefore counted. Dropping only one side would inflate ř.10.
+ */
+const BELOW_VYSLEDEK_PRED_ZDANENIM = new Set([
+  "590",
+  "591",
+  "592",
+  "595",
+  "596",
+  "599",
+])
+
+/**
  * Účetní výsledek hospodaření PŘED zdaněním (DPPO ř.10), in exact whole koruna.
  *
  * Derived from the obratová předvaha — NOT from the mapped výkaz values, which
- * `mapPredvahaToValues` stores rounded to whole thousands (`toTisice`). The
- * předvaha is the only Kč-exact source.
+ * `mapPredvahaToValues` reports v celých tisících. The předvaha is the only
+ * Kč-exact source.
  *
- *   VH = Σ výnosy (třída 6)  −  Σ náklady (třída 5, mimo skupinu 59)
+ *   VH = Σ výnosy (třída 6) − Σ náklady (třída 5, mimo the set above)
  *
- * Účtová skupina 59 (daň z příjmů + převodové účty) is excluded — that is exactly
- * what VZZ ř.049 excludes before ř.050 "Daň z příjmů". Výnos je kreditní zůstatek
+ * which is exactly what the VZZ foots to on ř.049. Výnos je kreditní zůstatek
  * (obratDal − obratMD); náklad je debetní (obratMD − obratDal). Zisk +, ztráta −.
  */
 export function deriveUcetniVysledek(predvaha: Predvaha): string {
@@ -26,7 +45,7 @@ export function deriveUcetniVysledek(predvaha: Predvaha): string {
     const s = u.synteticky
     if (s.startsWith("6")) {
       vysledek += u.obratDal - u.obratMD
-    } else if (s.startsWith("5") && !s.startsWith("59")) {
+    } else if (s.startsWith("5") && !BELOW_VYSLEDEK_PRED_ZDANENIM.has(s)) {
       vysledek -= u.obratMD - u.obratDal
     }
   }

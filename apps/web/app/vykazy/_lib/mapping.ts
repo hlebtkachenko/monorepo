@@ -402,7 +402,10 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "596": V("054"), // převod podílu na VH společníkům (M.)
   "597": V("029"), // převod provozních nákladů (převodový)
   "598": V("047"), // převod finančních nákladů (převodový)
-  "599": V("028"), // tvorba rezervy na daň z příjmů
+  // § 27 vyhlášky scopes "F.4. Rezervy v provozní oblasti" to účtová skupina 55,
+  // so the rezerva na daň z příjmů (599, skupina 59) does NOT belong there — it
+  // is an income-tax expense and is reported in "L.1. Daň z příjmů splatná".
+  "599": V("051"), // tvorba rezervy na daň z příjmů (L.1)
 
   // ---- Class 6: výnosy (VZZ) --------------------------------------------
   "600": V("001"), // group tržby za vlastní výkony a zboží

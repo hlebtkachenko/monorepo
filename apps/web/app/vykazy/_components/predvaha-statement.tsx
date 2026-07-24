@@ -24,8 +24,9 @@ const cellBase =
   "border border-neutral-400 px-1 py-0.5 text-[10px] tabular-nums"
 
 /** Display formatter for one amount: whole tisíce or exact Kč with halíře. */
+/** The statement is already built in the display unit, so this only formats. */
 function amount(n: number, vTisicich: boolean): string {
-  return vTisicich ? formatTisice(n / 1000) : formatKc(n)
+  return vTisicich ? formatTisice(n) : formatKc(n)
 }
 
 /** The seven numeric cells (PS, Obrat, KS pairs + net Zůstatek) of one line. */
@@ -105,9 +106,12 @@ function BalanceBadge({ ok, children }: { ok: boolean; children: string }) {
 
 export function PredvahaStatement({
   statement,
+  control,
   vTisicich,
 }: {
   statement: PredvahaStatementModel
+  /** Exact-Kč grand totals — the MD = Dal control checks never use the display unit. */
+  control: PredvahaStatementModel["total"]
   /** Render whole tisíce (matching the rozvaha / VZZ unit toggle) or exact Kč. */
   vTisicich: boolean
 }) {
@@ -120,7 +124,7 @@ export function PredvahaStatement({
     )
   }
 
-  const { total } = statement
+  const total = control
 
   return (
     <div className="space-y-3">

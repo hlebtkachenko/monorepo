@@ -17,6 +17,18 @@ export function formatTisice(n: number | null | undefined): string {
 }
 
 /**
+ * Format an exact Kč amount (obratová předvaha): always two decimals, grouped by
+ * three with a non-breaking space, comma decimal separator (e.g. 1 059 004,05).
+ * Unlike formatTisice this keeps the halíře — the předvaha is in full Kč.
+ */
+export function formatKc(n: number): string {
+  const rounded = Math.round(Math.abs(n) * 100) / 100
+  const [intPart = "0", decPart = "00"] = rounded.toFixed(2).split(".")
+  const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP_SEP)
+  return `${n < 0 ? "-" : ""}${grouped},${decPart}`
+}
+
+/**
  * Parse a user-typed cell string into a number. Accepts grouping spaces and a
  * comma decimal separator. Returns null for an empty / non-numeric string so
  * callers can treat "no value entered" as absent.

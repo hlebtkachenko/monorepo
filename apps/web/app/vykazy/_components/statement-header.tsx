@@ -14,11 +14,18 @@ interface StatementHeaderProps {
   heading: string
   /** VZZ is always "v plném rozsahu"; rozvaha follows the context rozsah toggle. */
   forcePlny?: boolean
+  /** Hide the rozsah line (obratová předvaha has no plný/zkrácený rozsah). */
+  hideRozsah?: boolean
+  /** Drop the §500/2002 statutory note — it applies only to rozvaha / VZZ, not
+   *  to the obratová předvaha. */
+  hideLegalNote?: boolean
 }
 
 export function StatementHeader({
   heading,
   forcePlny = false,
+  hideRozsah = false,
+  hideLegalNote = false,
 }: StatementHeaderProps) {
   const { org, rozsah } = useOrg()
 
@@ -29,10 +36,14 @@ export function StatementHeader({
   return (
     <header className="mb-3 text-black">
       <div className="grid grid-cols-3 items-start gap-4">
-        {/* LEFT — statutory legal note */}
+        {/* LEFT — statutory legal note (rozvaha / VZZ only) */}
         <div className="text-[8px] leading-tight text-neutral-500">
-          <p>Minimální závazný výčet informací</p>
-          <p>podle vyhlášky č. 500/2002 Sb.</p>
+          {hideLegalNote ? null : (
+            <>
+              <p>Minimální závazný výčet informací</p>
+              <p>podle vyhlášky č. 500/2002 Sb.</p>
+            </>
+          )}
         </div>
 
         {/* CENTER — heading + rozsah + ke dni + currency + Rok/Měsíc/IČ table */}
@@ -40,7 +51,9 @@ export function StatementHeader({
           <h1 className="text-lg font-bold tracking-wide uppercase">
             {heading}
           </h1>
-          <p className="text-[11px] text-neutral-600">{rozsahLabel}</p>
+          {hideRozsah ? null : (
+            <p className="text-[11px] text-neutral-600">{rozsahLabel}</p>
+          )}
           <p className="mt-0.5 text-[11px]">
             ke dni{" "}
             {org.keDni ? (

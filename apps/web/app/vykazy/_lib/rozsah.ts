@@ -38,7 +38,7 @@ function isTotal(ozn: string): boolean {
 }
 
 /** Is `line` printed in `rozsah` of the rozvaha (`side` = the statement id)? */
-export function inRozvahaRozsah(
+function inRozvahaRozsah(
   line: VykazLine,
   rozsah: Rozsah,
   side: string,
@@ -52,7 +52,7 @@ export function inRozvahaRozsah(
 }
 
 /** Is `line` printed in `rozsah` of the výkaz zisku a ztráty? */
-export function inVzzRozsah(line: VykazLine, rozsah: Rozsah): boolean {
+function inVzzRozsah(line: VykazLine, rozsah: Rozsah): boolean {
   if (rozsah === "plny") return true
   const ozn = line.ozn
   return LETTER.test(ozn) || ROMAN.test(ozn) || VYPOCTOVA.test(ozn)

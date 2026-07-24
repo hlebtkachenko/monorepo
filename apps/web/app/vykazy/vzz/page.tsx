@@ -30,7 +30,7 @@ export default function VzzPage() {
       <Toolbar />
 
       <section className="vykaz-statement">
-        <StatementHeader heading="Výkaz zisku a ztráty" forcePlny />
+        <StatementHeader heading="Výkaz zisku a ztráty" />
         <VykazTable
           statement={VZZ}
           columnBLabel="TEXT"

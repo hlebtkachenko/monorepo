@@ -33,7 +33,13 @@ import {
   type ReactNode,
 } from "react"
 
-import type { ColKey, OrgConfig, Rozsah, VykazValues } from "./types"
+import type {
+  CasoveRozliseni,
+  ColKey,
+  OrgConfig,
+  Rozsah,
+  VykazValues,
+} from "./types"
 import type { DenikParseResult, DenikRow } from "./denik"
 import { buildPredvaha, type Predvaha } from "./predvaha"
 import { mapPredvahaToValues } from "./mapping"
@@ -82,6 +88,8 @@ interface OrgContextValue {
   doc: VykazyDoc
   org: OrgConfig
   rozsah: Rozsah
+  /** Which časové-rozlišení layout the rozvaha uses (§ 3 odst. 3 a 4 vyhlášky). */
+  crVariant: CasoveRozliseni
   values: VykazValuesByStatement
   hideEmpty: boolean
   // Deník-derived state.
@@ -98,6 +106,7 @@ interface OrgContextValue {
   patchOrg: (partial: Partial<OrgConfig>) => void
   setVTisicich: (value: boolean) => void
   setRozsah: (rozsah: Rozsah) => void
+  setCrVariant: (crVariant: CasoveRozliseni) => void
   setHideEmpty: (value: boolean) => void
   setCell: (
     statement: StatementKey,
@@ -293,6 +302,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const denikRowsRef = useRef<DenikRow[]>([])
   const overridesRef = useRef<OverrideSets>(emptyOverrides())
   const denikLoadedRef = useRef(false)
+  const crVariantRef = useRef<CasoveRozliseni>("D")
 
   const writeRows = useCallback((rows: DenikRow[]) => {
     denikRowsRef.current = rows
@@ -311,41 +321,44 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
   // The single recompute path shared by import + every row edit. Rebuilds the
   // předvaha, maps it onto the leaves, links the VZZ result into rozvaha A.V.
-  // (022), then merges those derived numbers into the value maps — preserving
-  // `minule` and any overridden cell.
-  const recomputeFromDenik = useCallback((rows: DenikRow[]) => {
-    const pv = buildPredvaha(rows)
-    const mapped = mapPredvahaToValues(pv.ucty)
-    const vh = computeColumn(VZZ, "bezne", mapped.vzz)["055"] ?? 0
-    mapped.rozvahaPasiva["022"] = {
-      ...(mapped.rozvahaPasiva["022"] ?? {}),
-      bezne: vh,
-    }
-    const ov = overridesRef.current
-    setDoc((prev) => ({
-      ...prev,
-      values: {
-        rozvahaAktiva: mergeSourced(
-          prev.values.rozvahaAktiva,
-          mapped.rozvahaAktiva,
-          ov["rozvaha-aktiva"],
-        ),
-        rozvahaPasiva: mergeSourced(
-          prev.values.rozvahaPasiva,
-          mapped.rozvahaPasiva,
-          ov["rozvaha-pasiva"],
-        ),
-        vzz: mergeSourced(prev.values.vzz, mapped.vzz, ov.vzz),
-      },
-    }))
-    setPredvaha(pv)
-    setDenikUnmapped(mapped.unmapped)
-  }, [])
+  // (řádek 021), then merges those derived numbers into the value maps —
+  // preserving `minule` and any overridden cell.
+  const recomputeFromDenik = useCallback(
+    (rows: DenikRow[], crVariant: CasoveRozliseni) => {
+      const pv = buildPredvaha(rows)
+      const mapped = mapPredvahaToValues(pv.ucty, crVariant)
+      const vh = computeColumn(VZZ, "bezne", mapped.vzz)["055"] ?? 0
+      mapped.rozvahaPasiva["021"] = {
+        ...(mapped.rozvahaPasiva["021"] ?? {}),
+        bezne: vh,
+      }
+      const ov = overridesRef.current
+      setDoc((prev) => ({
+        ...prev,
+        values: {
+          rozvahaAktiva: mergeSourced(
+            prev.values.rozvahaAktiva,
+            mapped.rozvahaAktiva,
+            ov["rozvaha-aktiva"],
+          ),
+          rozvahaPasiva: mergeSourced(
+            prev.values.rozvahaPasiva,
+            mapped.rozvahaPasiva,
+            ov["rozvaha-pasiva"],
+          ),
+          vzz: mergeSourced(prev.values.vzz, mapped.vzz, ov.vzz),
+        },
+      }))
+      setPredvaha(pv)
+      setDenikUnmapped(mapped.unmapped)
+    },
+    [],
+  )
 
   const applyRows = useCallback(
     (rows: DenikRow[]) => {
       writeRows(rows)
-      recomputeFromDenik(rows)
+      recomputeFromDenik(rows, crVariantRef.current)
     },
     [writeRows, recomputeFromDenik],
   )
@@ -357,13 +370,18 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- one-shot client-only localStorage hydration on mount; server render intentionally starts from the empty doc */
     const stored = loadLocal()
-    if (stored) setDoc(stored)
+    if (stored) {
+      setDoc(stored)
+      crVariantRef.current = stored.crVariant
+    }
     const storedDenik = loadDenikLocal()
     if (storedDenik) {
       const pv = buildPredvaha(storedDenik.rows)
       writeRows(storedDenik.rows)
       setPredvaha(pv)
-      setDenikUnmapped(mapPredvahaToValues(pv.ucty).unmapped)
+      setDenikUnmapped(
+        mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+      )
       writeOverrides(storedDenik.overrides)
       writeDenikLoaded(storedDenik.loaded)
     }
@@ -400,6 +418,19 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const setRozsah = useCallback((rozsah: Rozsah) => {
     setDoc((prev) => ({ ...prev, rozsah }))
   }, [])
+
+  // Switching the layout re-maps the deník (the časové-rozlišení účty land on a
+  // different položka), so the values follow the choice instead of going stale.
+  const setCrVariant = useCallback(
+    (crVariant: CasoveRozliseni) => {
+      crVariantRef.current = crVariant
+      setDoc((prev) => ({ ...prev, crVariant }))
+      if (denikLoadedRef.current) {
+        recomputeFromDenik(denikRowsRef.current, crVariant)
+      }
+    },
+    [recomputeFromDenik],
+  )
 
   const setCell = useCallback(
     (
@@ -591,6 +622,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       org: doc.org,
       values: doc.values,
       rozsah: doc.rozsah,
+      crVariant: doc.crVariant,
     }
     if (denikLoaded && denikRows.length > 0) {
       full.denik = denikRows
@@ -616,14 +648,18 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         org: next.org,
         values: next.values,
         rozsah: next.rozsah,
+        crVariant: next.crVariant,
       })
+      crVariantRef.current = next.crVariant
       const rows = next.denik ?? []
       setDenikMeta(null)
       if (rows.length > 0) {
         const pv = buildPredvaha(rows)
         writeRows(rows)
         setPredvaha(pv)
-        setDenikUnmapped(mapPredvahaToValues(pv.ucty).unmapped)
+        setDenikUnmapped(
+          mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+        )
         writeOverrides({
           "rozvaha-aktiva": new Set(next.overrides?.rozvahaAktiva ?? []),
           "rozvaha-pasiva": new Set(next.overrides?.rozvahaPasiva ?? []),
@@ -643,6 +679,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     setDoc(emptyDoc())
+    crVariantRef.current = "D"
     writeRows([])
     writeOverrides(emptyOverrides())
     writeDenikLoaded(false)
@@ -655,6 +692,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     doc,
     org: doc.org,
     rozsah: doc.rozsah,
+    crVariant: doc.crVariant,
     values: doc.values,
     hideEmpty,
     denik: denikRows,
@@ -666,6 +704,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     patchOrg,
     setVTisicich,
     setRozsah,
+    setCrVariant,
     setHideEmpty,
     setCell,
     isSourced,

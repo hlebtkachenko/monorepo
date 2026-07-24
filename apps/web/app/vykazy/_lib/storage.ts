@@ -2,10 +2,22 @@
 // as one JSON blob, plus JSON file export/import and localStorage persistence.
 // External input (imported files, stored blobs) is normalized at this boundary.
 
-import type { ColKey, OrgConfig, Rozsah, VykazValues } from "./types"
+import type {
+  CasoveRozliseni,
+  ColKey,
+  OrgConfig,
+  Rozsah,
+  VykazValues,
+} from "./types"
 import type { DenikRow } from "./denik"
 
-export const DOC_VERSION = 2
+/**
+ * 3 — rozvaha renumbered onto the current příloha č. 1 (A.IV. merged into two
+ *     položky, both časové-rozlišení variants numbered in place); `rozsah` split
+ *     into the two zkrácený variants of § 3a odst. 2. Docs at version ≤ 2 are
+ *     migrated by migrateRozvahaRadky() on import / hydration.
+ */
+export const DOC_VERSION = 3
 const STORAGE_KEY = "vykazy-doc"
 const VALUE_COLS: ColKey[] = ["brutto", "korekce", "netto", "bezne", "minule"]
 
@@ -37,6 +49,8 @@ export interface VykazyDoc {
   org: OrgConfig
   values: VykazValuesByStatement
   rozsah: Rozsah
+  /** Which časové-rozlišení layout the rozvaha uses (§ 3 odst. 3 a 4 vyhlášky). */
+  crVariant: CasoveRozliseni
   /** Raw parsed deník rows (absent when no deník is loaded). Předvaha is rebuilt
    * from these on import; the mapped výkaz numbers already live in `values`. */
   denik?: DenikRow[]
@@ -91,7 +105,102 @@ export function emptyDoc(): VykazyDoc {
     org: emptyOrg(),
     values: { rozvahaAktiva: {}, rozvahaPasiva: {}, vzz: {} },
     rozsah: "plny",
+    crVariant: "D",
   }
+}
+
+// --- v2 -> v3 řádek migration ------------------------------------------------
+
+/**
+ * Aktiva: everything from the old "C.III." (068) down shifted by +4 to make room
+ * for the "C.II.3. Časové rozlišení aktiv" block at 068–071.
+ */
+const AKTIVA_V2_TO_V3: Record<string, string> = {
+  "068": "072",
+  "069": "073",
+  "070": "074",
+  "071": "075",
+  "072": "076",
+  "073": "077",
+  "074": "078",
+  "075": "079",
+  "076": "080",
+  "077": "081",
+}
+
+/**
+ * Pasiva: the v2 doc still split A.IV into three položky (019 Nerozdělený zisk,
+ * 020 Neuhrazená ztráta, 021 Jiný VH). The current form has two, so 019 and 020
+ * are ADDED together onto 019, 021 becomes 020, everything up to the old 063
+ * shifts one up, and the old "D." block (064–066) moves to 066–068 to leave room
+ * for "C.III. Časové rozlišení pasiv".
+ */
+function pasivaV2ToV3(rada: string): string {
+  const n = Number(rada)
+  if (!Number.isInteger(n) || n < 1) return rada
+  if (n <= 19) return rada
+  if (n === 20) return "019"
+  if (n <= 63) return String(n - 1).padStart(3, "0")
+  if (n <= 66) return String(n + 2).padStart(3, "0")
+  return rada
+}
+
+function remapValues(
+  values: VykazValues,
+  remap: (rada: string) => string,
+): VykazValues {
+  const out: VykazValues = {}
+  for (const [rada, cells] of Object.entries(values)) {
+    const target = remap(rada)
+    const existing = out[target]
+    if (!existing) {
+      out[target] = { ...cells }
+      continue
+    }
+    // Two old řádky merged into one (A.IV.1 + A.IV.2) — sum every column.
+    for (const col of VALUE_COLS) {
+      const add = cells[col]
+      if (add === undefined) continue
+      existing[col] = (existing[col] ?? 0) + add
+    }
+  }
+  return out
+}
+
+/** Rewrite the `${rada}:${col}` override keys of one statement. */
+function remapOverrides(
+  keys: string[],
+  remap: (rada: string) => string,
+): string[] {
+  const out = keys.map((key) => {
+    const sep = key.indexOf(":")
+    if (sep < 0) return key
+    return `${remap(key.slice(0, sep))}${key.slice(sep)}`
+  })
+  return [...new Set(out)]
+}
+
+/** Move a pre-v3 document's rozvaha values onto the current řádek numbers. */
+export function migrateRozvahaRadky(doc: VykazyDoc): VykazyDoc {
+  if (doc.version >= 3) return doc
+  const aktiva = (rada: string): string => AKTIVA_V2_TO_V3[rada] ?? rada
+  const migrated: VykazyDoc = {
+    ...doc,
+    version: DOC_VERSION,
+    values: {
+      ...doc.values,
+      rozvahaAktiva: remapValues(doc.values.rozvahaAktiva, aktiva),
+      rozvahaPasiva: remapValues(doc.values.rozvahaPasiva, pasivaV2ToV3),
+    },
+  }
+  if (doc.overrides) {
+    migrated.overrides = {
+      ...doc.overrides,
+      rozvahaAktiva: remapOverrides(doc.overrides.rozvahaAktiva, aktiva),
+      rozvahaPasiva: remapOverrides(doc.overrides.rozvahaPasiva, pasivaV2ToV3),
+    }
+  }
+  return migrated
 }
 
 // --- boundary coercion -------------------------------------------------------
@@ -201,8 +310,20 @@ function coerceOverrides(input: unknown): VykazyDoc["overrides"] {
   }
 }
 
+/**
+ * A pre-v3 doc only knew "plny" | "zkraceny"; the zkrácený rozsah is now split
+ * into the malá / mikro variants of § 3a odst. 2, and the old value maps onto
+ * the malá one (the wider of the two).
+ */
+function coerceRozsah(input: unknown): Rozsah {
+  if (input === "mikro") return "mikro"
+  if (input === "mala" || input === "zkraceny") return "mala"
+  return "plny"
+}
+
 /** Coerce arbitrary parsed JSON into a well-formed VykazyDoc. Back-compatible:
- * a v1 doc with no `denik`/`overrides` normalizes to a doc with neither. */
+ * a v1 doc with no `denik`/`overrides` normalizes to a doc with neither, and a
+ * pre-v3 doc is migrated onto the current rozvaha řádek numbers. */
 function normalizeDoc(input: unknown): VykazyDoc {
   const base = emptyDoc()
   if (!isRecord(input)) return base
@@ -215,13 +336,14 @@ function normalizeDoc(input: unknown): VykazyDoc {
       rozvahaPasiva: coerceValues(values?.rozvahaPasiva),
       vzz: coerceValues(values?.vzz),
     },
-    rozsah: input.rozsah === "zkraceny" ? "zkraceny" : "plny",
+    rozsah: coerceRozsah(input.rozsah),
+    crVariant: input.crVariant === "C" ? "C" : "D",
   }
   const denik = coerceDenik(input.denik)
   if (denik) doc.denik = denik
   const overrides = coerceOverrides(input.overrides)
   if (overrides) doc.overrides = overrides
-  return doc
+  return migrateRozvahaRadky(doc)
 }
 
 // --- file export / import ----------------------------------------------------

@@ -9,10 +9,11 @@
 // Reads OrgConfig + rozsah from context. Renders on screen AND print.
 
 import { useOrg } from "../_lib/org-context"
+import { ROZSAH_LABEL } from "../_lib/rozsah"
 
 interface StatementHeaderProps {
   heading: string
-  /** VZZ is always "v plném rozsahu"; rozvaha follows the context rozsah toggle. */
+  /** Print "v plném rozsahu" whatever the context rozsah says. */
   forcePlny?: boolean
   /** Hide the rozsah line (obratová předvaha has no plný/zkrácený rozsah). */
   hideRozsah?: boolean
@@ -29,8 +30,7 @@ export function StatementHeader({
 }: StatementHeaderProps) {
   const { org, rozsah } = useOrg()
 
-  const zkraceny = !forcePlny && rozsah === "zkraceny"
-  const rozsahLabel = zkraceny ? "ve zkráceném rozsahu" : "v plném rozsahu"
+  const rozsahLabel = forcePlny ? ROZSAH_LABEL.plny : ROZSAH_LABEL[rozsah]
   const jednotka = org.vTisicich ? "( v celých tisících Kč )" : "( v Kč )"
 
   return (

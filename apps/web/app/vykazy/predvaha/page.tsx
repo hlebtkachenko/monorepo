@@ -58,16 +58,17 @@ export default function PredvahaPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Unit follows the shared `v celých tisících Kč` toggle, same as the
+            rozvaha / VZZ — so the whole set of výkazů prints in one unit. */}
         <StatementHeader
           heading="Obratová předvaha"
           forcePlny
           hideRozsah
           hideLegalNote
-          unitOverride="( v Kč )"
         />
 
         <section className="vykaz-statement predvaha-statement">
-          <PredvahaStatement statement={statement} />
+          <PredvahaStatement statement={statement} vTisicich={org.vTisicich} />
         </section>
 
         <StatementFooter />

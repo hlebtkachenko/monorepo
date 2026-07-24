@@ -16,9 +16,6 @@ interface StatementHeaderProps {
   forcePlny?: boolean
   /** Hide the rozsah line (obratová předvaha has no plný/zkrácený rozsah). */
   hideRozsah?: boolean
-  /** Force a currency-unit label instead of deriving it from org.vTisicich
-   *  (the předvaha is always in full Kč). */
-  unitOverride?: string
   /** Drop the §500/2002 statutory note — it applies only to rozvaha / VZZ, not
    *  to the obratová předvaha. */
   hideLegalNote?: boolean
@@ -28,15 +25,13 @@ export function StatementHeader({
   heading,
   forcePlny = false,
   hideRozsah = false,
-  unitOverride,
   hideLegalNote = false,
 }: StatementHeaderProps) {
   const { org, rozsah } = useOrg()
 
   const zkraceny = !forcePlny && rozsah === "zkraceny"
   const rozsahLabel = zkraceny ? "ve zkráceném rozsahu" : "v plném rozsahu"
-  const jednotka =
-    unitOverride ?? (org.vTisicich ? "( v celých tisících Kč )" : "( v Kč )")
+  const jednotka = org.vTisicich ? "( v celých tisících Kč )" : "( v Kč )"
 
   return (
     <header className="mb-3 text-black">

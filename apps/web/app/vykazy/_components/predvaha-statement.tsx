@@ -2,13 +2,18 @@
 
 // Renders the obratová předvaha as a bordered A4 paper-form table in the same
 // visual language as the ROZVAHA / VÝKAZ ZISKU A ZTRÁTY tables: three column
-// pairs (Počáteční stav | Obrat | Konečný stav, each Má dáti / Dal), one row per
-// account, interleaved with SU / třída / grand subtotals. The whole statement is
-// derived live from the editable deník (via buildPredvahaStatement) — no inputs.
+// pairs (Počáteční stav | Obrat | Konečný stav, each Má dáti / Dal) plus the net
+// Zůstatek, one row per account, interleaved with SU / třída / grand subtotals.
+// The whole statement is derived live from the editable deník (via
+// buildPredvahaStatement) — no inputs.
+//
+// Unit follows the same `v celých tisících Kč` toggle as the rozvaha / VZZ: in
+// tisíce the six gross columns are rounded per cell for display only (the model
+// and the CSV keep exact halíře), which is what makes the 9-column table fit A4.
 
 import { cn } from "@workspace/ui/lib/utils"
 
-import { formatKc } from "../_lib/format"
+import { formatKc, formatTisice } from "../_lib/format"
 import type {
   PredvahaLine,
   PredvahaStatement as PredvahaStatementModel,
@@ -18,8 +23,21 @@ import type {
 const cellBase =
   "border border-neutral-400 px-1 py-0.5 text-[10px] tabular-nums"
 
-/** The six numeric cells (PS MD/Dal, Obrat MD/Dal, KS MD/Dal) of one line. */
-function NumberCells({ totals, bold }: { totals: Totals; bold?: boolean }) {
+/** Display formatter for one amount: whole tisíce or exact Kč with halíře. */
+function amount(n: number, vTisicich: boolean): string {
+  return vTisicich ? formatTisice(n / 1000) : formatKc(n)
+}
+
+/** The seven numeric cells (PS, Obrat, KS pairs + net Zůstatek) of one line. */
+function NumberCells({
+  totals,
+  vTisicich,
+  bold,
+}: {
+  totals: Totals
+  vTisicich: boolean
+  bold?: boolean
+}) {
   const values = [
     totals.psMD,
     totals.psDal,
@@ -35,9 +53,18 @@ function NumberCells({ totals, bold }: { totals: Totals; bold?: boolean }) {
           key={i}
           className={cn(cellBase, "text-right text-black", bold && "font-bold")}
         >
-          {formatKc(v)}
+          {amount(v, vTisicich)}
         </td>
       ))}
+      <td
+        className={cn(
+          cellBase,
+          "border-l-2 border-l-neutral-500 text-right font-medium text-black",
+          bold && "font-bold",
+        )}
+      >
+        {amount(totals.zustatek, vTisicich)}
+      </td>
     </>
   )
 }
@@ -78,8 +105,11 @@ function BalanceBadge({ ok, children }: { ok: boolean; children: string }) {
 
 export function PredvahaStatement({
   statement,
+  vTisicich,
 }: {
   statement: PredvahaStatementModel
+  /** Render whole tisíce (matching the rozvaha / VZZ unit toggle) or exact Kč. */
+  vTisicich: boolean
 }) {
   if (statement.empty) {
     return (
@@ -104,18 +134,23 @@ export function PredvahaStatement({
         <BalanceBadge ok={Math.abs(total.ksMD - total.ksDal) < 0.01}>
           {`Konečný stav MD = Dal (${formatKc(total.ksMD)} / ${formatKc(total.ksDal)})`}
         </BalanceBadge>
+        <span className="text-neutral-500">
+          Kontrolní součty vždy v přesných Kč
+          {vTisicich ? "; tabulka zobrazena v tisících" : ""}.
+        </span>
       </div>
 
       <table className="vykaz-table predvaha-table w-full table-fixed border-collapse border border-neutral-500 text-black">
         <colgroup>
-          <col style={{ width: "9%" }} />
-          <col style={{ width: "19%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "12%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "16%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "10%" }} />
         </colgroup>
         <thead>
           <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
@@ -139,6 +174,13 @@ export function PredvahaStatement({
             </th>
             <th colSpan={2} className="border border-neutral-500 px-1 py-1">
               Konečný stav
+            </th>
+            <th
+              rowSpan={2}
+              className="border border-l-2 border-neutral-500 border-l-neutral-500 px-1 py-1"
+              title="Konečný zůstatek účtu = KS Má dáti − KS Dal (kladně = zůstatek na straně MD)"
+            >
+              Zůstatek
             </th>
           </tr>
           <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
@@ -166,7 +208,7 @@ export function PredvahaStatement({
                   <td className={cn(cellBase, "text-left break-words")}>
                     {line.nazev}
                   </td>
-                  <NumberCells totals={line.totals} />
+                  <NumberCells totals={line.totals} vTisicich={vTisicich} />
                 </tr>
               )
             }
@@ -181,7 +223,7 @@ export function PredvahaStatement({
                   </span>
                   {line.label}
                 </td>
-                <NumberCells totals={line.totals} bold />
+                <NumberCells totals={line.totals} vTisicich={vTisicich} bold />
               </tr>
             )
           })}

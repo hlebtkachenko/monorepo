@@ -66,9 +66,10 @@
     display: table-header-group;
   }
 
-  /* The obratová předvaha has 8 columns (2 label + 6 numeric) — drop a point so
-     all fit the A4 portrait width. */
+  /* The obratová předvaha has 9 columns (2 label + 7 numeric) — drop to the
+     smallest legible size so all fit the A4 portrait width. Printing in celých
+     tisících (the shared unit toggle) is what keeps the numbers short enough. */
   .predvaha-table {
-    font-size: 7.5pt;
+    font-size: 7pt;
   }
 }

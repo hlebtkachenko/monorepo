@@ -27,6 +27,14 @@ export interface Totals {
   obratDal: number
   ksMD: number
   ksDal: number
+  /**
+   * Net closing balance (konečný zůstatek) = ksMD − ksDal. The KS pair above is
+   * GROSS cumulative per side (PS + Obrat), which never states what the account
+   * actually holds; this is that number. Sign convention: positive = debit
+   * balance (zůstatek na straně MD), negative = credit balance (na straně Dal).
+   * At the grand total it is always 0 — the books balance.
+   */
+  zustatek: number
 }
 
 export type PredvahaLine =
@@ -56,13 +64,16 @@ function emptyAccum(): Accum {
 }
 
 function toTotals(a: Accum): Totals {
+  const ksMD = a.psMD + a.obratMD
+  const ksDal = a.psDal + a.obratDal
   return {
     psMD: a.psMD,
     psDal: a.psDal,
     obratMD: a.obratMD,
     obratDal: a.obratDal,
-    ksMD: a.psMD + a.obratMD,
-    ksDal: a.psDal + a.obratDal,
+    ksMD,
+    ksDal,
+    zustatek: ksMD - ksDal,
   }
 }
 
@@ -225,7 +236,8 @@ export function buildPredvahaStatement(rows: DenikRow[]): PredvahaStatement {
 
 /** Serialize the předvaha to CSV (semicolon-delimited, BOM, comma decimals) for
  *  Czech Excel. Account rows keep their Účet + Název; subtotal rows carry their
- *  label in the Účet column. */
+ *  label in the Účet column. Always exact Kč with halíře — the display may round
+ *  to tisíce, but the export stays at full precision for further processing. */
 export function predvahaCsv(statement: PredvahaStatement): string {
   const num = (n: number): string => n.toFixed(2).replace(".", ",")
   const header = [
@@ -237,6 +249,7 @@ export function predvahaCsv(statement: PredvahaStatement): string {
     "Obrat Dal",
     "KS Má dáti",
     "KS Dal",
+    "Zůstatek",
   ]
   const rowCells = (t: Totals): string[] => [
     num(t.psMD),
@@ -245,6 +258,7 @@ export function predvahaCsv(statement: PredvahaStatement): string {
     num(t.obratDal),
     num(t.ksMD),
     num(t.ksDal),
+    num(t.zustatek),
   ]
   const lines: string[][] = [header]
   for (const line of statement.lines) {

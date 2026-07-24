@@ -54,6 +54,9 @@ describe("buildPredvahaStatement", () => {
     expect(cash.totals.ksMD).toBe(1500)
     expect(cash.totals.ksDal).toBe(0)
 
+    // Net zůstatek: debit balance is positive, credit balance negative.
+    expect(cash.totals.zustatek).toBe(1500)
+
     const payable = find(
       s.lines,
       (l) => l.kind === "ucet" && l.ucet === "321000",
@@ -62,6 +65,7 @@ describe("buildPredvahaStatement", () => {
     expect(payable.totals.psDal).toBe(400)
     expect(payable.totals.obratDal).toBe(300)
     expect(payable.totals.ksDal).toBe(700)
+    expect(payable.totals.zustatek).toBe(-700)
   })
 
   it("balances all three column pairs at the grand total", () => {
@@ -72,6 +76,8 @@ describe("buildPredvahaStatement", () => {
     expect(s.total.obratDal).toBe(800)
     expect(s.total.ksMD).toBe(2200)
     expect(s.total.ksDal).toBe(2200)
+    // A balanced book nets to a zero closing balance overall.
+    expect(s.total.zustatek).toBe(0)
     expect(s.balanced).toBe(true)
   })
 
@@ -116,8 +122,11 @@ describe("predvahaCsv", () => {
     const csv = predvahaCsv(buildPredvahaStatement(BOOK))
     expect(csv.startsWith("\uFEFF")).toBe(true)
     expect(csv).toContain('"Účet";"Název";"PS Má dáti"')
+    expect(csv).toContain('"KS Dal";"Zůstatek"')
     expect(csv).toContain("211001")
     expect(csv).toContain('"1000,00"')
+    // Credit balances export with their sign, in exact Kč (never rounded).
+    expect(csv).toContain('"-700,00"')
     expect(csv).toContain("Celkový obrat účtů")
   })
 })

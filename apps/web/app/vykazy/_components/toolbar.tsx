@@ -1,11 +1,13 @@
 "use client"
 
-// Screen-only action bar: JSON export/import, print, rozsah + hide-empty toggles,
-// reset. Marked .no-print so it never appears on the printed form.
+// Screen-only action bar: JSON export/import, print, rozsah + časové-rozlišení +
+// hide-empty toggles, theme, reset. Marked .no-print so it never appears on the
+// printed form.
 
 import { useRef, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
+import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
 
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
@@ -93,7 +95,7 @@ export function Toolbar() {
   }
 
   return (
-    <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-white p-2">
+    <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2">
       <Button
         type="button"
         variant="outline"
@@ -131,7 +133,7 @@ export function Toolbar() {
         Tisk / PDF
       </Button>
 
-      <span className="mx-1 h-5 w-px bg-neutral-200" />
+      <span className="mx-1 h-5 w-px bg-muted" />
 
       <Button
         type="button"
@@ -197,10 +199,10 @@ export function Toolbar() {
         }}
       />
       {minuleError ? (
-        <span className="text-xs text-red-600">{minuleError}</span>
+        <span className="text-xs text-destructive">{minuleError}</span>
       ) : null}
 
-      <span className="mx-1 h-5 w-px bg-neutral-200" />
+      <span className="mx-1 h-5 w-px bg-muted" />
 
       {/* § 3a odst. 2 vyhlášky — the zkrácený rozsah has two variants, one per
           kategorie účetní jednotky, so this cycles through all three. */}
@@ -239,7 +241,11 @@ export function Toolbar() {
         {hideEmpty ? "Zobrazit prázdné" : "Skrýt prázdné"}
       </Button>
 
-      <span className="mx-1 h-5 w-px bg-neutral-200" />
+      <span className="mx-1 h-5 w-px bg-muted" />
+
+      {/* The app's own theme control — /vykazy has no app-shell header to carry
+          it, and the chrome follows the theme even though the form stays paper. */}
+      <ThemeToggle />
 
       <Button
         type="button"

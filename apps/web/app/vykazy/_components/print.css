@@ -5,6 +5,25 @@
   .print-only {
     display: none;
   }
+
+  /* The statement itself is a tiskopis: it stays black-on-white paper even when
+     the surrounding app chrome is in dark mode, so what is on screen is what
+     prints. Only the chrome follows the theme. */
+  .vykaz-paper {
+    background: #ffffff;
+    color: #000000;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  }
+}
+
+@media print {
+  .vykaz-paper {
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
 }
 
 @media print {

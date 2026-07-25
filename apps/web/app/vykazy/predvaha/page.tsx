@@ -45,7 +45,7 @@ export default function PredvahaPage() {
   return (
     <main className="vykaz-page mx-auto max-w-5xl space-y-4 p-6">
       <div className="no-print">
-        <Link href="/vykazy" className="text-sm text-blue-600 hover:underline">
+        <Link href="/vykazy" className="text-sm text-primary hover:underline">
           ← Zpět na přehled
         </Link>
       </div>
@@ -64,7 +64,7 @@ export default function PredvahaPage() {
         </Button>
       </div>
 
-      <div className="space-y-6">
+      <div className="vykaz-paper space-y-6">
         {/* Unit follows the shared `v celých tisících Kč` toggle, same as the
             rozvaha / VZZ — so the whole set of výkazů prints in one unit. */}
         <StatementHeader

@@ -26,7 +26,7 @@ import {
 } from "../_lib/dppo-bridge"
 
 const INPUT_CLASS =
-  "rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm text-black outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+  "rounded border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
 
 function initForm(ico: string, rok: string, ucetni: string): DppoFormState {
   const zdobdOd = rok ? `1.1.${rok}` : ""
@@ -83,7 +83,7 @@ function TextField({
 }: TextFieldProps) {
   return (
     <label className={cn("flex flex-col gap-1", className)}>
-      <span className="text-xs font-medium text-neutral-600">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="text"
         inputMode={numeric ? "numeric" : undefined}
@@ -92,7 +92,9 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         className={cn(INPUT_CLASS, numeric && "text-right tabular-nums")}
       />
-      {hint ? <span className="text-xs text-neutral-500">{hint}</span> : null}
+      {hint ? (
+        <span className="text-xs text-muted-foreground">{hint}</span>
+      ) : null}
     </label>
   )
 }
@@ -129,7 +131,7 @@ export function DppoForm() {
 
   return (
     <div className="space-y-5">
-      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-neutral-700">
+      <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm text-foreground">
         Účetní výsledek hospodaření (ř.10) se převezme z nahraného deníku.
         Daňové úpravy (§23–§35) doplňte ručně — deník je neobsahuje. Nástroj
         vytvoří XML pro ruční odeslání přes EPO;{" "}
@@ -138,14 +140,14 @@ export function DppoForm() {
       </p>
 
       {!hasDenik ? (
-        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           Nenačten žádný účetní deník. Účetní výsledek zadejte ručně, nebo jej
           nahrajte na stránce <em>Účetní deník</em> a vraťte se sem.
         </p>
       ) : null}
 
-      <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-        <h2 className="mb-3 text-sm font-semibold text-neutral-700">
+      <section className="rounded-lg border border-border bg-muted/40 p-4">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
           Identifikace a období
         </h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -156,7 +158,7 @@ export function DppoForm() {
             placeholder="CZ12345678"
           />
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-neutral-600">
+            <span className="text-xs font-medium text-muted-foreground">
               Finanční úřad
             </span>
             <select
@@ -173,7 +175,7 @@ export function DppoForm() {
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-neutral-600">
+            <span className="text-xs font-medium text-muted-foreground">
               Typ poplatníka
             </span>
             <select
@@ -208,11 +210,11 @@ export function DppoForm() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-        <h2 className="mb-1 text-sm font-semibold text-neutral-700">
+      <section className="rounded-lg border border-border bg-muted/40 p-4">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">
           Daňová část (II. oddíl)
         </h2>
-        <p className="mb-3 text-xs text-neutral-500">
+        <p className="mb-3 text-xs text-muted-foreground">
           Zjednodušený souhrn: ostatní úpravy se knihují na obecné řádky (ř.40 /
           ř.110). Daň i základ vyjdou správně, ale přiznání není řádek po řádku
           úplné — Přílohu č. 1 (Tabulky A/E/G/H k ř. 40/230/300) a případnou
@@ -230,7 +232,7 @@ export function DppoForm() {
               <button
                 type="button"
                 onClick={() => set("ucetniVysledek", derived)}
-                className="self-start text-xs text-blue-600 hover:underline"
+                className="self-start text-xs text-primary hover:underline"
               >
                 Převzít z deníku ({derived} Kč)
               </button>
@@ -295,13 +297,13 @@ export function DppoForm() {
       </section>
 
       {periodOutOfRange ? (
-        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           Formulář DPPDP9 v05.01.01 pokrývá období do roku 2025. Pro rok {year}{" "}
           nemusí XSD kontrola projít.
         </p>
       ) : null}
       {zeroResult ? (
-        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+        <p className="rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           Účetní výsledek je 0 — přiznání vyjde nulové. Zkontrolujte, zda je
           nahraný deník / zadaná hodnota správná.
         </p>
@@ -316,7 +318,7 @@ export function DppoForm() {
           {busy ? "Generuji…" : "Vytvořit DPPO XML"}
         </Button>
         {missing.length > 0 ? (
-          <span className="text-xs text-neutral-500">
+          <span className="text-xs text-muted-foreground">
             Doplňte: {missing.join(", ")}
           </span>
         ) : null}
@@ -345,8 +347,8 @@ function ResultPanel({
   return (
     <div className="space-y-3">
       {valid ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-300 bg-green-50 p-3">
-          <span className="text-sm text-green-800">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-green-300 bg-green-50 p-3 dark:border-green-800 dark:bg-green-950/40">
+          <span className="text-sm text-green-800 dark:text-green-200">
             Dokument prošel XSD kontrolou.
           </span>
           <Button
@@ -374,9 +376,11 @@ function ResultPanel({
         </div>
       )}
       {result.checks && result.checks.length > 0 ? (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
-          <p className="text-sm font-medium text-amber-800">Upozornění:</p>
-          <ul className="mt-1 list-disc pl-5 text-xs text-amber-800">
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/40">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+            Upozornění:
+          </p>
+          <ul className="mt-1 list-disc pl-5 text-xs text-amber-800 dark:text-amber-200">
             {result.checks.map((c, i) => (
               <li key={i}>
                 {c.message}

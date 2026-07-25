@@ -26,14 +26,14 @@ export default function RozvahaPage() {
   return (
     <main className="vykaz-page mx-auto max-w-5xl space-y-4 p-6">
       <div className="no-print">
-        <Link href="/vykazy" className="text-sm text-blue-600 hover:underline">
+        <Link href="/vykazy" className="text-sm text-primary hover:underline">
           ← Zpět na přehled
         </Link>
       </div>
 
       <Toolbar />
 
-      <div className="space-y-6">
+      <div className="vykaz-paper space-y-6">
         <StatementHeader heading="Rozvaha" />
 
         <section className="vykaz-statement">

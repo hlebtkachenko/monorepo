@@ -42,7 +42,9 @@ function Badge({ ok, children }: { ok: boolean; children: ReactNode }) {
   return (
     <span
       className={
-        ok ? "font-semibold text-green-700" : "font-semibold text-red-600"
+        ok
+          ? "font-semibold text-green-700 dark:text-green-400"
+          : "font-semibold text-destructive"
       }
     >
       {ok ? "✓" : "✗"} {children}
@@ -77,7 +79,7 @@ export function PredvahaSummary({
   )
 
   return (
-    <section className="no-print space-y-6 rounded-lg border border-neutral-200 bg-white p-4 text-[11px] text-neutral-800">
+    <section className="no-print space-y-6 rounded-lg border border-border bg-card p-4 text-[11px] text-foreground">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
         <Badge ok={predvaha.balanced}>
           Σ MD = Σ Dal ({formatKc(predvaha.sumMD)} / {formatKc(predvaha.sumDal)}{" "}
@@ -89,8 +91,8 @@ export function PredvahaSummary({
         <span
           className={
             denikUnmapped.length > 0
-              ? "font-semibold text-amber-600"
-              : "font-semibold text-green-700"
+              ? "font-semibold text-amber-600 dark:text-amber-400"
+              : "font-semibold text-green-700 dark:text-green-400"
           }
         >
           {denikUnmapped.length > 0
@@ -100,7 +102,7 @@ export function PredvahaSummary({
       </div>
 
       {denikUnmapped.length > 0 ? (
-        <p className="text-amber-700">
+        <p className="text-amber-700 dark:text-amber-300">
           Nezařazené účty:{" "}
           <span className="font-mono text-[11px]">
             {denikUnmapped.join(", ")}
@@ -109,11 +111,13 @@ export function PredvahaSummary({
       ) : null}
 
       <div>
-        <h4 className="mb-1 font-semibold text-black">Členění podle zdroje</h4>
+        <h4 className="mb-1 font-semibold text-foreground">
+          Členění podle zdroje
+        </h4>
         <table className="w-full max-w-md border-collapse text-[11px] tabular-nums">
           <tbody>
             {zdrojEntries.map(([zdroj, amount]) => (
-              <tr key={zdroj} className="border-b border-neutral-100">
+              <tr key={zdroj} className="border-b border-border">
                 <td className="py-0.5 pr-4">{zdroj}</td>
                 <td className="py-0.5 text-right">{formatKc(amount)} Kč</td>
               </tr>
@@ -166,25 +170,25 @@ function PredvahaFilterTable({
     filter !== null && filter.ucet === ucet && filter.side === side
 
   const cellButton = (active: boolean, align: string): string =>
-    `w-full cursor-pointer px-2 py-0.5 ${align} hover:bg-neutral-50 hover:underline ${
+    `w-full cursor-pointer px-2 py-0.5 ${align} hover:bg-muted/40 hover:underline ${
       active ? "bg-blue-100 font-semibold text-blue-800" : ""
     }`
 
   return (
     <div>
-      <h4 className="mb-1 font-semibold text-black">
+      <h4 className="mb-1 font-semibold text-foreground">
         Obratová předvaha{" "}
-        <span className="font-normal text-neutral-500">
+        <span className="font-normal text-muted-foreground">
           ({predvaha.ucty.length} účtů, hodnoty v Kč)
         </span>
       </h4>
-      <p className="mb-1 text-[11px] text-neutral-500">
+      <p className="mb-1 text-[11px] text-muted-foreground">
         Klikněte na účet, Σ MD nebo Σ Dal pro filtrování deníku níže. Kliknutím
         na aktivní výběr filtr zrušíte.
       </p>
-      <div className="max-h-96 overflow-auto rounded border border-neutral-200">
+      <div className="max-h-96 overflow-auto rounded border border-border">
         <table className="w-full border-collapse text-[11px] tabular-nums">
-          <thead className="sticky top-0 z-10 bg-neutral-100 text-neutral-700">
+          <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr>
               <th className="px-2 py-1 text-left font-semibold">Účet</th>
               <th className="px-2 py-1 text-left font-semibold">Název</th>
@@ -199,7 +203,7 @@ function PredvahaFilterTable({
               const mdActive = isActive(u.ucet, "md")
               const dalActive = isActive(u.ucet, "dal")
               return (
-                <tr key={u.ucet} className="border-t border-neutral-100">
+                <tr key={u.ucet} className="border-t border-border">
                   <td
                     className={`p-0 font-mono ${bothActive ? "bg-blue-100" : ""}`}
                   >
@@ -213,7 +217,7 @@ function PredvahaFilterTable({
                       {u.ucet}
                     </button>
                   </td>
-                  <td className="px-2 py-0.5 text-left text-neutral-600">
+                  <td className="px-2 py-0.5 text-left text-muted-foreground">
                     {resolveName(u)}
                   </td>
                   <td className={`p-0 ${mdActive ? "bg-blue-100" : ""}`}>
@@ -245,7 +249,7 @@ function PredvahaFilterTable({
               )
             })}
           </tbody>
-          <tfoot className="sticky bottom-0 bg-neutral-100 font-semibold">
+          <tfoot className="sticky bottom-0 bg-muted font-semibold">
             <tr>
               <td className="px-2 py-1">Součet</td>
               <td className="px-2 py-1" />

@@ -11,13 +11,13 @@ export default function DppoPage() {
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
       <div>
-        <Link href="/vykazy" className="text-sm text-blue-600 hover:underline">
+        <Link href="/vykazy" className="text-sm text-primary hover:underline">
           ← Účetní výkazy
         </Link>
-        <h1 className="mt-2 text-xl font-bold text-black">
+        <h1 className="mt-2 text-xl font-bold text-foreground">
           Přiznání k dani z příjmů právnických osob (DPPO)
         </h1>
-        <p className="text-sm text-neutral-600">
+        <p className="text-sm text-muted-foreground">
           Vytvoří XML pro elektronické podání (EPO) z účetního výsledku a
           daňových úprav. Pouze pro právnickou osobu.
         </p>

@@ -56,7 +56,7 @@ export function DenikPrint({ rows }: { rows: DenikRow[] }) {
   const total = rows.reduce((sum, row) => sum + row.castka, 0)
 
   const bodyRows = rows.map((row, index) => (
-    <tr key={index}>
+    <tr key={`row-${index}`}>
       <td className={`${cellBase} whitespace-nowrap`}>{row.datum}</td>
       <td className={`${cellBase} whitespace-nowrap`}>{row.cislo}</td>
       <td className={`${cellBase} break-words`}>{row.text}</td>
@@ -68,8 +68,10 @@ export function DenikPrint({ rows }: { rows: DenikRow[] }) {
     </tr>
   ))
 
+  // Keyed like the body rows: `allRows` is rendered as an array, both directly
+  // into the measuring replica and sliced per page, so every element needs one.
   const totalRow = (
-    <tr className="bg-neutral-100 font-bold">
+    <tr key="total" className="bg-neutral-100 font-bold">
       <td className={`${cellBase} text-left`} colSpan={5}>
         Celkem {rows.length} účetních zápisů
       </td>

@@ -10,6 +10,7 @@ import { useState } from "react"
 
 import Link from "next/link"
 
+import { DenikPrint } from "../_components/denik-print"
 import { DenikTable, type IndexedDenikRow } from "../_components/denik-table"
 import {
   PredvahaSummary,
@@ -124,6 +125,10 @@ export default function DenikPage() {
           </div>
 
           <DenikTable rows={visibleRows} onAddRow={handleAddRow} />
+
+          {/* Tisk / PDF prints the whole book, never the current filter: the
+              deník is an účetní kniha, and a filtered extract is not one. */}
+          <DenikPrint rows={denik} />
 
           <p className="no-print text-[11px] text-muted-foreground">
             Úpravy deníku se ihned promítnou do výkazů (Rozvaha i Výkaz zisku a

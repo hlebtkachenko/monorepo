@@ -10,6 +10,7 @@ import { StatementHeader } from "../_components/statement-header"
 import { Toolbar } from "../_components/toolbar"
 import { VykazTable } from "../_components/vykaz-table"
 import { useOrg } from "../_lib/org-context"
+import { STATEMENT_HEADER_MM } from "../_lib/print-pagination"
 import { VZZ } from "../_data/vzz"
 import type { ColKey } from "../_lib/types"
 
@@ -38,6 +39,7 @@ export default function VzzPage() {
             colValues={values.vzz}
             rozsah={rozsah}
             hideEmpty={hideEmpty}
+            firstPageMm={STATEMENT_HEADER_MM}
             onCellChange={onCellChange}
           />
         </section>

@@ -14,6 +14,7 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import { formatKc, formatTisice } from "../_lib/format"
+import { chunkRows, usePrintMetrics } from "../_lib/print-pagination"
 import type {
   PredvahaLine,
   PredvahaStatement as PredvahaStatementModel,
@@ -108,13 +109,23 @@ export function PredvahaStatement({
   statement,
   control,
   vTisicich,
+  firstPageMm = 0,
 }: {
   statement: PredvahaStatementModel
   /** Exact-Kč grand totals — the MD = Dal control checks never use the display unit. */
   control: PredvahaStatementModel["total"]
   /** Render whole tisíce (matching the rozvaha / VZZ unit toggle) or exact Kč. */
   vTisicich: boolean
+  /** Millimetres of the first printed page taken by the title block above. */
+  firstPageMm?: number
 }) {
+  // Print pagination is measured, not guessed — see ../_lib/print-pagination.ts.
+  // Called before the empty-statement branch: hooks may not sit behind a return.
+  const signature = `predvaha|${vTisicich}|${statement.lines
+    .map((l) => (l.kind === "ucet" ? l.ucet : l.label))
+    .join(",")}`
+  const { measureRef, heights, headHeight } = usePrintMetrics(signature)
+
   if (statement.empty) {
     return (
       <p className="no-print rounded-lg border border-dashed border-neutral-300 bg-neutral-50 p-6 text-center text-sm text-neutral-600">
@@ -125,6 +136,88 @@ export function PredvahaStatement({
   }
 
   const total = control
+
+  const colgroup = (
+    <colgroup>
+      <col style={{ width: "8%" }} />
+      <col style={{ width: "25.9%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "9.35%" }} />
+      <col style={{ width: "10%" }} />
+    </colgroup>
+  )
+
+  const thead = (
+    <thead>
+      <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
+        <th
+          rowSpan={2}
+          className="border border-neutral-500 px-1 py-1 text-left"
+        >
+          Účet
+        </th>
+        <th
+          rowSpan={2}
+          className="border border-neutral-500 px-1 py-1 text-left"
+        >
+          Název
+        </th>
+        <th colSpan={2} className="border border-neutral-500 px-1 py-1">
+          Počáteční stav
+        </th>
+        <th colSpan={2} className="border border-neutral-500 px-1 py-1">
+          Obrat
+        </th>
+        <th colSpan={2} className="border border-neutral-500 px-1 py-1">
+          Konečný stav
+        </th>
+        <th
+          rowSpan={2}
+          className="border border-neutral-500 px-1 py-1"
+          title="Konečný zůstatek účtu = KS Má dáti − KS Dal (kladně = zůstatek na straně MD)"
+        >
+          Zůstatek
+        </th>
+      </tr>
+      <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
+        <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
+        <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
+        <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
+        <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
+        <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
+        <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
+      </tr>
+    </thead>
+  )
+
+  const rows = statement.lines.map((line, i) =>
+    line.kind === "ucet" ? (
+      <tr key={`${line.ucet}-${i}`}>
+        <td className={cn(cellBase, "text-left font-mono whitespace-nowrap")}>
+          {line.ucet}
+        </td>
+        <td className={cn(cellBase, "text-left break-words")}>{line.nazev}</td>
+        <NumberCells totals={line.totals} vTisicich={vTisicich} />
+      </tr>
+    ) : (
+      <tr key={`${line.kind}-${i}`} className={lineRowClass(line.kind)}>
+        <td colSpan={2} className={cn(cellBase, "text-left whitespace-nowrap")}>
+          <span className="mr-1 text-neutral-500">{MARKER[line.kind]}</span>
+          {line.label}
+        </td>
+        <NumberCells totals={line.totals} vTisicich={vTisicich} bold />
+      </tr>
+    ),
+  )
+
+  const pages =
+    heights.length === rows.length && headHeight > 0
+      ? chunkRows(heights, headHeight, firstPageMm)
+      : [rows.map((_, index) => index)]
 
   return (
     <div className="space-y-3">
@@ -144,95 +237,33 @@ export function PredvahaStatement({
         </span>
       </div>
 
-      <table className="vykaz-table predvaha-table w-full table-fixed border-collapse text-black">
-        <colgroup>
-          <col style={{ width: "8%" }} />
-          <col style={{ width: "25.9%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "9.35%" }} />
-          <col style={{ width: "10%" }} />
-        </colgroup>
-        <thead>
-          <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
-            <th
-              rowSpan={2}
-              className="border border-neutral-500 px-1 py-1 text-left"
-            >
-              Účet
-            </th>
-            <th
-              rowSpan={2}
-              className="border border-neutral-500 px-1 py-1 text-left"
-            >
-              Název
-            </th>
-            <th colSpan={2} className="border border-neutral-500 px-1 py-1">
-              Počáteční stav
-            </th>
-            <th colSpan={2} className="border border-neutral-500 px-1 py-1">
-              Obrat
-            </th>
-            <th colSpan={2} className="border border-neutral-500 px-1 py-1">
-              Konečný stav
-            </th>
-            <th
-              rowSpan={2}
-              className="border border-neutral-500 px-1 py-1"
-              title="Konečný zůstatek účtu = KS Má dáti − KS Dal (kladně = zůstatek na straně MD)"
-            >
-              Zůstatek
-            </th>
-          </tr>
-          <tr className="bg-neutral-100 text-center text-[10px] font-semibold">
-            <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
-            <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
-            <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
-            <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
-            <th className="border border-neutral-500 px-1 py-0.5">Má dáti</th>
-            <th className="border border-neutral-500 px-1 py-0.5">Dal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {statement.lines.map((line, i) => {
-            if (line.kind === "ucet") {
-              return (
-                <tr key={`${line.ucet}-${i}`}>
-                  <td
-                    className={cn(
-                      cellBase,
-                      "text-left font-mono whitespace-nowrap",
-                    )}
-                  >
-                    {line.ucet}
-                  </td>
-                  <td className={cn(cellBase, "text-left break-words")}>
-                    {line.nazev}
-                  </td>
-                  <NumberCells totals={line.totals} vTisicich={vTisicich} />
-                </tr>
-              )
-            }
-            return (
-              <tr key={`${line.kind}-${i}`} className={lineRowClass(line.kind)}>
-                <td
-                  colSpan={2}
-                  className={cn(cellBase, "text-left whitespace-nowrap")}
-                >
-                  <span className="mr-1 text-neutral-500">
-                    {MARKER[line.kind]}
-                  </span>
-                  {line.label}
-                </td>
-                <NumberCells totals={line.totals} vTisicich={vTisicich} bold />
-              </tr>
-            )
-          })}
-        </tbody>
+      <table className="vykaz-table predvaha-table no-print w-full table-fixed border-collapse text-black">
+        {colgroup}
+        {thead}
+        <tbody>{rows}</tbody>
       </table>
+
+      {/* Hidden replica at print geometry — the only thing measured. */}
+      <div className="print-metrics" aria-hidden>
+        <table
+          ref={measureRef}
+          className="vykaz-table predvaha-table w-full table-fixed border-collapse"
+        >
+          {colgroup}
+          {thead}
+          <tbody>{rows}</tbody>
+        </table>
+      </div>
+
+      {pages.map((pageRows, page) => (
+        <div key={page} className="print-only print-page">
+          <table className="vykaz-table predvaha-table w-full table-fixed border-collapse text-black">
+            {colgroup}
+            {thead}
+            <tbody>{pageRows.map((index) => rows[index])}</tbody>
+          </table>
+        </div>
+      ))}
     </div>
   )
 }

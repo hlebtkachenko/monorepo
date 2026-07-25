@@ -3,13 +3,19 @@
 // Identification block editor — binds every OrgConfig field to the context.
 // Screen-only chrome (marked .no-print by the caller / page).
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { useOrg, type OrgTextKey } from "../_lib/org-context"
 import { lookupAresForVykazy } from "../_lib/ares-action"
+import {
+  loadTemplates,
+  saveTemplates,
+  upsertTemplate,
+  type OrgTemplate,
+} from "../_lib/org-templates"
 
 const INPUT_CLASS =
   "rounded border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
@@ -95,6 +101,82 @@ function IcoField() {
   )
 }
 
+/**
+ * Save / recall the whole identification block by name.
+ *
+ * Hydrated in an effect rather than in the initial state: localStorage does not
+ * exist during the server render, and reading it eagerly would mismatch.
+ */
+function TemplatePicker() {
+  const { org, patchOrg } = useOrg()
+  const [templates, setTemplates] = useState<OrgTemplate[]>([])
+  const [selected, setSelected] = useState("")
+
+  useEffect(() => {
+    /* eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot client-only localStorage hydration on mount; server render intentionally starts with no templates */
+    setTemplates(loadTemplates())
+  }, [])
+
+  const persist = (next: OrgTemplate[]) => {
+    setTemplates(next)
+    saveTemplates(next)
+  }
+
+  const name = org.nazev.trim()
+
+  const apply = (value: string) => {
+    setSelected(value)
+    const template = templates.find((t) => t.name === value)
+    if (template) patchOrg(template.org)
+  }
+
+  return (
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <select
+        value={selected}
+        onChange={(e) => apply(e.target.value)}
+        className={cn(INPUT_CLASS, "min-w-[14rem]")}
+        aria-label="Uložená šablona"
+      >
+        <option value="">— uložená šablona —</option>
+        {templates.map((t) => (
+          <option key={t.name} value={t.name}>
+            {t.name}
+          </option>
+        ))}
+      </select>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={name === ""}
+        onClick={() => {
+          persist(upsertTemplate(templates, { name, org }))
+          setSelected(name)
+        }}
+      >
+        Uložit jako šablonu
+      </Button>
+      {selected ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            persist(templates.filter((t) => t.name !== selected))
+            setSelected("")
+          }}
+        >
+          Smazat
+        </Button>
+      ) : null}
+      <span className="text-xs text-muted-foreground">
+        Uloženo jen v tomto prohlížeči.
+      </span>
+    </div>
+  )
+}
+
 export function OrgForm() {
   const { org, setVTisicich } = useOrg()
 
@@ -103,6 +185,7 @@ export function OrgForm() {
       <h2 className="mb-3 text-sm font-semibold text-foreground">
         Identifikace účetní jednotky
       </h2>
+      <TemplatePicker />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Field
           label="Obchodní firma / název"

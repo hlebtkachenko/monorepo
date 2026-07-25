@@ -237,7 +237,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null
 }
 
-function coerceOrg(input: unknown): OrgConfig {
+export function coerceOrg(input: unknown): OrgConfig {
   const base = emptyOrg()
   if (!isRecord(input)) return base
   return {

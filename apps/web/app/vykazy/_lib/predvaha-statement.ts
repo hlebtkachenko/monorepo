@@ -14,8 +14,8 @@
 // double-entry (Σ obratMD = Σ obratDal), all three pairs balance MD = Dal at the
 // grand total — the předvaha's built-in correctness check.
 
-import { OSNOVA } from "../_data/osnova"
 import type { DenikRow } from "./denik"
+import { buildNameLookup, type RozvrhAccount } from "./rozvrh"
 
 /** The Počáteční účet rozvažný — its postings are opening balances, not turnover. */
 const OPENING_ACCOUNT_PREFIX = "701"
@@ -91,19 +91,6 @@ function grandGroupLabel(trida: string): string {
   return "Závěrkové účty"
 }
 
-/** Account-name lookup from the směrná účtová osnova: exact 6-digit match first,
- *  then the 3-digit synthetic prefix (first OSNOVA hit per synthetic wins). */
-function buildNameLookup(): (ucet: string) => string {
-  const exact = new Map<string, string>()
-  const bySynteticky = new Map<string, string>()
-  for (const acc of OSNOVA) {
-    exact.set(acc.ucet, acc.nazev)
-    const syn = acc.ucet.slice(0, 3)
-    if (!bySynteticky.has(syn)) bySynteticky.set(syn, acc.nazev)
-  }
-  return (ucet) => exact.get(ucet) ?? bySynteticky.get(ucet.slice(0, 3)) ?? ""
-}
-
 /**
  * Convert the per-account Kč amounts to celé tisíce so the printed table foots.
  *
@@ -149,7 +136,7 @@ function toTisiceAccums(perAccount: Map<string, Accum>): Map<string, Accum> {
 
 export function buildPredvahaStatement(
   rows: DenikRow[],
-  opts: { vTisicich?: boolean } = {},
+  opts: { vTisicich?: boolean; rozvrh?: readonly RozvrhAccount[] } = {},
 ): PredvahaStatement {
   const perAccount = new Map<string, Accum>()
 
@@ -186,7 +173,7 @@ export function buildPredvahaStatement(
     }
   }
 
-  const resolveName = buildNameLookup()
+  const resolveName = buildNameLookup(opts.rozvrh)
   const amounts = opts.vTisicich ? toTisiceAccums(perAccount) : perAccount
 
   const sorted = [...amounts.entries()].sort((a, b) =>

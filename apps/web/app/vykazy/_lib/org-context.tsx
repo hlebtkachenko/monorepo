@@ -28,6 +28,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -43,6 +44,7 @@ import type {
 import type { DenikParseResult, DenikRow } from "./denik"
 import { buildPredvaha, type Predvaha } from "./predvaha"
 import { mapPredvahaToValues } from "./mapping"
+import { buildNameLookup, type RozvrhAccount } from "./rozvrh"
 import { CR_COUNTERPART } from "../_data/rozvaha"
 import {
   DOC_VERSION,
@@ -83,6 +85,8 @@ const ACCOUNTING_KEYS = new Set<string>(["md", "dal", "castka", "zdroj"])
 
 /** A stable, empty předvaha for the "no deník loaded" state. */
 const EMPTY_PREDVAHA: Predvaha = buildPredvaha([])
+/** Stable identity so `resolveUcetName` is not rebuilt on every render. */
+const EMPTY_ROZVRH: RozvrhAccount[] = []
 
 interface OrgContextValue {
   doc: VykazyDoc
@@ -101,6 +105,10 @@ interface OrgContextValue {
   denikLoaded: boolean
   /** Diagnostics from the last XLSX import, or null. */
   denikMeta: DenikMeta | null
+  /** The loaded účtový rozvrh, or `[]` when none. */
+  rozvrh: RozvrhAccount[]
+  /** Account name from the rozvrh, falling back to the směrná osnova. */
+  resolveUcetName: (ucet: string) => string
   setOrgText: (key: OrgTextKey, value: string) => void
   /** Merge a partial OrgConfig in one shot (e.g. from an ARES lookup). */
   patchOrg: (partial: Partial<OrgConfig>) => void
@@ -128,6 +136,10 @@ interface OrgContextValue {
   deleteDenikRow: (index: number) => void
   /** Fill ONLY the `minule` column of both statements from a prior-year file. */
   importMinule: (m: MinuleJson) => void
+  /** Load a parsed účtový rozvrh: replaces the chart and re-maps the výkazy
+   * (an account's opravkovy flag can move it to the korekce column). */
+  importRozvrh: (accounts: RozvrhAccount[]) => void
+  clearRozvrh: () => void
   clearDenik: () => void
   /** Assemble the COMPLETE document (org + values + rozsah + deník rows +
    * overrides) for JSON export — the whole workspace in one file. */
@@ -339,6 +351,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const overridesRef = useRef<OverrideSets>(emptyOverrides())
   const denikLoadedRef = useRef(false)
   const crVariantRef = useRef<CasoveRozliseni>("D")
+  const rozvrhRef = useRef<RozvrhAccount[]>([])
 
   const writeRows = useCallback((rows: DenikRow[]) => {
     denikRowsRef.current = rows
@@ -363,7 +376,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const recomputeFromDenik = useCallback(
     (rows: DenikRow[], crVariant: CasoveRozliseni) => {
       const pv = buildPredvaha(rows)
-      const mapped = mapPredvahaToValues(pv.ucty, crVariant)
+      const mapped = mapPredvahaToValues(pv.ucty, crVariant, rozvrhRef.current)
       const ov = overridesRef.current
       setDoc((prev) => ({
         ...prev,
@@ -405,6 +418,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (stored) {
       setDoc(stored)
       crVariantRef.current = stored.crVariant
+      rozvrhRef.current = stored.rozvrh ?? []
     }
     const storedDenik = loadDenikLocal()
     if (storedDenik) {
@@ -412,7 +426,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       writeRows(storedDenik.rows)
       setPredvaha(pv)
       setDenikUnmapped(
-        mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+        mapPredvahaToValues(pv.ucty, crVariantRef.current, rozvrhRef.current)
+          .unmapped,
       )
       writeOverrides(storedDenik.overrides)
       writeDenikLoaded(storedDenik.loaded)
@@ -640,6 +655,26 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  // The rozvrh only renames accounts and can flip an opravkovy flag, so a loaded
+  // deník is re-mapped but never re-parsed, and the overrides survive.
+  const importRozvrh = useCallback(
+    (accounts: RozvrhAccount[]) => {
+      rozvrhRef.current = accounts
+      setDoc((prev) => {
+        const next = { ...prev }
+        if (accounts.length > 0) next.rozvrh = accounts
+        else delete next.rozvrh
+        return next
+      })
+      if (denikLoadedRef.current) {
+        recomputeFromDenik(denikRowsRef.current, crVariantRef.current)
+      }
+    },
+    [recomputeFromDenik],
+  )
+
+  const clearRozvrh = useCallback(() => importRozvrh([]), [importRozvrh])
+
   const clearDenik = useCallback(() => {
     // Clear ONLY the deník-derived columns through the same merge path a recompute
     // uses (empty derived mapping), so the independently-imported `minule` column
@@ -683,6 +718,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       rozsah: doc.rozsah,
       crVariant: doc.crVariant,
     }
+    if (doc.rozvrh && doc.rozvrh.length > 0) full.rozvrh = doc.rozvrh
     if (denikLoaded && denikRows.length > 0) {
       full.denik = denikRows
       full.overrides = {
@@ -702,14 +738,17 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   // clear all deník state.
   const loadDoc = useCallback(
     (next: VykazyDoc) => {
-      setDoc({
+      const restored: VykazyDoc = {
         version: next.version,
         org: next.org,
         values: next.values,
         rozsah: next.rozsah,
         crVariant: next.crVariant,
-      })
+      }
+      if (next.rozvrh && next.rozvrh.length > 0) restored.rozvrh = next.rozvrh
+      setDoc(restored)
       crVariantRef.current = next.crVariant
+      rozvrhRef.current = restored.rozvrh ?? []
       const rows = next.denik ?? []
       setDenikMeta(null)
       if (rows.length > 0) {
@@ -717,7 +756,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         writeRows(rows)
         setPredvaha(pv)
         setDenikUnmapped(
-          mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+          mapPredvahaToValues(pv.ucty, crVariantRef.current, rozvrhRef.current)
+            .unmapped,
         )
         writeOverrides({
           "rozvaha-aktiva": new Set(next.overrides?.rozvahaAktiva ?? []),
@@ -739,6 +779,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     setDoc(emptyDoc())
     crVariantRef.current = "D"
+    rozvrhRef.current = []
     writeRows([])
     writeOverrides(emptyOverrides())
     writeDenikLoaded(false)
@@ -746,6 +787,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     setDenikUnmapped([])
     setDenikMeta(null)
   }, [writeRows, writeOverrides, writeDenikLoaded])
+
+  const rozvrh = doc.rozvrh ?? EMPTY_ROZVRH
+  const resolveUcetName = useMemo(() => buildNameLookup(rozvrh), [rozvrh])
 
   const value: OrgContextValue = {
     doc,
@@ -759,6 +803,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     denikUnmapped,
     denikLoaded,
     denikMeta,
+    rozvrh,
+    resolveUcetName,
     setOrgText,
     patchOrg,
     setVTisicich,
@@ -773,6 +819,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     addDenikRow,
     deleteDenikRow,
     importMinule,
+    importRozvrh,
+    clearRozvrh,
     clearDenik,
     toDoc,
     loadDoc,

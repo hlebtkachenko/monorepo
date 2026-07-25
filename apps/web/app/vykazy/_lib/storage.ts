@@ -10,6 +10,7 @@ import type {
   VykazValues,
 } from "./types"
 import type { DenikRow } from "./denik"
+import type { RozvrhAccount } from "./rozvrh"
 
 /**
  * 3 — rozvaha renumbered onto the current příloha č. 1 (A.IV. merged into two
@@ -54,6 +55,10 @@ export interface VykazyDoc {
   /** Raw parsed deník rows (absent when no deník is loaded). Předvaha is rebuilt
    * from these on import; the mapped výkaz numbers already live in `values`. */
   denik?: DenikRow[]
+  /** The účetní jednotka's own účtový rozvrh (absent = names come from the
+   * směrná osnova alone). Supplies the analytical account names the reference
+   * osnova cannot know. */
+  rozvrh?: RozvrhAccount[]
   /** Per-statement `${rada}:${col}` keys the user overrode back to editable
    * (a sourced/deník-derived leaf flipped to a normal input). Absent = none. */
   overrides?: {
@@ -314,6 +319,26 @@ function coerceDenik(input: unknown): DenikRow[] | undefined {
   return rows.length > 0 ? rows : undefined
 }
 
+/** Coerce the `rozvrh` field; undefined when absent or empty after filtering. */
+function coerceRozvrh(input: unknown): RozvrhAccount[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  const out: RozvrhAccount[] = []
+  for (const raw of input) {
+    if (!isRecord(raw)) continue
+    const ucet = asString(raw.ucet)
+    const nazev = asString(raw.nazev)
+    if (ucet === "" || nazev === "") continue
+    const account: RozvrhAccount = { ucet, nazev }
+    for (const key of ["nameEn", "druh", "typ"] as const) {
+      const v = raw[key]
+      if (typeof v === "string" && v !== "") account[key] = v
+    }
+    if (typeof raw.opravkovy === "boolean") account.opravkovy = raw.opravkovy
+    out.push(account)
+  }
+  return out.length > 0 ? out : undefined
+}
+
 function coerceStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return []
   return input.filter((x): x is string => typeof x === "string")
@@ -369,6 +394,8 @@ function normalizeDoc(input: unknown): VykazyDoc {
   }
   const denik = coerceDenik(input.denik)
   if (denik) doc.denik = denik
+  const rozvrh = coerceRozvrh(input.rozvrh)
+  if (rozvrh) doc.rozvrh = rozvrh
   const overrides = coerceOverrides(input.overrides)
   if (overrides) doc.overrides = overrides
   return migrateRozvahaRadky(doc)

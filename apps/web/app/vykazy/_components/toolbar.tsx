@@ -11,6 +11,7 @@ import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
 
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
+import { parseRozvrhCsv, rozvrhCsvTemplate } from "../_lib/rozvrh"
 import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
 import { ROZSAH_SHORT } from "../_lib/rozsah"
 
@@ -27,12 +28,16 @@ export function Toolbar() {
     reset,
     importDenik,
     importMinule,
+    importRozvrh,
+    clearRozvrh,
     clearDenik,
     denikLoaded,
+    rozvrh,
   } = useOrg()
   const fileInput = useRef<HTMLInputElement>(null)
   const denikInput = useRef<HTMLInputElement>(null)
   const minuleInput = useRef<HTMLInputElement>(null)
+  const rozvrhInput = useRef<HTMLInputElement>(null)
   const [minuleError, setMinuleError] = useState<string | null>(null)
 
   const handleImport = async (file: File | undefined) => {
@@ -47,18 +52,20 @@ export function Toolbar() {
     }
   }
 
-  const downloadDenikTemplate = () => {
-    const blob = new Blob([denikCsvTemplate()], {
-      type: "text/csv;charset=utf-8",
-    })
+  const downloadCsv = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = "ucetni-dennik-sablona.csv"
+    anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
+  }
+
+  const downloadDenikTemplate = () => {
+    downloadCsv(denikCsvTemplate(), "ucetni-dennik-sablona.csv")
   }
 
   const handleDenikImport = async (file: File | undefined) => {
@@ -80,6 +87,26 @@ export function Toolbar() {
         "Deník se nepodařilo načíst — očekává se účetní deník exportovaný z POHODY do XLSX.",
       )
     }
+  }
+
+  const downloadRozvrhTemplate = () => {
+    downloadCsv(rozvrhCsvTemplate(), "uctovy-rozvrh-sablona.csv")
+  }
+
+  const handleRozvrhImport = async (file: File | undefined) => {
+    if (!file) return
+    const result = parseRozvrhCsv(await file.text())
+    if (!result.headerOk) {
+      window.alert(
+        `Účtový rozvrh se nepodařilo načíst — chybí povinné sloupce: ${result.missingHeaders.join(", ")}.`,
+      )
+      return
+    }
+    if (result.accounts.length === 0) {
+      window.alert("Účtový rozvrh neobsahuje žádný účet.")
+      return
+    }
+    importRozvrh(result.accounts)
   }
 
   const handleMinuleImport = async (file: File | undefined) => {
@@ -200,6 +227,53 @@ export function Toolbar() {
       />
       {minuleError ? (
         <span className="text-xs text-destructive">{minuleError}</span>
+      ) : null}
+
+      <span className="mx-1 h-5 w-px bg-muted" />
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => rozvrhInput.current?.click()}
+      >
+        Import rozvrh (CSV)
+      </Button>
+      <input
+        ref={rozvrhInput}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          void handleRozvrhImport(e.target.files?.[0])
+          e.target.value = ""
+        }}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={downloadRozvrhTemplate}
+      >
+        Šablona rozvrhu (CSV)
+      </Button>
+      {rozvrh.length > 0 ? (
+        <>
+          <span className="text-xs text-muted-foreground">
+            Rozvrh: {rozvrh.length} účtů
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("Opravdu vymazat načtený účtový rozvrh?"))
+                clearRozvrh()
+            }}
+          >
+            Vymazat rozvrh
+          </Button>
+        </>
       ) : null}
 
       <span className="mx-1 h-5 w-px bg-muted" />

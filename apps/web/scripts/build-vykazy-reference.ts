@@ -82,7 +82,14 @@ function buildIndex(): Map<string, { syn: string; nazev: string }[]> {
   return index
 }
 
-const esc = (s: string) => s.replace(/\|/g, "\\|")
+/**
+ * Make a statutory text safe inside a markdown table cell. Backslashes go
+ * FIRST: escaping only the pipe turns an input "a\" + "|" into "a\\|", which
+ * renders as a literal backslash followed by an unescaped pipe and splits the
+ * row. A newline would end the row outright, so it collapses to a space.
+ */
+const esc = (s: string) =>
+  s.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\r?\n/g, " ")
 
 function accountsFor(
   index: Map<string, { syn: string; nazev: string }[]>,

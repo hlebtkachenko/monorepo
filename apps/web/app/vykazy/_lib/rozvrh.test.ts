@@ -9,6 +9,7 @@ import {
   buildNameLookup,
   buildOpravkovyLookup,
   parseRozvrhCsv,
+  rozvrhCsv,
   rozvrhCsvTemplate,
 } from "./rozvrh"
 
@@ -110,6 +111,27 @@ describe("parseRozvrhCsv", () => {
     expect(result.accounts[2]?.opravkovy).toBe(true)
     expect(result.skipped).toEqual([])
     expect(result.ignoredColumns).toEqual([])
+  })
+})
+
+describe("rozvrhCsv", () => {
+  it("round-trips a chart edited in the app", () => {
+    // What the page exports must import again unchanged, so a name fixed on
+    // screen can be carried back into the sheet the chart came from.
+    const accounts = [
+      { ucet: "475017", nazev: "Byt 17, Roman", opravkovy: false },
+      { ucet: "221003", nazev: 'Banka "EUR"; devizová', opravkovy: false },
+      { ucet: "390001", nazev: "Opravná položka", opravkovy: true },
+    ]
+    const result = parseRozvrhCsv(rozvrhCsv(accounts))
+    expect(result.headerOk).toBe(true)
+    expect(result.skipped).toEqual([])
+    // Sorted by account number, so the file is stable across exports.
+    expect(result.accounts).toEqual([
+      { ucet: "221003", nazev: 'Banka "EUR"; devizová', opravkovy: false },
+      { ucet: "390001", nazev: "Opravná položka", opravkovy: true },
+      { ucet: "475017", nazev: "Byt 17, Roman", opravkovy: false },
+    ])
   })
 })
 

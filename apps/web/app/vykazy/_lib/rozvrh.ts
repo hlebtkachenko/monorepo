@@ -81,6 +81,22 @@ export function rozvrhCsvTemplate(): string {
   return `\uFEFF${lines.join("\r\n")}\r\n`
 }
 
+/** The loaded chart as CSV, in the template's own columns, so an edit made here
+ *  can be carried back into the účtový rozvrh sheet it came from. */
+export function rozvrhCsv(accounts: readonly RozvrhAccount[]): string {
+  const lines = [
+    TEMPLATE_HEADERS.join(";"),
+    ...[...accounts]
+      .sort((a, b) => a.ucet.localeCompare(b.ucet, "cs"))
+      .map((a) =>
+        [a.ucet, a.nazev, a.opravkovy ? "Ano" : "Ne"]
+          .map((f) => csvField(f))
+          .join(";"),
+      ),
+  ]
+  return `﻿${lines.join("\r\n")}\r\n`
+}
+
 export function parseRozvrhCsv(text: string): RozvrhParseResult {
   const ignoredColumns: string[] = []
   const duplicates: string[] = []

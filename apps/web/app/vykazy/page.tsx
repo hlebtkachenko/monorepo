@@ -33,6 +33,18 @@ export default function VykazyPage() {
           </span>
         </Link>
         <Link
+          href="/vykazy/rozvrh"
+          className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-accent sm:col-span-2"
+        >
+          <span className="block text-base font-semibold text-foreground">
+            Účtový rozvrh
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            Účty účetní jednotky — názvy analytických účtů pro výkazy, import a
+            export CSV
+          </span>
+        </Link>
+        <Link
           href="/vykazy/rozvaha"
           className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-accent"
         >

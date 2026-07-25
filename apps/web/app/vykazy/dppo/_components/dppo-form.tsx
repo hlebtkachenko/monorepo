@@ -11,27 +11,47 @@ import { useMemo, useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 
+import { DPPO_TABULKA_B_RADKY } from "@workspace/filing/dppo"
+
 import { useOrg } from "../../_lib/org-context"
 import { FINANCNI_URADY } from "../../_data/ufo"
 import { buildDppoXml, type DppoActionResult } from "../_lib/dppo-action"
 import {
   deriveUcetniVysledek,
+  deriveCistyObrat,
   defaultSazba,
   filingYear,
   applyFieldChange,
+  emptyTabulkaB,
+  tabulkaASoucet,
+  tabulkaBSoucet,
   toFigures,
   toMeta,
+  toPriloha,
   missingRequired,
   type DppoFormState,
+  type TabulkaARadek,
+  type TabulkaBKey,
 } from "../_lib/dppo-bridge"
 
 const INPUT_CLASS =
   "rounded border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
 
-function initForm(ico: string, rok: string, ucetni: string): DppoFormState {
+function initForm(
+  ico: string,
+  rok: string,
+  ucetni: string,
+  obrat: string,
+): DppoFormState {
   const zdobdOd = rok ? `1.1.${rok}` : ""
   const zdobdDo = rok ? `31.12.${rok}` : ""
   return {
+    katUj: "M",
+    ucZav: true,
+    tabulkaA: [{ uctovaSkupina: "", castka: "" }],
+    tabulkaB: emptyTabulkaB(),
+    cistyObrat: obrat,
+    pocetZamestnancu: "0",
     dic: ico ? `CZ${ico}` : "",
     cUfoCil: "",
     cNace: "",
@@ -102,10 +122,11 @@ function TextField({
 export function DppoForm() {
   const { org, predvaha } = useOrg()
   const derived = useMemo(() => deriveUcetniVysledek(predvaha), [predvaha])
+  const obrat = useMemo(() => deriveCistyObrat(predvaha), [predvaha])
   const hasDenik = predvaha.ucty.length > 0
 
   const [form, setForm] = useState<DppoFormState>(() =>
-    initForm(org.ico, org.rok, derived),
+    initForm(org.ico, org.rok, derived, obrat),
   )
   const [result, setResult] = useState<DppoActionResult | null>(null)
   const [busy, setBusy] = useState(false)
@@ -114,6 +135,20 @@ export function DppoForm() {
     setForm((f) => applyFieldChange(f, key, value))
     setResult(null)
   }
+  const patch = (next: Partial<DppoFormState>) => {
+    setForm((f) => ({ ...f, ...next }))
+    setResult(null)
+  }
+  const setTabulkaB = (key: TabulkaBKey, value: string) =>
+    patch({ tabulkaB: { ...form.tabulkaB, [key]: value } })
+  const setRadek = (index: number, next: Partial<TabulkaARadek>) =>
+    patch({
+      tabulkaA: form.tabulkaA.map((r, i) => (i === index ? { ...r, ...next } : r)), // prettier-ignore
+    })
+
+  const souctA = tabulkaASoucet(form.tabulkaA)
+  const r40 = Number(form.nedanoveNaklady.replace(/\s/g, "").replace(",", ".")) || 0 // prettier-ignore
+  const tabulkaAFoots = Math.round(souctA) === Math.round(r40)
 
   const missing = missingRequired(form)
   const canGenerate = missing.length === 0 && !busy
@@ -124,7 +159,11 @@ export function DppoForm() {
   const generate = async () => {
     setBusy(true)
     setResult(null)
-    const res = await buildDppoXml(toFigures(form), toMeta(form, org))
+    const res = await buildDppoXml(
+      toFigures(form),
+      toMeta(form, org),
+      toPriloha(form),
+    )
     setResult(res)
     setBusy(false)
   }
@@ -207,6 +246,43 @@ export function DppoForm() {
             numeric
             hint="Číselný kód převažující činnosti."
           />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Kategorie účetní jednotky (pol. 07)
+            </span>
+            <select
+              value={form.katUj}
+              onChange={(e) => patch({ katUj: e.target.value })}
+              className={INPUT_CLASS}
+            >
+              <option value="M">M — mikro účetní jednotka</option>
+              <option value="L">L — malá účetní jednotka</option>
+              <option value="S">S — střední účetní jednotka</option>
+              <option value="V">V — velká účetní jednotka</option>
+            </select>
+            <span className="text-xs text-muted-foreground">
+              Zařazení podle § 1b zákona o účetnictví.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Účetní závěrka přiložena (pol. 11)
+            </span>
+            <span className="flex items-center gap-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={form.ucZav}
+                onChange={(e) => patch({ ucZav: e.target.checked })}
+                className="size-4"
+              />
+              <span className="text-sm text-foreground">
+                Ano — přiložím E-přílohy
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Rozvahu, VZZ a Přílohu vložte v EPO jako E-přílohy (§ 18 ZoÚ).
+            </span>
+          </label>
         </div>
       </section>
 
@@ -217,7 +293,7 @@ export function DppoForm() {
         <p className="mb-3 text-xs text-muted-foreground">
           Zjednodušený souhrn: ostatní úpravy se knihují na obecné řádky (ř.40 /
           ř.110). Daň i základ vyjdou správně, ale přiznání není řádek po řádku
-          úplné — Přílohu č. 1 (Tabulky A/E/G/H k ř. 40/230/300) a případnou
+          úplné — tabulky E/G/H Přílohy č. 1 (k ř. 230/260/300) a případnou
           přílohu k ř.62 dokončete v EPO.
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -293,6 +369,173 @@ export function DppoForm() {
               numeric
             />
           ) : null}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-muted/40 p-4">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">
+          Příloha č. 1 II. oddílu a tabulka K
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Vyplňují se jen tabulky, pro něž má poplatník věcnou náplň. Tabulku K
+          ale vyplňují všichni poplatníci.
+        </p>
+
+        <h3 className="mb-1 text-xs font-semibold text-foreground">
+          A. Rozdělení nákladů z ř.40 podle účtových skupin
+        </h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Součet na ř.13 musí být shodný s ř.40.
+        </p>
+        <div className="space-y-2">
+          {form.tabulkaA.map((radek, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <span className="w-6 text-right text-xs text-muted-foreground">
+                {index + 1}
+              </span>
+              <input
+                type="text"
+                value={radek.uctovaSkupina}
+                placeholder="54 - Jiné provozní náklady"
+                onChange={(e) => setRadek(index, { uctovaSkupina: e.target.value })} // prettier-ignore
+                className={cn(INPUT_CLASS, "min-w-0 flex-1")}
+                maxLength={60}
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={radek.castka}
+                onChange={(e) => setRadek(index, { castka: e.target.value })}
+                className={cn(INPUT_CLASS, "w-36 text-right tabular-nums")}
+              />
+              <button
+                type="button"
+                aria-label={`Odebrat řádek ${index + 1}`}
+                onClick={() =>
+                  patch({
+                    tabulkaA: form.tabulkaA.filter((_, i) => i !== index),
+                  })
+                }
+                className="px-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-4">
+          {form.tabulkaA.length < 12 ? (
+            <button
+              type="button"
+              onClick={() =>
+                patch({
+                  tabulkaA: [
+                    ...form.tabulkaA,
+                    { uctovaSkupina: "", castka: "" },
+                  ],
+                })
+              }
+              className="text-xs text-primary hover:underline"
+            >
+              + Přidat řádek
+            </button>
+          ) : null}
+          <span
+            className={cn(
+              "text-xs font-semibold",
+              tabulkaAFoots ? "text-green-700" : "text-red-600",
+            )}
+          >
+            {tabulkaAFoots ? "✓" : "✗"} ř.13 Celkem{" "}
+            {souctA.toLocaleString("cs-CZ")} / ř.40{" "}
+            {r40.toLocaleString("cs-CZ")}
+          </span>
+        </div>
+
+        <h3 className="mt-5 mb-1 text-xs font-semibold text-foreground">
+          B. Odpisy hmotného a nehmotného majetku
+        </h3>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Část a) daňové odpisy (ř.2 je na tiskopise neobsazený, proto je
+          odpisová skupina 2 na ř.3). Část b) ř.12 účetní odpisy podle § 24
+          odst. 2 písm. v).
+        </p>
+        <div className="space-y-1.5">
+          {DPPO_TABULKA_B_RADKY.map(({ radek, label }) => (
+            <label key={radek} className="flex items-center gap-2">
+              <span className="w-6 text-right text-xs text-muted-foreground">
+                {radek.slice(1)}
+              </span>
+              <span className="min-w-0 flex-1 text-xs text-foreground">
+                {label}
+              </span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={form.tabulkaB[radek]}
+                onChange={(e) => setTabulkaB(radek, e.target.value)}
+                className={cn(INPUT_CLASS, "w-36 text-right tabular-nums")}
+              />
+            </label>
+          ))}
+          <div className="flex items-center gap-2 border-t border-border pt-1.5">
+            <span className="w-6 text-right text-xs font-semibold text-muted-foreground">
+              11
+            </span>
+            <span className="min-w-0 flex-1 text-xs font-semibold text-foreground">
+              Daňové odpisy hmotného a nehmotného majetku celkem
+            </span>
+            <span className="w-36 pr-2 text-right text-xs font-semibold tabular-nums">
+              {tabulkaBSoucet(form.tabulkaB).toLocaleString("cs-CZ")}
+            </span>
+          </div>
+          <label className="flex items-center gap-2">
+            <span className="w-6 text-right text-xs text-muted-foreground">
+              12
+            </span>
+            <span className="min-w-0 flex-1 text-xs text-foreground">
+              Účetní odpisy majetku, který se podle zákona neodpisuje (§ 24
+              odst. 2 písm. v)
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.tabulkaB.r12}
+              onChange={(e) => setTabulkaB("r12", e.target.value)}
+              className={cn(INPUT_CLASS, "w-36 text-right tabular-nums")}
+            />
+          </label>
+        </div>
+
+        <h3 className="mt-5 mb-2 text-xs font-semibold text-foreground">
+          K. Vybrané ukazatele hospodaření
+        </h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <TextField
+              label="ř.1 Roční úhrn čistého obratu"
+              value={form.cistyObrat}
+              onChange={(v) => patch({ cistyObrat: v })}
+              numeric
+              hint="§ 1d odst. 2 ZoÚ — výnosy z prodeje výrobků, zboží a služeb (účtová skupina 60), stejně jako VZZ ř.56."
+            />
+            {hasDenik ? (
+              <button
+                type="button"
+                onClick={() => patch({ cistyObrat: obrat })}
+                className="self-start text-xs text-primary hover:underline"
+              >
+                Převzít z deníku ({obrat} Kč)
+              </button>
+            ) : null}
+          </div>
+          <TextField
+            label="ř.2 Průměrný přepočtený počet zaměstnanců"
+            value={form.pocetZamestnancu}
+            onChange={(v) => patch({ pocetZamestnancu: v })}
+            numeric
+            hint="Nula je platná odpověď, prázdné pole není."
+          />
         </div>
       </section>
 

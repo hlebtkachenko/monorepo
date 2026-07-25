@@ -15,6 +15,7 @@
 import Decimal from "decimal.js-light"
 import { koruna } from "../envelope"
 import { applyDppoTotals } from "./compute"
+import { buildPrilohaVety, type DppoPriloha } from "./priloha"
 import { DppoSchema, type DppoInput } from "../../../model/dppo"
 
 /** Identity + period metadata (supplied by the org, not part of the tax figures). */
@@ -35,6 +36,19 @@ export interface DppoFilingMeta {
   psc?: string
   /** Převažující ekonomická činnost (CZ-NACE), numeric. */
   c_nace?: string
+  /**
+   * I. oddíl položka 07 — kategorie účetní jednotky podle § 1b ZoÚ:
+   * M mikro / L malá / S střední / V velká. Povinné pro každého, kdo vede
+   * (podvojné) účetnictví; jen jednoduché účetnictví je z něj vyňato.
+   */
+  kat_uj?: string
+  /**
+   * I. oddíl položka 11 — účetní závěrka je přiložena ("A"/"N"). Účetní jednotka
+   * ji podle § 18 ZoÚ k přiznání přikládá, a při elektronickém podání se jí
+   * rozumí E-přílohy Rozvaha + Výkaz zisku a ztráty + Příloha účetní závěrky, což
+   * je úkon v EPO — "A" pouze deklaruje, že tam ty přílohy budou.
+   */
+  uc_zav?: string
   /** Typ daňového přiznání (default "A" — za zdaňovací období). */
   typ_dapdpp?: string
   /** Typ zdaňovacího období (§21a; default "A" — kalendářní rok). */
@@ -93,10 +107,18 @@ function nonZeroKoruna(
   return out
 }
 
-/** Build a DPPO model from the accounting worksheet figures + org meta. */
+/**
+ * Build a DPPO model from the accounting worksheet figures + org meta.
+ *
+ * `priloha` carries Příloha č. 1 II. oddílu (tabulky A a B) and tabulka K. It is
+ * optional only because a partial return is still worth generating; a filable
+ * one needs tabulka A whenever ř.40 is non-zero, tabulka B whenever ř.150 is,
+ * and tabulka K always (Pokyny: "Údaj vyplňují všichni poplatníci").
+ */
 export function buildDppoFromAccounting(
   figures: DppoFigures,
   meta: DppoFilingMeta,
+  priloha?: DppoPriloha,
 ): DppoInput {
   // VetaO detail lines the worksheet produces (attribute map in the grounding doc).
   const vetaO = nonZeroKoruna({
@@ -122,6 +144,8 @@ export function buildDppoFromAccounting(
       zdobd_od: meta.zdobd_od,
       zdobd_do: meta.zdobd_do,
       ...(meta.c_nace ? { c_nace: meta.c_nace } : {}),
+      ...(meta.kat_uj ? { kat_uj: meta.kat_uj } : {}),
+      ...(meta.uc_zav ? { uc_zav: meta.uc_zav } : {}),
     },
     payer: nonEmpty({
       dic: meta.dic,
@@ -132,6 +156,7 @@ export function buildDppoFromAccounting(
       psc: meta.psc,
     }),
     vetaO,
+    extraVety: priloha ? buildPrilohaVety(priloha) : [],
   }
 
   // Fill the mezisoučty + tax chain (ř.70/170/200/250/270/290/310/340/360) so the

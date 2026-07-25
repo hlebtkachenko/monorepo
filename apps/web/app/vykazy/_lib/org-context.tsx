@@ -553,6 +553,12 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const isSourced = useCallback(
     (statement: StatementKey, rada: string, col: ColKey): boolean => {
       if (!denikLoaded) return false
+      // Only the columns the deník mapping actually writes can be "z deníku".
+      // Without this the prior-year import (which writes `minule`, a column the
+      // deník never touches) was reported as deník-derived: every minulé cell
+      // rendered grey with a "Hodnota z deníku" tooltip that was simply false,
+      // and could not be typed into until it had been clicked once.
+      if (!DERIVED_COLS.includes(col)) return false
       if (overrides[statement].has(`${rada}:${col}`)) return false
       return doc.values[VALUES_KEY[statement]][rada]?.[col] !== undefined
     },

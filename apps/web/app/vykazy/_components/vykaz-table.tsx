@@ -271,11 +271,15 @@ export function VykazTable({
               {labelCells(line)}
               {statement.columns.map((col) => {
                 const naKorekce = col === "korekce" && line.korekceNA
-                // An overridable calc (ř. 56 Čistý obrat) shows its computed
-                // value until the user clicks it; from then on it is a normal
-                // input and clearing the cell hands it back to the formula.
+                // A calc line carrying an explicit value has its formula
+                // overridden by the engine, so it must render as an editable
+                // cell — otherwise the value prints as an ordinary computed
+                // total, indistinguishable from one, and cannot be cleared.
+                // Two things put a value on a calc line: clicking an
+                // `overridable` cell (ř. 56 Čistý obrat), and a prior-year
+                // import supplying aggregates rather than leaves.
                 const overridden =
-                  line.overridable === true &&
+                  line.kind === "calc" &&
                   colValues[line.rada]?.[col] !== undefined
                 const editable =
                   (line.kind === "input" || overridden) &&
@@ -314,7 +318,10 @@ export function VykazTable({
                             computed[line.rada]?.[col] ?? 0,
                           )
                         }
-                        title="Vypočteno jako I. + II. — kliknutím zadáte vlastní čistý obrat (§ 35 vyhlášky)"
+                        title={
+                          line.overridableHint ??
+                          "Vypočtená hodnota — kliknutím zadáte vlastní"
+                        }
                         className="w-full px-1 py-0.5 text-right text-[11px] font-bold text-black tabular-nums hover:bg-yellow-50"
                       >
                         {formatTisiceCell(computed[line.rada]?.[col])}

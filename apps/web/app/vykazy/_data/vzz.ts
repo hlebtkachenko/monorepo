@@ -445,19 +445,33 @@ export const VZZ: VykazStatement = {
     {
       ozn: "*",
       rada: "056",
-      // § 1d odst. 2 ZoÚ (ve znění účinném od 1. 1. 2024): čistý obrat = výše
-      // výnosů z prodeje výrobků a zboží a z poskytování služeb — účty
-      // 601/602/604, i.e. I. + II. It is NOT the old form footnote
-      // "I.+II.+III.+IV.+V.+VI.+VII.", which the pre-2024 templates printed.
-      // § 35 vyhlášky then ties the čistý obrat to the entity's obchodní model
-      // and states expressly that it does not matter in which položka výkazu
-      // the revenue is reported — so a finance-model entity legitimately
-      // reports something else here. Hence `overridable`: I.+II. is the
-      // default, and the user can type the correct figure over it.
+      // § 1d odst. 2 ZoÚ: "Čistým obratem se pro účely účetnictví rozumí výše
+      // výnosů z prodeje výrobků a zboží a z poskytování služeb za účetní
+      // období" — účty 601/602/604, i.e. I. + II. It is NOT the old form
+      // footnote "I.+II.+III.+IV.+V.+VI.+VII.", which the MF tiskopis (vzor 18)
+      // still prints and which was the pre-2024 rule.
+      //
+      // In force for every účetní období započaté od 1. 1. 2024: zákon
+      // 349/2023 Sb. Čl. LIX bod 1 and vyhláška 443/2023 Sb. Čl. II bod 2 both
+      // switch the OLD rules on only for periods "započaté přede dnem nabytí
+      // účinnosti", so a period starting on 1. 1. 2024 is already on the new one.
+      //
+      // I. + II. is only the default. § 35 odst. 1 vyhlášky defines the revenue
+      // as that "na kterých je založen obchodní model účetní jednotky", and
+      // odst. 2 says expressly that "se nepřihlíží k tomu, ve které položce
+      // výkazu zisku a ztráty je výnos ... vykazován" — so the položka does not
+      // decide either way, and an entity whose obchodní model is financial
+      // legitimately reports something else. Hence `overridable`.
+      //
+      // § 1d odst. 5 is the other direction: an účetní jednotka "u které hlavním
+      // předmětem činnosti není podnikání" reports all výnosy. Not modelled — it
+      // is a different form (vyhláška 504/2002), not this one.
       text: "Čistý obrat za účetní období",
       kind: "calc",
       formula: "001+002",
       overridable: true,
+      overridableHint:
+        "Vypočteno jako I. + II. Podle § 35 odst. 1 vyhlášky rozhoduje obchodní model účetní jednotky a podle odst. 2 nerozhoduje, ve které položce je výnos vykázán — kliknutím zadáte vlastní čistý obrat.",
       bold: true,
       indent: 0,
     },

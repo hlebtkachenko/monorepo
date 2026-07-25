@@ -10,6 +10,7 @@ must remain true. Procedures belong in runbooks, rationale belongs in ADRs.
 - [`SUPPLY-CHAIN.md`](SUPPLY-CHAIN.md): supply-chain security contract
 - [`TABLE-FILTERS.md`](TABLE-FILTERS.md): table column filter variants and kind-driven derivation
 - [`TRANSACTIONAL-EMAILS.md`](TRANSACTIONAL-EMAILS.md): transactional email shell, delivery, and authoring
+- [`VYKAZY-AND-DPPO-REFERENCE.md`](VYKAZY-AND-DPPO-REFERENCE.md): generated line-by-line reference for the rozvaha, VZZ and DPPO
 - [`api/`](api/): future public API contracts
 - [`accounting-schema.sql`](accounting-schema.sql): generated accounting schema snapshot
 - [`accounting-schema.dbml`](accounting-schema.dbml): generated DBML schema snapshot

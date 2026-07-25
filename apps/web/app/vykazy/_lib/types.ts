@@ -62,6 +62,9 @@ export interface VykazLine {
    * výkaz položky.
    */
   overridable?: boolean
+  /** Tooltip for an `overridable` cell, explaining what the formula assumes and
+   *  why the user may need to type over it. Per line — the rule differs. */
+  overridableHint?: string
 }
 
 export interface VykazStatement {

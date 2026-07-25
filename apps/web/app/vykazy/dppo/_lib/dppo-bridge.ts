@@ -2,7 +2,12 @@
 // DPPO engine. No React, no I/O, no filing runtime import (types only) — safe to
 // unit-test and to call from both the client page and the server action.
 
-import type { DppoFigures, DppoFilingMeta } from "@workspace/filing/dppo"
+import type {
+  DppoFigures,
+  DppoFilingMeta,
+  DppoPriloha,
+  DppoTabulkaB,
+} from "@workspace/filing/dppo"
 
 import type { OrgConfig } from "../../_lib/types"
 import type { Predvaha } from "../../_lib/predvaha"
@@ -50,6 +55,27 @@ export function deriveUcetniVysledek(predvaha: Predvaha): string {
     }
   }
   return String(Math.round(vysledek))
+}
+
+/**
+ * Roční úhrn čistého obratu (tabulka K ř.1), in exact whole koruna.
+ *
+ * § 1d odst. 2 věta druhá zákona o účetnictví defines it as the výnosy from
+ * selling výrobky and zboží and from providing služby — i.e. účtová skupina 60,
+ * which is exactly what VZZ ř.01 + ř.02 foot to and therefore what the VZZ
+ * reports on ř.56. Deriving it the same way here keeps the two statements
+ * agreeing on one statutory quantity.
+ *
+ * NOT the whole třída 6: ostatní provozní výnosy (skupina 64) and finanční
+ * výnosy (skupiny 66 a 67) are not tržby. The all-výnosy reading belongs to
+ * § 1d odst. 5, which applies to a veřejně prospěšný poplatník only.
+ */
+export function deriveCistyObrat(predvaha: Predvaha): string {
+  let obrat = 0
+  for (const u of predvaha.ucty) {
+    if (u.synteticky.startsWith("60")) obrat += u.obratDal - u.obratMD
+  }
+  return String(Math.round(obrat))
 }
 
 /**
@@ -110,6 +136,60 @@ export interface DppoFormState {
   sazba: string
   /** ř.62 §18a — only meaningful for a veřejně prospěšný poplatník (typ 3). */
   excludeLoss: string
+  /** I. oddíl pol. 07 — kategorie účetní jednotky (M/L/S/V, § 1b ZoÚ). */
+  katUj: string
+  /** I. oddíl pol. 11 — účetní závěrka přiložena jako E-přílohy v EPO. */
+  ucZav: boolean
+  /** Tabulka A — rozpis ř.40 podle účtových skupin (max 12 řádků). */
+  tabulkaA: TabulkaARadek[]
+  /** Tabulka B — daňové odpisy podle odpisových skupin, keyed by řádek. */
+  tabulkaB: Record<TabulkaBKey, string>
+  /** Tabulka K ř.1 — roční úhrn čistého obratu. */
+  cistyObrat: string
+  /** Tabulka K ř.2 — průměrný přepočtený počet zaměstnanců. */
+  pocetZamestnancu: string
+}
+
+export interface TabulkaARadek {
+  uctovaSkupina: string
+  castka: string
+}
+
+export type TabulkaBKey = keyof DppoTabulkaB
+
+/** Every tabulka B cell the tiskopis prints, in řádek order (ř.2 is neobsazeno). */
+const TABULKA_B_KEYS: TabulkaBKey[] = [
+  "r1",
+  "r3",
+  "r4",
+  "r5",
+  "r6",
+  "r7",
+  "r8",
+  "r9",
+  "r10",
+  "r12",
+]
+
+/** A blank tabulka B — every cell present and empty, so the inputs stay controlled. */
+export function emptyTabulkaB(): Record<TabulkaBKey, string> {
+  return Object.fromEntries(TABULKA_B_KEYS.map((k) => [k, ""])) as Record<
+    TabulkaBKey,
+    string
+  >
+}
+
+/** Sum the entered částky of tabulka A — the ř.13 Celkem that must equal ř.40. */
+export function tabulkaASoucet(radky: TabulkaARadek[]): number {
+  return radky.reduce((sum, r) => sum + (Number(kc(r.castka)) || 0), 0)
+}
+
+/** Sum ř.1 až 10 of tabulka B — the ř.11 Celkem. Excludes ř.12 (účetní odpisy). */
+export function tabulkaBSoucet(tabulka: Record<TabulkaBKey, string>): number {
+  return TABULKA_B_KEYS.filter((k) => k !== "r12").reduce(
+    (sum, k) => sum + (Number(kc(tabulka[k])) || 0),
+    0,
+  )
 }
 
 /** Normalize a money input ("150 000", "150000,50", "") → whole-koruna string. */
@@ -153,6 +233,43 @@ export function toFigures(form: DppoFormState): DppoFigures {
   return figures
 }
 
+/**
+ * Build Příloha č. 1 II. oddílu + tabulka K from the form.
+ *
+ * Tabulky A and B are omitted entirely when the user entered nothing for them
+ * ("Vyplňují se pouze ty tabulky přílohy, pro něž má poplatník věcnou náplň"),
+ * but tabulka K always goes: the Pokyny require ř.1 and ř.2 from every
+ * poplatník, and an entered 0 is a real answer there, not a blank.
+ */
+export function toPriloha(form: DppoFormState): DppoPriloha {
+  const radky = form.tabulkaA.filter(
+    (r) => r.uctovaSkupina.trim() !== "" || kc(r.castka) !== "0",
+  )
+  const tabulkaB: DppoTabulkaB = {}
+  for (const key of TABULKA_B_KEYS) {
+    const value = kc(form.tabulkaB[key])
+    if (value !== "0") tabulkaB[key] = value
+  }
+
+  const priloha: DppoPriloha = {
+    tabulkaK: {
+      cistyObrat: kc(form.cistyObrat),
+      pocetZamestnancu: kc(form.pocetZamestnancu),
+      // Měna účetnictví; the attribute carries a kritická kontrola forbidding it
+      // before 1. 1. 2024, so it only rides along from that period on.
+      ...((filingYear(form.zdobdOd) ?? 0) >= 2024 ? { mena: "CZK" } : {}),
+    },
+  }
+  if (radky.length > 0) {
+    priloha.tabulkaA = radky.map((r) => ({
+      uctovaSkupina: r.uctovaSkupina.trim(),
+      castka: kc(r.castka),
+    }))
+  }
+  if (Object.keys(tabulkaB).length > 0) priloha.tabulkaB = tabulkaB
+  return priloha
+}
+
 export function toMeta(form: DppoFormState, org: OrgConfig): DppoFilingMeta {
   const { ulice, c_pop } = splitSidlo(org.sidlo)
   const meta: DppoFilingMeta = {
@@ -161,7 +278,11 @@ export function toMeta(form: DppoFormState, org: OrgConfig): DppoFilingMeta {
     c_ufo_cil: form.cUfoCil.trim(),
     dic: form.dic.trim(),
     typ_popldpp: form.typPopldpp,
+    // "A" only declares that the E-přílohy will be there; attaching Rozvahu,
+    // VZZ and Přílohu účetní závěrky is a step the filer does in EPO.
+    uc_zav: form.ucZav ? "A" : "N",
   }
+  if (form.katUj) meta.kat_uj = form.katUj
   if (org.nazev.trim()) meta.name = org.nazev.trim()
   if (org.obec.trim()) meta.naz_obce = org.obec.trim()
   if (ulice) meta.ulice = ulice

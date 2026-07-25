@@ -4,12 +4,17 @@ import type { Predvaha, UcetBalance } from "../../_lib/predvaha"
 import type { OrgConfig } from "../../_lib/types"
 import {
   deriveUcetniVysledek,
+  deriveCistyObrat,
   splitSidlo,
   defaultSazba,
   normalizeSazba,
   applyFieldChange,
+  emptyTabulkaB,
+  tabulkaASoucet,
+  tabulkaBSoucet,
   toFigures,
   toMeta,
+  toPriloha,
   missingRequired,
   type DppoFormState,
 } from "./dppo-bridge"
@@ -139,9 +144,88 @@ function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
     slevy: "",
     sazba: "0.21",
     excludeLoss: "",
+    katUj: "M",
+    ucZav: true,
+    tabulkaA: [],
+    tabulkaB: emptyTabulkaB(),
+    cistyObrat: "0",
+    pocetZamestnancu: "0",
     ...overrides,
   }
 }
+
+describe("deriveCistyObrat", () => {
+  it("counts only skupina 60 — tržby, not the whole třída 6", () => {
+    const p = predvaha([
+      ucet("602", 0, 96_176),
+      ucet("648", 0, 45_369),
+      ucet("662", 0, 50_797),
+    ])
+    expect(deriveCistyObrat(p)).toBe("96176")
+  })
+
+  it("is 0 for a book whose výnosy are all ostatní a finanční", () => {
+    const p = predvaha([
+      ucet("648", 0, 45_369),
+      ucet("662", 0, 50_797),
+      ucet("663", 0, 10),
+    ])
+    expect(deriveCistyObrat(p)).toBe("0")
+  })
+})
+
+describe("toPriloha", () => {
+  it("always emits tabulka K, including an explicit zero", () => {
+    const priloha = toPriloha(form({ cistyObrat: "0", pocetZamestnancu: "0" }))
+    expect(priloha.tabulkaK).toEqual({
+      cistyObrat: "0",
+      pocetZamestnancu: "0",
+      mena: "CZK",
+    })
+  })
+
+  it("omits the měna before 2024, where EPO forbids it", () => {
+    const priloha = toPriloha(form({ zdobdOd: "1.1.2023" }))
+    expect(priloha.tabulkaK?.mena).toBeUndefined()
+  })
+
+  it("drops blank tabulka A řádky and omits an empty tabulka B", () => {
+    const priloha = toPriloha(
+      form({
+        tabulkaA: [
+          { uctovaSkupina: "54", castka: "1 000" },
+          { uctovaSkupina: "", castka: "" },
+        ],
+      }),
+    )
+    expect(priloha.tabulkaA).toEqual([{ uctovaSkupina: "54", castka: "1000" }])
+    expect(priloha.tabulkaB).toBeUndefined()
+  })
+
+  it("keeps only the non-zero tabulka B řádky", () => {
+    const priloha = toPriloha(
+      form({ tabulkaB: { ...emptyTabulkaB(), r3: "389566" } }),
+    )
+    expect(priloha.tabulkaB).toEqual({ r3: "389566" })
+  })
+})
+
+describe("tabulka součty", () => {
+  it("foots tabulka A over its řádky", () => {
+    expect(
+      tabulkaASoucet([
+        { uctovaSkupina: "54", castka: "899 060" },
+        { uctovaSkupina: "55", castka: "3342777" },
+      ]),
+    ).toBe(4241837)
+  })
+
+  it("foots tabulka B over ř.1 až 10, excluding the účetní odpisy of ř.12", () => {
+    expect(
+      tabulkaBSoucet({ ...emptyTabulkaB(), r3: "389566", r12: "1000" }),
+    ).toBe(389566)
+  })
+})
 
 function org(overrides: Partial<OrgConfig> = {}): OrgConfig {
   return {

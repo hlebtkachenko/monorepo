@@ -18,5 +18,18 @@ export {
   type DppoFigures,
   type DppoFilingMeta,
 } from "./adapter"
+export {
+  buildPrilohaVety,
+  tabulkaACelkem,
+  tabulkaBCelkem,
+  DPPO_TABULKA_A_MAX_RADKU,
+  DPPO_TABULKA_B_RADKY,
+  DPPO_TABULKA_B_CELKEM_ATTR,
+  DPPO_TABULKA_B_UCETNI_ATTR,
+  type DppoPriloha,
+  type DppoTabulkaARadek,
+  type DppoTabulkaB,
+  type DppoTabulkaK,
+} from "./priloha"
 export { checkDppo, type DppoCheck } from "./checks"
 export * from "../../../model/dppo"

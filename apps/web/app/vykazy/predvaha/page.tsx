@@ -16,16 +16,20 @@ import { StatementHeader } from "../_components/statement-header"
 import { Toolbar } from "../_components/toolbar"
 import { useOrg } from "../_lib/org-context"
 import { buildPredvahaStatement, predvahaCsv } from "../_lib/predvaha-statement"
+import { STATEMENT_HEADER_MM } from "../_lib/print-pagination"
 
 export default function PredvahaPage() {
-  const { denik, org } = useOrg()
+  const { denik, org, rozvrh } = useOrg()
   // Two builds of the same statement: the exact-Kč one backs the CSV export and
   // the MD = Dal control totals, the displayed one carries the unit the whole set
   // of výkazů prints in (and, in tisíce, an allocation that makes it foot).
-  const exact = useMemo(() => buildPredvahaStatement(denik), [denik])
+  const exact = useMemo(
+    () => buildPredvahaStatement(denik, { rozvrh }),
+    [denik, rozvrh],
+  )
   const statement = useMemo(
-    () => buildPredvahaStatement(denik, { vTisicich: org.vTisicich }),
-    [denik, org.vTisicich],
+    () => buildPredvahaStatement(denik, { vTisicich: org.vTisicich, rozvrh }),
+    [denik, org.vTisicich, rozvrh],
   )
 
   const downloadCsv = () => {
@@ -79,6 +83,7 @@ export default function PredvahaPage() {
             statement={statement}
             control={exact.total}
             vTisicich={org.vTisicich}
+            firstPageMm={STATEMENT_HEADER_MM}
           />
         </section>
 

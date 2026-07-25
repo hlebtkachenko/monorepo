@@ -6,6 +6,25 @@
     display: none;
   }
 
+  /* Hidden replica of a statement table, laid out at exactly the print geometry
+     (A4 content width, print font size). Its measured row heights are what
+     decide the page breaks — see ../_lib/print-pagination.ts. Kept in the layout
+     (not display:none) because a display:none subtree has no measurable height,
+     and parked far off-screen so it is never seen or interactive. */
+  .print-metrics {
+    position: absolute;
+    top: 0;
+    left: -20000px;
+    width: 186mm;
+    font-size: 9pt;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .print-metrics .predvaha-table {
+    font-size: 7pt;
+  }
+
   /* The statement itself is a tiskopis: it stays black-on-white paper even when
      the surrounding app chrome is in dark mode, so what is on screen is what
      prints. Only the chrome follows the theme. */
@@ -75,14 +94,27 @@
     font-size: 9pt;
   }
 
-  /* Never split a row across pages; repeat the header on each printed page. */
+  /* The measuring replica is a screen-only device. */
+  .print-metrics {
+    display: none !important;
+  }
+
+  /* Pagination. The rows were already chunked into pages in the component (see
+     ../_lib/print-pagination.ts) because Safari honours neither
+     `break-inside: avoid` on a <tr> nor a repeating thead, so each .print-page
+     holds one complete table that fits A4 and starts on a fresh sheet. Nothing
+     keys off a fixed row index — the chunk sizes come from measured heights.
+
+     No outer table border: a border box cannot close at a page break and leaves
+     the table looking torn. Every cell draws its own box instead. */
+  .print-page + .print-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
   .vykaz-table tr {
     break-inside: avoid;
     page-break-inside: avoid;
-  }
-
-  .vykaz-table thead {
-    display: table-header-group;
   }
 
   /* The obratová předvaha has 9 columns (2 label + 7 numeric) — drop to the

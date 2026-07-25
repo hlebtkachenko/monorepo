@@ -8,13 +8,12 @@
 // selects that account + side as the active filter; clicking the active cell again
 // clears it. Screen-only (.no-print).
 
-import { useMemo, type ReactNode } from "react"
+import type { ReactNode } from "react"
 
 import { computeColumn } from "../_lib/engine"
 import { useOrg } from "../_lib/org-context"
-import type { Predvaha, UcetBalance } from "../_lib/predvaha"
+import type { Predvaha } from "../_lib/predvaha"
 import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
-import { OSNOVA } from "../_data/osnova"
 
 // The mapper allocates the rounding to celé tisíce per side (see mapping.ts), so
 // a deník that balances to the halíř also balances on the form — exactly. Any
@@ -60,7 +59,8 @@ export function PredvahaSummary({
   filter: PredvahaFilter | null
   onSelect: (next: PredvahaFilter) => void
 }) {
-  const { predvaha, denikUnmapped, values, crVariant } = useOrg()
+  const { predvaha, denikUnmapped, values, crVariant, resolveUcetName } =
+    useOrg()
 
   const aktivaNetto =
     computeColumn(rozvahaAktiva(crVariant), "netto", values.rozvahaAktiva)[
@@ -130,6 +130,7 @@ export function PredvahaSummary({
         predvaha={predvaha}
         filter={filter}
         onSelect={onSelect}
+        resolveName={resolveUcetName}
       />
     </section>
   )
@@ -142,30 +143,13 @@ function PredvahaFilterTable({
   predvaha,
   filter,
   onSelect,
+  resolveName,
 }: {
   predvaha: Predvaha
   filter: PredvahaFilter | null
   onSelect: (next: PredvahaFilter) => void
+  resolveName: (ucet: string) => string
 }) {
-  // Account-name lookup from the směrná účtová osnova: exact 6-digit match first,
-  // then fall back to the 3-digit synthetic prefix (e.g. "321" -> "321000" ->
-  // "Dodavatelé"). First OSNOVA hit per synthetic wins (the "XXX000" base).
-  const nameByUcet = useMemo(() => {
-    const exact = new Map<string, string>()
-    const bySynteticky = new Map<string, string>()
-    for (const acc of OSNOVA) {
-      exact.set(acc.ucet, acc.nazev)
-      const syn = acc.ucet.slice(0, 3)
-      if (!bySynteticky.has(syn)) bySynteticky.set(syn, acc.nazev)
-    }
-    return { exact, bySynteticky }
-  }, [])
-
-  const resolveName = (u: UcetBalance): string =>
-    nameByUcet.exact.get(u.ucet) ??
-    nameByUcet.bySynteticky.get(u.synteticky) ??
-    ""
-
   const isActive = (ucet: string, side: PredvahaFilter["side"]): boolean =>
     filter !== null && filter.ucet === ucet && filter.side === side
 
@@ -218,7 +202,7 @@ function PredvahaFilterTable({
                     </button>
                   </td>
                   <td className="px-2 py-0.5 text-left text-muted-foreground">
-                    {resolveName(u)}
+                    {resolveName(u.ucet)}
                   </td>
                   <td className={`p-0 ${mdActive ? "bg-blue-100" : ""}`}>
                     <button

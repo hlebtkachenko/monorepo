@@ -6,17 +6,21 @@
     display: none;
   }
 
-  /* Hidden replica of a statement table, laid out at exactly the print geometry
-     (A4 content width, print font size). Its measured row heights are what
-     decide the page breaks — see ../_lib/print-pagination.ts. Kept in the layout
-     (not display:none) because a display:none subtree has no measurable height,
-     and parked far off-screen so it is never seen or interactive. */
+  /* Hidden replica of a statement table, laid out at exactly the print geometry.
+     Its measured row heights decide the page breaks — see
+     ../_lib/print-pagination.ts. Kept in the layout (not display:none) because a
+     display:none subtree has no measurable height, and parked far off-screen so
+     it is never seen or interactive.
+
+     The WIDTH is set in CSS px by the component, not here: a printed CSS px is
+     1/90in in Safari against 1/96in on screen, so the same 186mm of paper is a
+     narrower box in px than a `width: 186mm` rule would give it. Sizing it in mm
+     made the replica wrap less than the paper does, and every measured row came
+     out shorter than the row that printed. */
   .print-metrics {
     position: absolute;
     top: 0;
     left: -20000px;
-    width: 186mm;
-    font-size: 9pt;
     pointer-events: none;
     visibility: hidden;
   }
@@ -86,9 +90,16 @@
     margin-top: 8mm;
   }
 
-  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>. */
+  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>.
+     The width is 1pt short of the box on purpose. Measured in a Safari print of
+     the rozvaha: the page content box is laid out 34.5000–561.9414pt wide but
+     CLIPPED at 34.5000–561.1992pt, 0.7422pt (one CSS px) narrower. A table at a
+     full 100% puts its right border at 561.19–561.94pt, entirely inside that
+     shaved strip, so the whole right edge of the table prints missing while the
+     left border — drawn inward from 34.50 — survives. Reserving 1pt moves the
+     border back inside the clip and is 0.5% of one column, invisible. */
   .vykaz-table {
-    width: 100%;
+    width: calc(100% - 1pt);
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 9pt;

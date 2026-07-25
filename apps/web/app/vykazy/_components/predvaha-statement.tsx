@@ -14,7 +14,11 @@
 import { cn } from "@workspace/ui/lib/utils"
 
 import { formatKc, formatTisice } from "../_lib/format"
-import { chunkRows, usePrintMetrics } from "../_lib/print-pagination"
+import {
+  chunkRows,
+  usePrintMetrics,
+  PRINT_METRICS_WIDTH_PX,
+} from "../_lib/print-pagination"
 import type {
   PredvahaLine,
   PredvahaStatement as PredvahaStatementModel,
@@ -244,7 +248,11 @@ export function PredvahaStatement({
       </table>
 
       {/* Hidden replica at print geometry — the only thing measured. */}
-      <div className="print-metrics" aria-hidden>
+      <div
+        className="print-metrics"
+        style={{ width: PRINT_METRICS_WIDTH_PX }}
+        aria-hidden
+      >
         <table
           ref={measureRef}
           className="vykaz-table predvaha-table w-full table-fixed border-collapse"

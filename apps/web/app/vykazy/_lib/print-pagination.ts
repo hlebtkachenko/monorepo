@@ -18,22 +18,57 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-/** CSS px per millimetre (1in = 96 CSS px = 25.4 mm). */
-const PX_PER_MM = 96 / 25.4
+/**
+ * How many CSS px of the measuring replica one millimetre of paper is worth.
+ *
+ * CALIBRATED, not derived. Two earlier versions each derived it from a DPI and
+ * each was wrong in a different direction: 96 (the screen figure) over-filled
+ * every page by a row, 90 under-filled it by several. Both readings had support —
+ * a cell set to `text-[11px]` really does print at 8.8pt, which is exactly
+ * 11 × 72/90 — but the FONT scaling and the ROW height do not follow the same
+ * factor, and it is the row height that decides how many rows fit.
+ *
+ * So this is measured off the printed artefact instead. In a Safari PDF of the
+ * rozvaha, consecutive single-line rows sit 5.93mm apart, and the same row
+ * measures 22px in the replica: 22 / 5.93 = 3.71 px per mm, i.e. an effective
+ * 94.2 dpi, between the two theories and equal to neither.
+ *
+ * Verified against that PDF end to end: with this figure the algorithm fills
+ * page 1 with řádky 001–028 and stops before 029, which is exactly where the
+ * printed page ended.
+ *
+ * Re-measure if the cell padding or font size changes: print one statement, read
+ * the pitch between two single-line rows, and divide the replica's row height by
+ * it.
+ */
+const PX_PER_MM = 3.71
 
 /**
- * Usable height of an A4 portrait page: 297mm minus the 12mm @page margins.
- * The matching content WIDTH (186mm) is set on `.print-metrics` in print.css,
- * which is what makes the measured wrapping match the printed wrapping.
+ * A4 portrait content box. Confirmed on the printed PDF, whose text ran from
+ * 12.8mm to 283.6mm down the sheet, so both margins are the 12mm @page asks for.
  */
+const PRINT_CONTENT_WIDTH_MM = 210 - 24
 const PRINT_CONTENT_HEIGHT_MM = 297 - 24
 
 /**
- * Slack left at the bottom of every page. Absorbs the rounding between the
- * measured layout and the print layout, so a page that is estimated to fit
- * exactly never spills one row over and reintroduces the split-row defect.
+ * Width the measuring replica is laid out at, in CSS px. Sizing it in px rather
+ * than in mm is the point: at print scale the same 186mm of paper is a NARROWER
+ * box in CSS px than the screen would give it, so text wraps as much in the
+ * measurement as it does on paper. Sized in mm it wrapped less, and every
+ * measured row came out shorter than the row that printed.
  */
-const SAFETY_MM = 4
+export const PRINT_METRICS_WIDTH_PX = Math.floor(
+  PRINT_CONTENT_WIDTH_MM * PX_PER_MM,
+)
+
+/**
+ * Slack left at the bottom of every page. Absorbs rounding between the measured
+ * layout and the printed one, so a page that is estimated to fit exactly never
+ * spills one row over and reintroduces the split-row defect. One row is ~6mm, so
+ * this is about one row of insurance and no more — the calibration above is what
+ * makes the fit accurate, and padding is not a substitute for it.
+ */
+const SAFETY_MM = 6
 
 /**
  * Height the tiskopis title block (StatementHeader) takes on the first printed

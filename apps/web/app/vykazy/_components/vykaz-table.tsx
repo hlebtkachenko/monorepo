@@ -20,7 +20,11 @@ import { computeAll } from "../_lib/engine"
 import { inRozsah } from "../_lib/rozsah"
 import { formatTisiceCell, parseCislo } from "../_lib/format"
 import { useOrg } from "../_lib/org-context"
-import { chunkRows, usePrintMetrics } from "../_lib/print-pagination"
+import {
+  chunkRows,
+  usePrintMetrics,
+  PRINT_METRICS_WIDTH_PX,
+} from "../_lib/print-pagination"
 import type { StatementKey } from "../_lib/storage"
 import type {
   ColKey,
@@ -383,7 +387,11 @@ export function VykazTable({
       </table>
 
       {/* Hidden replica at print geometry — the only thing measured. */}
-      <div className="print-metrics" aria-hidden>
+      <div
+        className="print-metrics"
+        style={{ width: PRINT_METRICS_WIDTH_PX }}
+        aria-hidden
+      >
         <table
           ref={measureRef}
           className="vykaz-table w-full table-fixed border-collapse"

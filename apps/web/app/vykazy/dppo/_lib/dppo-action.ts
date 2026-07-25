@@ -18,6 +18,7 @@ import {
   type DppoCheck,
 } from "@workspace/filing/dppo"
 import { validateFiling } from "@workspace/filing"
+import { ZodError } from "zod"
 
 export interface DppoActionResult {
   ok: boolean
@@ -44,11 +45,26 @@ export async function buildDppoXml(
       xsd: { valid: xsd.valid, errors: [...xsd.errors] },
       checks,
     }
-  } catch {
-    return {
-      ok: false,
-      error:
-        "DPPO XML se nepodařilo vytvořit — zkontrolujte zadané hodnoty a povinná pole.",
-    }
+  } catch (error) {
+    // The cause is almost never the user's input: a Zod issue names the offending
+    // field, and an xmllint-wasm failure is an environment problem no amount of
+    // checking the form will fix. Swallowing it left both looking identical.
+    console.error("[dppo] buildDppoXml failed", error)
+    return { ok: false, error: describeDppoFailure(error) }
   }
+}
+
+/** Turn a thrown error into something that tells the user where to look. */
+function describeDppoFailure(error: unknown): string {
+  if (error instanceof ZodError) {
+    const fields = error.issues
+      .map((i) => i.path.join("."))
+      .filter(Boolean)
+      .join(", ")
+    return fields
+      ? `DPPO XML se nepodařilo vytvořit — neplatné hodnoty: ${fields}.`
+      : "DPPO XML se nepodařilo vytvořit — zkontrolujte zadané hodnoty a povinná pole."
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return `DPPO XML se nepodařilo vytvořit — chyba serveru: ${message}`
 }

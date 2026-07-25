@@ -17,6 +17,15 @@ export function formatTisice(n: number | null | undefined): string {
 }
 
 /**
+ * Format a value for a cell of the printed tiskopis, where an unfilled položka
+ * is a reported zero, not a blank. The form is a statement of fact: every řádek
+ * carries a number, and the paper original prints 0.
+ */
+export function formatTisiceCell(n: number | null | undefined): string {
+  return formatTisice(n) || "0"
+}
+
+/**
  * Format an exact Kč amount (obratová předvaha): always two decimals, grouped by
  * three with a non-breaking space, comma decimal separator (e.g. 1 059 004,05).
  * Unlike formatTisice this keeps the halíře — the předvaha is in full Kč.

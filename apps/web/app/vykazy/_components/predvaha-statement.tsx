@@ -60,7 +60,7 @@ function NumberCells({
       <td
         className={cn(
           cellBase,
-          "border-l-2 border-l-neutral-500 text-right font-medium text-black",
+          "text-right font-medium text-black",
           bold && "font-bold",
         )}
       >
@@ -144,16 +144,16 @@ export function PredvahaStatement({
         </span>
       </div>
 
-      <table className="vykaz-table predvaha-table w-full table-fixed border-collapse border border-neutral-500 text-black">
+      <table className="vykaz-table predvaha-table w-full table-fixed border-collapse text-black">
         <colgroup>
           <col style={{ width: "8%" }} />
-          <col style={{ width: "16%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
-          <col style={{ width: "11%" }} />
+          <col style={{ width: "25.9%" }} />
+          <col style={{ width: "9.35%" }} />
+          <col style={{ width: "9.35%" }} />
+          <col style={{ width: "9.35%" }} />
+          <col style={{ width: "9.35%" }} />
+          <col style={{ width: "9.35%" }} />
+          <col style={{ width: "9.35%" }} />
           <col style={{ width: "10%" }} />
         </colgroup>
         <thead>
@@ -181,7 +181,7 @@ export function PredvahaStatement({
             </th>
             <th
               rowSpan={2}
-              className="border border-l-2 border-neutral-500 border-l-neutral-500 px-1 py-1"
+              className="border border-neutral-500 px-1 py-1"
               title="Konečný zůstatek účtu = KS Má dáti − KS Dal (kladně = zůstatek na straně MD)"
             >
               Zůstatek

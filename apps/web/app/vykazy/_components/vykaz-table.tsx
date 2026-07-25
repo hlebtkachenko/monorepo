@@ -12,7 +12,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { computeAll } from "../_lib/engine"
 import { inRozsah } from "../_lib/rozsah"
-import { formatTisice, parseCislo } from "../_lib/format"
+import { formatTisiceCell, parseCislo } from "../_lib/format"
 import { useOrg } from "../_lib/org-context"
 import type { StatementKey } from "../_lib/storage"
 import type {
@@ -145,9 +145,9 @@ export function VykazTable({
   const valueWidth = statement.columns.length >= 4 ? 11 : 14
 
   return (
-    <table className="vykaz-table w-full table-fixed border-collapse border border-neutral-500 text-black">
+    <table className="vykaz-table w-full table-fixed border-collapse text-black">
       <colgroup>
-        <col style={{ width: "13%" }} />
+        <col style={{ width: "8%" }} />
         <col />
         <col style={{ width: "7%" }} />
         {statement.columns.map((col) => (
@@ -254,7 +254,7 @@ export function VykazTable({
                       title="Vypočteno jako I. + II. — kliknutím zadáte vlastní čistý obrat (§ 35 vyhlášky)"
                       className="w-full px-1 py-0.5 text-right text-[11px] font-bold text-black tabular-nums hover:bg-yellow-50"
                     >
-                      {formatTisice(computed[line.rada]?.[col])}
+                      {formatTisiceCell(computed[line.rada]?.[col])}
                     </button>
                   </td>
                 )
@@ -279,7 +279,7 @@ export function VykazTable({
                         title="Hodnota z deníku — kliknutím ji upravíte"
                         className="w-full px-1 py-0.5 text-right text-[11px] text-black tabular-nums hover:bg-yellow-50"
                       >
-                        {formatTisice(computed[line.rada]?.[col])}
+                        {formatTisiceCell(computed[line.rada]?.[col])}
                       </button>
                     </td>
                   )
@@ -290,6 +290,12 @@ export function VykazTable({
                       value={colValues[line.rada]?.[col]}
                       onChange={(value) => onCellChange(line.rada, col, value)}
                     />
+                    {/* An empty input prints as an empty box; the tiskopis wants
+                        the reported zero. Swapped in at print time so typing is
+                        unaffected on screen. */}
+                    <span className="print-cell-value">
+                      {formatTisiceCell(colValues[line.rada]?.[col])}
+                    </span>
                   </td>
                 )
               }
@@ -301,7 +307,7 @@ export function VykazTable({
                     "bg-neutral-100 text-right text-black",
                   )}
                 >
-                  {formatTisice(computed[line.rada]?.[col])}
+                  {formatTisiceCell(computed[line.rada]?.[col])}
                 </td>
               )
             })}

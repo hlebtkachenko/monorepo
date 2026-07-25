@@ -6,6 +6,11 @@
     display: none;
   }
 
+  /* The printed stand-in for an editable cell — screen keeps the real input. */
+  .print-cell-value {
+    display: none;
+  }
+
   /* The statement itself is a tiskopis: it stays black-on-white paper even when
      the surrounding app chrome is in dark mode, so what is on screen is what
      prints. Only the chrome follows the theme. */
@@ -75,7 +80,17 @@
     font-size: 9pt;
   }
 
-  /* Never split a row across pages; repeat the header on each printed page. */
+  /* Pagination of a long form table. Nothing here targets a fixed row: the
+     break lands wherever the page runs out, so a statement of any length keeps
+     whole rows and a repeated column header on every page.
+
+       - a row never splits across the fold
+       - thead repeats as a table-header-group, so page 2 is readable on its own
+       - tbody may break freely (the default `auto`), which is what lets the
+         table continue rather than overflow
+       - no outer table border: a border box cannot close at a page break and
+         leaves the table looking torn. Every cell draws its own box instead, so
+         each page ends and starts on a complete grid. */
   .vykaz-table tr {
     break-inside: avoid;
     page-break-inside: avoid;
@@ -83,6 +98,29 @@
 
   .vykaz-table thead {
     display: table-header-group;
+  }
+
+  .vykaz-table tbody {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  /* A header stranded at the very bottom of a page with no rows under it. */
+  .vykaz-table thead tr {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Editable cells print as plain text: the input's border and background are
+     screen affordances, and an empty one would print as a blank box. */
+  .vykaz-table input {
+    display: none;
+  }
+
+  .print-cell-value {
+    display: block;
+    padding: 0 2px;
+    text-align: right;
   }
 
   /* The obratová předvaha has 9 columns (2 label + 7 numeric) — drop to the

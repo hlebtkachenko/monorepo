@@ -47,14 +47,19 @@
 import { CR_COUNTERPART } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { computeColumn } from "./engine"
-import { buildRozvrhIndex, resolveOpravkovy, resolvePlacement } from "./rozvrh"
+import {
+  buildRozvrhIndex,
+  osnovaOpravkovy,
+  resolveOpravkovy,
+  resolvePlacement,
+} from "./rozvrh"
 import type { RozvrhAccount } from "./rozvrh"
 import type { CasoveRozliseni, VykazValues } from "./types"
 
 /** Pasiva A.V. Výsledek hospodaření běžného účetního období. */
 const VYSLEDEK_RADA = "021"
 
-interface AccountTarget {
+export interface AccountTarget {
   statement: "rozvaha-aktiva" | "rozvaha-pasiva" | "vzz"
   rada: string // a LEAF řádek in that statement
   col: "brutto" | "korekce" | "bezne"
@@ -478,6 +483,19 @@ function mapAccount(
     return { ...target, col: "korekce" }
   }
   return { ...target }
+}
+
+/**
+ * Where the vyhláška places an account, ignoring the účetní rozvrh — the
+ * "dle vyhlášky" default the rozvrh page shows next to each account, and the
+ * test for whether an account lands anywhere at all. Null = no leaf (a technical
+ * account, or a synthetic outside the směrná osnova).
+ */
+export function lawPlacement(
+  ucet: string,
+  crVariant: CasoveRozliseni = "D",
+): AccountTarget | null {
+  return mapAccount(ucet.slice(0, 3), osnovaOpravkovy(ucet), crVariant)
 }
 
 /**

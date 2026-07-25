@@ -12,7 +12,7 @@ import { useOrg, type OrgTextKey } from "../_lib/org-context"
 import { lookupAresForVykazy } from "../_lib/ares-action"
 
 const INPUT_CLASS =
-  "rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm text-black outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+  "rounded border border-border bg-card px-2 py-1.5 text-sm text-foreground outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
 
 interface FieldProps {
   label: string
@@ -25,7 +25,7 @@ function Field({ label, field, placeholder, className }: FieldProps) {
   const { org, setOrgText } = useOrg()
   return (
     <label className={`flex flex-col gap-1 ${className ?? ""}`}>
-      <span className="text-xs font-medium text-neutral-600">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <input
         type="text"
         value={org[field]}
@@ -61,7 +61,7 @@ function IcoField() {
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium text-neutral-600">IČO</span>
+      <span className="text-xs font-medium text-muted-foreground">IČO</span>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
@@ -85,7 +85,7 @@ function IcoField() {
         <span
           className={cn(
             "text-xs",
-            status === "error" ? "text-red-600" : "text-green-600",
+            status === "error" ? "text-destructive" : "text-green-600",
           )}
         >
           {message}
@@ -99,8 +99,8 @@ export function OrgForm() {
   const { org, setVTisicich } = useOrg()
 
   return (
-    <section className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-      <h2 className="mb-3 text-sm font-semibold text-neutral-700">
+    <section className="rounded-lg border border-border bg-muted/40 p-4">
+      <h2 className="mb-3 text-sm font-semibold text-foreground">
         Identifikace účetní jednotky
       </h2>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -136,7 +136,7 @@ export function OrgForm() {
             onChange={(e) => setVTisicich(e.target.checked)}
             className="size-4 accent-blue-600"
           />
-          <span className="text-sm text-neutral-700">v celých tisících Kč</span>
+          <span className="text-sm text-foreground">v celých tisících Kč</span>
         </label>
       </div>
     </section>

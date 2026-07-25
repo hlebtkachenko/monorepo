@@ -27,6 +27,7 @@ import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { splitCsvLine } from "./denik"
 import type { StatementKey } from "./storage"
+import type { CasoveRozliseni } from "./types"
 
 /** One line of the účetní rozvrh. */
 export interface RozvrhAccount {
@@ -92,7 +93,7 @@ export function osnovaNazev(ucet: string): string {
 }
 
 /** Osnova opravkovy flag: exact hit, else the syntetický účet's flag. */
-function osnovaOpravkovy(ucet: string): boolean {
+export function osnovaOpravkovy(ucet: string): boolean {
   const clean = ucet.trim()
   return (
     OSNOVA_BY_UCET.get(clean)?.opravkovy ??
@@ -158,6 +159,48 @@ const LEAF_RADKY: Record<StatementKey, Set<string>> = {
 
 export function isLeafRada(vykaz: StatementKey, rada: string): boolean {
   return LEAF_RADKY[vykaz].has(rada)
+}
+
+/** One selectable placement target: the leaf řádek as the form prints it. */
+export interface LeafOption {
+  rada: string
+  /** "C.II.2.4.6 Jiné pohledávky (067)" — označení, text, číslo řádku. */
+  label: string
+}
+
+/** The leaf řádky of one statement in the given layout, as picker options. */
+export function leafOptions(
+  vykaz: StatementKey,
+  crVariant: CasoveRozliseni,
+): LeafOption[] {
+  const statement =
+    vykaz === "rozvaha-aktiva"
+      ? rozvahaAktiva(crVariant)
+      : vykaz === "rozvaha-pasiva"
+        ? rozvahaPasiva(crVariant)
+        : VZZ
+  return statement.lines
+    .filter((line) => line.kind === "input")
+    .map((line) => ({
+      rada: line.rada,
+      label: `${line.ozn} ${line.text} (${line.rada})`.trim(),
+    }))
+}
+
+/** Label of one leaf řádek, or "" when it is not part of that layout. */
+export function leafLabel(
+  vykaz: StatementKey,
+  rada: string,
+  crVariant: CasoveRozliseni,
+): string {
+  return leafOptions(vykaz, crVariant).find((o) => o.rada === rada)?.label ?? ""
+}
+
+/** Short name of a statement, for the picker and the "dle vyhlášky" hint. */
+export const VYKAZ_NAZEV: Record<StatementKey, string> = {
+  "rozvaha-aktiva": "Aktiva",
+  "rozvaha-pasiva": "Pasiva",
+  vzz: "VZZ",
 }
 
 // --- CSV ---------------------------------------------------------------------

@@ -23,7 +23,12 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
 import { parseRozvrhCsv, rozvrhCsvTemplate } from "../_lib/rozvrh"
-import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
+import {
+  exportJson,
+  importJson,
+  minuleJsonTemplate,
+  parseMinuleJson,
+} from "../_lib/storage"
 import { ROZSAH_SHORT } from "../_lib/rozsah"
 import type { CasoveRozliseni, Rozsah, VykazValues } from "../_lib/types"
 
@@ -81,8 +86,12 @@ export function Toolbar() {
     }
   }
 
-  const downloadCsv = (content: string, filename: string) => {
-    const blob = new Blob([content], { type: "text/csv;charset=utf-8" })
+  const downloadTemplate = (
+    content: string,
+    filename: string,
+    mime: string,
+  ) => {
+    const blob = new Blob([content], { type: mime })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
@@ -94,7 +103,11 @@ export function Toolbar() {
   }
 
   const downloadDenikTemplate = () => {
-    downloadCsv(denikCsvTemplate(), "ucetni-dennik-sablona.csv")
+    downloadTemplate(
+      denikCsvTemplate(),
+      "ucetni-dennik-sablona.csv",
+      "text/csv;charset=utf-8",
+    )
   }
 
   const handleDenikImport = async (file: File | undefined) => {
@@ -119,7 +132,21 @@ export function Toolbar() {
   }
 
   const downloadRozvrhTemplate = () => {
-    downloadCsv(rozvrhCsvTemplate(), "uctovy-rozvrh-sablona.csv")
+    downloadTemplate(
+      rozvrhCsvTemplate(),
+      "uctovy-rozvrh-sablona.csv",
+      "text/csv;charset=utf-8",
+    )
+  }
+
+  /* Blank prior-year file for the CURRENT rozsah + časové rozlišení, so the
+     fillable řádky match the form on screen. */
+  const downloadMinuleTemplate = () => {
+    downloadTemplate(
+      minuleJsonTemplate(rozsah, crVariant),
+      "vykazy-minule-sablona.json",
+      "application/json",
+    )
   }
 
   const handleRozvrhImport = async (file: File | undefined) => {
@@ -275,6 +302,14 @@ export function Toolbar() {
             >
               {stateIcon(minuleLoaded)}
               Minulé období (JSON)
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={downloadMinuleTemplate}
+            >
+              Šablona
             </Button>
           </div>
           <input

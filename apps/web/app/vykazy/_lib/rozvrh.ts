@@ -13,9 +13,6 @@ export interface RozvrhAccount {
   /** Full account number as it appears in the deník (usually 6 digits). */
   ucet: string
   nazev: string
-  nameEn?: string
-  druh?: string
-  typ?: string
   /** Účet oprávek / opravných položek — its balance belongs in the korekce column. */
   opravkovy?: boolean
 }
@@ -24,35 +21,46 @@ export interface RozvrhParseResult {
   accounts: RozvrhAccount[]
   ignoredColumns: string[]
   duplicates: string[]
+  /** Rows dropped for want of an account number or a name, with their line. */
+  skipped: string[]
   headerOk: boolean
   missingHeaders: string[]
 }
 
-type FieldKey = "ucet" | "nazev" | "nameEn" | "druh" | "typ" | "opravkovy"
+type FieldKey = "ucet" | "nazev" | "opravkovy"
 
 const CSV_HEADERS: Record<string, FieldKey> = {
   Účet: "ucet",
   Ucet: "ucet",
   Název: "nazev",
   Nazev: "nazev",
-  "Název EN": "nameEn",
-  "Alternativní název 1": "nameEn",
-  Druh: "druh",
-  Typ: "typ",
   Oprávkový: "opravkovy",
   Opravkovy: "opravkovy",
 }
 
-const REQUIRED_NAMES = ["Účet", "Název"]
-
-const TEMPLATE_HEADERS = [
-  "Účet",
-  "Název",
+/**
+ * Columns the účtový rozvrh sheet carries that this app has no use for. They are
+ * recognized so an import of the full sheet does not report them as unknown, and
+ * dropped so the document does not persist fields nothing renders.
+ */
+const KNOWN_UNUSED_HEADERS = new Set([
   "Název EN",
+  "Nazev EN",
+  "Alternativní název 1",
   "Druh",
   "Typ",
-  "Oprávkový",
-] as const
+  "Podtyp",
+  "Vnitropodnikový",
+  "Technický",
+  "Účet převodu",
+  "Zdroj",
+])
+
+const REQUIRED_NAMES = ["Účet", "Název"]
+
+/** Ordered columns of the downloadable template. A superset is accepted on
+ * import: the full účtový rozvrh sheet imports as-is, extra columns and all. */
+const TEMPLATE_HEADERS = ["Účet", "Název", "Oprávkový"] as const
 
 /** "Ano" / "Ne" as the Czech accounting software writes it, plus the usual aliases. */
 function parseOpravkovy(v: string): boolean {
@@ -62,30 +70,9 @@ function parseOpravkovy(v: string): boolean {
 
 export function rozvrhCsvTemplate(): string {
   const examples = [
-    [
-      "221003",
-      "Bankovní účet EUR: Raiffeisenbank (devizový)",
-      "",
-      "Rozvahový",
-      "Aktivní",
-      "Ne",
-    ],
-    [
-      "475017",
-      "Dlouhodobé přijaté zálohy: Byt 17",
-      "",
-      "Rozvahový",
-      "Pasivní",
-      "Ne",
-    ],
-    [
-      "391001",
-      "Opravná položka k pohledávkám",
-      "",
-      "Rozvahový",
-      "Aktivní",
-      "Ano",
-    ],
+    ["221003", "Bankovní účet EUR: Raiffeisenbank (devizový)", "Ne"],
+    ["475017", "Dlouhodobé přijaté zálohy: Byt 17", "Ne"],
+    ["391001", "Opravná položka k pohledávkám", "Ano"],
   ]
   const lines = [
     TEMPLATE_HEADERS.join(";"),
@@ -97,6 +84,7 @@ export function rozvrhCsvTemplate(): string {
 export function parseRozvrhCsv(text: string): RozvrhParseResult {
   const ignoredColumns: string[] = []
   const duplicates: string[] = []
+  const skipped: string[] = []
   const rawLines = text.replace(/^\uFEFF/, "").split(/\r\n|\n|\r/)
   const headerLine = rawLines[0] ?? ""
   if (headerLine.trim() === "") {
@@ -104,6 +92,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
       accounts: [],
       ignoredColumns,
       duplicates,
+      skipped,
       headerOk: false,
       missingHeaders: REQUIRED_NAMES,
     }
@@ -113,7 +102,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
   const cols: Partial<Record<FieldKey, number>> = {}
   splitCsvLine(headerLine, delim).forEach((raw, idx) => {
     const name = raw.trim()
-    if (name === "") return
+    if (name === "" || KNOWN_UNUSED_HEADERS.has(name)) return
     const field = CSV_HEADERS[name]
     if (field === undefined) {
       ignoredColumns.push(name)
@@ -130,6 +119,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
       accounts: [],
       ignoredColumns,
       duplicates,
+      skipped,
       headerOk: false,
       missingHeaders,
     }
@@ -147,20 +137,27 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
 
     const ucet = at(f, cols.ucet)
     const nazev = at(f, cols.nazev)
-    if (ucet === "" || nazev === "") continue
+    if (ucet === "") {
+      skipped.push(
+        `\u0159\u00E1dek ${i + 1}: chyb\u00ED \u010D\u00EDslo \u00FA\u010Dtu`,
+      )
+      continue
+    }
+    if (nazev === "") {
+      skipped.push(
+        `\u0159\u00E1dek ${i + 1}: \u00FA\u010Det ${ucet} nem\u00E1 n\u00E1zev`,
+      )
+      continue
+    }
     if (seen.has(ucet)) {
-      duplicates.push(ucet)
+      duplicates.push(
+        `\u0159\u00E1dek ${i + 1}: \u00FA\u010Det ${ucet} je uveden v\u00EDcekr\u00E1t`,
+      )
       continue
     }
     seen.add(ucet)
 
     const account: RozvrhAccount = { ucet, nazev }
-    const nameEn = at(f, cols.nameEn)
-    if (nameEn) account.nameEn = nameEn
-    const druh = at(f, cols.druh)
-    if (druh) account.druh = druh
-    const typ = at(f, cols.typ)
-    if (typ) account.typ = typ
     if (cols.opravkovy !== undefined) {
       account.opravkovy = parseOpravkovy(at(f, cols.opravkovy))
     }
@@ -171,66 +168,56 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
     accounts,
     ignoredColumns,
     duplicates,
+    skipped,
     headerOk: true,
     missingHeaders: [],
   }
 }
 
-interface Index {
-  exact: Map<string, string>
-  bySynteticky: Map<string, string>
-}
-
-function indexNames(
-  accounts: readonly { ucet: string; nazev: string }[],
-): Index {
-  const exact = new Map<string, string>()
-  const bySynteticky = new Map<string, string>()
-  for (const acc of accounts) {
-    if (!exact.has(acc.ucet)) exact.set(acc.ucet, acc.nazev)
+const OSNOVA_EXACT = new Map(OSNOVA.map((a) => [a.ucet, a]))
+const OSNOVA_BY_SYNTETICKY = (() => {
+  const out = new Map<string, (typeof OSNOVA)[number]>()
+  for (const acc of OSNOVA) {
     const syn = acc.ucet.slice(0, 3)
-    if (!bySynteticky.has(syn)) bySynteticky.set(syn, acc.nazev)
+    if (!out.has(syn)) out.set(syn, acc)
   }
-  return { exact, bySynteticky }
-}
-
-const OSNOVA_NAMES = indexNames(OSNOVA)
+  return out
+})()
 
 /**
- * Resolve an account name, most specific source first: the loaded rozvrh's exact
- * account, the směrná osnova's exact account, then the same two by 3-digit
- * synthetic prefix. An exact hit always beats a synthetic fallback, so a rozvrh
- * that lists only analytiky of one synthetic never shadows the osnova's own name
- * for a different account of that synthetic.
+ * Resolve an account name: the loaded rozvrh's exact account, then the směrná
+ * osnova's exact account, then the osnova's syntetický účet.
+ *
+ * There is deliberately no "rozvrh by synthetic" tier. An analytický účet's name
+ * describes that one account — 475017 is one byt — so lending it to an unlisted
+ * sibling of the same synthetic would state something false. An account the
+ * rozvrh does not list falls back to the statutory name, which is generic but
+ * never wrong.
  */
 export function buildNameLookup(
   rozvrh?: readonly RozvrhAccount[],
 ): (ucet: string) => string {
-  if (!rozvrh || rozvrh.length === 0) {
-    return (ucet) =>
-      OSNOVA_NAMES.exact.get(ucet) ??
-      OSNOVA_NAMES.bySynteticky.get(ucet.slice(0, 3)) ??
-      ""
+  const own = new Map<string, string>()
+  for (const acc of rozvrh ?? []) {
+    if (acc.nazev !== "" && !own.has(acc.ucet)) own.set(acc.ucet, acc.nazev)
   }
-  const own = indexNames(rozvrh)
-  return (ucet) => {
-    const syn = ucet.slice(0, 3)
-    return (
-      own.exact.get(ucet) ??
-      OSNOVA_NAMES.exact.get(ucet) ??
-      own.bySynteticky.get(syn) ??
-      OSNOVA_NAMES.bySynteticky.get(syn) ??
-      ""
-    )
-  }
+  return (ucet) =>
+    own.get(ucet) ??
+    OSNOVA_EXACT.get(ucet)?.nazev ??
+    OSNOVA_BY_SYNTETICKY.get(ucet.slice(0, 3))?.nazev ??
+    ""
 }
 
-const OSNOVA_OPRAVKOVY = new Map(OSNOVA.map((a) => [a.ucet, a.opravkovy]))
-
 /**
- * Resolve the opravkovy flag by exact account only (a synthetic fallback would
- * mark every analytika of 39x as a correction account, which is what the direct
- * korekce mapping in mapping.ts already handles). Unknown account = false.
+ * Resolve the opravkovy flag: the rozvrh's exact account, then the osnova's
+ * exact account, then its syntetický účet — an analytika of 08x is an oprávkový
+ * účet because 08x is one.
+ *
+ * This flag redirects an account onto the korekce column of its asset leaf when
+ * the mapping table points at a brutto cell, and every 07x/08x/09x/19x/29x/39x
+ * synthetic is already mapped straight to korekce, so it changes no výkaz value
+ * today. It is carried faithfully because it is part of the chart the user
+ * imports and exports.
  */
 export function buildOpravkovyLookup(
   rozvrh?: readonly RozvrhAccount[],
@@ -241,5 +228,9 @@ export function buildOpravkovyLookup(
       own.set(acc.ucet, acc.opravkovy)
     }
   }
-  return (ucet) => own.get(ucet) ?? OSNOVA_OPRAVKOVY.get(ucet) ?? false
+  return (ucet) =>
+    own.get(ucet) ??
+    OSNOVA_EXACT.get(ucet)?.opravkovy ??
+    OSNOVA_BY_SYNTETICKY.get(ucet.slice(0, 3))?.opravkovy ??
+    false
 }

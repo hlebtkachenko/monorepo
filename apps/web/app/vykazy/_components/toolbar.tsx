@@ -39,6 +39,7 @@ export function Toolbar() {
   const minuleInput = useRef<HTMLInputElement>(null)
   const rozvrhInput = useRef<HTMLInputElement>(null)
   const [minuleError, setMinuleError] = useState<string | null>(null)
+  const [rozvrhNote, setRozvrhNote] = useState<string | null>(null)
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return
@@ -95,10 +96,20 @@ export function Toolbar() {
 
   const handleRozvrhImport = async (file: File | undefined) => {
     if (!file) return
-    const result = parseRozvrhCsv(await file.text())
+    setRozvrhNote(null)
+    let result: ReturnType<typeof parseRozvrhCsv>
+    try {
+      result = parseRozvrhCsv(await file.text())
+    } catch {
+      window.alert("Soubor se nepodařilo přečíst.")
+      return
+    }
     if (!result.headerOk) {
+      // A chart saved from Excel as "CSV (Windows)" is cp1250, and every accented
+      // header then arrives mangled — the columns look present but match nothing.
       window.alert(
-        `Účtový rozvrh se nepodařilo načíst — chybí povinné sloupce: ${result.missingHeaders.join(", ")}.`,
+        `Účtový rozvrh se nepodařilo načíst — chybí povinné sloupce: ${result.missingHeaders.join(", ")}.` +
+          " Pokud sloupce v souboru jsou, uložte jej v kódování UTF-8.",
       )
       return
     }
@@ -107,6 +118,20 @@ export function Toolbar() {
       return
     }
     importRozvrh(result.accounts)
+    // Every drop the parser makes is reported. Silence here used to mean a
+    // mistyped header, a nameless account or a duplicate vanished unnoticed.
+    const notes = [
+      ...result.skipped,
+      ...result.duplicates,
+      ...(result.ignoredColumns.length > 0
+        ? [`nezpracované sloupce: ${result.ignoredColumns.join(", ")}`]
+        : []),
+    ]
+    setRozvrhNote(
+      notes.length > 0
+        ? `Načteno ${result.accounts.length} účtů. Přeskočeno — ${notes.join("; ")}.`
+        : null,
+    )
   }
 
   const handleMinuleImport = async (file: File | undefined) => {
@@ -267,13 +292,20 @@ export function Toolbar() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              if (window.confirm("Opravdu vymazat načtený účtový rozvrh?"))
+              if (window.confirm("Opravdu vymazat načtený účtový rozvrh?")) {
                 clearRozvrh()
+                setRozvrhNote(null)
+              }
             }}
           >
             Vymazat rozvrh
           </Button>
         </>
+      ) : null}
+      {rozvrhNote ? (
+        <span className="text-xs text-amber-600 dark:text-amber-400">
+          {rozvrhNote}
+        </span>
       ) : null}
 
       <span className="mx-1 h-5 w-px bg-muted" />

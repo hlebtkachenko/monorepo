@@ -325,14 +325,12 @@ function coerceRozvrh(input: unknown): RozvrhAccount[] | undefined {
   const out: RozvrhAccount[] = []
   for (const raw of input) {
     if (!isRecord(raw)) continue
-    const ucet = asString(raw.ucet)
-    const nazev = asString(raw.nazev)
+    // Trimmed here, not just in the CSV parser: a hand-edited JSON could carry a
+    // whitespace-only name, which would then beat the statutory one.
+    const ucet = asString(raw.ucet).trim()
+    const nazev = asString(raw.nazev).trim()
     if (ucet === "" || nazev === "") continue
     const account: RozvrhAccount = { ucet, nazev }
-    for (const key of ["nameEn", "druh", "typ"] as const) {
-      const v = raw[key]
-      if (typeof v === "string" && v !== "") account[key] = v
-    }
     if (typeof raw.opravkovy === "boolean") account.opravkovy = raw.opravkovy
     out.push(account)
   }

@@ -158,7 +158,7 @@ export interface TabulkaARadek {
 export type TabulkaBKey = keyof DppoTabulkaB
 
 /** Every tabulka B cell the tiskopis prints, in řádek order (ř.2 is neobsazeno). */
-export const TABULKA_B_KEYS: TabulkaBKey[] = [
+const TABULKA_B_KEYS: TabulkaBKey[] = [
   "r1",
   "r3",
   "r4",

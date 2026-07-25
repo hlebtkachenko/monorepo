@@ -90,9 +90,16 @@
     margin-top: 8mm;
   }
 
-  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>. */
+  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>.
+     The width is 1pt short of the box on purpose. Measured in a Safari print of
+     the rozvaha: the page content box is laid out 34.5000–561.9414pt wide but
+     CLIPPED at 34.5000–561.1992pt, 0.7422pt (one CSS px) narrower. A table at a
+     full 100% puts its right border at 561.19–561.94pt, entirely inside that
+     shaved strip, so the whole right edge of the table prints missing while the
+     left border — drawn inward from 34.50 — survives. Reserving 1pt moves the
+     border back inside the clip and is 0.5% of one column, invisible. */
   .vykaz-table {
-    width: 100%;
+    width: calc(100% - 1pt);
     table-layout: fixed;
     border-collapse: collapse;
     font-size: 9pt;

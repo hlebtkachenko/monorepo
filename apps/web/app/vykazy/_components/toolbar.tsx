@@ -11,6 +11,7 @@ import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
 
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
+import { parseRozvrhCsv, rozvrhCsv, seedRozvrh } from "../_lib/rozvrh"
 import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
 import { ROZSAH_SHORT } from "../_lib/rozsah"
 
@@ -29,11 +30,16 @@ export function Toolbar() {
     importMinule,
     clearDenik,
     denikLoaded,
+    predvaha,
+    rozvrh,
+    setRozvrh,
   } = useOrg()
   const fileInput = useRef<HTMLInputElement>(null)
   const denikInput = useRef<HTMLInputElement>(null)
   const minuleInput = useRef<HTMLInputElement>(null)
+  const rozvrhInput = useRef<HTMLInputElement>(null)
   const [minuleError, setMinuleError] = useState<string | null>(null)
+  const [rozvrhNote, setRozvrhNote] = useState<string | null>(null)
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return
@@ -47,18 +53,53 @@ export function Toolbar() {
     }
   }
 
-  const downloadDenikTemplate = () => {
-    const blob = new Blob([denikCsvTemplate()], {
-      type: "text/csv;charset=utf-8",
-    })
+  const downloadCsv = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8" })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = "ucetni-dennik-sablona.csv"
+    anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
+  }
+
+  // Export the rozvrh as it stands: every account the deník uses, merged with
+  // the names/placements already recorded. With neither loaded the file is just
+  // the header — the shape to fill in.
+  const exportRozvrh = () => {
+    downloadCsv(
+      rozvrhCsv(
+        seedRozvrh(
+          predvaha.ucty.map((u) => u.ucet),
+          rozvrh,
+        ),
+      ),
+      "ucetni-rozvrh.csv",
+    )
+  }
+
+  const handleRozvrhImport = async (file: File | undefined) => {
+    if (!file) return
+    setRozvrhNote(null)
+    const result = parseRozvrhCsv(await file.text())
+    if (!result.headerOk) {
+      setRozvrhNote(
+        `Rozvrh se nepodařilo načíst — chybí sloupce: ${result.missingHeaders.join(", ")}.`,
+      )
+      return
+    }
+    setRozvrh(result.accounts)
+    setRozvrhNote(
+      result.warnings.length > 0
+        ? `Načteno ${result.accounts.length} účtů. ${result.warnings[0]}${
+            result.warnings.length > 1
+              ? ` (+ ${result.warnings.length - 1} dalších)`
+              : ""
+          }`
+        : `Načteno ${result.accounts.length} účtů.`,
+    )
   }
 
   const handleDenikImport = async (file: File | undefined) => {
@@ -157,7 +198,9 @@ export function Toolbar() {
         type="button"
         variant="ghost"
         size="sm"
-        onClick={downloadDenikTemplate}
+        onClick={() =>
+          downloadCsv(denikCsvTemplate(), "ucetni-dennik-sablona.csv")
+        }
       >
         Šablona deníku (CSV)
       </Button>
@@ -200,6 +243,35 @@ export function Toolbar() {
       />
       {minuleError ? (
         <span className="text-xs text-destructive">{minuleError}</span>
+      ) : null}
+
+      <span className="mx-1 h-5 w-px bg-muted" />
+
+      {/* Účetní rozvrh — the entity's own analytic names + placements. The
+          syntetické účty stay as the vyhláška places them. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => rozvrhInput.current?.click()}
+      >
+        Import rozvrhu (CSV)
+      </Button>
+      <input
+        ref={rozvrhInput}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => {
+          void handleRozvrhImport(e.target.files?.[0])
+          e.target.value = ""
+        }}
+      />
+      <Button type="button" variant="outline" size="sm" onClick={exportRozvrh}>
+        Export rozvrhu (CSV)
+      </Button>
+      {rozvrhNote ? (
+        <span className="text-xs text-muted-foreground">{rozvrhNote}</span>
       ) : null}
 
       <span className="mx-1 h-5 w-px bg-muted" />

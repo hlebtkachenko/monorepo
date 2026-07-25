@@ -2,6 +2,7 @@
 // as one JSON blob, plus JSON file export/import and localStorage persistence.
 // External input (imported files, stored blobs) is normalized at this boundary.
 
+import { isLeafRada } from "./rozvrh"
 import type {
   CasoveRozliseni,
   ColKey,
@@ -10,6 +11,7 @@ import type {
   VykazValues,
 } from "./types"
 import type { DenikRow } from "./denik"
+import type { RozvrhAccount } from "./rozvrh"
 
 /**
  * 3 — rozvaha renumbered onto the current příloha č. 1 (A.IV. merged into two
@@ -54,6 +56,9 @@ export interface VykazyDoc {
   /** Raw parsed deník rows (absent when no deník is loaded). Předvaha is rebuilt
    * from these on import; the mapped výkaz numbers already live in `values`. */
   denik?: DenikRow[]
+  /** The entity's own účetní rozvrh — analytic account names + placements that
+   * layer over the směrná účtová osnova. Absent = the law osnova alone. */
+  rozvrh?: RozvrhAccount[]
   /** Per-statement `${rada}:${col}` keys the user overrode back to editable
    * (a sourced/deník-derived leaf flipped to a normal input). Absent = none. */
   overrides?: {
@@ -314,6 +319,39 @@ function coerceDenik(input: unknown): DenikRow[] | undefined {
   return rows.length > 0 ? rows : undefined
 }
 
+/** Coerce one untrusted entry into a RozvrhAccount, or drop it. A placement is
+ * kept only when it names a real statement and one of its leaf řádky. */
+function coerceRozvrhAccount(input: unknown): RozvrhAccount | null {
+  if (!isRecord(input)) return null
+  const ucet = asString(input.ucet).trim()
+  if (ucet === "") return null
+  const account: RozvrhAccount = { ucet, nazev: asString(input.nazev) }
+  if (input.opravkovy === true) account.opravkovy = true
+  const vykaz = input.vykaz
+  const rada = asString(input.rada)
+  if (
+    (vykaz === "rozvaha-aktiva" ||
+      vykaz === "rozvaha-pasiva" ||
+      vykaz === "vzz") &&
+    isLeafRada(vykaz, rada)
+  ) {
+    account.vykaz = vykaz
+    account.rada = rada
+  }
+  return account
+}
+
+/** Coerce the `rozvrh` field; undefined when absent/empty after filtering. */
+function coerceRozvrh(input: unknown): RozvrhAccount[] | undefined {
+  if (!Array.isArray(input)) return undefined
+  const accounts: RozvrhAccount[] = []
+  for (const raw of input) {
+    const account = coerceRozvrhAccount(raw)
+    if (account) accounts.push(account)
+  }
+  return accounts.length > 0 ? accounts : undefined
+}
+
 function coerceStringArray(input: unknown): string[] {
   if (!Array.isArray(input)) return []
   return input.filter((x): x is string => typeof x === "string")
@@ -369,6 +407,8 @@ function normalizeDoc(input: unknown): VykazyDoc {
   }
   const denik = coerceDenik(input.denik)
   if (denik) doc.denik = denik
+  const rozvrh = coerceRozvrh(input.rozvrh)
+  if (rozvrh) doc.rozvrh = rozvrh
   const overrides = coerceOverrides(input.overrides)
   if (overrides) doc.overrides = overrides
   return migrateRozvahaRadky(doc)

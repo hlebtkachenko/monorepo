@@ -13,8 +13,8 @@ import { useMemo, type ReactNode } from "react"
 import { computeColumn } from "../_lib/engine"
 import { useOrg } from "../_lib/org-context"
 import type { Predvaha, UcetBalance } from "../_lib/predvaha"
+import { buildRozvrhIndex, resolveNazev } from "../_lib/rozvrh"
 import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
-import { OSNOVA } from "../_data/osnova"
 
 // The mapper allocates the rounding to celé tisíce per side (see mapping.ts), so
 // a deník that balances to the halíř also balances on the form — exactly. Any
@@ -147,24 +147,14 @@ function PredvahaFilterTable({
   filter: PredvahaFilter | null
   onSelect: (next: PredvahaFilter) => void
 }) {
-  // Account-name lookup from the směrná účtová osnova: exact 6-digit match first,
-  // then fall back to the 3-digit synthetic prefix (e.g. "321" -> "321000" ->
-  // "Dodavatelé"). First OSNOVA hit per synthetic wins (the "XXX000" base).
-  const nameByUcet = useMemo(() => {
-    const exact = new Map<string, string>()
-    const bySynteticky = new Map<string, string>()
-    for (const acc of OSNOVA) {
-      exact.set(acc.ucet, acc.nazev)
-      const syn = acc.ucet.slice(0, 3)
-      if (!bySynteticky.has(syn)) bySynteticky.set(syn, acc.nazev)
-    }
-    return { exact, bySynteticky }
-  }, [])
+  // Account name: the entity's own účetní rozvrh first, then the směrná účtová
+  // osnova (exact 6-digit match, then the 3-digit synthetic prefix, e.g. "321"
+  // -> "321000" -> "Dodavatelé").
+  const { rozvrh } = useOrg()
+  const rozvrhIndex = useMemo(() => buildRozvrhIndex(rozvrh), [rozvrh])
 
   const resolveName = (u: UcetBalance): string =>
-    nameByUcet.exact.get(u.ucet) ??
-    nameByUcet.bySynteticky.get(u.synteticky) ??
-    ""
+    resolveNazev(u.ucet, rozvrhIndex)
 
   const isActive = (ucet: string, side: PredvahaFilter["side"]): boolean =>
     filter !== null && filter.ucet === ucet && filter.side === side

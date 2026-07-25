@@ -11,7 +11,12 @@ import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
 
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
-import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
+import {
+  exportJson,
+  importJson,
+  minuleJsonTemplate,
+  parseMinuleJson,
+} from "../_lib/storage"
 import { ROZSAH_SHORT } from "../_lib/rozsah"
 
 export function Toolbar() {
@@ -47,14 +52,16 @@ export function Toolbar() {
     }
   }
 
-  const downloadDenikTemplate = () => {
-    const blob = new Blob([denikCsvTemplate()], {
-      type: "text/csv;charset=utf-8",
-    })
+  const downloadTemplate = (
+    content: string,
+    filename: string,
+    mime: string,
+  ) => {
+    const blob = new Blob([content], { type: mime })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement("a")
     anchor.href = url
-    anchor.download = "ucetni-dennik-sablona.csv"
+    anchor.download = filename
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()
@@ -157,7 +164,13 @@ export function Toolbar() {
         type="button"
         variant="ghost"
         size="sm"
-        onClick={downloadDenikTemplate}
+        onClick={() =>
+          downloadTemplate(
+            denikCsvTemplate(),
+            "ucetni-dennik-sablona.csv",
+            "text/csv;charset=utf-8",
+          )
+        }
       >
         Šablona deníku (CSV)
       </Button>
@@ -198,6 +211,22 @@ export function Toolbar() {
           e.target.value = ""
         }}
       />
+      {/* Blank prior-year file for the CURRENT rozsah + časové rozlišení, so the
+          fillable řádky match the form on screen. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() =>
+          downloadTemplate(
+            minuleJsonTemplate(rozsah, crVariant),
+            "vykazy-minule-sablona.json",
+            "application/json",
+          )
+        }
+      >
+        Šablona minulého období (JSON)
+      </Button>
       {minuleError ? (
         <span className="text-xs text-destructive">{minuleError}</span>
       ) : null}

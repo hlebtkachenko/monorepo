@@ -2,11 +2,16 @@
 // as one JSON blob, plus JSON file export/import and localStorage persistence.
 // External input (imported files, stored blobs) is normalized at this boundary.
 
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
+import { VZZ } from "../_data/vzz"
+import { inRozsah } from "./rozsah"
 import type {
   CasoveRozliseni,
   ColKey,
   OrgConfig,
   Rozsah,
+  VykazLine,
+  VykazStatement,
   VykazValues,
 } from "./types"
 import type { DenikRow } from "./denik"
@@ -71,6 +76,13 @@ export interface VykazyDoc {
 export interface MinuleJson {
   version: 1
   kind: "vykazy-minule"
+  /** Označení + text per řádek, written by the downloadable template so the file
+   * is fillable by hand. Documentation only — the import ignores it. */
+  popis?: {
+    rozvahaAktiva: Record<string, string>
+    rozvahaPasiva: Record<string, string>
+    vzz: Record<string, string>
+  }
   minule: {
     rozvahaAktiva: Record<string, number>
     rozvahaPasiva: Record<string, number>
@@ -453,6 +465,76 @@ export async function parseMinuleJson(file: File): Promise<MinuleJson> {
       vzz: coerceNumberMap(parsed.minule.vzz),
     },
   }
+}
+
+// --- minulé období template --------------------------------------------------
+
+/** The `rada` tokens a calc line's signed-sum formula references. */
+function formulaRefs(formula: string): string[] {
+  return formula
+    .split(/[+-]/)
+    .map((token) => token.trim())
+    .filter((token) => token !== "")
+}
+
+/**
+ * The řádky a prior-year file has to carry for one statement in `rozsah`: every
+ * visible leaf, plus every visible calc line that sums at least one řádek the
+ * rozsah hides (in a zkrácený rozsah those aggregates are the only numbers the
+ * prior-year form printed, and the engine honours an explicit value on a calc
+ * line). A calc line whose refs are all visible stays out — it is derived.
+ */
+function templateLines(statement: VykazStatement, rozsah: Rozsah): VykazLine[] {
+  const visible = statement.lines.filter((line) =>
+    inRozsah(statement.id, line, rozsah),
+  )
+  const visibleRadky = new Set(visible.map((line) => line.rada))
+  return visible.filter((line) => {
+    if (line.kind === "input") return true
+    if (!line.formula) return false
+    return formulaRefs(line.formula).some((rada) => !visibleRadky.has(rada))
+  })
+}
+
+function templatePopis(lines: VykazLine[]): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const line of lines) out[line.rada] = `${line.ozn} ${line.text}`.trim()
+  return out
+}
+
+function templateZeros(lines: VykazLine[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const line of lines) out[line.rada] = 0
+  return out
+}
+
+/**
+ * A blank prior-year file for the current rozsah + časové-rozlišení layout:
+ * every fillable řádek at 0, with a `popis` block naming each one. Ready to be
+ * downloaded, filled in, and fed back through the "Import minulé (JSON)" button.
+ */
+export function minuleJsonTemplate(
+  rozsah: Rozsah,
+  crVariant: CasoveRozliseni,
+): string {
+  const aktiva = templateLines(rozvahaAktiva(crVariant), rozsah)
+  const pasiva = templateLines(rozvahaPasiva(crVariant), rozsah)
+  const vzz = templateLines(VZZ, rozsah)
+  const template: MinuleJson = {
+    version: 1,
+    kind: "vykazy-minule",
+    popis: {
+      rozvahaAktiva: templatePopis(aktiva),
+      rozvahaPasiva: templatePopis(pasiva),
+      vzz: templatePopis(vzz),
+    },
+    minule: {
+      rozvahaAktiva: templateZeros(aktiva),
+      rozvahaPasiva: templateZeros(pasiva),
+      vzz: templateZeros(vzz),
+    },
+  }
+  return JSON.stringify(template, null, 2)
 }
 
 // --- localStorage persistence ------------------------------------------------

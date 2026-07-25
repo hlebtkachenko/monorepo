@@ -468,8 +468,9 @@ function detectDelimiter(headerLine: string): string {
   return commas > semis ? "," : ";"
 }
 
-/** Split one CSV line, honoring "quoted ""fields"" with the delimiter inside". */
-function splitCsvLine(line: string, delim: string): string[] {
+/** Split one CSV line, honoring "quoted ""fields"" with the delimiter inside".
+ * Exported for the rozvrh CSV parser, which shares these conventions. */
+export function splitCsvLine(line: string, delim: string): string[] {
   const out: string[] = []
   let cur = ""
   let inQuotes = false

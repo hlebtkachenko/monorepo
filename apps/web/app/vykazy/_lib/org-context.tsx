@@ -41,6 +41,7 @@ import type {
   VykazValues,
 } from "./types"
 import type { DenikParseResult, DenikRow } from "./denik"
+import type { RozvrhAccount } from "./rozvrh"
 import { buildPredvaha, type Predvaha } from "./predvaha"
 import { mapPredvahaToValues } from "./mapping"
 import { CR_COUNTERPART } from "../_data/rozvaha"
@@ -84,6 +85,9 @@ const ACCOUNTING_KEYS = new Set<string>(["md", "dal", "castka", "zdroj"])
 /** A stable, empty předvaha for the "no deník loaded" state. */
 const EMPTY_PREDVAHA: Predvaha = buildPredvaha([])
 
+/** Stable empty rozvrh, so a doc without one keeps a referentially-stable value. */
+const EMPTY_ROZVRH: RozvrhAccount[] = []
+
 interface OrgContextValue {
   doc: VykazyDoc
   org: OrgConfig
@@ -101,6 +105,8 @@ interface OrgContextValue {
   denikLoaded: boolean
   /** Diagnostics from the last XLSX import, or null. */
   denikMeta: DenikMeta | null
+  /** The entity's own účetní rozvrh (analytic names + placements). `[]` = none. */
+  rozvrh: RozvrhAccount[]
   setOrgText: (key: OrgTextKey, value: string) => void
   /** Merge a partial OrgConfig in one shot (e.g. from an ARES lookup). */
   patchOrg: (partial: Partial<OrgConfig>) => void
@@ -126,6 +132,9 @@ interface OrgContextValue {
   addDenikRow: (row?: Partial<DenikRow>) => void
   /** Remove a deník row by index, then recompute the výkazy. */
   deleteDenikRow: (index: number) => void
+  /** Replace the účetní rozvrh, then recompute the výkazy from the deník (an
+   * analytic placement or a korekce flag moves values between řádky). */
+  setRozvrh: (accounts: RozvrhAccount[]) => void
   /** Fill ONLY the `minule` column of both statements from a prior-year file. */
   importMinule: (m: MinuleJson) => void
   clearDenik: () => void
@@ -339,6 +348,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const overridesRef = useRef<OverrideSets>(emptyOverrides())
   const denikLoadedRef = useRef(false)
   const crVariantRef = useRef<CasoveRozliseni>("D")
+  const rozvrhRef = useRef<RozvrhAccount[]>([])
 
   const writeRows = useCallback((rows: DenikRow[]) => {
     denikRowsRef.current = rows
@@ -363,7 +373,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const recomputeFromDenik = useCallback(
     (rows: DenikRow[], crVariant: CasoveRozliseni) => {
       const pv = buildPredvaha(rows)
-      const mapped = mapPredvahaToValues(pv.ucty, crVariant)
+      const mapped = mapPredvahaToValues(pv.ucty, crVariant, rozvrhRef.current)
       const ov = overridesRef.current
       setDoc((prev) => ({
         ...prev,
@@ -405,6 +415,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     if (stored) {
       setDoc(stored)
       crVariantRef.current = stored.crVariant
+      rozvrhRef.current = stored.rozvrh ?? []
     }
     const storedDenik = loadDenikLocal()
     if (storedDenik) {
@@ -412,7 +423,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       writeRows(storedDenik.rows)
       setPredvaha(pv)
       setDenikUnmapped(
-        mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+        mapPredvahaToValues(pv.ucty, crVariantRef.current, rozvrhRef.current)
+          .unmapped,
       )
       writeOverrides(storedDenik.overrides)
       writeDenikLoaded(storedDenik.loaded)
@@ -611,6 +623,23 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     [applyRows],
   )
 
+  // The rozvrh feeds the mapper, so replacing it re-maps the whole deník: an
+  // analytic placement or a korekce flag moves values between řádky. Overridden
+  // cells keep their manual value (mergeSourced), exactly as on a row edit.
+  const setRozvrh = useCallback(
+    (accounts: RozvrhAccount[]) => {
+      rozvrhRef.current = accounts
+      setDoc((prev) => {
+        const next = { ...prev }
+        if (accounts.length > 0) next.rozvrh = accounts
+        else delete next.rozvrh
+        return next
+      })
+      recomputeFromDenik(denikRowsRef.current, crVariantRef.current)
+    },
+    [recomputeFromDenik],
+  )
+
   const importMinule = useCallback((m: MinuleJson) => {
     setDoc((prev) => {
       const apply = (
@@ -683,6 +712,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       rozsah: doc.rozsah,
       crVariant: doc.crVariant,
     }
+    if (doc.rozvrh && doc.rozvrh.length > 0) full.rozvrh = doc.rozvrh
     if (denikLoaded && denikRows.length > 0) {
       full.denik = denikRows
       full.overrides = {
@@ -702,14 +732,17 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   // clear all deník state.
   const loadDoc = useCallback(
     (next: VykazyDoc) => {
-      setDoc({
+      const restored: VykazyDoc = {
         version: next.version,
         org: next.org,
         values: next.values,
         rozsah: next.rozsah,
         crVariant: next.crVariant,
-      })
+      }
+      if (next.rozvrh && next.rozvrh.length > 0) restored.rozvrh = next.rozvrh
+      setDoc(restored)
       crVariantRef.current = next.crVariant
+      rozvrhRef.current = next.rozvrh ?? []
       const rows = next.denik ?? []
       setDenikMeta(null)
       if (rows.length > 0) {
@@ -717,7 +750,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         writeRows(rows)
         setPredvaha(pv)
         setDenikUnmapped(
-          mapPredvahaToValues(pv.ucty, crVariantRef.current).unmapped,
+          mapPredvahaToValues(pv.ucty, crVariantRef.current, rozvrhRef.current)
+            .unmapped,
         )
         writeOverrides({
           "rozvaha-aktiva": new Set(next.overrides?.rozvahaAktiva ?? []),
@@ -739,6 +773,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     setDoc(emptyDoc())
     crVariantRef.current = "D"
+    rozvrhRef.current = []
     writeRows([])
     writeOverrides(emptyOverrides())
     writeDenikLoaded(false)
@@ -759,6 +794,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     denikUnmapped,
     denikLoaded,
     denikMeta,
+    rozvrh: doc.rozvrh ?? EMPTY_ROZVRH,
     setOrgText,
     patchOrg,
     setVTisicich,
@@ -772,6 +808,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     updateDenikRow,
     addDenikRow,
     deleteDenikRow,
+    setRozvrh,
     importMinule,
     clearDenik,
     toDoc,

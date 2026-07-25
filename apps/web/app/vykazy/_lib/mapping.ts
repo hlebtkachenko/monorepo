@@ -44,10 +44,11 @@
 //  - Pasiva A.V. (VYSLEDEK_RADA) has no account of its own — it is stamped in
 //    from the VZZ result at the end of mapPredvahaToValues.
 
-import { OSNOVA } from "../_data/osnova"
 import { CR_COUNTERPART } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { computeColumn } from "./engine"
+import { buildRozvrhIndex, resolveOpravkovy, resolvePlacement } from "./rozvrh"
+import type { RozvrhAccount } from "./rozvrh"
 import type { CasoveRozliseni, VykazValues } from "./types"
 
 /** Pasiva A.V. Výsledek hospodaření běžného účetního období. */
@@ -479,20 +480,45 @@ function mapAccount(
   return { ...target }
 }
 
-const OSNOVA_INDEX: Map<string, boolean> = (() => {
-  // Lazily-safe module-load index: ucet -> opravkovy. Kept local so this file
-  // has no runtime dependency surface beyond the osnova data.
-  const index = new Map<string, boolean>()
-  for (const account of OSNOVA) index.set(account.ucet, account.opravkovy)
-  return index
-})()
+/**
+ * The účetní rozvrh's placement for one account, as an AccountTarget. Only an
+ * analytický účet can carry one (resolvePlacement enforces that); the column
+ * follows from the statement, with a correction account moved to korekce.
+ */
+function placementTarget(
+  ucet: string,
+  index: ReturnType<typeof buildRozvrhIndex>,
+  opravkovy: boolean,
+  crVariant: CasoveRozliseni,
+): AccountTarget | null {
+  const placement = resolvePlacement(ucet, index)
+  if (!placement) return null
+  const base: AccountTarget =
+    placement.vykaz === "rozvaha-aktiva"
+      ? {
+          statement: "rozvaha-aktiva",
+          rada: placement.rada,
+          col: opravkovy ? "korekce" : "brutto",
+          sign: 1,
+        }
+      : placement.vykaz === "rozvaha-pasiva"
+        ? {
+            statement: "rozvaha-pasiva",
+            rada: placement.rada,
+            col: "bezne",
+            sign: -1,
+          }
+        : { statement: "vzz", rada: placement.rada, col: "bezne", sign: 1 }
+  return applyCrVariant(base, crVariant)
+}
 
 /**
  * Turn an obratová předvaha into výkaz leaf values.
  *
- * For each account: resolve its opravkovy flag from the směrná osnova (exact
- * 6-digit match; if absent, fall back to false — the synthetic-nature default),
- * map it, and accumulate its contribution per (statement, řádek, column) in Kč.
+ * For each account: resolve its placement — the účetní rozvrh's own analytické
+ * zařazení first, then the law mapping of its syntetický účet — and its
+ * opravkovy flag (rozvrh, then osnova), then accumulate its contribution per
+ * (statement, řádek, column) in Kč.
  *
  * The výkaz is filed "v celých tisících Kč", and rounding every cell on its own
  * breaks the bilanční rovnost: Σ round(x) is not round(Σ x), so a book that ties
@@ -520,12 +546,14 @@ export function mapPredvahaToValues(
     obratDal: number
   }[],
   crVariant: CasoveRozliseni = "D",
+  rozvrh: RozvrhAccount[] = [],
 ): {
   rozvahaAktiva: VykazValues
   rozvahaPasiva: VykazValues
   vzz: VykazValues
   unmapped: string[]
 } {
+  const rozvrhIndex = buildRozvrhIndex(rozvrh)
   // Accumulators in Kč, keyed by řádek -> column -> amount.
   const rozvahaAktivaKc: Record<
     string,
@@ -546,8 +574,10 @@ export function mapPredvahaToValues(
 
   for (const row of ucty) {
     const syn = row.synteticky.slice(0, 3)
-    const opravkovy = OSNOVA_INDEX.get(row.ucet) ?? false
-    const target = mapAccount(syn, opravkovy, crVariant)
+    const opravkovy = resolveOpravkovy(row.ucet, rozvrhIndex)
+    const target =
+      placementTarget(row.ucet, rozvrhIndex, opravkovy, crVariant) ??
+      mapAccount(syn, opravkovy, crVariant)
     if (!target) {
       unmapped.push(row.ucet)
       continue

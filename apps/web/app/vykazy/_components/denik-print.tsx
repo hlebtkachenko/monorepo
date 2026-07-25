@@ -14,6 +14,7 @@ import { formatKc } from "../_lib/format"
 import {
   chunkRows,
   usePrintMetrics,
+  PRINT_METRICS_WIDTH_PX,
   STATEMENT_HEADER_MM,
 } from "../_lib/print-pagination"
 import { StatementHeader } from "./statement-header"
@@ -90,7 +91,11 @@ export function DenikPrint({ rows }: { rows: DenikRow[] }) {
   return (
     <>
       {/* Hidden replica at print geometry — the only thing measured. */}
-      <div className="print-metrics" aria-hidden>
+      <div
+        className="print-metrics"
+        style={{ width: PRINT_METRICS_WIDTH_PX }}
+        aria-hidden
+      >
         <table
           ref={measureRef}
           className="vykaz-table w-full table-fixed border-collapse"

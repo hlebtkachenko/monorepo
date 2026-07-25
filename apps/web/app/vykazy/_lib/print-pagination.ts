@@ -18,22 +18,41 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-/** CSS px per millimetre (1in = 96 CSS px = 25.4 mm). */
-const PX_PER_MM = 96 / 25.4
-
 /**
- * Usable height of an A4 portrait page: 297mm minus the 12mm @page margins.
- * The matching content WIDTH (186mm) is set on `.print-metrics` in print.css,
- * which is what makes the measured wrapping match the printed wrapping.
+ * CSS pixels per inch WHEN PRINTING. On screen a CSS px is 1/96in, and the first
+ * version of this measured against that — which is why every chunk still spilled
+ * one row onto a near-empty page. Measured off a Safari-produced PDF: a cell set
+ * to `text-[11px]` prints at exactly 8.8pt, and 11 × (72/90) = 8.8, so Safari
+ * lays print out at 90 CSS px per inch. Chrome uses 96.
+ *
+ * 90 is therefore the honest figure to measure against: exact in Safari, and in
+ * Chrome it only under-fills a page slightly, which costs whitespace rather than
+ * correctness. Nothing here can detect the browser, so it takes the smaller one.
  */
+const PRINT_DPI = 90
+const PX_PER_MM = PRINT_DPI / 25.4
+
+/** A4 portrait content box: the page minus the 12mm @page margins. */
+const PRINT_CONTENT_WIDTH_MM = 210 - 24
 const PRINT_CONTENT_HEIGHT_MM = 297 - 24
 
 /**
- * Slack left at the bottom of every page. Absorbs the rounding between the
- * measured layout and the print layout, so a page that is estimated to fit
- * exactly never spills one row over and reintroduces the split-row defect.
+ * Width the measuring replica is laid out at, in CSS px. Sizing it in px rather
+ * than in mm is the point: at the print DPI the same 186mm of paper is a
+ * NARROWER box in CSS px than the screen would give it, so text wraps as much in
+ * the measurement as it does on paper. Sized in mm it wrapped less, and every
+ * measured row came out shorter than the row that printed.
  */
-const SAFETY_MM = 4
+export const PRINT_METRICS_WIDTH_PX = Math.floor(
+  PRINT_CONTENT_WIDTH_MM * PX_PER_MM,
+)
+
+/**
+ * Slack left at the bottom of every page. Absorbs rounding between the measured
+ * layout and the printed one, so a page that is estimated to fit exactly never
+ * spills one row over and reintroduces the split-row defect.
+ */
+const SAFETY_MM = 8
 
 /**
  * Height the tiskopis title block (StatementHeader) takes on the first printed

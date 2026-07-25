@@ -10,12 +10,15 @@ import { Button } from "@workspace/ui/components/button"
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
 import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
+import { ROZSAH_SHORT } from "../_lib/rozsah"
 
 export function Toolbar() {
   const {
     toDoc,
     rozsah,
     setRozsah,
+    crVariant,
+    setCrVariant,
     hideEmpty,
     setHideEmpty,
     loadDoc,
@@ -199,13 +202,32 @@ export function Toolbar() {
 
       <span className="mx-1 h-5 w-px bg-neutral-200" />
 
+      {/* § 3a odst. 2 vyhlášky — the zkrácený rozsah has two variants, one per
+          kategorie účetní jednotky, so this cycles through all three. */}
       <Button
         type="button"
-        variant={rozsah === "zkraceny" ? "default" : "outline"}
+        variant={rozsah === "plny" ? "outline" : "default"}
         size="sm"
-        onClick={() => setRozsah(rozsah === "plny" ? "zkraceny" : "plny")}
+        onClick={() =>
+          setRozsah(
+            rozsah === "plny" ? "mala" : rozsah === "mala" ? "mikro" : "plny",
+          )
+        }
+        title="Plný rozsah / zkrácený rozsah malé ÚJ bez auditu / zkrácený rozsah mikro ÚJ bez auditu"
       >
-        Rozsah: {rozsah === "plny" ? "plný" : "zkrácený"}
+        Rozsah: {ROZSAH_SHORT[rozsah]}
+      </Button>
+
+      {/* § 3 odst. 3 a 4 vyhlášky — časové rozlišení sits either inside
+          C.II.3./C.III. or in the separate D. položka, never both. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => setCrVariant(crVariant === "D" ? "C" : "D")}
+        title="Vykazování časového rozlišení: samostatná položka D., nebo uvnitř C.II.3. / C.III."
+      >
+        Časové rozlišení: {crVariant === "D" ? "D." : "C.II.3. / C.III."}
       </Button>
 
       <Button

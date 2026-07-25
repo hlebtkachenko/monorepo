@@ -1,11 +1,13 @@
-// Výkaz zisku a ztráty (druhové členění), plný rozsah.
-// Statutory form per vyhláška č. 500/2002 Sb., příloha č. 2. No org or personal
-// data, only the form taxonomy (řádky, označení, formulas). Values are entered
-// in the UI and live in VykazValues, never here.
+// Výkaz zisku a ztráty (druhové členění), všech 56 statutory položek.
+// Statutory form per vyhláška č. 500/2002 Sb., příloha č. 2, ve znění účinném
+// od 1. 1. 2024. No org or personal data, only the form taxonomy (řádky,
+// označení, formulas). Values are entered in the UI and live in VykazValues.
 //
 // Formula convention (see _lib/types.ts): a calc line's `formula` is a signed
 // sum over other lines' `rada` in the SAME column. Leaves are `kind:"input"`.
-// The whole form is plný rozsah, so `inZkraceny` is false on every line.
+// Zkrácený rozsah (§ 3a odst. 4 vyhlášky: římské číslice, písmena a výpočtové
+// položky = 26 řádků) is derived from `ozn` in ../_lib/rozsah.ts, not flagged
+// per line here.
 import type { VykazStatement } from "../_lib/types"
 
 export const VZZ: VykazStatement = {
@@ -20,7 +22,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "II.",
@@ -29,7 +30,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "A.",
@@ -39,7 +39,6 @@ export const VZZ: VykazStatement = {
       formula: "004+005+006",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "A.1.",
@@ -47,7 +46,6 @@ export const VZZ: VykazStatement = {
       text: "Náklady vynaložené na prodané zboží",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "A.2.",
@@ -55,7 +53,6 @@ export const VZZ: VykazStatement = {
       text: "Spotřeba materiálu a energie",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "A.3.",
@@ -63,7 +60,6 @@ export const VZZ: VykazStatement = {
       text: "Služby",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "B.",
@@ -72,7 +68,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "C.",
@@ -81,7 +76,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "D.",
@@ -91,7 +85,6 @@ export const VZZ: VykazStatement = {
       formula: "010+011",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "D.1.",
@@ -99,7 +92,6 @@ export const VZZ: VykazStatement = {
       text: "Mzdové náklady",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "D.2.",
@@ -108,7 +100,6 @@ export const VZZ: VykazStatement = {
       kind: "calc",
       formula: "012+013",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "D.2.1.",
@@ -116,7 +107,6 @@ export const VZZ: VykazStatement = {
       text: "Náklady na sociální zabezpečení a zdravotní pojištění",
       kind: "input",
       indent: 2,
-      inZkraceny: false,
     },
     {
       ozn: "D.2.2.",
@@ -124,7 +114,6 @@ export const VZZ: VykazStatement = {
       text: "Ostatní náklady",
       kind: "input",
       indent: 2,
-      inZkraceny: false,
     },
     {
       ozn: "E.",
@@ -134,7 +123,6 @@ export const VZZ: VykazStatement = {
       formula: "015+018+019",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "E.1.",
@@ -143,7 +131,6 @@ export const VZZ: VykazStatement = {
       kind: "calc",
       formula: "016+017",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "E.1.1.",
@@ -151,7 +138,6 @@ export const VZZ: VykazStatement = {
       text: "Úpravy hodnot dlouhodobého nehmotného a hmotného majetku - trvalé",
       kind: "input",
       indent: 2,
-      inZkraceny: false,
     },
     {
       ozn: "E.1.2.",
@@ -159,7 +145,6 @@ export const VZZ: VykazStatement = {
       text: "Úpravy hodnot dlouhodobého nehmotného a hmotného majetku - dočasné",
       kind: "input",
       indent: 2,
-      inZkraceny: false,
     },
     {
       ozn: "E.2.",
@@ -167,7 +152,6 @@ export const VZZ: VykazStatement = {
       text: "Úpravy hodnot zásob",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "E.3.",
@@ -175,7 +159,6 @@ export const VZZ: VykazStatement = {
       text: "Úpravy hodnot pohledávek",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "III.",
@@ -185,7 +168,6 @@ export const VZZ: VykazStatement = {
       formula: "021+022+023",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "III.1.",
@@ -193,7 +175,6 @@ export const VZZ: VykazStatement = {
       text: "Tržby z prodaného dlouhodobého majetku",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "III.2.",
@@ -201,7 +182,6 @@ export const VZZ: VykazStatement = {
       text: "Tržby z prodaného materiálu",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "III.3.",
@@ -209,7 +189,6 @@ export const VZZ: VykazStatement = {
       text: "Jiné provozní výnosy",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "F.",
@@ -219,7 +198,6 @@ export const VZZ: VykazStatement = {
       formula: "025+026+027+028+029",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "F.1.",
@@ -227,7 +205,6 @@ export const VZZ: VykazStatement = {
       text: "Zůstatková cena prodaného dlouhodobého majetku",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "F.2.",
@@ -235,7 +212,6 @@ export const VZZ: VykazStatement = {
       text: "Prodaný materiál",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "F.3.",
@@ -243,7 +219,6 @@ export const VZZ: VykazStatement = {
       text: "Daně a poplatky",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "F.4.",
@@ -251,7 +226,6 @@ export const VZZ: VykazStatement = {
       text: "Rezervy v provozní oblasti a komplexní náklady příštích období",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "F.5.",
@@ -259,7 +233,6 @@ export const VZZ: VykazStatement = {
       text: "Jiné provozní náklady",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "*",
@@ -269,7 +242,6 @@ export const VZZ: VykazStatement = {
       formula: "001+002-003-007-008-009-014+020-024",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "IV.",
@@ -279,7 +251,6 @@ export const VZZ: VykazStatement = {
       formula: "032+033",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "IV.1.",
@@ -287,7 +258,6 @@ export const VZZ: VykazStatement = {
       text: "Výnosy z podílů - ovládaná nebo ovládající osoba",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "IV.2.",
@@ -295,7 +265,6 @@ export const VZZ: VykazStatement = {
       text: "Ostatní výnosy z podílů",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "G.",
@@ -304,7 +273,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "V.",
@@ -314,7 +282,6 @@ export const VZZ: VykazStatement = {
       formula: "036+037",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "V.1.",
@@ -322,7 +289,6 @@ export const VZZ: VykazStatement = {
       text: "Výnosy z ostatního dlouhodobého finančního majetku - ovládaná nebo ovládající osoba",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "V.2.",
@@ -330,7 +296,6 @@ export const VZZ: VykazStatement = {
       text: "Ostatní výnosy z ostatního dlouhodobého finančního majetku",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "H.",
@@ -339,7 +304,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "VI.",
@@ -349,7 +313,6 @@ export const VZZ: VykazStatement = {
       formula: "040+041",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "VI.1.",
@@ -357,7 +320,6 @@ export const VZZ: VykazStatement = {
       text: "Výnosové úroky a podobné výnosy - ovládaná nebo ovládající osoba",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "VI.2.",
@@ -365,7 +327,6 @@ export const VZZ: VykazStatement = {
       text: "Ostatní výnosové úroky a podobné výnosy",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "I.",
@@ -374,7 +335,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "J.",
@@ -384,7 +344,6 @@ export const VZZ: VykazStatement = {
       formula: "044+045",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "J.1.",
@@ -392,7 +351,6 @@ export const VZZ: VykazStatement = {
       text: "Nákladové úroky a podobné náklady - ovládaná nebo ovládající osoba",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "J.2.",
@@ -400,7 +358,6 @@ export const VZZ: VykazStatement = {
       text: "Ostatní nákladové úroky a podobné náklady",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "VII.",
@@ -409,7 +366,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "K.",
@@ -418,7 +374,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "*",
@@ -428,7 +383,6 @@ export const VZZ: VykazStatement = {
       formula: "031-034+035-038+039-042-043+046-047",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "**",
@@ -438,7 +392,6 @@ export const VZZ: VykazStatement = {
       formula: "030+048",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "L.",
@@ -448,7 +401,6 @@ export const VZZ: VykazStatement = {
       formula: "051+052",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "L.1.",
@@ -456,7 +408,6 @@ export const VZZ: VykazStatement = {
       text: "Daň z příjmů splatná",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "L.2.",
@@ -464,7 +415,6 @@ export const VZZ: VykazStatement = {
       text: "Daň z příjmů odložená (+/-)",
       kind: "input",
       indent: 1,
-      inZkraceny: false,
     },
     {
       ozn: "**",
@@ -474,7 +424,6 @@ export const VZZ: VykazStatement = {
       formula: "049-050",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "M.",
@@ -483,7 +432,6 @@ export const VZZ: VykazStatement = {
       kind: "input",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "***",
@@ -493,21 +441,25 @@ export const VZZ: VykazStatement = {
       formula: "053-054",
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
     {
       ozn: "*",
       rada: "056",
-      // FY2025 (§1d ZoÚ + §35 vyhl. 500/2002, effective 1.1.2024): čistý obrat =
-      // výnosy z prodeje výrobků, zboží a služeb only (účty 601/602/604 = I.+II.),
-      // excluding financial income (VI./VII.) and other operating income (III.).
-      // Business-model exceptions (finance-model entities) override manually.
+      // § 1d odst. 2 ZoÚ (ve znění účinném od 1. 1. 2024): čistý obrat = výše
+      // výnosů z prodeje výrobků a zboží a z poskytování služeb — účty
+      // 601/602/604, i.e. I. + II. It is NOT the old form footnote
+      // "I.+II.+III.+IV.+V.+VI.+VII.", which the pre-2024 templates printed.
+      // § 35 vyhlášky then ties the čistý obrat to the entity's obchodní model
+      // and states expressly that it does not matter in which položka výkazu
+      // the revenue is reported — so a finance-model entity legitimately
+      // reports something else here. Hence `overridable`: I.+II. is the
+      // default, and the user can type the correct figure over it.
       text: "Čistý obrat za účetní období",
       kind: "calc",
       formula: "001+002",
+      overridable: true,
       bold: true,
       indent: 0,
-      inZkraceny: false,
     },
   ],
 }

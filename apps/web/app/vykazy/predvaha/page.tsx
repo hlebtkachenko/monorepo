@@ -19,10 +19,17 @@ import { buildPredvahaStatement, predvahaCsv } from "../_lib/predvaha-statement"
 
 export default function PredvahaPage() {
   const { denik, org } = useOrg()
-  const statement = useMemo(() => buildPredvahaStatement(denik), [denik])
+  // Two builds of the same statement: the exact-Kč one backs the CSV export and
+  // the MD = Dal control totals, the displayed one carries the unit the whole set
+  // of výkazů prints in (and, in tisíce, an allocation that makes it foot).
+  const exact = useMemo(() => buildPredvahaStatement(denik), [denik])
+  const statement = useMemo(
+    () => buildPredvahaStatement(denik, { vTisicich: org.vTisicich }),
+    [denik, org.vTisicich],
+  )
 
   const downloadCsv = () => {
-    const blob = new Blob([predvahaCsv(statement)], {
+    const blob = new Blob([predvahaCsv(exact)], {
       type: "text/csv;charset=utf-8",
     })
     const url = URL.createObjectURL(blob)
@@ -68,7 +75,11 @@ export default function PredvahaPage() {
         />
 
         <section className="vykaz-statement predvaha-statement">
-          <PredvahaStatement statement={statement} vTisicich={org.vTisicich} />
+          <PredvahaStatement
+            statement={statement}
+            control={exact.total}
+            vTisicich={org.vTisicich}
+          />
         </section>
 
         <StatementFooter />

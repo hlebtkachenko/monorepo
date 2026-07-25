@@ -12,11 +12,11 @@ import { StatementHeader } from "../_components/statement-header"
 import { Toolbar } from "../_components/toolbar"
 import { VykazTable } from "../_components/vykaz-table"
 import { useOrg } from "../_lib/org-context"
-import { ROZVAHA_AKTIVA, ROZVAHA_PASIVA } from "../_data/rozvaha"
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import type { ColKey } from "../_lib/types"
 
 export default function RozvahaPage() {
-  const { values, rozsah, hideEmpty, setCell } = useOrg()
+  const { values, rozsah, crVariant, hideEmpty, setCell } = useOrg()
 
   const onAktivaChange = (rada: string, col: ColKey, value: number | null) =>
     setCell("rozvaha-aktiva", rada, col, value)
@@ -38,7 +38,7 @@ export default function RozvahaPage() {
 
         <section className="vykaz-statement">
           <VykazTable
-            statement={ROZVAHA_AKTIVA}
+            statement={rozvahaAktiva(crVariant)}
             columnBLabel="AKTIVA"
             colValues={values.rozvahaAktiva}
             rozsah={rozsah}
@@ -49,7 +49,7 @@ export default function RozvahaPage() {
 
         <section className="vykaz-statement">
           <VykazTable
-            statement={ROZVAHA_PASIVA}
+            statement={rozvahaPasiva(crVariant)}
             columnBLabel="PASIVA"
             colValues={values.rozvahaPasiva}
             rozsah={rozsah}

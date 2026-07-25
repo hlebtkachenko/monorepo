@@ -130,3 +130,32 @@ describe("predvahaCsv", () => {
     expect(csv).toContain("Celkový obrat účtů")
   })
 })
+
+describe("v celých tisících", () => {
+  it("every subtotal foots and MD stays equal to Dal", () => {
+    // Three accounts whose halves would each round up on their own: 1 500 Kč
+    // three times is 2 + 2 + 2 = 6 tis. against a true total of 5 tis.
+    const rows: DenikRow[] = [
+      row("501000", "321000", 1_500),
+      row("502000", "321000", 1_500),
+      row("518000", "321000", 1_500),
+    ]
+    const s = buildPredvahaStatement(rows, { vTisicich: true })
+    const celkem = s.lines.find((l) => l.kind === "celkem")!
+    expect(celkem.totals.obratMD).toBe(5)
+    expect(celkem.totals.obratMD).toBe(celkem.totals.obratDal)
+
+    // Each subtotal equals the sum of the account rows it closes.
+    const accounts = s.lines.filter((l) => l.kind === "ucet")
+    const sumAccounts = accounts.reduce((sum, l) => sum + l.totals.obratMD, 0)
+    expect(sumAccounts).toBe(celkem.totals.obratMD)
+    expect(s.balanced).toBe(true)
+  })
+
+  it("leaves the exact-Kč build untouched", () => {
+    const rows: DenikRow[] = [row("501000", "321000", 1_500)]
+    const s = buildPredvahaStatement(rows)
+    const celkem = s.lines.find((l) => l.kind === "celkem")!
+    expect(celkem.totals.obratMD).toBe(1_500)
+  })
+})

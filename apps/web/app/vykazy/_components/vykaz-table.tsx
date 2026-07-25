@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { computeAll } from "../_lib/engine"
+import { inRozsah } from "../_lib/rozsah"
 import { formatTisice, parseCislo } from "../_lib/format"
 import { useOrg } from "../_lib/org-context"
 import type { StatementKey } from "../_lib/storage"
@@ -121,10 +122,12 @@ export function VykazTable({
     [statement, colValues],
   )
   const groups = headerGroups(statement)
-  const short = rozsah === "zkraceny"
+  const short = rozsah !== "plny"
 
+  // The statement handed in is already the one the chosen časové-rozlišení
+  // layout prints (see _data/rozvaha.ts), so only rozsah filtering happens here.
   const visibleLines = statement.lines.filter((line) => {
-    if (short && !line.inZkraceny) return false
+    if (!inRozsah(statement.id, line, rozsah)) return false
     if (hideEmpty && isHidable(line)) {
       const allZero = statement.columns.every(
         (col) => (computed[line.rada]?.[col] ?? 0) === 0,
@@ -207,8 +210,16 @@ export function VykazTable({
             </td>
             {statement.columns.map((col) => {
               const naKorekce = col === "korekce" && line.korekceNA
+              // An overridable calc (ř. 56 Čistý obrat) shows its computed value
+              // until the user clicks it; from then on it is a normal input and
+              // clearing the cell hands it back to the formula.
+              const overridden =
+                line.overridable === true &&
+                colValues[line.rada]?.[col] !== undefined
               const editable =
-                line.kind === "input" && col !== "netto" && !naKorekce
+                (line.kind === "input" || overridden) &&
+                col !== "netto" &&
+                !naKorekce
 
               if (naKorekce) {
                 return (
@@ -220,6 +231,31 @@ export function VykazTable({
                     )}
                   >
                     x
+                  </td>
+                )
+              }
+              if (
+                line.overridable === true &&
+                !overridden &&
+                col !== "netto" &&
+                !naKorekce
+              ) {
+                return (
+                  <td key={col} className={cn(cellBase, "bg-neutral-100 p-0")}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onCellChange(
+                          line.rada,
+                          col,
+                          computed[line.rada]?.[col] ?? 0,
+                        )
+                      }
+                      title="Vypočteno jako I. + II. — kliknutím zadáte vlastní čistý obrat (§ 35 vyhlášky)"
+                      className="w-full px-1 py-0.5 text-right text-[11px] font-bold text-black tabular-nums hover:bg-yellow-50"
+                    >
+                      {formatTisice(computed[line.rada]?.[col])}
+                    </button>
                   </td>
                 )
               }

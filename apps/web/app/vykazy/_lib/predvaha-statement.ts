@@ -104,7 +104,53 @@ function buildNameLookup(): (ucet: string) => string {
   return (ucet) => exact.get(ucet) ?? bySynteticky.get(ucet.slice(0, 3)) ?? ""
 }
 
-export function buildPredvahaStatement(rows: DenikRow[]): PredvahaStatement {
+/**
+ * Convert the per-account Kč amounts to celé tisíce so the printed table foots.
+ *
+ * Rounding each cell on its own would leave the subtotal rows disagreeing with
+ * the account rows above them, and the MD / Dal grand totals disagreeing with
+ * each other, on a statement whose whole point is that both sides are equal. So
+ * every column is allocated: the accounts are rounded, and the difference to the
+ * column's own rounded total is handed out largest-residual first. The subtotals
+ * are then summed FROM the rounded accounts, so every level adds up exactly.
+ */
+const ACCUM_COLS = ["psMD", "psDal", "obratMD", "obratDal"] as const
+
+function toTisiceAccums(perAccount: Map<string, Accum>): Map<string, Accum> {
+  const out = new Map<string, Accum>()
+  for (const ucet of perAccount.keys()) out.set(ucet, emptyAccum())
+  for (const col of ACCUM_COLS) {
+    const cells = [...perAccount.entries()].map(([ucet, a]) => {
+      const exact = a[col] / 1000
+      const rounded = Math.round(exact)
+      out.get(ucet)![col] = rounded
+      return { ucet, residual: exact - rounded }
+    })
+    const exactTotal = [...perAccount.values()].reduce(
+      (sum, a) => sum + a[col],
+      0,
+    )
+    let diff =
+      Math.round(exactTotal / 1000) -
+      cells.reduce((sum, c) => sum + out.get(c.ucet)![col], 0)
+    if (diff === 0 || cells.length === 0) continue
+    const step = diff > 0 ? 1 : -1
+    cells.sort((a, b) =>
+      step === 1 ? b.residual - a.residual : a.residual - b.residual,
+    )
+    for (let i = 0; diff !== 0; i += 1) {
+      const cell = cells[i % cells.length]!
+      out.get(cell.ucet)![col] += step
+      diff -= step
+    }
+  }
+  return out
+}
+
+export function buildPredvahaStatement(
+  rows: DenikRow[],
+  opts: { vTisicich?: boolean } = {},
+): PredvahaStatement {
   const perAccount = new Map<string, Accum>()
 
   const bump = (ucet: string): Accum => {
@@ -141,8 +187,9 @@ export function buildPredvahaStatement(rows: DenikRow[]): PredvahaStatement {
   }
 
   const resolveName = buildNameLookup()
+  const amounts = opts.vTisicich ? toTisiceAccums(perAccount) : perAccount
 
-  const sorted = [...perAccount.entries()].sort((a, b) =>
+  const sorted = [...amounts.entries()].sort((a, b) =>
     a[0].localeCompare(b[0], "cs"),
   )
 
@@ -226,6 +273,8 @@ export function buildPredvahaStatement(rows: DenikRow[]): PredvahaStatement {
     lines.push({ kind: "celkem", label: "Celkový obrat účtů", totals: grand })
   }
 
+  // Tolerance is a halíř on exact Kč; in tisíce the numbers are integers and the
+  // allocation keeps both sides equal, so the same comparison holds.
   const balanced =
     Math.abs(grand.psMD - grand.psDal) < 0.01 &&
     Math.abs(grand.obratMD - grand.obratDal) < 0.01 &&
@@ -236,8 +285,8 @@ export function buildPredvahaStatement(rows: DenikRow[]): PredvahaStatement {
 
 /** Serialize the předvaha to CSV (semicolon-delimited, BOM, comma decimals) for
  *  Czech Excel. Account rows keep their Účet + Název; subtotal rows carry their
- *  label in the Účet column. Always exact Kč with halíře — the display may round
- *  to tisíce, but the export stays at full precision for further processing. */
+ *  label in the Účet column. Feed it a statement built WITHOUT `vTisicich` so the
+ *  export stays at full Kč precision for further processing. */
 export function predvahaCsv(statement: PredvahaStatement): string {
   const num = (n: number): string => n.toFixed(2).replace(".", ",")
   const header = [

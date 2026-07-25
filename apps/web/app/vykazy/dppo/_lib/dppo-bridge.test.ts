@@ -43,11 +43,37 @@ describe("deriveUcetniVysledek", () => {
     expect(deriveUcetniVysledek(p)).toBe("-300000")
   })
 
-  it("excludes účtová skupina 59 (daň z příjmů)", () => {
+  it("excludes the daň z příjmů účty, including the rezerva (599)", () => {
     const base = [ucet("602", 0, 1_000_000), ucet("501", 600_000, 0)]
-    const withDan = predvaha([...base, ucet("591", 76_000, 0)])
-    // 591 must NOT move VH před zdaněním.
-    expect(deriveUcetniVysledek(withDan)).toBe("400000")
+    // 591 splatná, 592 odložená, 595 dodatečné odvody, 599 rezerva na daň —
+    // all sit below "VH před zdaněním" on the VZZ, so none may move ř.10.
+    for (const dan of ["591", "592", "595", "599"]) {
+      expect(
+        deriveUcetniVysledek(predvaha([...base, ucet(dan, 76_000, 0)])),
+      ).toBe("400000")
+    }
+  })
+
+  it("excludes 596 (M. převod podílu na VH společníkům)", () => {
+    const p = predvaha([
+      ucet("602", 0, 1_000_000),
+      ucet("501", 600_000, 0),
+      ucet("596", 400_000, 0),
+    ])
+    // M. is reported below ř.053 Výsledek hospodaření po zdanění, not in ř.049.
+    expect(deriveUcetniVysledek(p)).toBe("400000")
+  })
+
+  it("keeps the převodové účty 597/598 so they net against 697/698", () => {
+    // Both sides are reported in the VZZ (F.5 / K. against III.3 / VII.), so
+    // counting only the výnos side would inflate ř.10 by the transfer.
+    const p = predvaha([
+      ucet("602", 0, 1_000_000),
+      ucet("501", 600_000, 0),
+      ucet("597", 50_000, 0),
+      ucet("697", 0, 50_000),
+    ])
+    expect(deriveUcetniVysledek(p)).toBe("400000")
   })
 
   it("empty předvaha → 0", () => {

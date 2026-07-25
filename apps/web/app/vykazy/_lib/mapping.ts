@@ -28,20 +28,30 @@
 //    mapPredvahaToValues; every VZZ target therefore carries sign +1.
 //
 // Aktiva and pasiva go into SEPARATE VykazValues maps because their řádek numbers
-// overlap (aktiva 001–077, pasiva 001–066). The běžné columns are disjoint (aktiva
+// overlap (aktiva 001–081, pasiva 001–068). The běžné columns are disjoint (aktiva
 // writes "brutto"/"korekce", pasiva writes "bezne"), but the shared "minule" column
 // would collide, so the two sides never share one map.
+//
+// Časové rozlišení (381/382/385, 383/384) is the one mapping that depends on the
+// rozvaha layout the entity uses (§ 3 odst. 3 a 4 vyhlášky). The table below
+// carries the "D" targets; CR_VARIANT_C redirects them to the "C.II.3." /
+// "C.III." položky when that layout is selected.
 //
 // Not mapped (return null):
 //  - 701 (počáteční účet rozvažný), 702/710 (závěrkové účty) are technical. The
 //    opening balances they carried already flow into the výkaz through each
 //    rozvahový účet's KS, so mapping them would double-count.
-//  - Pasiva A.V. (řádek 022, Výsledek hospodaření běžného účetního období) is
-//    deliberately left empty here — it is filled from the VZZ result by the
-//    engine, not by any single account. No account maps to it.
+//  - Pasiva A.V. (VYSLEDEK_RADA) has no account of its own — it is stamped in
+//    from the VZZ result at the end of mapPredvahaToValues.
 
 import { OSNOVA } from "../_data/osnova"
-import type { VykazValues } from "./types"
+import { CR_COUNTERPART } from "../_data/rozvaha"
+import { VZZ } from "../_data/vzz"
+import { computeColumn } from "./engine"
+import type { CasoveRozliseni, VykazValues } from "./types"
+
+/** Pasiva A.V. Výsledek hospodaření běžného účetního období. */
+const VYSLEDEK_RADA = "021"
 
 interface AccountTarget {
   statement: "rozvaha-aktiva" | "rozvaha-pasiva" | "vzz"
@@ -174,32 +184,32 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "199": K("045"), // OP k zálohám na zvířata
 
   // ---- Class 2: krátkodobý finanční majetek + krátkodobé úvěry -----------
-  "210": A("072"), // group pokladna
-  "211": A("072"), // Pokladna
-  "213": A("072"), // Ceniny
-  "220": A("073"), // group bankovní účty
-  "221": A("073"), // Bankovní účty
-  "230": P("050"), // group krátkodobé úvěry
-  "231": P("050"), // krátkodobé závazky k úvěrovým institucím
-  "232": P("050"), // eskontní úvěry
-  "233": P("058"), // krátkodobé úvěry od nebankovních institucí
-  "240": P("058"), // group krátkodobé finanční výpomoci
-  "241": P("049"), // emitované krátkodobé dluhopisy
-  "249": P("058"), // ostatní krátkodobé finanční výpomoci
-  "250": A("070"), // group krátkodobý finanční majetek
-  "251": A("070"), // majetkové CP k obchodování
-  "252": A("070"), // vlastní podíly (krátkodobé)
-  "253": A("070"), // dluhové CP k obchodování
-  "254": A("069"), // Podíly - ovládaná (C.III.1)
-  "255": A("070"), // vlastní dluhopisy
-  "256": A("070"), // dluhové CP se splatností do 1 roku
-  "257": A("070"), // ostatní CP
-  "259": A("070"), // pořizování KFM
-  "260": A("073"), // group převody mezi finančními účty
-  "261": A("073"), // Peníze na cestě
+  "210": A("076"), // group pokladna
+  "211": A("076"), // Pokladna
+  "213": A("076"), // Ceniny
+  "220": A("077"), // group bankovní účty
+  "221": A("077"), // Bankovní účty
+  "230": P("049"), // group krátkodobé úvěry
+  "231": P("049"), // krátkodobé závazky k úvěrovým institucím
+  "232": P("049"), // eskontní úvěry
+  "233": P("057"), // krátkodobé úvěry od nebankovních institucí
+  "240": P("057"), // group krátkodobé finanční výpomoci
+  "241": P("048"), // emitované krátkodobé dluhopisy
+  "249": P("057"), // ostatní krátkodobé finanční výpomoci
+  "250": A("074"), // group krátkodobý finanční majetek
+  "251": A("074"), // majetkové CP k obchodování
+  "252": A("074"), // vlastní podíly (krátkodobé)
+  "253": A("074"), // dluhové CP k obchodování
+  "254": A("073"), // Podíly - ovládaná (C.III.1)
+  "255": A("074"), // vlastní dluhopisy
+  "256": A("074"), // dluhové CP se splatností do 1 roku
+  "257": A("074"), // ostatní CP
+  "259": A("074"), // pořizování KFM
+  "260": A("077"), // group převody mezi finančními účty
+  "261": A("077"), // Peníze na cestě
   // Opravné položky ke KFM (korekce)
-  "290": K("070"), // group
-  "291": K("070"), // OP ke krátkodobému finančnímu majetku
+  "290": K("074"), // group
+  "291": K("074"), // OP ke krátkodobému finančnímu majetku
 
   // ---- Class 3: zúčtovací vztahy -----------------------------------------
   // Pohledávky (aktiva C.II.2 krátkodobé by default)
@@ -210,26 +220,26 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "314": A("065"), // poskytnuté zálohy a závdavky
   "315": A("067"), // ostatní pohledávky -> jiné pohledávky
   // Závazky z obchodních vztahů (pasiva C.II krátkodobé)
-  "320": P("052"), // group závazky
-  "321": P("052"), // Dluhy z obchodních vztahů
-  "322": P("053"), // směnky k úhradě
-  "324": P("051"), // přijaté provozní zálohy a závdavky
-  "325": P("063"), // ostatní dluhy -> jiné závazky
+  "320": P("051"), // group závazky
+  "321": P("051"), // Dluhy z obchodních vztahů
+  "322": P("052"), // směnky k úhradě
+  "324": P("050"), // přijaté provozní zálohy a závdavky
+  "325": P("062"), // ostatní dluhy -> jiné závazky
   // Zaměstnanci a instituce
-  "330": P("059"), // group
-  "331": P("059"), // Zaměstnanci
-  "333": P("059"), // ostatní dluhy vůči zaměstnancům
+  "330": P("058"), // group
+  "331": P("058"), // Zaměstnanci
+  "333": P("058"), // ostatní dluhy vůči zaměstnancům
   "335": A("067"), // pohledávky za zaměstnanci -> jiné pohledávky
-  "336": P("060"), // zúčtování se SZ a ZP institucemi
+  "336": P("059"), // zúčtování se SZ a ZP institucemi
   // Daně a dotace (pasiva Stát - daňové závazky a dotace by default)
-  "340": P("061"), // group
-  "341": P("061"), // daň z příjmů
-  "342": P("061"), // ostatní přímé daně
-  "343": P("061"), // daň z přidané hodnoty
-  "345": P("061"), // ostatní daně a poplatky
-  "346": P("061"), // dotace ze státního rozpočtu
-  "347": P("061"), // ostatní dotace
-  "349": P("061"), // spojovací/vyrovnávací účet k DPH (not in reference osnova)
+  "340": P("060"), // group
+  "341": P("060"), // daň z příjmů
+  "342": P("060"), // ostatní přímé daně
+  "343": P("060"), // daň z přidané hodnoty
+  "345": P("060"), // ostatní daně a poplatky
+  "346": P("060"), // dotace ze státního rozpočtu
+  "347": P("060"), // ostatní dotace
+  "349": P("060"), // spojovací/vyrovnávací účet k DPH (not in reference osnova)
   // Pohledávky/dluhy za společníky
   "350": A("062"), // group pohledávky za společníky
   "351": A("059"), // pohledávky - ovládaná (krátkodobé)
@@ -238,34 +248,34 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "354": A("062"), // pohledávky za společníky při úhradě ztráty
   "355": A("062"), // ostatní pohledávky za společníky
   "358": A("062"), // pohledávky za společníky sdruženými
-  "360": P("057"), // group závazky ke společníkům
-  "361": P("054"), // dluhy - ovládaná (krátkodobé)
-  "362": P("055"), // dluhy - podstatný vliv (krátkodobé)
-  "364": P("057"), // dluhy ke společníkům při rozdělování zisku
-  "365": P("057"), // ostatní dluhy ke společníkům
-  "366": P("057"), // dluhy ke společníkům ze závislé činnosti
-  "367": P("057"), // dluhy z upsaných nesplacených CP
-  "368": P("057"), // dluhy ke společníkům sdruženým
+  "360": P("056"), // group závazky ke společníkům
+  "361": P("053"), // dluhy - ovládaná (krátkodobé)
+  "362": P("054"), // dluhy - podstatný vliv (krátkodobé)
+  "364": P("056"), // dluhy ke společníkům při rozdělování zisku
+  "365": P("056"), // ostatní dluhy ke společníkům
+  "366": P("056"), // dluhy ke společníkům ze závislé činnosti
+  "367": P("056"), // dluhy z upsaných nesplacených CP
+  "368": P("056"), // dluhy ke společníkům sdruženým
   // Jiné pohledávky a závazky
   "370": A("067"), // group
   "371": A("067"), // pohledávky z prodeje obchodního závodu
-  "372": P("063"), // dluhy z koupě obchodního závodu -> jiné závazky
+  "372": P("062"), // dluhy z koupě obchodního závodu -> jiné závazky
   "373": A("067"), // pohledávky/dluhy z pevných termínových operací
   "374": A("067"), // pohledávky z pachtu obchodního závodu
   "375": A("067"), // pohledávky z emitovaných dluhopisů
-  "376": A("070"), // nakoupené opce -> krátkodobý finanční majetek
-  "377": P("063"), // prodané opce -> jiné závazky
+  "376": A("074"), // nakoupené opce -> krátkodobý finanční majetek
+  "377": P("062"), // prodané opce -> jiné závazky
   "378": A("067"), // Jiné pohledávky
-  "379": P("063"), // Jiné dluhy
+  "379": P("062"), // Jiné dluhy
   // Přechodné účty aktiv a pasiv (časové rozlišení)
-  "380": A("075"), // group
-  "381": A("075"), // náklady příštích období (aktiva D.1)
-  "382": A("076"), // komplexní náklady příštích období (aktiva D.2)
-  "383": P("065"), // výdaje příštích období (pasiva D.1)
-  "384": P("066"), // výnosy příštích období (pasiva D.2)
-  "385": A("077"), // příjmy příštích období (aktiva D.3)
+  "380": A("079"), // group
+  "381": A("079"), // náklady příštích období (aktiva D.1)
+  "382": A("080"), // komplexní náklady příštích období (aktiva D.2)
+  "383": P("067"), // výdaje příštích období (pasiva D.1)
+  "384": P("068"), // výnosy příštích období (pasiva D.2)
+  "385": A("081"), // příjmy příštích období (aktiva D.3)
   "388": A("066"), // dohadné účty aktivní (C.II.2.4.5)
-  "389": P("062"), // dohadné účty pasivní (C.II.8.6)
+  "389": P("061"), // dohadné účty pasivní (C.II.8.6)
   // Opravné položky / vnitřní zúčtování
   "390": K("067"), // OP k zúčtovacím vztahům (korekce)
   "391": K("058"), // OP k pohledávkám (korekce of obchodních vztahů)
@@ -288,36 +298,38 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "421": P("016"), // rezervní fond
   "422": P("016"), // nedělitelný fond
   "423": P("017"), // statutární fondy
-  "426": P("021"), // jiný VH minulých let
+  "426": P("020"), // jiný VH minulých let
   "427": P("017"), // ostatní fondy
+  // A.IV.1 is one (+/-) položka since the 2018 form, so 428 and 429 share it.
+  // 429 carries a debit KS, which sign −1 renders negative — correct here.
   "428": P("019"), // Nerozdělený zisk minulých let
-  "429": P("020"), // Neuhrazená ztráta minulých let (-)
-  // Výsledek hospodaření (A.V řádek 022 is NOT mapped — filled from VZZ result)
-  "430": P("021"), // group -> jiný VH minulých let (technical)
-  "431": P("021"), // VH ve schvalovacím řízení -> jiný VH minulých let
-  "432": P("023"), // zálohy na podíly na zisku (A.VI, "-")
+  "429": P("019"), // Neuhrazená ztráta minulých let (-)
+  // Výsledek hospodaření (A.V. řádek 021 is NOT mapped — filled from VZZ result)
+  "430": P("020"), // group -> jiný VH minulých let (technical)
+  "431": P("020"), // VH ve schvalovacím řízení -> jiný VH minulých let
+  "432": P("022"), // zálohy na podíly na zisku (A.VI, "-")
   // Rezervy (pasiva B.)
-  "450": P("029"), // group
-  "451": P("028"), // rezervy dle zvláštních předpisů
-  "452": P("026"), // rezerva na důchody a podobné závazky
-  "453": P("027"), // rezerva na daň z příjmů
-  "459": P("029"), // ostatní rezervy
+  "450": P("028"), // group
+  "451": P("027"), // rezervy dle zvláštních předpisů
+  "452": P("025"), // rezerva na důchody a podobné závazky
+  "453": P("026"), // rezerva na daň z příjmů
+  "459": P("028"), // ostatní rezervy
   // Dlouhodobé závazky (pasiva C.I.)
-  "460": P("035"), // group dlouhodobé závazky k úvěrovým institucím
-  "461": P("035"), // Dlouhodobé závazky k úvěrovým institucím
-  "462": P("045"), // úvěry od nebankovních institucí -> jiné dl. závazky
-  "470": P("045"), // group dlouhodobé závazky
-  "471": P("039"), // dlouhodobé dluhy - ovládaná
-  "472": P("040"), // dlouhodobé dluhy - podstatný vliv
-  "473": P("034"), // emitované dluhopisy (dlouhodobé, ostatní)
-  "474": P("045"), // dluhy z pachtu obchodního závodu
-  "475": P("036"), // dlouhodobé přijaté zálohy a závdavky
-  "478": P("038"), // dlouhodobé směnky k úhradě
-  "479": P("045"), // jiné dlouhodobé dluhy
-  "480": P("041"), // group odložený daňový závazek/pohledávka
-  "481": P("041"), // odložený daňový dluh (default závazek)
-  "490": P("021"), // group individuální podnikatel
-  "491": P("021"), // účet individuálního podnikatele
+  "460": P("034"), // group dlouhodobé závazky k úvěrovým institucím
+  "461": P("034"), // Dlouhodobé závazky k úvěrovým institucím
+  "462": P("044"), // úvěry od nebankovních institucí -> jiné dl. závazky
+  "470": P("044"), // group dlouhodobé závazky
+  "471": P("038"), // dlouhodobé dluhy - ovládaná
+  "472": P("039"), // dlouhodobé dluhy - podstatný vliv
+  "473": P("033"), // emitované dluhopisy (dlouhodobé, ostatní)
+  "474": P("044"), // dluhy z pachtu obchodního závodu
+  "475": P("035"), // dlouhodobé přijaté zálohy a závdavky
+  "478": P("037"), // dlouhodobé směnky k úhradě
+  "479": P("044"), // jiné dlouhodobé dluhy
+  "480": P("040"), // group odložený daňový závazek/pohledávka
+  "481": P("040"), // odložený daňový dluh (default závazek)
+  "490": P("020"), // group individuální podnikatel
+  "491": P("020"), // účet individuálního podnikatele
 
   // ---- Class 5: náklady (VZZ) -------------------------------------------
   "500": V("005"), // group spotřebované nákupy
@@ -390,7 +402,10 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
   "596": V("054"), // převod podílu na VH společníkům (M.)
   "597": V("029"), // převod provozních nákladů (převodový)
   "598": V("047"), // převod finančních nákladů (převodový)
-  "599": V("028"), // tvorba rezervy na daň z příjmů
+  // § 27 vyhlášky scopes "F.4. Rezervy v provozní oblasti" to účtová skupina 55,
+  // so the rezerva na daň z příjmů (599, skupina 59) does NOT belong there — it
+  // is an income-tax expense and is reported in "L.1. Daň z příjmů splatná".
+  "599": V("051"), // tvorba rezervy na daň z příjmů (L.1)
 
   // ---- Class 6: výnosy (VZZ) --------------------------------------------
   "600": V("001"), // group tržby za vlastní výkony a zboží
@@ -421,6 +436,19 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
 }
 
 /**
+ * The table below names the "D" řádky; under the "C" layout the same položka
+ * sits elsewhere (aktiva D.1 079 -> C.II.3.1 069, pasiva D.1 067 -> C.III.1 064).
+ */
+function applyCrVariant(
+  target: AccountTarget,
+  crVariant: CasoveRozliseni,
+): AccountTarget {
+  if (crVariant === "D") return target
+  const rada = CR_COUNTERPART[target.statement]?.[target.rada]
+  return rada === undefined ? target : { ...target, rada }
+}
+
+/**
  * Map a single syntetický účet to its výkaz leaf.
  *
  * `synteticky` may be a 3-digit synthetic or a longer account number; only the
@@ -435,18 +463,20 @@ const ACCOUNT_MAP: Record<string, AccountTarget> = {
 function mapAccount(
   synteticky: string,
   opravkovy: boolean,
+  crVariant: CasoveRozliseni,
 ): AccountTarget | null {
   const syn = synteticky.slice(0, 3)
   const base = ACCOUNT_MAP[syn]
   if (!base) return null
+  const target = applyCrVariant(base, crVariant)
   if (
     opravkovy &&
-    base.statement === "rozvaha-aktiva" &&
-    base.col === "brutto"
+    target.statement === "rozvaha-aktiva" &&
+    target.col === "brutto"
   ) {
-    return { ...base, col: "korekce" }
+    return { ...target, col: "korekce" }
   }
-  return { ...base }
+  return { ...target }
 }
 
 const OSNOVA_INDEX: Map<string, boolean> = (() => {
@@ -462,10 +492,20 @@ const OSNOVA_INDEX: Map<string, boolean> = (() => {
  *
  * For each account: resolve its opravkovy flag from the směrná osnova (exact
  * 6-digit match; if absent, fall back to false — the synthetic-nature default),
- * map it, accumulate its contribution per (statement, řádek, column) in Kč, then
- * — per the výkaz unit "v celých tisících Kč" — divide by 1000 and round each
- * cell once (Math.round). Rounding is done per cell, not per account, so cent
- * differences do not accumulate.
+ * map it, and accumulate its contribution per (statement, řádek, column) in Kč.
+ *
+ * The výkaz is filed "v celých tisících Kč", and rounding every cell on its own
+ * breaks the bilanční rovnost: Σ round(x) is not round(Σ x), so a book that ties
+ * to the haléř in the deník can print AKTIVA 118 450 against PASIVA 118 449. The
+ * conversion is therefore an ALLOCATION, not a per-cell rounding — each side is
+ * rounded to the thousand it actually totals, and the 1 tis. difference is dealt
+ * out (largest remainder first) to the cells that lost the most in rounding. No
+ * cell moves by more than 1 tis., and no cell is a hardcoded plug.
+ *
+ * A.V. Výsledek hospodaření (pasiva ř. 021) is not an accumulated leaf: it is the
+ * VZZ result, so it is stamped in as a FIXED member of the pasiva side and the
+ * remaining pasiva leaves absorb the residual. That keeps rozvaha A.V. and VZZ
+ * ř. 55 identical while the rozvaha still foots.
  *
  * Aktiva, pasiva, and VZZ each get their own map (aktiva + pasiva řádek numbers
  * overlap). Accounts with no mapping (incl. the technical 701/702/710) land in
@@ -479,6 +519,7 @@ export function mapPredvahaToValues(
     obratMD: number
     obratDal: number
   }[],
+  crVariant: CasoveRozliseni = "D",
 ): {
   rozvahaAktiva: VykazValues
   rozvahaPasiva: VykazValues
@@ -499,11 +540,14 @@ export function mapPredvahaToValues(
     Partial<Record<AccountTarget["col"], number>>
   > = {}
   const unmapped: string[] = []
+  // Výsledek hospodaření in Kč: výnosy − náklady. Kept exact so the pasiva side
+  // can be rounded against its true total rather than against rounded leaves.
+  let vysledekKc = 0
 
   for (const row of ucty) {
     const syn = row.synteticky.slice(0, 3)
     const opravkovy = OSNOVA_INDEX.get(row.ucet) ?? false
-    const target = mapAccount(syn, opravkovy)
+    const target = mapAccount(syn, opravkovy, crVariant)
     if (!target) {
       unmapped.push(row.ucet)
       continue
@@ -516,6 +560,7 @@ export function mapPredvahaToValues(
         ? row.obratMD - row.obratDal
         : row.obratDal - row.obratMD
       contributionKc = netMovement * target.sign
+      vysledekKc += syn.startsWith("5") ? -netMovement : netMovement
     } else {
       // Stavová hodnota: konečný zůstatek.
       contributionKc = row.ks * target.sign
@@ -531,27 +576,91 @@ export function mapPredvahaToValues(
     line[target.col] = (line[target.col] ?? 0) + contributionKc
   }
 
+  // The VZZ is a side of its own: its result must equal the rozvaha A.V., so it
+  // is allocated against the same exact figure the pasiva side is told about.
+  const vzz = allocateTisice(vzzKc, null)
+  const vysledekTis = computeColumn(VZZ, "bezne", vzz)["055"] ?? 0
+
+  const aktivaTarget = Math.round(sumKc(rozvahaAktivaKc) / 1000)
+  const pasivaTarget = Math.round((sumKc(rozvahaPasivaKc) + vysledekKc) / 1000)
+  const rozvahaPasiva = allocateTisice(
+    rozvahaPasivaKc,
+    pasivaTarget - vysledekTis,
+  )
+  rozvahaPasiva[VYSLEDEK_RADA] = {
+    ...(rozvahaPasiva[VYSLEDEK_RADA] ?? {}),
+    bezne: vysledekTis,
+  }
+
   return {
-    rozvahaAktiva: toTisice(rozvahaAktivaKc),
-    rozvahaPasiva: toTisice(rozvahaPasivaKc),
-    vzz: toTisice(vzzKc),
+    rozvahaAktiva: allocateTisice(rozvahaAktivaKc, aktivaTarget),
+    rozvahaPasiva,
+    vzz,
     unmapped,
   }
 }
 
-// v celých tisících Kč: divide each accumulated cell by 1000 and round once.
-function toTisice(
-  accumulator: Record<string, Partial<Record<AccountTarget["col"], number>>>,
+type KcAccumulator = Record<
+  string,
+  Partial<Record<AccountTarget["col"], number>>
+>
+
+function sumKc(accumulator: KcAccumulator): number {
+  let total = 0
+  for (const rada in accumulator) {
+    const cols = accumulator[rada]
+    for (const col in cols) total += cols[col as AccountTarget["col"]] ?? 0
+  }
+  return total
+}
+
+/**
+ * Convert one side's Kč cells to celé tisíce so they sum to `targetTis`.
+ *
+ * Every cell is rounded normally first; the leftover (never more than one unit
+ * per cell that was rounded the "wrong" way) is then handed out largest-residual
+ * first, so the cells that lost the most in rounding are the ones corrected.
+ * `targetTis === null` skips the allocation and rounds each cell on its own —
+ * used for the VZZ, whose side total is not a filing constraint.
+ */
+function allocateTisice(
+  accumulator: KcAccumulator,
+  targetTis: number | null,
 ): VykazValues {
   const out: VykazValues = {}
+  const cells: { rada: string; col: AccountTarget["col"]; residual: number }[] =
+    []
+
   for (const rada in accumulator) {
     const cols = accumulator[rada]
     const cell: Partial<Record<AccountTarget["col"], number>> = {}
     for (const col in cols) {
       const key = col as AccountTarget["col"]
-      cell[key] = Math.round((cols[key] ?? 0) / 1000)
+      const exact = (cols[key] ?? 0) / 1000
+      const rounded = Math.round(exact)
+      cell[key] = rounded
+      cells.push({ rada, col: key, residual: exact - rounded })
     }
     out[rada] = cell
+  }
+
+  if (targetTis === null) return out
+
+  let diff =
+    targetTis - cells.reduce((sum, c) => sum + (out[c.rada]?.[c.col] ?? 0), 0)
+  if (diff === 0 || cells.length === 0) return out
+
+  const step = diff > 0 ? 1 : -1
+  // diff > 0 -> the side was rounded down, so lift the cells with the largest
+  // positive residual (they were closest to rounding up), and vice versa.
+  cells.sort((a, b) =>
+    step === 1 ? b.residual - a.residual : a.residual - b.residual,
+  )
+  for (let i = 0; diff !== 0; i += 1) {
+    const cell = cells[i % cells.length]!
+    const row = out[cell.rada]!
+    row[cell.col] = (row[cell.col] ?? 0) + step
+    diff -= step
   }
   return out
 }

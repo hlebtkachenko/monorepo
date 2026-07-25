@@ -13,12 +13,14 @@ import { useMemo, type ReactNode } from "react"
 import { computeColumn } from "../_lib/engine"
 import { useOrg } from "../_lib/org-context"
 import type { Predvaha, UcetBalance } from "../_lib/predvaha"
-import { ROZVAHA_AKTIVA, ROZVAHA_PASIVA } from "../_data/rozvaha"
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import { OSNOVA } from "../_data/osnova"
 
-// AKTIVA netto and PASIVA are summed from cells each rounded to whole tisíce, so
-// their totals can drift by a few tisíce even when the books balance to the halíř.
-const ROZVAHA_TOLERANCE_TIS = 3
+// The mapper allocates the rounding to celé tisíce per side (see mapping.ts), so
+// a deník that balances to the halíř also balances on the form — exactly. Any
+// remaining difference is real (an unbalanced deník, or a manual edit) and must
+// show as a failed check rather than be swallowed by a tolerance.
+const ROZVAHA_TOLERANCE_TIS = 0
 
 /** Which account + turnover side the deník table is filtered to. */
 export interface PredvahaFilter {
@@ -56,14 +58,17 @@ export function PredvahaSummary({
   filter: PredvahaFilter | null
   onSelect: (next: PredvahaFilter) => void
 }) {
-  const { predvaha, denikUnmapped, values } = useOrg()
+  const { predvaha, denikUnmapped, values, crVariant } = useOrg()
 
   const aktivaNetto =
-    computeColumn(ROZVAHA_AKTIVA, "netto", values.rozvahaAktiva)["001"] ?? 0
-  // PASIVA already includes A.V. (řádek 022 = VZZ result), filled by importDenik.
+    computeColumn(rozvahaAktiva(crVariant), "netto", values.rozvahaAktiva)[
+      "001"
+    ] ?? 0
+  // PASIVA already includes A.V. (the VZZ result), stamped in by the mapper.
   const pasivaTotal =
-    computeColumn(ROZVAHA_PASIVA, "bezne", values.rozvahaPasiva)["001"] ?? 0
-  // Mapped values are in whole thousands (výkaz unit); tolerate per-cell rounding.
+    computeColumn(rozvahaPasiva(crVariant), "bezne", values.rozvahaPasiva)[
+      "001"
+    ] ?? 0
   const rozvahaBalanced =
     Math.abs(aktivaNetto - pasivaTotal) <= ROZVAHA_TOLERANCE_TIS
 

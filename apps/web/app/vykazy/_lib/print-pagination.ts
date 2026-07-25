@@ -19,10 +19,13 @@
 import { useCallback, useEffect, useState } from "react"
 
 /** CSS px per millimetre (1in = 96 CSS px = 25.4 mm). */
-export const PX_PER_MM = 96 / 25.4
+const PX_PER_MM = 96 / 25.4
 
-/** A4 portrait content box, i.e. the page minus the 12mm @page margins. */
-export const PRINT_CONTENT_WIDTH_MM = 210 - 24
+/**
+ * Usable height of an A4 portrait page: 297mm minus the 12mm @page margins.
+ * The matching content WIDTH (186mm) is set on `.print-metrics` in print.css,
+ * which is what makes the measured wrapping match the printed wrapping.
+ */
 const PRINT_CONTENT_HEIGHT_MM = 297 - 24
 
 /**

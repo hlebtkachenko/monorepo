@@ -15,7 +15,7 @@ import {
   chunkRows,
   usePrintMetrics,
   PRINT_METRICS_WIDTH_PX,
-  STATEMENT_HEADER_MM,
+  STATEMENT_HEADER_PT,
 } from "../_lib/print-pagination"
 import { StatementHeader } from "./statement-header"
 import type { DenikRow } from "../_lib/denik"
@@ -24,7 +24,7 @@ const cellBase = "border border-neutral-400 px-1 py-0.5 text-[10px]"
 
 export function DenikPrint({ rows }: { rows: DenikRow[] }) {
   const signature = `denik|${rows.length}|${rows.map((r) => r.text).join("|")}`
-  const { measureRef, heights, headHeight } = usePrintMetrics(signature)
+  const { measureRef, metrics } = usePrintMetrics(signature)
 
   const colgroup = (
     <colgroup>
@@ -84,8 +84,10 @@ export function DenikPrint({ rows }: { rows: DenikRow[] }) {
 
   const allRows = [...bodyRows, totalRow]
   const pages =
-    heights.length === allRows.length && headHeight > 0
-      ? chunkRows(heights, headHeight, STATEMENT_HEADER_MM)
+    metrics.heights.length === allRows.length &&
+    metrics.headHeight > 0 &&
+    metrics.lineHeight > 0
+      ? chunkRows(metrics, STATEMENT_HEADER_PT)
       : [allRows.map((_, index) => index)]
 
   return (

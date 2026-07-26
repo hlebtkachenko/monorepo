@@ -113,22 +113,22 @@ export function PredvahaStatement({
   statement,
   control,
   vTisicich,
-  firstPageMm = 0,
+  firstPagePt = 0,
 }: {
   statement: PredvahaStatementModel
   /** Exact-Kč grand totals — the MD = Dal control checks never use the display unit. */
   control: PredvahaStatementModel["total"]
   /** Render whole tisíce (matching the rozvaha / VZZ unit toggle) or exact Kč. */
   vTisicich: boolean
-  /** Millimetres of the first printed page taken by the title block above. */
-  firstPageMm?: number
+  /** Points of the first printed page taken by the title block above. */
+  firstPagePt?: number
 }) {
   // Print pagination is measured, not guessed — see ../_lib/print-pagination.ts.
   // Called before the empty-statement branch: hooks may not sit behind a return.
   const signature = `predvaha|${vTisicich}|${statement.lines
     .map((l) => (l.kind === "ucet" ? l.ucet : l.label))
     .join(",")}`
-  const { measureRef, heights, headHeight } = usePrintMetrics(signature)
+  const { measureRef, metrics } = usePrintMetrics(signature)
 
   if (statement.empty) {
     return (
@@ -219,8 +219,10 @@ export function PredvahaStatement({
   )
 
   const pages =
-    heights.length === rows.length && headHeight > 0
-      ? chunkRows(heights, headHeight, firstPageMm)
+    metrics.heights.length === rows.length &&
+    metrics.headHeight > 0 &&
+    metrics.lineHeight > 0
+      ? chunkRows(metrics, firstPagePt)
       : [rows.map((_, index) => index)]
 
   return (

@@ -98,6 +98,12 @@ export function StatementHeader({
             Obchodní firma nebo jiný název účetní jednotky:
           </p>
           <p className="font-semibold">{org.nazev || " "}</p>
+          {/* IČ is also in the centre Rok | Měsíc | IČ table, but it belongs
+              here too, under the firma it identifies. */}
+          <p>
+            <span className="text-[8px] text-neutral-500">IČ: </span>
+            {org.ico || " "}
+          </p>
           <p className="mt-1 text-[8px] text-neutral-500">
             Sídlo nebo bydliště účetní jednotky a místo podnikání liší-li se od
             bydliště:

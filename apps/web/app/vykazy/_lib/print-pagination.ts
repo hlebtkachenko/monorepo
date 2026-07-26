@@ -19,47 +19,59 @@
 import { useCallback, useEffect, useState } from "react"
 
 /**
- * How many CSS px of the measuring replica one millimetre of paper is worth.
+ * What one row of the measuring replica costs on paper.
  *
- * CALIBRATED, not derived. Two earlier versions each derived it from a DPI and
- * each was wrong in a different direction: 96 (the screen figure) over-filled
- * every page by a row, 90 under-filled it by several. Both readings had support —
- * a cell set to `text-[11px]` really does print at 8.8pt, which is exactly
- * 11 × 72/90 — but the FONT scaling and the ROW height do not follow the same
- * factor, and it is the row height that decides how many rows fit.
+ * The cost is AFFINE, not a ratio, and that is the whole trick. Every earlier
+ * version divided the measured pixel height by a single px-per-mm figure, and
+ * every one of them under-charged each row by a fixed sliver — the collapsed
+ * border. On a sparse table that vanishes; over thirty rows it compounds into
+ * two rows' worth and the last row on the page is torn in half.
  *
- * So this is measured off the printed artefact instead. In a Safari PDF of the
- * rozvaha, consecutive single-line rows sit 5.93mm apart, and the same row
- * measures 22px in the replica: 22 / 5.93 = 3.71 px per mm, i.e. an effective
- * 94.2 dpi, between the two theories and equal to neither.
+ * Measured off a Safari PDF of the rozvaha, whose printed cell heights come in
+ * exactly three sizes, against the same rows in the replica at
+ * PRINT_METRICS_WIDTH_PX:
  *
- * Verified against that PDF end to end: with this figure the algorithm fills
- * page 1 with řádky 001–028 and stops before 029, which is exactly where the
- * printed page ended.
+ *     replica   printed
+ *     21.5px    17.60pt = 6.2089mm   (one line)
+ *     38.0px    30.40pt = 10.7244mm  (two lines)
+ *     54.5px    43.20pt = 15.2400mm  (three lines)
  *
- * Re-measure if the cell padding or font size changes: print one statement, read
- * the pitch between two single-line rows, and divide the replica's row height by
- * it.
+ * Those three points are collinear to the micrometre, and the line is
+ * `mm = px / 3.654 + 0.325`. The slope is the print scale; the intercept is a
+ * fixed cost every row carries whatever its content does, a shade over the
+ * 0.8pt collapsed border (0.282mm) that most plausibly explains it. Both WebKit
+ * and Chromium report the same three pixel heights, so the replica side of the
+ * calibration is engine-independent.
+ *
+ * Re-measure if the cell padding, font size or border width changes: print one
+ * statement, read the printed heights of a one-line and a three-line row, and
+ * fit a line through them and their replica heights.
  */
-const PX_PER_MM = 3.71
+const PX_PER_MM = 3.654
+const ROW_BORDER_MM = 0.325
+
+/** Millimetres of paper one measured replica row (or the column header) costs. */
+export function rowMm(px: number): number {
+  return px / PX_PER_MM + ROW_BORDER_MM
+}
 
 /**
- * A4 portrait content box. Confirmed on the printed PDF, whose text ran from
- * 12.8mm to 283.6mm down the sheet, so both margins are the 12mm @page asks for.
+ * A4 portrait content box. Confirmed on the printed PDF, whose clip box runs
+ * 34.02–807.02pt down the sheet, i.e. 272.7mm, matching the 12mm @page margins.
  */
-const PRINT_CONTENT_WIDTH_MM = 210 - 24
 const PRINT_CONTENT_HEIGHT_MM = 297 - 24
 
 /**
- * Width the measuring replica is laid out at, in CSS px. Sizing it in px rather
- * than in mm is the point: at print scale the same 186mm of paper is a NARROWER
- * box in CSS px than the screen would give it, so text wraps as much in the
- * measurement as it does on paper. Sized in mm it wrapped less, and every
- * measured row came out shorter than the row that printed.
+ * Width the measuring replica is laid out at, in CSS px.
+ *
+ * A literal, NOT derived from PX_PER_MM: this is the width the calibration above
+ * was taken at, so deriving it from the scale would silently re-wrap every row
+ * the moment the scale is retuned and invalidate the very numbers that produced
+ * it. Sizing it in px rather than mm is still the point — at print scale 186mm
+ * of paper is a narrower box in CSS px than the screen gives it, so text has to
+ * wrap as much in the measurement as it does on paper.
  */
-export const PRINT_METRICS_WIDTH_PX = Math.floor(
-  PRINT_CONTENT_WIDTH_MM * PX_PER_MM,
-)
+export const PRINT_METRICS_WIDTH_PX = 690
 
 /**
  * Slack left at the bottom of every page. Absorbs rounding between the measured
@@ -74,8 +86,13 @@ const SAFETY_MM = 6
  * Height the tiskopis title block (StatementHeader) takes on the first printed
  * page. Fixed content — heading, "ke dni", the Rok | Měsíc | IČ mini-table and
  * the účetní jednotka box — so unlike the rows it does not vary with the data.
+ *
+ * Measured at 24.27mm on the printed rozvaha (clip top 807.02pt, table top
+ * 738.21pt). The rounding up to 26 is slack for a longer sídlo wrapping to an
+ * extra line; the previous 44 was a guess that threw away most of a page-1 row
+ * band for nothing.
  */
-export const STATEMENT_HEADER_MM = 44
+export const STATEMENT_HEADER_MM = 26
 
 /**
  * Split row indices into pages that fit A4.
@@ -89,21 +106,22 @@ export function chunkRows(
   headHeight: number,
   firstPageMm = 0,
 ): number[][] {
-  const budget = (PRINT_CONTENT_HEIGHT_MM - SAFETY_MM) * PX_PER_MM
+  const budget = PRINT_CONTENT_HEIGHT_MM - SAFETY_MM
+  const headMm = rowMm(headHeight)
   const pages: number[][] = []
   let page: number[] = []
-  let used = headHeight + firstPageMm * PX_PER_MM
+  let used = headMm + firstPageMm
 
   heights.forEach((height, index) => {
     // Never emit an empty page: a single row taller than the budget still has
     // to go somewhere, and it goes on a page of its own.
-    if (page.length > 0 && used + height > budget) {
+    if (page.length > 0 && used + rowMm(height) > budget) {
       pages.push(page)
       page = []
-      used = headHeight
+      used = headMm
     }
     page.push(index)
-    used += height
+    used += rowMm(height)
   })
   if (page.length > 0) pages.push(page)
   return pages

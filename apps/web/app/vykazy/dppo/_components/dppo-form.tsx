@@ -28,6 +28,7 @@ import {
   toFigures,
   toMeta,
   toPriloha,
+  toZaverka,
   missingRequired,
   type DppoFormState,
   type TabulkaARadek,
@@ -120,7 +121,7 @@ function TextField({
 }
 
 export function DppoForm() {
-  const { org, predvaha } = useOrg()
+  const { org, predvaha, values, crVariant, rozsah } = useOrg()
   const derived = useMemo(() => deriveUcetniVysledek(predvaha), [predvaha])
   const obrat = useMemo(() => deriveCistyObrat(predvaha), [predvaha])
   const hasDenik = predvaha.ucty.length > 0
@@ -161,8 +162,9 @@ export function DppoForm() {
     setResult(null)
     const res = await buildDppoXml(
       toFigures(form),
-      toMeta(form, org),
+      toMeta(form, org, rozsah),
       toPriloha(form),
+      toZaverka(values, crVariant, rozsah),
     )
     setResult(res)
     setBusy(false)
@@ -276,11 +278,13 @@ export function DppoForm() {
                 className="size-4"
               />
               <span className="text-sm text-foreground">
-                Ano — přiložím E-přílohy
+                Ano — účetní závěrka je součástí podání
               </span>
             </span>
             <span className="text-xs text-muted-foreground">
-              Rozvahu, VZZ a Přílohu vložte v EPO jako E-přílohy (§ 18 ZoÚ).
+              Rozvaha a VZZ jsou v XML jako vyplněné výkazy — v EPO se načtou
+              samy. Přílohu účetní závěrky vložte v EPO jako E-přílohu (§ 18
+              ZoÚ).
             </span>
           </label>
         </div>

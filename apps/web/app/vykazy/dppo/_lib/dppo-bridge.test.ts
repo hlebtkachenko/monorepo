@@ -14,6 +14,7 @@ import {
   tabulkaBSoucet,
   toFigures,
   toMeta,
+  toZaverka,
   toPriloha,
   missingRequired,
   type DppoFormState,
@@ -274,7 +275,7 @@ describe("toFigures", () => {
 
 describe("toMeta", () => {
   it("maps org identity + splits sídlo, omits blank NACE", () => {
-    const m = toMeta(form(), org())
+    const m = toMeta(form(), org(), "plny")
     expect(m.dic).toBe("CZ12345679")
     expect(m.c_ufo_cil).toBe("451")
     expect(m.name).toBe("Test s.r.o.")
@@ -284,8 +285,25 @@ describe("toMeta", () => {
     expect(m.psc).toBe("11000")
     expect(m.c_nace).toBeUndefined()
   })
+  it("declares the výkazy: vyhláška, měna, and one rozsah when both share it", () => {
+    const m = toMeta(form(), org(), "plny")
+    expect(m.uv_vyhl).toBe("500")
+    expect(m.uv_mena).toBe("CZK")
+    expect(m.uv_rozsah).toBe("P")
+    expect(m.uv_rozsah_rozv).toBeUndefined()
+  })
+  it("splits the rozsah when the rozvaha and the VZZ differ", () => {
+    // § 3a odst. 4 gives the VZZ one zkrácený tvar, so a mikro ÚJ files the
+    // rozvaha as M and the VZZ as Z — EPO wants both stated.
+    const m = toMeta(form(), org(), "mikro")
+    expect(m.uv_rozsah).toBeUndefined()
+    expect(m.uv_rozsah_rozv).toBe("M")
+    expect(m.uv_rozsah_vzz).toBe("Z")
+  })
   it("includes numeric NACE when provided", () => {
-    expect(toMeta(form({ cNace: "620200" }), org()).c_nace).toBe("620200")
+    expect(toMeta(form({ cNace: "620200" }), org(), "plny").c_nace).toBe(
+      "620200",
+    )
   })
 })
 
@@ -332,5 +350,54 @@ describe("applyFieldChange", () => {
   })
   it("applies the edited field's value", () => {
     expect(applyFieldChange(form(), "dic", "CZ99").dic).toBe("CZ99")
+  })
+})
+
+describe("toZaverka", () => {
+  const empty = { rozvahaAktiva: {}, rozvahaPasiva: {}, vzz: {} }
+
+  it("reports every řádek of the plný rozsah, aggregates included", () => {
+    const z = toZaverka(empty, "D", "plny")
+    expect(z.aktiva).toHaveLength(77)
+    expect(z.pasiva).toHaveLength(65)
+    expect(z.vzz).toHaveLength(56)
+  })
+
+  it("reports only the časové-rozlišení variant the výkazy use", () => {
+    // Filling both would put the same částka on the form twice.
+    const radky = (cr: "C" | "D") =>
+      toZaverka(empty, cr, "plny").aktiva.map((r) => r.radek)
+    expect(radky("D")).toContain("078")
+    expect(radky("D")).not.toContain("068")
+    expect(radky("C")).toContain("068")
+    expect(radky("C")).not.toContain("078")
+  })
+
+  it("shrinks with the rozsah", () => {
+    const plny = toZaverka(empty, "D", "plny")
+    const mikro = toZaverka(empty, "D", "mikro")
+    expect(mikro.aktiva.length).toBeLessThan(plny.aktiva.length)
+    expect(mikro.aktiva.map((r) => r.radek)).toContain("001")
+  })
+
+  it("evaluates the formulas instead of reading only what was typed", () => {
+    // The store holds leaves; EPO wants a číslo on every řádek, so the
+    // aggregates have to be computed here.
+    const z = toZaverka(
+      { ...empty, rozvahaAktiva: { "016": { brutto: 40612 } } },
+      "D",
+      "plny",
+    )
+    const celkem = z.aktiva.find((r) => r.radek === "001")
+    expect(celkem?.brutto).toBe(40612)
+  })
+
+  it("omits korekce on a položka whose korekce column prints x", () => {
+    const z = toZaverka(empty, "D", "plny")
+    // C.II.1. Dlouhodobé pohledávky — the paper form prints "x" there.
+    expect(z.aktiva.find((r) => r.radek === "047")).not.toHaveProperty(
+      "korekce",
+    )
+    expect(z.aktiva.find((r) => r.radek === "001")).toHaveProperty("korekce")
   })
 })

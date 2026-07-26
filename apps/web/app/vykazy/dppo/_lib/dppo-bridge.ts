@@ -7,9 +7,15 @@ import type {
   DppoFilingMeta,
   DppoPriloha,
   DppoTabulkaB,
+  DppoZaverka,
 } from "@workspace/filing/dppo"
 
-import type { OrgConfig } from "../../_lib/types"
+import { rozvahaAktiva, rozvahaPasiva } from "../../_data/rozvaha"
+import { VZZ } from "../../_data/vzz"
+import { computeAll } from "../../_lib/engine"
+import { inRozsah } from "../../_lib/rozsah"
+import type { VykazValuesByStatement } from "../../_lib/storage"
+import type { CasoveRozliseni, OrgConfig, Rozsah } from "../../_lib/types"
 import type { Predvaha } from "../../_lib/predvaha"
 
 /**
@@ -270,7 +276,28 @@ export function toPriloha(form: DppoFormState): DppoPriloha {
   return priloha
 }
 
-export function toMeta(form: DppoFormState, org: OrgConfig): DppoFilingMeta {
+/**
+ * Rozsah codes EPO uses for the účetní výkazy. The rozvaha has three (§ 3a odst.
+ * 2 gives malá and mikro their own zkrácený tvar); the VZZ has two, because
+ * § 3a odst. 4 prescribes ONE zkrácený tvar for both — so a mikro ÚJ reports the
+ * rozvaha as M and the VZZ as Z, and the two must then be declared separately.
+ */
+const UV_ROZSAH_ROZVAHA: Record<Rozsah, string> = {
+  plny: "P",
+  mala: "Z",
+  mikro: "M",
+}
+const UV_ROZSAH_VZZ: Record<Rozsah, string> = {
+  plny: "P",
+  mala: "Z",
+  mikro: "Z",
+}
+
+export function toMeta(
+  form: DppoFormState,
+  org: OrgConfig,
+  rozsah: Rozsah,
+): DppoFilingMeta {
   const { ulice, c_pop } = splitSidlo(org.sidlo)
   const meta: DppoFilingMeta = {
     zdobd_od: form.zdobdOd.trim(),
@@ -281,6 +308,19 @@ export function toMeta(form: DppoFormState, org: OrgConfig): DppoFilingMeta {
     // "A" only declares that the E-přílohy will be there; attaching Rozvahu,
     // VZZ and Přílohu účetní závěrky is a step the filer does in EPO.
     uc_zav: form.ucZav ? "A" : "N",
+    // Vyhláška č. 500/2002 Sb. — the podnikatel výkazy this builder produces.
+    uv_vyhl: "500",
+    // Povinné od roku 2024. The builder reports v celých tisících Kč; § 24a ZoÚ
+    // would allow EUR/USD/GBP as a funkční měna, which this app does not do.
+    uv_mena: "CZK",
+  }
+  const rozvahaRozsah = UV_ROZSAH_ROZVAHA[rozsah]
+  const vzzRozsah = UV_ROZSAH_VZZ[rozsah]
+  if (rozvahaRozsah === vzzRozsah) {
+    meta.uv_rozsah = rozvahaRozsah
+  } else {
+    meta.uv_rozsah_rozv = rozvahaRozsah
+    meta.uv_rozsah_vzz = vzzRozsah
   }
   if (form.katUj) meta.kat_uj = form.katUj
   if (org.nazev.trim()) meta.name = org.nazev.trim()
@@ -321,4 +361,60 @@ export function applyFieldChange(
   const next = { ...form, [key]: value }
   if (key === "zdobdOd") next.sazba = defaultSazba(value)
   return next
+}
+
+/**
+ * The účetní závěrka as EPO's own tables — Rozvaha + Výkaz zisku a ztráty
+ * carried inside the DPPDP9 XML, so the poplatník does not retype the výkazy
+ * into the portal.
+ *
+ * Formulas are evaluated here rather than read from the stored values: the store
+ * holds only what was typed (leaves plus any override), while EPO wants a číslo
+ * on every řádek of the form, aggregates included. Rows follow the rozsah and
+ * the časové-rozlišení variant the výkazy are actually reported in; `hideEmpty`
+ * is a screen toggle and deliberately has no effect here, since an empty položka
+ * of a reported rozsah is still a reported zero.
+ */
+export function toZaverka(
+  values: VykazValuesByStatement,
+  crVariant: CasoveRozliseni,
+  rozsah: Rozsah,
+): DppoZaverka {
+  const aktiva = rozvahaAktiva(crVariant)
+  const pasiva = rozvahaPasiva(crVariant)
+  const aktivaComputed = computeAll(aktiva, values.rozvahaAktiva)
+  const pasivaComputed = computeAll(pasiva, values.rozvahaPasiva)
+  const vzzComputed = computeAll(VZZ, values.vzz)
+
+  return {
+    aktiva: aktiva.lines
+      .filter((line) => inRozsah(aktiva.id, line, rozsah))
+      .map((line) => {
+        const row = aktivaComputed[line.rada] ?? {}
+        return {
+          radek: line.rada,
+          brutto: row.brutto ?? 0,
+          // Korekce prints "x" on a položka it does not apply to (pohledávky,
+          // peněžní prostředky, časové rozlišení); sending a 0 there would
+          // state a figure the výkaz says does not exist.
+          ...(line.korekceNA ? {} : { korekce: row.korekce ?? 0 }),
+          netto: row.netto ?? 0,
+          nettoMinule: row.minule ?? 0,
+        }
+      }),
+    pasiva: pasiva.lines
+      .filter((line) => inRozsah(pasiva.id, line, rozsah))
+      .map((line) => ({
+        radek: line.rada,
+        bezne: pasivaComputed[line.rada]?.bezne ?? 0,
+        minule: pasivaComputed[line.rada]?.minule ?? 0,
+      })),
+    vzz: VZZ.lines
+      .filter((line) => inRozsah(VZZ.id, line, rozsah))
+      .map((line) => ({
+        radek: line.rada,
+        bezne: vzzComputed[line.rada]?.bezne ?? 0,
+        minule: vzzComputed[line.rada]?.minule ?? 0,
+      })),
+  }
 }

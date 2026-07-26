@@ -116,7 +116,11 @@ export function DenikPrint({ rows }: { rows: DenikRow[] }) {
           <table className="vykaz-table w-full table-fixed border-collapse text-black">
             {colgroup}
             {thead}
-            <tbody>{pageRows.map((index) => allRows[index])}</tbody>
+            {/* One <tbody> per row: Safari splits a <tr> across the fold
+                however it is styled, but keeps a row group whole. */}
+            {pageRows.map((index) => (
+              <tbody key={index}>{allRows[index]}</tbody>
+            ))}
           </table>
         </div>
       ))}

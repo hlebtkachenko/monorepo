@@ -25,15 +25,13 @@ import { useCallback, useEffect, useState } from "react"
  * it. In a Safari PDF of the rozvaha EVERY vertical length is an exact multiple
  * of 0.8pt: the 1px cell border prints 0.8pt (0.9375 units, rounded to 1), the
  * 2px cell padding prints 1.6pt (1.875 units, rounded to 2) and the 16.5px line
- * box prints 12.8pt (15.469 units, rounded to 16). Horizontally there is no such
- * grid — the table lays out 701.66px and prints 526.24pt, exactly 0.75pt per px.
+ * box prints 12.8pt (15.469 units, rounded to 16).
  *
- * That asymmetry is the whole defect. Measuring the replica and scaling it by a
- * single px-to-mm factor cannot work: rounding up applies once per BOX, so a row
- * of one line is inflated by a different amount than a row of three, and every
- * factor fitted on one row class under-charged the other. The rows that tore
- * across the fold were the wrapped ones, charged 96dpi for line boxes Safari had
- * already rounded up by 3.4%.
+ * That rounding is what a single px-to-mm factor cannot express: it applies once
+ * per BOX, so a row of one line is inflated by a different amount than a row of
+ * three, and every factor fitted on one row class under-charged the other. The
+ * rows that tore across the fold were the wrapped ones, charged 96dpi for line
+ * boxes Safari had already rounded up by 3.4%.
  *
  * Chrome prints at a true 96dpi with no grid, so it is charged slightly more
  * paper than it uses and simply breaks a page one row early. That is the right
@@ -54,12 +52,15 @@ function snapPt(px: number): number {
 export const PAGE_CONTENT_PT = 841.89 - 2 * (12 * (72 / 25.4))
 
 /**
- * Slack left at the bottom of every page, about half a printed row. The cost
- * model above is exact for Safari and generous for Chrome, so this only has to
- * absorb the two estimates below (the title block and the column header), both
- * of which already round up.
+ * Slack left at the bottom of every page: one printed line box, so a label that
+ * takes one line more on paper than in the measurement still fits the page it
+ * was put on. The row cost itself is exact for Safari and generous for Chrome,
+ * and the two estimates below (the title block and the column header) already
+ * round up, so this is insurance against the wrapping and nothing else.
  */
-const SAFETY_PT = 10
+function safetyPt(lineHeight: number): number {
+  return snapPt(lineHeight)
+}
 
 /**
  * Height the tiskopis title block takes on the first printed page — heading,
@@ -79,14 +80,25 @@ const SAFETY_PT = 10
 export const STATEMENT_HEADER_PT = 120
 
 /**
- * Width the measuring replica is laid out at, in CSS px: A4 portrait less the
- * 12mm @page margins is 186mm, and the printed table gives 1pt of that back so
- * its right border clears Safari's clip (see print.css). Text has to wrap in the
- * measurement exactly as much as it does on paper, so this is the one number
- * that must match print — and horizontally, unlike vertically, Safari is
- * faithful: 701.67px of table lays out and 526.24pt prints, exactly 0.75pt/px.
+ * Width the measuring replica is laid out at, in CSS px.
+ *
+ * The 1/90in grid is not only vertical: Safari lays the printed page out at 90
+ * CSS px to the inch in both axes, so A4 portrait less the 12mm @page margins is
+ * 659.06px of print, not the 703.0px that 96dpi gives — and the printed table
+ * gives 1pt of that back so its right border clears the clip (see print.css).
+ *
+ * A percentage-width table prints the same physical width whichever scale is in
+ * force, which is exactly why this was easy to get wrong: the table measures
+ * 526.24pt on paper either way. What does NOT survive is the wrapping. Text is
+ * laid out in the same px the box is, so a replica built at 96dpi gives every
+ * label 6.7% more room than the paper does, and the rows that need one more line
+ * on paper than in the measurement are the ones that overflow the page.
+ *
+ * Checked row by row against a printed rozvaha: at this width the replica
+ * reproduces the printed line count of all 78 rows, ř.026 and ř.063 included,
+ * and it keeps doing so anywhere below 672px. At the 96dpi width it misses both.
  */
-export const PRINT_METRICS_WIDTH_PX = 186 * (96 / 25.4) - 96 / 72
+export const PRINT_METRICS_WIDTH_PX = 186 * (90 / 25.4) - 90 / 72
 
 /**
  * Printed cost of one measured row.
@@ -124,7 +136,7 @@ export interface PrintMetrics {
  */
 export function chunkRows(metrics: PrintMetrics, firstPagePt = 0): number[][] {
   const { heights, headHeight, lineHeight } = metrics
-  const budget = PAGE_CONTENT_PT - SAFETY_PT
+  const budget = PAGE_CONTENT_PT - safetyPt(lineHeight)
   const chrome = cellChrome(Math.min(...heights), lineHeight)
   const headPt = rowPt(headHeight, lineHeight, chrome)
 

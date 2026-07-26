@@ -57,10 +57,11 @@ describe("rowPt", () => {
   })
 
   it("measures the replica at the printed table's own width", () => {
-    // The printed table measures 526.24pt across, and 96dpi is the one axis
-    // Safari prints faithfully — so the replica must be that width in CSS px,
-    // or it wraps text at points the paper does not.
-    expect(PRINT_METRICS_WIDTH_PX * 0.75).toBeCloseTo(526.24, 1)
+    // The printed table measures 526.24pt across, laid out on the same 1/90in
+    // grid as everything else — 0.8pt to the px, not 0.75. Measuring it at 96dpi
+    // gives every label 6.7% more room than the paper does, and a label that
+    // needs one more line on paper than in the measurement overflows the page.
+    expect(PRINT_METRICS_WIDTH_PX * 0.8).toBeCloseTo(526.24, 1)
   })
 })
 

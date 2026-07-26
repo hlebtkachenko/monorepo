@@ -123,6 +123,12 @@
     page-break-before: always;
   }
 
+  /* A row is never split: if it does not fit the sheet it moves to the next one
+     whole. Safari ignores this on a <tr>, which is why each printed row is its
+     own <tbody> — a row GROUP it does honour. The chunking above should mean it
+     never comes to this, but a label that wraps one line further on paper than
+     in the measurement must cost a page break, not a torn row. */
+  .vykaz-table tbody,
   .vykaz-table tr {
     break-inside: avoid;
     page-break-inside: avoid;

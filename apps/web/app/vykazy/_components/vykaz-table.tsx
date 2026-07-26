@@ -409,7 +409,11 @@ export function VykazTable({
           <table className="vykaz-table w-full table-fixed border-collapse text-black">
             {colgroup}
             {thead}
-            <tbody>{rows.map((index) => printRows[index])}</tbody>
+            {/* One <tbody> per row: Safari splits a <tr> across the fold however
+                it is styled, but keeps a row group whole. */}
+            {rows.map((index) => (
+              <tbody key={index}>{printRows[index]}</tbody>
+            ))}
           </table>
         </div>
       ))}

@@ -15,9 +15,10 @@ const PT_TO_MM = 25.4 / 72
  * Both WebKit and Chromium report the replica side identically.
  */
 const CALIBRATION = [
-  { label: "one line", replicaPx: 21.5, printedPt: 17.6 },
-  { label: "two lines", replicaPx: 38, printedPt: 30.4 },
-  { label: "three lines", replicaPx: 54.5, printedPt: 43.2 },
+  { label: "one line", replicaPx: 21.5, printedPt: 16.8 },
+  { label: "two lines", replicaPx: 38, printedPt: 23.2 },
+  { label: "three lines", replicaPx: 54.5, printedPt: 29.6 },
+  { label: "four lines", replicaPx: 71, printedPt: 36.0 },
 ]
 
 /** A4 portrait minus the 12mm @page margins, as the printed clip box measures. */
@@ -31,13 +32,18 @@ describe("rowMm", () => {
     })
   }
 
-  it("is affine, not a ratio — every row carries a fixed cost on top", () => {
-    // A pure ratio would make cost/px constant; it is not, and that difference
-    // is what used to tear the last row of every page in half.
+  it("costs by line count, not by pixel height", () => {
+    // No single px-to-mm factor fits: the replica adds 16.5px per wrapped line
+    // where paper adds only 2.26mm, so a factor fitted on one-line rows
+    // over-charges tall ones. That mismatch is what tore rows across the fold.
     const perPx = CALIBRATION.map((c) => rowMm(c.replicaPx) / c.replicaPx)
-    expect(perPx[0]).toBeGreaterThan(perPx[2]!)
-    // The fitted intercept, a shade over one 0.8pt collapsed border (0.282mm).
-    expect(rowMm(0)).toBeCloseTo(0.325, 3)
+    expect(perPx[0]).toBeGreaterThan(perPx.at(-1)! * 1.5)
+  })
+
+  it("rounds a row of intermediate height to the nearer line count", () => {
+    // Sub-pixel layout jitter must not tip a row into an extra line's cost.
+    expect(rowMm(23)).toBe(rowMm(21.5))
+    expect(rowMm(36)).toBe(rowMm(38))
   })
 
   it("keeps the replica width a literal, decoupled from the scale", () => {

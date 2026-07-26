@@ -16,6 +16,7 @@ import Decimal from "decimal.js-light"
 import { koruna } from "../envelope"
 import { applyDppoTotals } from "./compute"
 import { buildPrilohaVety, type DppoPriloha } from "./priloha"
+import { buildZaverkaVety, type DppoZaverka } from "./zaverka"
 import { DppoSchema, type DppoInput } from "../../../model/dppo"
 
 /** Identity + period metadata (supplied by the org, not part of the tax figures). */
@@ -43,12 +44,24 @@ export interface DppoFilingMeta {
    */
   kat_uj?: string
   /**
-   * I. oddíl položka 11 — účetní závěrka je přiložena ("A"/"N"). Účetní jednotka
-   * ji podle § 18 ZoÚ k přiznání přikládá, a při elektronickém podání se jí
-   * rozumí E-přílohy Rozvaha + Výkaz zisku a ztráty + Příloha účetní závěrky, což
-   * je úkon v EPO — "A" pouze deklaruje, že tam ty přílohy budou.
+   * I. oddíl položka 11 — účetní závěrka je přiložena ("A"/"N"), podle § 18 ZoÚ.
+   * Rozvahu a Výkaz zisku a ztráty nese `zaverka` níže jako vyplněné výkazy
+   * přímo v tomto XML; Příloha účetní závěrky je text, ne tabulka, takže ta
+   * zůstává E-přílohou, kterou filer vkládá v EPO.
    */
   uc_zav?: string
+  /**
+   * Účetní výkazy carried in the return (VetaD): číslo vyhlášky ("500" for
+   * podnikatele), měna účetnictví, and the rozsah the výkazy are reported in —
+   * `uv_rozsah` when the rozvaha and the VZZ share one (P/Z/M), otherwise the
+   * split pair, which EPO requires to be filled together when they differ (a
+   * mikro ÚJ files the rozvaha as M but the VZZ only has P and Z).
+   */
+  uv_vyhl?: string
+  uv_mena?: string
+  uv_rozsah?: string
+  uv_rozsah_rozv?: string
+  uv_rozsah_vzz?: string
   /** Typ daňového přiznání (default "A" — za zdaňovací období). */
   typ_dapdpp?: string
   /** Typ zdaňovacího období (§21a; default "A" — kalendářní rok). */
@@ -114,11 +127,18 @@ function nonZeroKoruna(
  * optional only because a partial return is still worth generating; a filable
  * one needs tabulka A whenever ř.40 is non-zero, tabulka B whenever ř.150 is,
  * and tabulka K always (Pokyny: "Údaj vyplňují všichni poplatníci").
+ *
+ * `zaverka` carries the účetní závěrka itself — Rozvaha + Výkaz zisku a ztráty
+ * as EPO's own structured tables, so the poplatník does not retype them into the
+ * portal. Also optional: a return generated before the výkazy are closed is
+ * still worth having, and § 18 ZoÚ is satisfied either by these tables or by
+ * e-přílohy (which `meta.uc_zav` declares).
  */
 export function buildDppoFromAccounting(
   figures: DppoFigures,
   meta: DppoFilingMeta,
   priloha?: DppoPriloha,
+  zaverka?: DppoZaverka,
 ): DppoInput {
   // VetaO detail lines the worksheet produces (attribute map in the grounding doc).
   const vetaO = nonZeroKoruna({
@@ -146,6 +166,11 @@ export function buildDppoFromAccounting(
       ...(meta.c_nace ? { c_nace: meta.c_nace } : {}),
       ...(meta.kat_uj ? { kat_uj: meta.kat_uj } : {}),
       ...(meta.uc_zav ? { uc_zav: meta.uc_zav } : {}),
+      ...(meta.uv_vyhl ? { uv_vyhl: meta.uv_vyhl } : {}),
+      ...(meta.uv_mena ? { uv_mena: meta.uv_mena } : {}),
+      ...(meta.uv_rozsah ? { uv_rozsah: meta.uv_rozsah } : {}),
+      ...(meta.uv_rozsah_rozv ? { uv_rozsah_rozv: meta.uv_rozsah_rozv } : {}),
+      ...(meta.uv_rozsah_vzz ? { uv_rozsah_vzz: meta.uv_rozsah_vzz } : {}),
     },
     payer: nonEmpty({
       dic: meta.dic,
@@ -156,7 +181,12 @@ export function buildDppoFromAccounting(
       psc: meta.psc,
     }),
     vetaO,
-    extraVety: priloha ? buildPrilohaVety(priloha) : [],
+    // Daňové přílohy first, then the účetní závěrka — DPPO_EXTRA_VETA_TAGS puts
+    // the U-block after them, and the writer emits extraVety in array order.
+    extraVety: [
+      ...(priloha ? buildPrilohaVety(priloha) : []),
+      ...(zaverka ? buildZaverkaVety(zaverka) : []),
+    ],
   }
 
   // Fill the mezisoučty + tax chain (ř.70/170/200/250/270/290/310/340/360) so the

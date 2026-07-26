@@ -16,6 +16,7 @@ import {
   type DppoFigures,
   type DppoFilingMeta,
   type DppoPriloha,
+  type DppoZaverka,
   type DppoCheck,
 } from "@workspace/filing/dppo"
 import { validateFiling } from "@workspace/filing"
@@ -35,10 +36,11 @@ export async function buildDppoXml(
   figures: DppoFigures,
   meta: DppoFilingMeta,
   priloha?: DppoPriloha,
+  zaverka?: DppoZaverka,
 ): Promise<DppoActionResult> {
   try {
     const model = DppoSchema.parse(
-      buildDppoFromAccounting(figures, meta, priloha),
+      buildDppoFromAccounting(figures, meta, priloha, zaverka),
     )
     const xml = generateDppo(model)
     const checks = checkDppo(model)

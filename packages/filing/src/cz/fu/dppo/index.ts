@@ -31,5 +31,11 @@ export {
   type DppoTabulkaB,
   type DppoTabulkaK,
 } from "./priloha"
+export {
+  buildZaverkaVety,
+  type DppoZaverka,
+  type DppoZaverkaRadek,
+  type DppoZaverkaRozvahaRadek,
+} from "./zaverka"
 export { checkDppo, type DppoCheck } from "./checks"
 export * from "../../../model/dppo"

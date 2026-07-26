@@ -16,7 +16,7 @@ import { StatementHeader } from "../_components/statement-header"
 import { Toolbar } from "../_components/toolbar"
 import { useOrg } from "../_lib/org-context"
 import { buildPredvahaStatement, predvahaCsv } from "../_lib/predvaha-statement"
-import { STATEMENT_HEADER_MM } from "../_lib/print-pagination"
+import { STATEMENT_HEADER_PT } from "../_lib/print-pagination"
 
 export default function PredvahaPage() {
   const { denik, org, rozvrh } = useOrg()
@@ -83,7 +83,7 @@ export default function PredvahaPage() {
             statement={statement}
             control={exact.total}
             vTisicich={org.vTisicich}
-            firstPageMm={STATEMENT_HEADER_MM}
+            firstPagePt={STATEMENT_HEADER_PT}
           />
         </section>
 

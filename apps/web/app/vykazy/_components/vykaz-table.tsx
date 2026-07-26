@@ -42,11 +42,11 @@ interface VykazTableProps {
   rozsah: Rozsah
   hideEmpty?: boolean
   /**
-   * Millimetres of the first printed page already taken by content above this
-   * table (the tiskopis title block). Fixed content, so a constant is honest
-   * here; the row chunking itself is measured.
+   * Points of the first printed page already taken by content above this table
+   * (the tiskopis title block). Fixed content, so a constant is honest here;
+   * the row chunking itself is measured.
    */
-  firstPageMm?: number
+  firstPagePt?: number
   onCellChange: (rada: string, col: ColKey, value: number | null) => void
 }
 
@@ -130,7 +130,7 @@ export function VykazTable({
   colValues,
   rozsah,
   hideEmpty = false,
-  firstPageMm = 0,
+  firstPagePt = 0,
   onCellChange,
 }: VykazTableProps) {
   const { denikLoaded, isSourced, overrideCell } = useOrg()
@@ -258,10 +258,12 @@ export function VykazTable({
   const signature = `${statement.id}|${rozsah}|${visibleLines
     .map((l) => l.rada)
     .join(",")}`
-  const { measureRef, heights, headHeight } = usePrintMetrics(signature)
+  const { measureRef, metrics } = usePrintMetrics(signature)
   const pages =
-    heights.length === visibleLines.length && headHeight > 0
-      ? chunkRows(heights, headHeight, firstPageMm)
+    metrics.heights.length === visibleLines.length &&
+    metrics.headHeight > 0 &&
+    metrics.lineHeight > 0
+      ? chunkRows(metrics, firstPagePt)
       : [visibleLines.map((_, index) => index)]
 
   return (
@@ -407,7 +409,11 @@ export function VykazTable({
           <table className="vykaz-table w-full table-fixed border-collapse text-black">
             {colgroup}
             {thead}
-            <tbody>{rows.map((index) => printRows[index])}</tbody>
+            {/* One <tbody> per row: Safari splits a <tr> across the fold however
+                it is styled, but keeps a row group whole. */}
+            {rows.map((index) => (
+              <tbody key={index}>{printRows[index]}</tbody>
+            ))}
           </table>
         </div>
       ))}

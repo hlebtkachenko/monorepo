@@ -8,6 +8,7 @@ import { useRef, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
 import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { useOrg } from "../_lib/org-context"
 import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
@@ -39,7 +40,12 @@ export function Toolbar() {
   const minuleInput = useRef<HTMLInputElement>(null)
   const rozvrhInput = useRef<HTMLInputElement>(null)
   const [minuleError, setMinuleError] = useState<string | null>(null)
-  const [rozvrhNote, setRozvrhNote] = useState<string | null>(null)
+  // `warn` separates "loaded, but rows were dropped" from a clean load, so a
+  // successful import is not dressed in the same amber as a partial one.
+  const [rozvrhNote, setRozvrhNote] = useState<{
+    text: string
+    warn: boolean
+  } | null>(null)
 
   const handleImport = async (file: File | undefined) => {
     if (!file) return
@@ -117,9 +123,23 @@ export function Toolbar() {
       window.alert("Účtový rozvrh neobsahuje žádný účet.")
       return
     }
-    importRozvrh(result.accounts)
+    // Applying the chart re-maps an already-loaded deník. A throw in there used
+    // to end the click with nothing on screen and only a console entry, which is
+    // indistinguishable from the file dialog having done nothing at all.
+    try {
+      importRozvrh(result.accounts)
+    } catch (error) {
+      console.error("[vykazy] importRozvrh failed", error)
+      window.alert(
+        "Účtový rozvrh se načetl, ale nepodařilo se jej použít na deník." +
+          " Zkuste deník načíst znovu; podrobnosti jsou v konzoli prohlížeče.",
+      )
+      return
+    }
     // Every drop the parser makes is reported. Silence here used to mean a
     // mistyped header, a nameless account or a duplicate vanished unnoticed.
+    // A clean import says so too: without it a successful load looked like a
+    // dead button on any page that does not render the rozvrh table.
     const notes = [
       ...result.skipped,
       ...result.duplicates,
@@ -127,11 +147,13 @@ export function Toolbar() {
         ? [`nezpracované sloupce: ${result.ignoredColumns.join(", ")}`]
         : []),
     ]
-    setRozvrhNote(
-      notes.length > 0
-        ? `Načteno ${result.accounts.length} účtů. Přeskočeno — ${notes.join("; ")}.`
-        : null,
-    )
+    setRozvrhNote({
+      text:
+        notes.length > 0
+          ? `Načteno ${result.accounts.length} účtů. Přeskočeno — ${notes.join("; ")}.`
+          : `Načteno ${result.accounts.length} účtů.`,
+      warn: notes.length > 0,
+    })
   }
 
   const handleMinuleImport = async (file: File | undefined) => {
@@ -303,8 +325,15 @@ export function Toolbar() {
         </>
       ) : null}
       {rozvrhNote ? (
-        <span className="text-xs text-amber-600 dark:text-amber-400">
-          {rozvrhNote}
+        <span
+          className={cn(
+            "text-xs",
+            rozvrhNote.warn
+              ? "text-amber-600 dark:text-amber-400"
+              : "text-green-600 dark:text-green-400",
+          )}
+        >
+          {rozvrhNote.text}
         </span>
       ) : null}
 

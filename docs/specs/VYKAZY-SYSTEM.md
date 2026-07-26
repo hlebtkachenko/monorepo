@@ -1,0 +1,252 @@
+# Výkazy + DPPO: how the system works
+
+Agent-facing map of the `/vykazy` statement builder and the DPPO (DPPDP9) export.
+Covers the routes, the data flow, every file format the system reads or writes,
+the invariants that must hold, and the known gaps. For what each individual
+řádek contains and which účty feed it, read the generated
+[`VYKAZY-AND-DPPO-REFERENCE.md`](VYKAZY-AND-DPPO-REFERENCE.md) instead.
+
+## What it is
+
+A single-user, client-side builder for the Czech statutory účetní závěrka of a
+podnikatel účtující v soustavě podvojného účetnictví, plus the corporate income
+tax return derived from the same book. No database, no server state: everything
+lives in `localStorage` and is exported as files. The only server calls are the
+ARES lookup and the DPPO XML build.
+
+## Routes
+
+| Route              | Purpose                                               |
+| ------------------ | ----------------------------------------------------- |
+| `/vykazy`          | landing, identification block, toolbar, import/export |
+| `/vykazy/rozvaha`  | Rozvaha, aktiva + pasiva tables                       |
+| `/vykazy/vzz`      | Výkaz zisku a ztráty, druhové členění                 |
+| `/vykazy/predvaha` | obratová předvaha built from the deník                |
+| `/vykazy/denik`    | imported účetní deník, screen + print                 |
+| `/vykazy/rozvrh`   | účtový rozvrh editor                                  |
+| `/vykazy/dppo`     | DPPO form and XML generator                           |
+
+## Data flow
+
+```
+účetní deník (XLSX/CSV)
+  → parseDenikXlsx / parseDenikCsv        _lib/denik.ts
+  → buildPredvaha                          _lib/predvaha.ts     (per-účet MD/Dal turnover + KS)
+  → mapPredvahaToValues                    _lib/mapping.ts      (účet → statement leaf + column)
+  → VykazValues (leaves only)              _lib/types.ts
+  → computeAll                             _lib/engine.ts       (formulas → calc rows)
+  → VykazTable / print pages               _components/vykaz-table.tsx
+```
+
+DPPO branches off the same `Predvaha`:
+
+```
+Predvaha
+  → deriveUcetniVysledek / deriveCistyObrat   dppo/_lib/dppo-bridge.ts
+  → DppoFormState (user edits + overrides)
+  → toFigures / toPriloha / toZaverka          dppo/_lib/dppo-bridge.ts
+  → buildDppoFromAccounting                    packages/filing .../dppo/adapter.ts
+  → computeDppoTotals / applyDppoTotals        .../dppo/compute.ts
+  → generateDppo                               .../dppo/write.ts
+  → validateFiling(xml, "dppo", "05.01.01")    packages/filing/src/validate/validate.ts
+```
+
+The server action is `buildDppoXml` in `apps/web/app/vykazy/dppo/_lib/dppo-action.ts`
+(`"use server"`). It is the only place XSD validation runs, because
+`validateFiling` pulls in `xmllint-wasm`. The browser imports
+`@workspace/filing/cz/fu/dppo`, a barrel that deliberately excludes the validator
+so the client bundle stays on `decimal.js-light` + `zod`.
+
+## Persistence
+
+| Key                    | Contents                                     |
+| ---------------------- | -------------------------------------------- |
+| `vykazy-doc`           | the whole `VykazyDoc`, `DOC_VERSION = 3`     |
+| `vykazy-org-templates` | saved identification blocks, `OrgTemplate[]` |
+
+`VykazyDoc` holds `org`, `values` (three statement maps), `rozsah`, `crVariant`,
+`rozvrh`, `denik`, `overrides`. Migration from older `version` values lives in
+`_lib/storage.ts` and is covered by `storage-migration.test.ts`.
+
+`overrides` records the cells where the user took a deník-sourced value over.
+A leaf that is sourced renders grey until clicked; clicking records an override
+and it becomes a white input. A calc line carrying an explicit value has its
+formula overridden by the engine.
+
+## File formats
+
+### Účetní deník, XLSX or CSV
+
+Required columns: `Datum`, `TpUD`, `Zdroj`, `Číslo`, `Text`, `MD`, `DAL`,
+`Částka`. Optional: `Cizí měna`, `Středisko`, `Zakázka`, `Činnost`, `Pársym`,
+`Firma`, `Jméno`, `IČ`. Delimiter is auto-detected (`;` unless commas dominate).
+Template: `denikCsvTemplate()`.
+
+XLSX is unzipped with `fflate` and the sheet XML is read directly in
+`parseDenikXlsx`; there is no spreadsheet library. Missing required columns fail
+the import with the list of what is missing.
+
+### Účtový rozvrh, CSV
+
+Required columns: `Účet`, `Název`. Optional: `Oprávkový` (`Ano`/`Ne`). A
+superset is accepted so the full sheet imports as-is. Diacritic-free aliases
+(`Ucet`, `Nazev`, `Opravkovy`) are accepted. Template: `rozvrhCsvTemplate()`,
+UTF-8 with BOM.
+
+The rozvrh only supplies **names** and the oprávkový flag. It never affects a
+figure. Name resolution order: rozvrh exact → osnova exact → osnova syntetický.
+There is no "rozvrh by synthetic" tier on purpose: an analytický název describes
+one account and lending it to a sibling would state something false.
+
+A cp1250 file mangles the accented headers and the import fails with a hint to
+save as UTF-8. Every dropped row (no account number, no name, duplicate) is
+reported.
+
+### Minulé období, JSON
+
+```json
+{
+  "version": 1,
+  "kind": "vykazy-minule",
+  "minule": { "rozvahaAktiva": {}, "rozvahaPasiva": {}, "vzz": {} }
+}
+```
+
+Keys are řádek numbers, values are whole tisíce. Feeds the `minule` column only.
+
+### Full export, JSON
+
+`exportJson(toDoc())` writes the whole `VykazyDoc`. `importJson` reads it back.
+This is the only format that round-trips the entire state.
+
+### DPPO, XML
+
+EPO2 envelope, `Pisemnost > DPPDP9`. We write `verzePis` from `DPPO_VERSION` =
+`"05.01.01"`; EPO's own working files write `"05.01"`. Both validate. XSD is
+vendored at
+`packages/filing/schemas/fu/dppo/05.01.01/dppdp9_epo2.xsd`, registry key
+`dppo@05.01.01` in `packages/filing/src/validate/registry.ts`.
+
+Věty, in XSD sequence order (`DPPO_EXTRA_VETA_TAGS` in
+`packages/filing/src/model/dppo.ts`):
+
+| Věta     | Cardinality | Carries                                                     |
+| -------- | ----------- | ----------------------------------------------------------- |
+| `VetaD`  | 1           | hlavička; also `uv_vyhl`, `uv_mena`, `uv_rozsah_rozv/vzz`   |
+| `VetaP`  | 0..1        | poplatník, address, oprávněná osoba                         |
+| `VetaO`  | 1           | II. oddíl, `kc_ii<x>_<řádek>` attributes                    |
+| `VetaU`  | 0..12       | příloha tabulka A, one per účtová skupina                   |
+| `VetaE`  | 0..1        | tabulka A celkem                                            |
+| `VetaF`  | 0..1        | tabulka B, daňové odpisy                                    |
+| `VetaS`  | 0..1        | tabulka K, čistý obrat + počet zaměstnanců                  |
+| `VetaUA` | 0..∞        | Rozvaha, `c_radku` + brutto/korekce/netto/netto minulé      |
+| `VetaUB` | 0..∞        | Rozvaha pasiva, `c_radku` + `kc_sled`/`kc_min`              |
+| `VetaUD` | 0..∞        | VZZ druhové členění, `c_radku` + `kc_sled`/`kc_min`         |
+| `VetaUZ` | 0..1        | žádost o předání závěrky do sbírky listin (**not emitted**) |
+
+`readDppo` captures every recognised věta into `extraVety` in XSD order, so a
+document read → edited → written round-trips losslessly.
+
+## Rules that are easy to get wrong
+
+**Units.** Rozvaha and VZZ are filed v celých tisících. Předvaha and DPPO stay
+in exact Kč. `uz_rad` in `VetaD` declares which (`T` or `M`).
+
+**Rounding is an allocation.** Each side is rounded to the thousand it totals and
+the residual is dealt largest-remainder-first. Never round cells independently:
+that prints AKTIVA ≠ PASIVA on a book that ties to the haléř.
+
+**Rozvaha is stavová, VZZ toková.** Rozvaha takes konečný zůstatek; VZZ takes
+obraty. Oprávky and opravné položky land on the **same** asset leaf in the
+korekce column, and netto is always derived, never entered.
+
+**Korekce sign flips between the výkaz and the XML.** The books carry it as a
+credit and the printed form shows it negative, but EPO says
+`"Záporné znaménko se neuvádí"`, so `VetaUA` sends it unsigned. A korekce cell
+the form prints `x` on is omitted, not sent as 0.
+
+**`c_radku` is a remap, not our řádek number.** EPO numbers aktiva 1–81 and
+pasiva 1–69 in two independent spaces, both with a "nesmí být duplicitní"
+control, which is why aktiva and pasiva must be separate věty. Our numbering
+diverges wherever the časové-rozlišení variant sits: our aktiva C.III. `072` is
+EPO 68, our pasiva A.IV.2. `020` is EPO 21. `zaverka.test.ts` pins every segment
+boundary and asserts all 81 + 68 řádky map onto distinct čísla.
+
+**Čistý obrat is skupina 60 only.** § 1d odst. 2 ZoÚ counts tržby from selling
+výrobky, zboží and služby. Not the whole třída 6: ostatní provozní výnosy and
+finanční výnosy are not tržby. The all-výnosy reading is § 1d odst. 5 and applies
+to a veřejně prospěšný poplatník. VZZ ř.56 and tabulka K ř.1 derive it the same
+way and must agree.
+
+**DPPO ř.10 excludes the daň accounts.** `deriveUcetniVysledek` sums třída 6
+minus třída 5 but skips exactly `590`, `591`, `592`, `595`, `596`, `599`
+(`BELOW_VYSLEDEK_PRED_ZDANENIM`), since daň z příjmů sits below výsledek
+hospodaření před zdaněním. It is not the whole 59x range.
+
+**Formulas are evaluated before export.** The store holds only leaves, so the
+závěrka věty run `computeAll` first or every aggregate ships as 0.
+
+**Rozsah and ČR variant follow the report; `hideEmpty` does not.** `hideEmpty` is
+a screen toggle and must never reach an export. A mikro ÚJ has rozvaha rozsah `M`
+but VZZ has no `M`, which is why `uv_rozsah_rozv` and `uv_rozsah_vzz` split.
+
+## Printing
+
+Safari honours neither `break-inside: avoid` on a `<tr>` nor a repeating
+`<thead>`, so pagination is explicit. `_lib/print-pagination.ts` measures a
+hidden replica (`.print-metrics`) and chunks rows into `.print-page` divs, each a
+complete table with its own header, separated by `break-before: page`.
+
+**Safari does not print a CSS pixel at 96dpi.** It lays the page out on a 1/90in
+grid in both axes and rounds every box edge up onto it: a 1px border prints
+0.8pt, 2px padding prints 1.6pt, a 16.5px line box prints 12.8pt. So a row's
+printed height is rebuilt from its parts (`rowPt`), never scaled, and the replica
+is laid out at `PRINT_METRICS_WIDTH_PX = 186mm at 90dpi − 1pt` so text wraps
+where the paper wraps. Measuring at 96dpi gives labels 6.7% more room than they
+have and the extra lines overflow the page.
+
+Each printed row is its own `<tbody>`: Safari splits a `<tr>` across the fold
+however it is styled but keeps a row group whole, so a miss costs a page break
+rather than a torn row.
+
+Re-measure the calibration if cell padding, font size or line height changes.
+
+## Verifying a change
+
+```bash
+pnpm --filter web vitest run app/vykazy
+```
+
+```bash
+pnpm --filter @workspace/filing vitest run src/cz/fu/dppo
+```
+
+```bash
+pnpm preflight
+```
+
+To check a generated return end to end, `buildDppoXml` already runs
+`validateFiling` and `checkDppo`. `checkDppo` sees only the document, never the
+books, so an XSD-valid return with no findings can still disagree with the deník.
+Tie ř.10 back to VZZ ř.49 by hand.
+
+To regenerate the line-by-line reference after changing the mapping:
+
+```bash
+pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
+```
+
+## Known gaps
+
+- `VetaUZ` is not emitted. The žádost o předání účetní závěrky do sbírky listin
+  (`pr11_rozv`, `pr11_vzz`, `pr11_puz`, `pr11_email`) has to be ticked in EPO.
+- Tabulka B and ř.150 are user-entered. Nothing derives daňové odpisy from a
+  majetek register, so a return can charge full účetní odpisy on ř.50 and claim
+  zero daňových.
+- Tabulka A is user-entered. Which náklady are nedaňové is a judgement, so the
+  figures do not move when the deník moves. Re-check them after a deník reimport.
+- VZZ účelové členění (příloha č. 3) is not implemented. Only `VetaUD`, the
+  druhové členění, is produced.
+- `c_telef` in `VetaP` is not collected.
+- The DPPO form is component state. It is not part of `VykazyDoc` and does not
+  survive a reload.

@@ -146,7 +146,7 @@ services:
       - "9187:9187"
 
   mailpit:
-    image: axllent/mailpit:v1.30.4
+    image: axllent/mailpit:v1.30.5
     restart: unless-stopped
     profiles:
       - mailpit

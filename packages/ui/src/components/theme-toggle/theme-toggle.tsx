@@ -71,7 +71,12 @@ function ThemeToggle() {
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="icon">
+          <Button
+            variant="outline"
+            size="icon"
+            title="Color theme"
+            aria-label="Color theme"
+          >
             <Palette className="size-4" />
           </Button>
         </DropdownMenuTrigger>
@@ -89,7 +94,13 @@ function ThemeToggle() {
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      <Button variant="outline" size="icon" onClick={toggleDensity}>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={toggleDensity}
+        title={isCompact ? "Normal spacing" : "Compact spacing"}
+        aria-label={isCompact ? "Normal spacing" : "Compact spacing"}
+      >
         {isCompact ? (
           <Maximize2 className="size-4" />
         ) : (
@@ -100,6 +111,8 @@ function ThemeToggle() {
         variant="outline"
         size="icon"
         onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+        title={resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
+        aria-label={resolvedTheme === "dark" ? "Light mode" : "Dark mode"}
       >
         <Sun className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
         <Moon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />

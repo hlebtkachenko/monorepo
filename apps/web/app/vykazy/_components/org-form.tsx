@@ -3,7 +3,7 @@
 // Identification block editor — binds every OrgConfig field to the context.
 // Screen-only chrome (marked .no-print by the caller / page).
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
@@ -12,7 +12,9 @@ import { useOrg, type OrgTextKey } from "../_lib/org-context"
 import { lookupAresForVykazy } from "../_lib/ares-action"
 import {
   loadTemplates,
+  parseTemplatesJson,
   saveTemplates,
+  templatesJson,
   upsertTemplate,
   type OrgTemplate,
 } from "../_lib/org-templates"
@@ -111,6 +113,7 @@ function TemplatePicker() {
   const { org, patchOrg } = useOrg()
   const [templates, setTemplates] = useState<OrgTemplate[]>([])
   const [selected, setSelected] = useState("")
+  const importInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     /* eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot client-only localStorage hydration on mount; server render intentionally starts with no templates */
@@ -128,6 +131,40 @@ function TemplatePicker() {
     setSelected(value)
     const template = templates.find((t) => t.name === value)
     if (template) patchOrg(template.org)
+  }
+
+  const exportTemplates = () => {
+    const blob = new Blob([templatesJson(templates)], {
+      type: "application/json;charset=utf-8",
+    })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = "vykazy-sablony.json"
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  // Imported templates are MERGED, not swapped in: `upsertTemplate` matches on
+  // name, so a file refreshes the firms it carries and leaves the rest alone.
+  const importTemplates = async (file: File | undefined) => {
+    if (!file) return
+    let incoming: OrgTemplate[]
+    try {
+      incoming = parseTemplatesJson(await file.text())
+    } catch {
+      window.alert(
+        'Soubor se nepodařilo načíst — očekává se JSON ve formátu "vykazy-org-templates".',
+      )
+      return
+    }
+    if (incoming.length === 0) {
+      window.alert("Soubor neobsahuje žádnou šablonu.")
+      return
+    }
+    persist(incoming.reduce(upsertTemplate, templates))
   }
 
   return (
@@ -170,6 +207,33 @@ function TemplatePicker() {
           Smazat
         </Button>
       ) : null}
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={templates.length === 0}
+        onClick={exportTemplates}
+      >
+        Export šablon
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => importInput.current?.click()}
+      >
+        Import šablon
+      </Button>
+      <input
+        ref={importInput}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={(e) => {
+          void importTemplates(e.target.files?.[0])
+          e.target.value = ""
+        }}
+      />
       <span className="text-xs text-muted-foreground">
         Uloženo jen v tomto prohlížeči.
       </span>

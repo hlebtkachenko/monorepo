@@ -13,6 +13,7 @@ import { coerceOrg } from "./storage"
 import type { OrgConfig } from "./types"
 
 const STORAGE_KEY = "vykazy-org-templates"
+const TEMPLATES_KIND = "vykazy-org-templates"
 
 export interface OrgTemplate {
   /** Display name; also the identity, so re-saving the same firm overwrites. */
@@ -61,6 +62,28 @@ export function loadTemplates(): OrgTemplate[] {
   } catch {
     return []
   }
+}
+
+/**
+ * The templates as a file: the same shape `importTemplatesJson` reads back, so a
+ * set built on one machine can be carried to another. Templates hold real
+ * účetní jednotky, so this file never belongs in the repo — it is a download.
+ */
+export function templatesJson(templates: readonly OrgTemplate[]): string {
+  return `${JSON.stringify({ version: 1, kind: TEMPLATES_KIND, templates }, null, 2)}\n`
+}
+
+/**
+ * Read an exported file. Throws when it is not one: a wrong file silently
+ * yielding zero templates would look identical to an empty export.
+ */
+export function parseTemplatesJson(text: string): OrgTemplate[] {
+  const parsed: unknown = JSON.parse(text)
+  const kind = (parsed as { kind?: unknown } | null)?.kind
+  if (kind !== TEMPLATES_KIND) {
+    throw new Error(`not a ${TEMPLATES_KIND} file`)
+  }
+  return coerceTemplates((parsed as { templates?: unknown }).templates)
 }
 
 export function saveTemplates(templates: OrgTemplate[]): void {

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { coerceTemplates, upsertTemplate } from "./org-templates"
+import {
+  coerceTemplates,
+  parseTemplatesJson,
+  templatesJson,
+  upsertTemplate,
+  type OrgTemplate,
+} from "./org-templates"
 import type { OrgConfig } from "./types"
 
 const org = (nazev: string): OrgConfig => ({
@@ -71,5 +77,31 @@ describe("upsertTemplate", () => {
   it("stores the trimmed name", () => {
     const list = upsertTemplate([], { name: "  Firma  ", org: org("Firma") })
     expect(list[0]?.name).toBe("Firma")
+  })
+})
+
+describe("templatesJson / parseTemplatesJson", () => {
+  const template: OrgTemplate = {
+    name: "Firma s.r.o.",
+    org: org("Firma s.r.o."),
+  }
+
+  it("round-trips a set of templates through a file", () => {
+    expect(parseTemplatesJson(templatesJson([template]))).toEqual([template])
+  })
+
+  it("refuses a file that is not a template export", () => {
+    // A wrong file yielding zero templates would look like an empty export.
+    expect(() => parseTemplatesJson('{"kind":"vykazy-minule"}')).toThrow()
+    expect(() => parseTemplatesJson("[]")).toThrow()
+  })
+
+  it("drops an unusable entry rather than the whole file", () => {
+    const mixed = JSON.stringify({
+      version: 1,
+      kind: "vykazy-org-templates",
+      templates: [template, { name: "" }, 42],
+    })
+    expect(parseTemplatesJson(mixed)).toEqual([template])
   })
 })

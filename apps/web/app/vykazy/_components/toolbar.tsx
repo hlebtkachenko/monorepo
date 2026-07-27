@@ -6,9 +6,17 @@
 // a mis-click away from the imports they undo. Marked .no-print so none of it
 // appears on the printed form.
 
-import { useRef, useState } from "react"
+import { useMemo, useRef, useState } from "react"
+import { CircleCheck, Upload } from "lucide-react"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@workspace/ui/components/select"
 import { ThemeToggle } from "@workspace/ui/components/theme-toggle"
 import { cn } from "@workspace/ui/lib/utils"
 
@@ -17,6 +25,7 @@ import { denikCsvTemplate, parseDenikCsv, parseDenikXlsx } from "../_lib/denik"
 import { parseRozvrhCsv, rozvrhCsvTemplate } from "../_lib/rozvrh"
 import { exportJson, importJson, parseMinuleJson } from "../_lib/storage"
 import { ROZSAH_SHORT } from "../_lib/rozsah"
+import type { CasoveRozliseni, Rozsah, VykazValues } from "../_lib/types"
 
 export function Toolbar() {
   const {
@@ -36,7 +45,18 @@ export function Toolbar() {
     clearDenik,
     denikLoaded,
     rozvrh,
+    values,
   } = useOrg()
+
+  // The prior-year import writes only the `minule` column, so "is it loaded" is
+  // exactly "does any řádek carry one" — there is no separate flag to read.
+  const minuleLoaded = useMemo(
+    () =>
+      Object.values(values).some((statement: VykazValues) =>
+        Object.values(statement).some((cell) => cell.minule !== undefined),
+      ),
+    [values],
+  )
   const fileInput = useRef<HTMLInputElement>(null)
   const denikInput = useRef<HTMLInputElement>(null)
   const minuleInput = useRef<HTMLInputElement>(null)
@@ -170,6 +190,14 @@ export function Toolbar() {
     }
   }
 
+  /** Green tick once the source is actually in the document, upload icon until. */
+  const stateIcon = (loaded: boolean) =>
+    loaded ? (
+      <CircleCheck className="text-green-600 dark:text-green-400" />
+    ) : (
+      <Upload className="text-muted-foreground" />
+    )
+
   return (
     <div className="no-print rounded-lg border border-border bg-card p-3">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -181,10 +209,11 @@ export function Toolbar() {
           <div className="flex flex-wrap items-center gap-1.5">
             <Button
               type="button"
-              variant="default"
+              variant={denikLoaded ? "outline" : "default"}
               size="sm"
               onClick={() => denikInput.current?.click()}
             >
+              {stateIcon(denikLoaded)}
               Deník (XLSX/CSV)
             </Button>
             <Button
@@ -214,6 +243,7 @@ export function Toolbar() {
               size="sm"
               onClick={() => rozvrhInput.current?.click()}
             >
+              {stateIcon(rozvrh.length > 0)}
               Účtový rozvrh (CSV)
             </Button>
             <Button
@@ -243,6 +273,7 @@ export function Toolbar() {
               size="sm"
               onClick={() => minuleInput.current?.click()}
             >
+              {stateIcon(minuleLoaded)}
               Minulé období (JSON)
             </Button>
           </div>
@@ -290,38 +321,43 @@ export function Toolbar() {
           </h2>
 
           {/* § 3a odst. 2 vyhlášky — the zkrácený rozsah has two variants, one
-              per kategorie účetní jednotky, so this cycles through all three. */}
-          <Button
-            type="button"
-            variant={rozsah === "plny" ? "outline" : "default"}
-            size="sm"
-            className="w-full justify-start"
-            onClick={() =>
-              setRozsah(
-                rozsah === "plny"
-                  ? "mala"
-                  : rozsah === "mala"
-                    ? "mikro"
-                    : "plny",
-              )
-            }
-            title="Plný rozsah / zkrácený rozsah malé ÚJ bez auditu / zkrácený rozsah mikro ÚJ bez auditu"
-          >
-            Rozsah: {ROZSAH_SHORT[rozsah]}
-          </Button>
+              per kategorie účetní jednotky. */}
+          <label className="block space-y-1">
+            <span className="text-xs text-muted-foreground">Rozsah</span>
+            <Select
+              value={rozsah}
+              onValueChange={(value) => setRozsah(value as Rozsah)}
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="plny">{ROZSAH_SHORT.plny}</SelectItem>
+                <SelectItem value="mala">{ROZSAH_SHORT.mala}</SelectItem>
+                <SelectItem value="mikro">{ROZSAH_SHORT.mikro}</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
 
           {/* § 3 odst. 3 a 4 vyhlášky — časové rozlišení sits either inside
               C.II.3./C.III. or in the separate D. položka, never both. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full justify-start"
-            onClick={() => setCrVariant(crVariant === "D" ? "C" : "D")}
-            title="Vykazování časového rozlišení: samostatná položka D., nebo uvnitř C.II.3. / C.III."
-          >
-            Časové rozlišení: {crVariant === "D" ? "D." : "C.II.3. / C.III."}
-          </Button>
+          <label className="block space-y-1">
+            <span className="text-xs text-muted-foreground">
+              Časové rozlišení
+            </span>
+            <Select
+              value={crVariant}
+              onValueChange={(value) => setCrVariant(value as CasoveRozliseni)}
+            >
+              <SelectTrigger size="sm" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="D">Samostatná položka D.</SelectItem>
+                <SelectItem value="C">Uvnitř C.II.3. / C.III.</SelectItem>
+              </SelectContent>
+            </Select>
+          </label>
 
           <Button
             type="button"

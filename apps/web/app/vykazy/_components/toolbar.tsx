@@ -1,8 +1,10 @@
 "use client"
 
-// Screen-only action bar: JSON export/import, print, rozsah + časové-rozlišení +
-// hide-empty toggles, theme, reset. Marked .no-print so it never appears on the
-// printed form.
+// Screen-only action bar, grouped in the order the form is actually filled:
+// 1. load the data, 2. choose how the výkaz is laid out, 3. print or export.
+// Destructive actions (clears, reset) sit apart in the footer so they are never
+// a mis-click away from the imports they undo. Marked .no-print so none of it
+// appears on the printed form.
 
 import { useRef, useState } from "react"
 
@@ -169,146 +171,236 @@ export function Toolbar() {
   }
 
   return (
-    <div className="no-print flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => exportJson(toDoc())}
-      >
-        Export vše (JSON)
-      </Button>
+    <div className="no-print rounded-lg border border-border bg-card p-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            1. Načíst data
+          </h2>
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => fileInput.current?.click()}
-      >
-        Import vše (JSON)
-      </Button>
-      <input
-        ref={fileInput}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        onChange={(e) => {
-          void handleImport(e.target.files?.[0])
-          e.target.value = ""
-        }}
-      />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => denikInput.current?.click()}
+            >
+              Deník (XLSX/CSV)
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={downloadDenikTemplate}
+            >
+              Šablona
+            </Button>
+          </div>
+          <input
+            ref={denikInput}
+            type="file"
+            accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="hidden"
+            onChange={(e) => {
+              void handleDenikImport(e.target.files?.[0])
+              e.target.value = ""
+            }}
+          />
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => window.print()}
-      >
-        Tisk / PDF
-      </Button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => rozvrhInput.current?.click()}
+            >
+              Účtový rozvrh (CSV)
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={downloadRozvrhTemplate}
+            >
+              Šablona
+            </Button>
+          </div>
+          <input
+            ref={rozvrhInput}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => {
+              void handleRozvrhImport(e.target.files?.[0])
+              e.target.value = ""
+            }}
+          />
 
-      <span className="mx-1 h-5 w-px bg-muted" />
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => minuleInput.current?.click()}
+            >
+              Minulé období (JSON)
+            </Button>
+          </div>
+          <input
+            ref={minuleInput}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              void handleMinuleImport(e.target.files?.[0])
+              e.target.value = ""
+            }}
+          />
 
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => denikInput.current?.click()}
-      >
-        Import deník (XLSX/CSV)
-      </Button>
-      <input
-        ref={denikInput}
-        type="file"
-        accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        className="hidden"
-        onChange={(e) => {
-          void handleDenikImport(e.target.files?.[0])
-          e.target.value = ""
-        }}
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={downloadDenikTemplate}
-      >
-        Šablona deníku (CSV)
-      </Button>
+          {/* One status line for the whole group, so a load result is read in
+              the same place whichever file produced it. The note from the last
+              import wins over the standing count, which it already restates. */}
+          {rozvrhNote || rozvrh.length > 0 || minuleError ? (
+            <div className="space-y-0.5 text-xs">
+              {rozvrhNote ? (
+                <p
+                  className={cn(
+                    rozvrhNote.warn
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-green-600 dark:text-green-400",
+                  )}
+                >
+                  {rozvrhNote.text}
+                </p>
+              ) : rozvrh.length > 0 ? (
+                <p className="text-muted-foreground">
+                  Rozvrh: {rozvrh.length} účtů
+                </p>
+              ) : null}
+              {minuleError ? (
+                <p className="text-destructive">{minuleError}</p>
+              ) : null}
+            </div>
+          ) : null}
+        </section>
 
-      {denikLoaded ? (
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            2. Nastavit podobu výkazu
+          </h2>
+
+          {/* § 3a odst. 2 vyhlášky — the zkrácený rozsah has two variants, one
+              per kategorie účetní jednotky, so this cycles through all three. */}
+          <Button
+            type="button"
+            variant={rozsah === "plny" ? "outline" : "default"}
+            size="sm"
+            className="w-full justify-start"
+            onClick={() =>
+              setRozsah(
+                rozsah === "plny"
+                  ? "mala"
+                  : rozsah === "mala"
+                    ? "mikro"
+                    : "plny",
+              )
+            }
+            title="Plný rozsah / zkrácený rozsah malé ÚJ bez auditu / zkrácený rozsah mikro ÚJ bez auditu"
+          >
+            Rozsah: {ROZSAH_SHORT[rozsah]}
+          </Button>
+
+          {/* § 3 odst. 3 a 4 vyhlášky — časové rozlišení sits either inside
+              C.II.3./C.III. or in the separate D. položka, never both. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => setCrVariant(crVariant === "D" ? "C" : "D")}
+            title="Vykazování časového rozlišení: samostatná položka D., nebo uvnitř C.II.3. / C.III."
+          >
+            Časové rozlišení: {crVariant === "D" ? "D." : "C.II.3. / C.III."}
+          </Button>
+
+          <Button
+            type="button"
+            variant={hideEmpty ? "default" : "outline"}
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => setHideEmpty(!hideEmpty)}
+          >
+            {hideEmpty ? "Zobrazit prázdné řádky" : "Skrýt prázdné řádky"}
+          </Button>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            3. Výstup
+          </h2>
+
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => window.print()}
+          >
+            Tisk / PDF
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full justify-start"
+            onClick={() => exportJson(toDoc())}
+          >
+            Export vše (JSON)
+          </Button>
+        </section>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+        <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+          Správa dat
+        </span>
         <Button
           type="button"
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={() => {
-            if (
-              window.confirm(
-                "Opravdu vymazat načtený deník a odvozené hodnoty?",
-              )
-            )
-              clearDenik()
-          }}
+          onClick={() => fileInput.current?.click()}
         >
-          Vymazat deník
+          Import vše (JSON)
         </Button>
-      ) : null}
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => minuleInput.current?.click()}
-      >
-        Import minulé (JSON)
-      </Button>
-      <input
-        ref={minuleInput}
-        type="file"
-        accept=".json,application/json"
-        className="hidden"
-        onChange={(e) => {
-          void handleMinuleImport(e.target.files?.[0])
-          e.target.value = ""
-        }}
-      />
-      {minuleError ? (
-        <span className="text-xs text-destructive">{minuleError}</span>
-      ) : null}
-
-      <span className="mx-1 h-5 w-px bg-muted" />
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => rozvrhInput.current?.click()}
-      >
-        Import rozvrh (CSV)
-      </Button>
-      <input
-        ref={rozvrhInput}
-        type="file"
-        accept=".csv,text/csv"
-        className="hidden"
-        onChange={(e) => {
-          void handleRozvrhImport(e.target.files?.[0])
-          e.target.value = ""
-        }}
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={downloadRozvrhTemplate}
-      >
-        Šablona rozvrhu (CSV)
-      </Button>
-      {rozvrh.length > 0 ? (
-        <>
-          <span className="text-xs text-muted-foreground">
-            Rozvrh: {rozvrh.length} účtů
-          </span>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            void handleImport(e.target.files?.[0])
+            e.target.value = ""
+          }}
+        />
+        {denikLoaded ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (
+                window.confirm(
+                  "Opravdu vymazat načtený deník a odvozené hodnoty?",
+                )
+              )
+                clearDenik()
+            }}
+          >
+            Vymazat deník
+          </Button>
+        ) : null}
+        {rozvrh.length > 0 ? (
           <Button
             type="button"
             variant="ghost"
@@ -322,76 +414,25 @@ export function Toolbar() {
           >
             Vymazat rozvrh
           </Button>
-        </>
-      ) : null}
-      {rozvrhNote ? (
-        <span
-          className={cn(
-            "text-xs",
-            rozvrhNote.warn
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-green-600 dark:text-green-400",
-          )}
+        ) : null}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (window.confirm("Opravdu vymazat všechna zadaná data?")) reset()
+          }}
         >
-          {rozvrhNote.text}
-        </span>
-      ) : null}
+          Reset vše
+        </Button>
 
-      <span className="mx-1 h-5 w-px bg-muted" />
-
-      {/* § 3a odst. 2 vyhlášky — the zkrácený rozsah has two variants, one per
-          kategorie účetní jednotky, so this cycles through all three. */}
-      <Button
-        type="button"
-        variant={rozsah === "plny" ? "outline" : "default"}
-        size="sm"
-        onClick={() =>
-          setRozsah(
-            rozsah === "plny" ? "mala" : rozsah === "mala" ? "mikro" : "plny",
-          )
-        }
-        title="Plný rozsah / zkrácený rozsah malé ÚJ bez auditu / zkrácený rozsah mikro ÚJ bez auditu"
-      >
-        Rozsah: {ROZSAH_SHORT[rozsah]}
-      </Button>
-
-      {/* § 3 odst. 3 a 4 vyhlášky — časové rozlišení sits either inside
-          C.II.3./C.III. or in the separate D. položka, never both. */}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => setCrVariant(crVariant === "D" ? "C" : "D")}
-        title="Vykazování časového rozlišení: samostatná položka D., nebo uvnitř C.II.3. / C.III."
-      >
-        Časové rozlišení: {crVariant === "D" ? "D." : "C.II.3. / C.III."}
-      </Button>
-
-      <Button
-        type="button"
-        variant={hideEmpty ? "default" : "outline"}
-        size="sm"
-        onClick={() => setHideEmpty(!hideEmpty)}
-      >
-        {hideEmpty ? "Zobrazit prázdné" : "Skrýt prázdné"}
-      </Button>
-
-      <span className="mx-1 h-5 w-px bg-muted" />
-
-      {/* The app's own theme control — /vykazy has no app-shell header to carry
-          it, and the chrome follows the theme even though the form stays paper. */}
-      <ThemeToggle />
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          if (window.confirm("Opravdu vymazat všechna zadaná data?")) reset()
-        }}
-      >
-        Reset
-      </Button>
+        {/* The app's own theme control — /vykazy has no app-shell header to
+            carry it, and the chrome follows the theme even though the form
+            stays paper. */}
+        <div className="ml-auto">
+          <ThemeToggle />
+        </div>
+      </div>
     </div>
   )
 }

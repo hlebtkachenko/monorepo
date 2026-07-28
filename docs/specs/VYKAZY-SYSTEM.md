@@ -378,5 +378,43 @@ it is an explicit opt-in, and the wipe button clears both storages.
   `c_jed_vyzvy` exist on the header models, so the engine supports them.
 - Call-off stock (`VetaS`) and SH storno rows are modelled and validated but have
   no UI.
-- Nothing seeds the evidence from the deník. That would need a per-doklad
-  classification the deník cannot supply; see the reasoning above.
+### The workbook join
+
+The evidence can also live as a `DPH` sheet in the SAME workbook as the deník
+(`_lib/denik.ts` now resolves sheets by tab name, not by file order). One row per
+doklad, joined to the deník on **(Zdroj, Číslo)** — never `Číslo` alone, because an
+FV 001 and an FP 001 coexist and collapsing them would file the odběratel's doklad
+as the dodavatel's.
+
+The sheet carries only what the deník cannot: DIČ, DPPD, the supplier's evidenční
+číslo, and the classification. `Základ` / `Daň` are optional:
+
+- blank → inherited from the deník's postings for that doklad,
+- filled → used, and **cross-checked** against the books, with any mismatch reported.
+
+`indexDenikByDoklad` reads the base from the side OPPOSITE the 343 leg. An issued
+invoice books 311 MD / 602 DAL / 343 DAL, so counting every non-343 leg would add
+the receivable to the revenue and double the base. A leg that is 343 on both sides
+(samovyměření, the monthly zápočet) contributes nothing.
+
+Two reconciliation checks fall out of the join and run on import:
+
+- a doklad the deník puts through 343 that the evidence never mentions — a plnění
+  missing from the přiznání, the expensive direction,
+- an evidence row naming a doklad that is not in the deník — a typo.
+
+DIČ is proposed as `CZ` + the deník's IČ when the sheet leaves it blank, and the
+proposal is flagged: a fyzická osoba registers under a rodné číslo and a skupinová
+registrace under `CZ699…`.
+
+The účtový rozvrh reads from a `Rozvrh` sheet of the same workbook too
+(`parseRozvrhSheet`), reusing the CSV parser so header matching, duplicate
+detection and placement overrides stay in one place. The separate CSV import
+still works.
+
+### Known gaps (continued)
+
+- A doklad spanning two sazby needs two evidence rows with the base split by
+  hand; the join reports the duplicate key as a warning rather than splitting it.
+- Base inheritance cannot work for a doklad with no 343 leg (osvobozená plnění,
+  PDP dodavatel) — those must carry an explicit `Základ`.

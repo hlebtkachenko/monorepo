@@ -43,6 +43,8 @@ import {
   type DphStorageMode,
 } from "../_lib/dph-store"
 import { kontrolniVazby, type DphOrgMeta } from "../_lib/dph-project"
+import { parseDphSheet, type DphSheetIssue } from "../_lib/dph-sheet"
+import { parseWorkbookSheets } from "../../_lib/denik"
 import { buildDphXml, downloadXml, type DphFormKind } from "../_lib/dph-xml"
 
 const KH_SEKCE: KhSekce[] = ["A1", "A2", "A4", "A5", "B1", "B2", "B3"]
@@ -65,7 +67,7 @@ function download(text: string, fileName: string, mime: string) {
 }
 
 export function DphModule({ kind }: { kind: DphFormKind }) {
-  const { org } = useOrg()
+  const { org, denik } = useOrg()
   const [evidence, setEvidence] = useState<DphEvidence | null>(null)
   const [mode, setMode] = useState<DphStorageMode>("session")
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -73,7 +75,9 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
     ReturnType<typeof buildDphXml>
   > | null>(null)
   const [busy, setBusy] = useState(false)
+  const [sheetIssues, setSheetIssues] = useState<DphSheetIssue[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+  const workbookRef = useRef<HTMLInputElement>(null)
   const nextId = useRef(0)
 
   // Hydrate from storage on the client only — the server has no localStorage and
@@ -147,6 +151,27 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       return
     }
     update({ ...evidence, rows: [...evidence.rows, ...parsed.rows] })
+  }
+
+  // Read the DPH sheet out of the same workbook that holds the deník, and join
+  // on (Zdroj, Číslo). The deník already loaded in the builder is the join
+  // partner, so amounts come from the books rather than being typed twice.
+  const onWorkbook = async (file: File) => {
+    const sheets = parseWorkbookSheets(await file.arrayBuffer())
+    const parsed = parseDphSheet(sheets, denik)
+    if (!parsed.found) {
+      setSheetIssues([
+        {
+          severity: "error",
+          message: `Sešit nemá list „DPH“. Nalezené listy: ${sheets.names.join(", ") || "žádné"}.`,
+        },
+      ])
+      return
+    }
+    setSheetIssues(parsed.issues)
+    if (parsed.rows.length > 0) {
+      update({ ...evidence, rows: parsed.rows })
+    }
   }
 
   const generate = async () => {
@@ -271,6 +296,13 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
           <Button
             size="sm"
             variant="outline"
+            onClick={() => workbookRef.current?.click()}
+          >
+            Načíst ze sešitu
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
             onClick={() => fileRef.current?.click()}
           >
             Import CSV
@@ -310,6 +342,17 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
             onChange={(e) => {
               const f = e.target.files?.[0]
               if (f) void onImport(f)
+              e.target.value = ""
+            }}
+          />
+          <input
+            ref={workbookRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void onWorkbook(f)
               e.target.value = ""
             }}
           />
@@ -499,6 +542,28 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               </Labeled>
             ))}
           </div>
+        </section>
+      ) : null}
+
+      {sheetIssues.length > 0 ? (
+        <section className="space-y-2 rounded-md border border-border p-4">
+          <h2 className="text-sm font-semibold">
+            Porovnání evidence s deníkem ({sheetIssues.length})
+          </h2>
+          <ul className="space-y-1 text-sm">
+            {sheetIssues.map((i, n) => (
+              <li
+                key={`${i.severity}-${n}`}
+                className={
+                  i.severity === "error"
+                    ? "text-destructive"
+                    : "text-amber-600"
+                }
+              >
+                {i.message}
+              </li>
+            ))}
+          </ul>
         </section>
       ) : null}
 

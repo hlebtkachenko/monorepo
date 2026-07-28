@@ -35,8 +35,8 @@ export interface DenikParseResult {
   missingHeaders: string[]
 }
 
-/** Internal grid cell: shared-string / inline text, number, or empty. */
-type Cell = string | number | null
+/** One grid cell: shared-string / inline text, number, or empty. */
+export type Cell = string | number | null
 
 /** Field key on DenikRow a header maps to. "_jmeno" folds into `firma`. */
 type FieldKey =
@@ -210,18 +210,128 @@ function parseSheet(xml: string, shared: string[]): Cell[][] {
   return grid
 }
 
-function firstSheetXml(
-  files: Record<string, Uint8Array>,
-): Uint8Array | undefined {
-  const names = Object.keys(files)
+function orderedSheetFiles(files: Record<string, Uint8Array>): string[] {
+  return Object.keys(files)
     .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
     .sort(
       (a, b) =>
         Number(/sheet(\d+)\.xml$/.exec(a)?.[1] ?? 0) -
         Number(/sheet(\d+)\.xml$/.exec(b)?.[1] ?? 0),
     )
-  const first = names[0]
+}
+
+function firstSheetXml(
+  files: Record<string, Uint8Array>,
+): Uint8Array | undefined {
+  const first = orderedSheetFiles(files)[0]
   return first ? files[first] : undefined
+}
+
+/**
+ * Map each worksheet's DISPLAY NAME to its part inside the zip.
+ *
+ * `xl/workbook.xml` lists `<sheet name="Deník" r:id="rId1"/>`, and
+ * `xl/_rels/workbook.xml.rels` resolves that rId to `worksheets/sheetN.xml`.
+ * The sheetN numbering is NOT the tab order and NOT stable, so a workbook whose
+ * tabs were reordered would otherwise hand back the wrong grid. When the rels
+ * part is missing or unreadable the caller still gets the sheets in file order,
+ * which is what the single-sheet path always relied on.
+ */
+function sheetNameToFile(
+  files: Record<string, Uint8Array>,
+): Map<string, string> {
+  const out = new Map<string, string>()
+  const workbook = files["xl/workbook.xml"]
+  const rels = files["xl/_rels/workbook.xml.rels"]
+  if (!workbook) return out
+
+  const relTargets = new Map<string, string>()
+  if (rels) {
+    const relXml = strFromU8(rels)
+    const re = /<Relationship\b[^>]*>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(relXml)) !== null) {
+      const tag = m[0]
+      const id = /\bId="([^"]+)"/.exec(tag)?.[1]
+      const target = /\bTarget="([^"]+)"/.exec(tag)?.[1]
+      if (!id || !target) continue
+      const clean = target.replace(/^\/?xl\//, "").replace(/^\.\//, "")
+      relTargets.set(id, `xl/${clean}`)
+    }
+  }
+
+  const wbXml = strFromU8(workbook)
+  const sheetRe = new RegExp(`<${P}sheet\\b[^>]*/?>`, "g")
+  let sm: RegExpExecArray | null
+  let index = 0
+  const ordered = orderedSheetFiles(files)
+  while ((sm = sheetRe.exec(wbXml)) !== null) {
+    const tag = sm[0]
+    const name = /\bname="([^"]*)"/.exec(tag)?.[1]
+    if (name === undefined) continue
+    const rid = /\br:id="([^"]+)"/.exec(tag)?.[1]
+    // Fall back to positional order when the rels part did not resolve.
+    const file =
+      (rid ? relTargets.get(rid) : undefined) ?? ordered[index] ?? undefined
+    index += 1
+    if (file && files[file]) out.set(decodeXmlEntities(name), file)
+  }
+  return out
+}
+
+/** Fold case and diacritics so "Účetní deník", "ucetni denik" and "DENÍK" match. */
+export function normalizeSheetName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** One workbook, parsed once: every sheet's cell grid, keyed by display name. */
+export interface WorkbookSheets {
+  /** Display name (as written on the tab) → dense cell grid. */
+  grids: Map<string, Cell[][]>
+  /** Tab names in workbook order. */
+  names: string[]
+}
+
+/**
+ * Parse every worksheet in an XLSX. Shared by the deník, DPH-evidence and rozvrh
+ * readers so a single workbook can carry all three, unzipped and shared-string
+ * resolved exactly once.
+ */
+export function parseWorkbookSheets(buf: ArrayBuffer): WorkbookSheets {
+  const grids = new Map<string, Cell[][]>()
+  const names: string[] = []
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(new Uint8Array(buf))
+  } catch {
+    return { grids, names }
+  }
+  const sharedEntry = files["xl/sharedStrings.xml"]
+  const shared = sharedEntry ? parseSharedStrings(strFromU8(sharedEntry)) : []
+  for (const [name, file] of sheetNameToFile(files)) {
+    const entry = files[file]
+    if (!entry) continue
+    names.push(name)
+    grids.set(name, parseSheet(strFromU8(entry), shared))
+  }
+  return { grids, names }
+}
+
+/** Find a sheet by any of several accepted names (diacritics/case-insensitive). */
+export function findSheet(
+  sheets: WorkbookSheets,
+  accepted: readonly string[],
+): { name: string; grid: Cell[][] } | undefined {
+  const want = new Set(accepted.map(normalizeSheetName))
+  for (const [name, grid] of sheets.grids) {
+    if (want.has(normalizeSheetName(name))) return { name, grid }
+  }
+  return undefined
 }
 
 // --- value coercion ----------------------------------------------------------
@@ -266,45 +376,52 @@ function parseCastka(row: Cell[], col: number | undefined): number {
 
 // --- public API --------------------------------------------------------------
 
-export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
-  const warnings: string[] = []
-  const ignoredColumns: string[] = []
+/** Sheet-tab names accepted for the deník, in a multi-sheet workbook. */
+export const DENIK_SHEET_NAMES = [
+  "deník",
+  "denik",
+  "účetní deník",
+  "ucetni denik",
+] as const
 
+export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
   let files: Record<string, Uint8Array>
   try {
     files = unzipSync(new Uint8Array(buf))
   } catch {
     return {
       rows: [],
-      ignoredColumns,
+      ignoredColumns: [],
       warnings: ["Soubor se nepodařilo rozbalit — není to platný XLSX."],
       headerOk: false,
       missingHeaders: REQUIRED_HEADER_NAMES,
     }
   }
-
-  const sharedEntry = files["xl/sharedStrings.xml"]
-  const shared = sharedEntry ? parseSharedStrings(strFromU8(sharedEntry)) : []
-
-  const sheetEntry = firstSheetXml(files)
-  if (!sheetEntry) {
+  if (!firstSheetXml(files)) {
     return {
       rows: [],
-      ignoredColumns,
+      ignoredColumns: [],
       warnings: ["XLSX neobsahuje žádný list."],
       headerOk: false,
       missingHeaders: REQUIRED_HEADER_NAMES,
     }
   }
 
-  const sheetCount = Object.keys(files).filter((name) =>
-    /^xl\/worksheets\/sheet\d+\.xml$/.test(name),
-  ).length
-  if (sheetCount > 1) {
-    warnings.push(`Sešit má ${sheetCount} listy — načten je pouze první.`)
+  const sheets = parseWorkbookSheets(buf)
+  const named = findSheet(sheets, DENIK_SHEET_NAMES)
+  const warnings: string[] = []
+  // A workbook that carries the deník alongside a DPH / Rozvrh sheet is the
+  // normal shape now, so several sheets is no longer worth warning about — but
+  // a workbook with no sheet actually NAMED deník still falls back to the first
+  // one, and that guess is worth saying out loud.
+  const grid = named?.grid ?? sheets.grids.get(sheets.names[0] ?? "") ?? []
+  if (!named && sheets.names.length > 1) {
+    warnings.push(
+      `Sešit nemá list pojmenovaný „Deník“ — načten je první list („${sheets.names[0] ?? "?"}“).`,
+    )
   }
 
-  const grid = parseSheet(strFromU8(sheetEntry), shared)
+  const ignoredColumns: string[] = []
   const header = grid[0] ?? []
 
   // Map every header cell to a field, collecting unknown headers to ignore.

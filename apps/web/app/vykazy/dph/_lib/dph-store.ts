@@ -48,7 +48,7 @@ export function getStorageMode(): DphStorageMode {
   }
 }
 
-export function setStorageMode(mode: DphStorageMode): void {
+function setStorageMode(mode: DphStorageMode): void {
   if (typeof window === "undefined") return
   try {
     if (mode === "local") window.localStorage.setItem(MODE_KEY, "local")
@@ -56,6 +56,32 @@ export function setStorageMode(mode: DphStorageMode): void {
   } catch {
     // Nothing to do — the mode simply stays at its default.
   }
+}
+
+/**
+ * Move the evidence to the other store, in one step.
+ *
+ * Switching the mode and re-saving as two separate calls left the old copy
+ * behind: turning "Uchovat v tomto prohlížeči" back off wrote the mode flag and
+ * saved into sessionStorage, while the full evidence — every counterparty DIČ,
+ * which for an OSVČ is a rodné číslo — stayed in localStorage indefinitely,
+ * invisible to `loadEvidence` and never aged out. On a login-free public route
+ * that defeats the whole point of the session default.
+ */
+export function switchStorageMode(
+  mode: DphStorageMode,
+  evidence: DphEvidence,
+): SaveResult {
+  if (typeof window === "undefined") return { ok: false, reason: "unavailable" }
+  const abandoned = mode === "local" ? "session" : "local"
+  setStorageMode(mode)
+  const result = saveEvidence(evidence)
+  try {
+    store(abandoned)?.removeItem(KEY)
+  } catch {
+    // Best effort — a blocked storage holds nothing to leave behind.
+  }
+  return result
 }
 
 export function loadEvidence(rok: string): DphEvidence {
@@ -120,8 +146,17 @@ function normalize(input: unknown, rok: string): DphEvidence {
     rok: typeof o.rok === "string" && o.rok !== "" ? o.rok : rok,
     mesic: typeof o.mesic === "string" ? o.mesic : undefined,
     ctvrt: typeof o.ctvrt === "string" ? o.ctvrt : undefined,
+    obdobi: o.obdobi === "mesic" || o.obdobi === "ctvrt" ? o.obdobi : undefined,
     khMesic: typeof o.khMesic === "string" ? o.khMesic : undefined,
+    khCtvrt: typeof o.khCtvrt === "string" ? o.khCtvrt : undefined,
+    khObdobi:
+      o.khObdobi === "mesic" || o.khObdobi === "ctvrt" ? o.khObdobi : undefined,
     shMesic: typeof o.shMesic === "string" ? o.shMesic : undefined,
     shCtvrt: typeof o.shCtvrt === "string" ? o.shCtvrt : undefined,
+    shObdobi:
+      o.shObdobi === "mesic" || o.shObdobi === "ctvrt" ? o.shObdobi : undefined,
+    cUfo: typeof o.cUfo === "string" ? o.cUfo : undefined,
+    dic: typeof o.dic === "string" ? o.dic : undefined,
+    typDs: o.typDs === "P" || o.typDs === "F" ? o.typDs : undefined,
   }
 }

@@ -25,6 +25,7 @@ import {
   DPH_ASSIGNABLE_LINES,
   DPH_MANUAL_FIELDS,
 } from "../../_data/dph-priznani"
+import { FINANCNI_URADY } from "../../_data/ufo"
 import {
   blankRow,
   dphEvidenceCsvTemplate,
@@ -38,11 +39,15 @@ import {
   getStorageMode,
   loadEvidence,
   saveEvidence,
-  setStorageMode,
+  switchStorageMode,
   wipeEvidence,
   type DphStorageMode,
 } from "../_lib/dph-store"
-import { kontrolniVazby, type DphOrgMeta } from "../_lib/dph-project"
+import {
+  evidenceIssues,
+  kontrolniVazby,
+  type DphOrgMeta,
+} from "../_lib/dph-project"
 import { parseDphSheet, type DphSheetIssue } from "../_lib/dph-sheet"
 import { parseWorkbookSheets } from "../../_lib/denik"
 import { parseRozvrhSheet } from "../../_lib/rozvrh"
@@ -91,6 +96,10 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
   const update = useCallback((next: DphEvidence) => {
     setEvidence(next)
     setResult(null)
+    // Import findings describe the evidence AS IMPORTED. Once a row is edited
+    // they are stale, and they gate the download — keeping them would lock the
+    // user out of a filing they have just corrected.
+    setSheetIssues([])
     const saved = saveEvidence(next)
     setSaveError(
       saved.ok
@@ -103,17 +112,22 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
     )
   }, [])
 
+  // c_ufo, dic and typ_ds are `use="required"` on VetaP of all three forms, and
+  // the envelope drops an empty attribute rather than emitting `attr=""`, so a
+  // blank here is not a cosmetic gap — the document fails XSD validation and can
+  // never be downloaded. None of the three is derivable: the finanční úřad is a
+  // choice, and a fyzická osoba's DIČ is a rodné číslo, not CZ + IČO.
   const meta: DphOrgMeta = useMemo(
     () => ({
-      c_ufo: "",
-      dic: org.ico ? `CZ${org.ico}` : "",
-      typ_ds: "P",
+      c_ufo: evidence?.cUfo ?? "",
+      dic: evidence?.dic ?? (org.ico ? `CZ${org.ico}` : ""),
+      typ_ds: evidence?.typDs ?? "P",
       nazev: org.nazev,
       naz_obce: org.obec,
       ulice: org.sidlo,
       psc: org.psc,
     }),
-    [org],
+    [org, evidence],
   )
 
   const vazby = useMemo(
@@ -144,7 +158,14 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
     update({ ...evidence, rows: evidence.rows.filter((r) => r.id !== id) })
 
   const onImport = async (file: File) => {
-    const parsed = parseDphEvidenceCsv(await file.text())
+    nextId.current += 1
+    // A fresh id namespace per import: the rows are APPENDED, so a parse-local
+    // index would regenerate ids the evidence already holds and two unrelated
+    // dokladu would then edit and delete as one.
+    const parsed = parseDphEvidenceCsv(
+      await file.text(),
+      `csv${nextId.current}`,
+    )
     if (!parsed.headerOk) {
       setSaveError(
         `Import selhal — v souboru chybí sloupce: ${parsed.missingHeaders.join(", ")}.`,
@@ -152,6 +173,23 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       return
     }
     update({ ...evidence, rows: [...evidence.rows, ...parsed.rows] })
+    // Rows the parser refused, and columns it did not recognise, are reported
+    // rather than dropped: a silently skipped row is a plnění missing from the
+    // přiznání, and a misspelt header is a column filed as zero.
+    setSheetIssues([
+      ...parsed.skipped.map((message) => ({
+        severity: "error" as const,
+        message,
+      })),
+      ...(parsed.ignoredColumns.length > 0
+        ? [
+            {
+              severity: "warning" as const,
+              message: `Nerozpoznané sloupce (ignorovány): ${parsed.ignoredColumns.join(", ")}.`,
+            },
+          ]
+        : []),
+    ])
   }
 
   // Read the DPH sheet out of the same workbook that holds the deník, and join
@@ -159,6 +197,28 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
   // partner, so amounts come from the books rather than being typed twice.
   const onWorkbook = async (file: File) => {
     const sheets = parseWorkbookSheets(await file.arrayBuffer())
+    if (!sheets.ok) {
+      setSheetIssues([
+        {
+          severity: "error",
+          message:
+            "Soubor se nepodařilo rozbalit — není to platný XLSX. Přejmenovaný .xls nestačí, uložte sešit znovu jako .xlsx.",
+        },
+      ])
+      return
+    }
+    // Without the deník there is nothing to join to, and every row would inherit
+    // a zero — a whole filing understated to nothing, silently.
+    if (denik.length === 0) {
+      setSheetIssues([
+        {
+          severity: "error",
+          message:
+            "Nejprve načtěte účetní deník. Bez něj se k dokladům nedají doplnit částky a evidence by zůstala nulová.",
+        },
+      ])
+      return
+    }
 
     // The same workbook usually carries the účtový rozvrh; loading it here means
     // the analytical account names and placement overrides arrive with the
@@ -184,13 +244,23 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       ])
       return
     }
-    setSheetIssues([...notes, ...parsed.issues])
+    // `update` clears the issue list, so the rows go in FIRST and the findings
+    // for those exact rows are set after.
     if (parsed.rows.length > 0) {
       update({ ...evidence, rows: parsed.rows })
     }
+    setSheetIssues([...notes, ...parsed.issues])
   }
 
+  // Faults no XSD can catch, read from the CURRENT evidence so correcting a row
+  // clears them. Nearly every EPO attribute is `use="optional"` and an empty one
+  // is omitted rather than emitted, so a document missing a mandatory value
+  // validates cleanly and is rejected on upload.
+  const preflight = evidenceIssues(evidence, meta)
+  const importErrors = sheetIssues.filter((i) => i.severity === "error")
+
   const generate = async () => {
+    if (preflight.length > 0) return
     setBusy(true)
     try {
       setResult(await buildDphXml(kind, evidence, meta))
@@ -201,11 +271,69 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
 
   const errors = result?.checks?.filter((c) => c.severity === "error") ?? []
   const warnings = result?.checks?.filter((c) => c.severity === "warning") ?? []
-  const canDownload = result?.ok && result.xsd?.valid && errors.length === 0
+  const canDownload =
+    result?.ok &&
+    result.xsd?.valid &&
+    errors.length === 0 &&
+    preflight.length === 0 &&
+    importErrors.length === 0
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2 rounded-md border border-border p-4">
+      <section className="space-y-3 rounded-md border border-border p-4">
+        <h2 className="text-sm font-semibold">Podání</h2>
+        <p className="text-sm text-muted-foreground">
+          Finanční úřad, DIČ a typ subjektu jsou na všech třech formulářích
+          povinné. Bez nich podání neprojde kontrolou schématu.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <Labeled label="Finanční úřad">
+            <select
+              className="w-72 rounded border border-input bg-background px-2 py-1 text-sm"
+              value={evidence.cUfo ?? ""}
+              onChange={(e) =>
+                update({ ...evidence, cUfo: e.target.value || undefined })
+              }
+            >
+              <option value="">— vyberte —</option>
+              {FINANCNI_URADY.map((u) => (
+                <option key={u.kod} value={u.kod}>
+                  {u.nazev}
+                </option>
+              ))}
+            </select>
+          </Labeled>
+          <Labeled label="DIČ plátce">
+            <Input
+              className="w-40"
+              value={evidence.dic ?? (org.ico ? `CZ${org.ico}` : "")}
+              onChange={(e) =>
+                update({
+                  ...evidence,
+                  dic: e.target.value.toUpperCase() || undefined,
+                })
+              }
+            />
+          </Labeled>
+          <Labeled label="Typ subjektu">
+            <select
+              className="w-44 rounded border border-input bg-background px-2 py-1 text-sm"
+              value={evidence.typDs ?? "P"}
+              onChange={(e) =>
+                update({
+                  ...evidence,
+                  typDs: e.target.value === "F" ? "F" : "P",
+                })
+              }
+            >
+              <option value="P">Právnická osoba</option>
+              <option value="F">Fyzická osoba</option>
+            </select>
+          </Labeled>
+        </div>
+      </section>
+
+      <section className="space-y-3 rounded-md border border-border p-4">
         <h2 className="text-sm font-semibold">Zdaňovací období</h2>
         <div className="flex flex-wrap items-end gap-3">
           <Labeled label="Rok">
@@ -216,65 +344,52 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
             />
           </Labeled>
           {kind === "priznani" ? (
-            <>
-              <Labeled label="Měsíc">
-                <Input
-                  className="w-20"
-                  value={evidence.mesic ?? ""}
-                  onChange={(e) =>
-                    update({ ...evidence, mesic: e.target.value || undefined })
-                  }
-                />
-              </Labeled>
-              <Labeled label="Čtvrtletí">
-                <Input
-                  className="w-20"
-                  value={evidence.ctvrt ?? ""}
-                  onChange={(e) =>
-                    update({ ...evidence, ctvrt: e.target.value || undefined })
-                  }
-                />
-              </Labeled>
-            </>
+            <Obdobi
+              choice={evidence.obdobi ?? (evidence.ctvrt ? "ctvrt" : "mesic")}
+              mesic={evidence.mesic ?? ""}
+              ctvrt={evidence.ctvrt ?? ""}
+              onChoice={(obdobi) => update({ ...evidence, obdobi })}
+              onMesic={(mesic) =>
+                update({ ...evidence, mesic: mesic || undefined })
+              }
+              onCtvrt={(ctvrt) =>
+                update({ ...evidence, ctvrt: ctvrt || undefined })
+              }
+              note="Přiznání nese buď měsíc, nebo čtvrtletí — nikdy obojí."
+            />
           ) : null}
           {kind === "kh" ? (
-            <Labeled label="Měsíc (KH je vždy měsíční, § 101e odst. 1)">
-              <Input
-                className="w-20"
-                value={evidence.khMesic ?? evidence.mesic ?? ""}
-                onChange={(e) =>
-                  update({ ...evidence, khMesic: e.target.value || undefined })
-                }
-              />
-            </Labeled>
+            <Obdobi
+              choice={
+                evidence.khObdobi ??
+                (evidence.typDs === "F" && evidence.ctvrt ? "ctvrt" : "mesic")
+              }
+              mesic={evidence.khMesic ?? evidence.mesic ?? ""}
+              ctvrt={evidence.khCtvrt ?? evidence.ctvrt ?? ""}
+              onChoice={(khObdobi) => update({ ...evidence, khObdobi })}
+              onMesic={(khMesic) =>
+                update({ ...evidence, khMesic: khMesic || undefined })
+              }
+              onCtvrt={(khCtvrt) =>
+                update({ ...evidence, khCtvrt: khCtvrt || undefined })
+              }
+              note="Měsíční pro právnickou osobu (§ 101e odst. 1); čtvrtletní jen pro fyzickou osobu se čtvrtletním zdaňovacím obdobím (odst. 2)."
+            />
           ) : null}
           {kind === "sh" ? (
-            <>
-              <Labeled label="Měsíc">
-                <Input
-                  className="w-20"
-                  value={evidence.shMesic ?? evidence.mesic ?? ""}
-                  onChange={(e) =>
-                    update({
-                      ...evidence,
-                      shMesic: e.target.value || undefined,
-                    })
-                  }
-                />
-              </Labeled>
-              <Labeled label="Čtvrtletí (jen samotné služby, § 102 odst. 6)">
-                <Input
-                  className="w-20"
-                  value={evidence.shCtvrt ?? ""}
-                  onChange={(e) =>
-                    update({
-                      ...evidence,
-                      shCtvrt: e.target.value || undefined,
-                    })
-                  }
-                />
-              </Labeled>
-            </>
+            <Obdobi
+              choice={evidence.shObdobi ?? (evidence.shCtvrt ? "ctvrt" : "mesic")} // prettier-ignore
+              mesic={evidence.shMesic ?? evidence.mesic ?? ""}
+              ctvrt={evidence.shCtvrt ?? evidence.ctvrt ?? ""}
+              onChoice={(shObdobi) => update({ ...evidence, shObdobi })}
+              onMesic={(shMesic) =>
+                update({ ...evidence, shMesic: shMesic || undefined })
+              }
+              onCtvrt={(shCtvrt) =>
+                update({ ...evidence, shCtvrt: shCtvrt || undefined })
+              }
+              note="Čtvrtletní jen u plátce dodávajícího samotné služby podle § 9 odst. 1 (§ 102 odst. 6)."
+            />
           ) : null}
         </div>
       </section>
@@ -282,9 +397,10 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       <StorageControls
         mode={mode}
         onMode={(m) => {
-          setStorageMode(m)
+          // One step, so the evidence never stays behind in the store being
+          // switched away from — a DIČ left in localStorage outlives the tab.
+          switchStorageMode(m, evidence)
           setMode(m)
-          saveEvidence(evidence)
         }}
         onWipe={() => {
           wipeEvidence()
@@ -571,9 +687,7 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               <li
                 key={`${i.severity}-${n}`}
                 className={
-                  i.severity === "error"
-                    ? "text-destructive"
-                    : "text-amber-600"
+                  i.severity === "error" ? "text-destructive" : "text-amber-600"
                 }
               >
                 {i.message}
@@ -605,8 +719,27 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       </section>
 
       <section className="space-y-3 rounded-md border border-border p-4">
+        {preflight.length > 0 ? (
+          <div className="space-y-1 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <p className="text-sm font-medium text-destructive">
+              Doplňte, než podání vytvoříte:
+            </p>
+            <ul className="space-y-1 text-sm text-destructive">
+              {preflight.slice(0, 12).map((m, i) => (
+                <li key={`${i}-${m}`}>{m}</li>
+              ))}
+              {preflight.length > 12 ? (
+                <li>… a další ({preflight.length - 12}).</li>
+              ) : null}
+            </ul>
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-3">
-          <Button onClick={() => void generate()} disabled={busy}>
+          <Button
+            onClick={() => void generate()}
+            disabled={busy || preflight.length > 0}
+          >
             {busy ? "Generuji…" : `Vytvořit XML — ${TITLES[kind]}`}
           </Button>
           {canDownload && result?.xml && result.fileName ? (
@@ -664,6 +797,64 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
         </Link>
         .
       </p>
+    </div>
+  )
+}
+
+/**
+ * Měsíc OR čtvrtletí, never both. Two free inputs let a filer leave the other
+ * one filled, and every EPO form rejects a document carrying both periods while
+ * its XSD marks them optional and validates it cleanly.
+ */
+function Obdobi({
+  choice,
+  mesic,
+  ctvrt,
+  onChoice,
+  onMesic,
+  onCtvrt,
+  note,
+}: {
+  choice: "mesic" | "ctvrt"
+  mesic: string
+  ctvrt: string
+  onChoice: (c: "mesic" | "ctvrt") => void
+  onMesic: (v: string) => void
+  onCtvrt: (v: string) => void
+  note: string
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <Labeled label="Období">
+        <select
+          className="w-32 rounded border border-input bg-background px-2 py-1 text-sm"
+          value={choice}
+          onChange={(e) =>
+            onChoice(e.target.value === "ctvrt" ? "ctvrt" : "mesic")
+          }
+        >
+          <option value="mesic">Měsíční</option>
+          <option value="ctvrt">Čtvrtletní</option>
+        </select>
+      </Labeled>
+      {choice === "mesic" ? (
+        <Labeled label="Měsíc">
+          <Input
+            className="w-20"
+            value={mesic}
+            onChange={(e) => onMesic(e.target.value)}
+          />
+        </Labeled>
+      ) : (
+        <Labeled label="Čtvrtletí">
+          <Input
+            className="w-20"
+            value={ctvrt}
+            onChange={(e) => onCtvrt(e.target.value)}
+          />
+        </Labeled>
+      )}
+      <p className="max-w-md text-xs text-muted-foreground">{note}</p>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import {
   projectKontrolniHlaseni,
   projectSouhrnneHlaseni,
   kontrolniVazby,
+  evidenceIssues,
   splitDic,
   type DphOrgMeta,
 } from "./dph-project"
@@ -260,5 +261,107 @@ describe("evidence CSV", () => {
     const parsed = parseDphEvidenceCsv("Směr;DPPD\r\nvystup;1.6.2026\r\n")
     expect(parsed.headerOk).toBe(false)
     expect(parsed.missingHeaders).toContain("Řádek")
+  })
+})
+
+describe("KH A.2 VAT id", () => {
+  // The XSD documents vatid_dod as "ve formátu bez mezer bez kódu členského
+  // státu"; the country belongs in k_stat. Filing the prefixed id gave EPO a
+  // value VIES cannot match, and at 12 characters (NL …B01, SE, LT, XI) it also
+  // overran maxLength="12", so the whole hlášení failed XSD validation.
+  it("splits the supplier's VAT id into k_stat + vatid_dod", () => {
+    const m = projectKontrolniHlaseni(
+      evidence([row({ khSekce: "A2", dic: "NL123456789B01", radek: "3" })]),
+      meta,
+    )
+    expect(m.a2?.[0]?.k_stat).toBe("NL")
+    expect(m.a2?.[0]?.vatid_dod).toBe("123456789B01")
+  })
+
+  it("leaves both fields off when the supplier has no VAT id", () => {
+    const m = projectKontrolniHlaseni(
+      evidence([row({ khSekce: "A2", dic: "", radek: "3" })]),
+      meta,
+    )
+    expect(m.a2?.[0]?.k_stat).toBeUndefined()
+    expect(m.a2?.[0]?.vatid_dod).toBeUndefined()
+  })
+})
+
+describe("zdaňovací období", () => {
+  it("never emits both a měsíc and a čtvrtletí on the přiznání", () => {
+    const e = evidence([row()])
+    e.mesic = "6"
+    e.ctvrt = "2"
+    e.obdobi = "ctvrt"
+    const m = projectPriznani(e, meta)
+    expect(m.header.mesic).toBeUndefined()
+    expect(m.header.ctvrt).toBe("2")
+  })
+
+  it("lets a fyzická osoba file the KH quarterly (§ 101e odst. 2)", () => {
+    const e = evidence([row()])
+    e.khObdobi = "ctvrt"
+    e.khCtvrt = "2"
+    const m = projectKontrolniHlaseni(e, meta)
+    expect(m.header.ctvrt).toBe("2")
+    expect(m.header.mesic).toBeUndefined()
+  })
+
+  it("keeps a quarterly SH quarterly even when the přiznání is monthly", () => {
+    const e = evidence([row({ shKod: "3", dic: "SK1234567890" })])
+    e.mesic = "6"
+    e.shObdobi = "ctvrt"
+    e.shCtvrt = "2"
+    const m = projectSouhrnneHlaseni(e, meta)
+    expect(m.header.mesic).toBeUndefined()
+    expect(m.header.ctvrt).toBe("2")
+  })
+})
+
+describe("evidenceIssues", () => {
+  it("blocks on a missing finanční úřad", () => {
+    const issues = evidenceIssues(evidence([row()]), { ...meta, c_ufo: "" })
+    expect(issues.some((i) => i.includes("finanční úřad"))).toBe(true)
+  })
+
+  it("blocks on an undetermined základ rather than filing a zero", () => {
+    const issues = evidenceIssues(evidence([row({ zaklad: "" })]), meta)
+    expect(issues.some((i) => i.includes("chybí základ"))).toBe(true)
+  })
+
+  it("demands the § 92 kód on A.1 and B.1", () => {
+    const issues = evidenceIssues(
+      evidence([row({ khSekce: "A1", radek: "25", kodPredPl: undefined })]),
+      meta,
+    )
+    expect(issues.some((i) => i.includes("kód předmětu plnění"))).toBe(true)
+  })
+
+  it("rejects a tuzemská protistrana in the souhrnné hlášení", () => {
+    const issues = evidenceIssues(
+      evidence([row({ shKod: "0", dic: "CZ87654321" })]),
+      meta,
+    )
+    expect(issues.some((i) => i.includes("tuzemská protistrana"))).toBe(true)
+  })
+
+  it("says nothing about a complete row", () => {
+    expect(evidenceIssues(evidence([row()]), meta)).toEqual([])
+  })
+})
+
+describe("kontrolní vazby", () => {
+  // EPO checks A.4 + A.5 against ř.1 PER RATE. Summed across both rates, a
+  // doklad classified 21 % in the hlášení but posted to ř.2 in the přiznání nets
+  // to zero and the panel stayed green on exactly the mismatch it exists for.
+  it("catches a rate mismatch that a rate-blind total would hide", () => {
+    const v = kontrolniVazby(
+      evidence([
+        row({ id: "a", radek: "2", sazba: 21, khSekce: "A4", zaklad: "100" }),
+        row({ id: "b", radek: "1", sazba: 12, khSekce: "A4", zaklad: "100" }),
+      ]),
+    )
+    expect(v.every((x) => x.ok)).toBe(false)
   })
 })

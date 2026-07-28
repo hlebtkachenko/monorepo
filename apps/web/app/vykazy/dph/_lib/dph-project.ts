@@ -12,12 +12,13 @@ import {
   koruna,
   korunaNahoru,
   haler,
+  splitVatId,
   type Dphdp3Input,
   type Dphkh1Input,
   type DphshvInput,
 } from "@workspace/filing/dph"
 
-import { DPH_LINE_BY_R } from "../../_data/dph-priznani"
+import { DPH_LINE_BY_R, DPH_MANUAL_BY_ATTR } from "../../_data/dph-priznani"
 import type { DphEvidence, DphEvidenceRow } from "./dph-evidence"
 
 /** Identity block — mirrors the org config the builder already collects. */
@@ -38,6 +39,22 @@ export interface DphOrgMeta {
 }
 
 const dec = (v: string | undefined) => new Decimal(v && v !== "" ? v : 0)
+
+/**
+ * Resolve a zdaňovací období to exactly ONE of měsíc / čtvrtletí.
+ *
+ * Every EPO form marks both optional, so a document carrying both passes XSD
+ * validation and is then rejected on upload. The chosen cadence is explicit; the
+ * fallback only picks a default for evidence saved before the choice existed.
+ */
+function obdobi(
+  choice: "mesic" | "ctvrt" | undefined,
+  mesic: string | undefined,
+  ctvrt: string | undefined,
+): { mesic?: string; ctvrt?: string } {
+  const monthly = choice ? choice === "mesic" : !ctvrt
+  return monthly ? { mesic } : { ctvrt }
+}
 
 /** Sum a field over rows, exactly (never native number arithmetic — money rule). */
 function sum(rows: DphEvidenceRow[], pick: (r: DphEvidenceRow) => string) {
@@ -96,14 +113,14 @@ export function projectPriznani(
   // one — the §76 koeficient and the krácený column are the plátce's own facts.
   for (const [attr, raw] of Object.entries(evidence.manual)) {
     if (raw === "") continue
-    const line = MANUAL_ATTR_VETA[attr]
-    if (line === undefined) continue
-    const target = vety[line]
+    // Same table the UI renders from. A second copy here would let the two drift
+    // and silently drop a typed value out of the filed XML.
+    const field = DPH_MANUAL_BY_ATTR.get(attr)
+    if (!field) continue
+    const target = vety[field.veta]
     if (!target) continue
     // Koeficient attributes are percentages, not money — pass them through.
-    target[attr] = KOEFICIENT_ATTRS.has(attr)
-      ? raw.trim()
-      : (koruna(raw) ?? raw.trim())
+    target[attr] = field.percent ? raw.trim() : (koruna(raw) ?? raw.trim())
   }
 
   const notEmpty = (r: Record<string, string>) =>
@@ -114,8 +131,7 @@ export function projectPriznani(
       dapdph_forma: forma,
       typ_platce: "P",
       rok: evidence.rok,
-      mesic: evidence.mesic,
-      ctvrt: evidence.ctvrt,
+      ...obdobi(evidence.obdobi, evidence.mesic, evidence.ctvrt),
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -137,26 +153,6 @@ export function projectPriznani(
     veta6: notEmpty(vety[6]!),
   }
 }
-
-/** Which věta each manual attribute belongs to. */
-const MANUAL_ATTR_VETA: Record<string, number> = {
-  plnosv_nkf: 5,
-  koef_p20_nov: 5,
-  odp_uprav_kf: 5,
-  koef_p20_vypor: 5,
-  vypor_odp: 5,
-  odp_tuz23_nar: 4,
-  odp_tuz5_nar: 4,
-  odp_cu_nar: 4,
-  odkr_zdp23: 4,
-  odkr_zdp5: 4,
-  odp_rez_nar: 4,
-  odp_sum_kr: 4,
-  odkr_maj: 4,
-}
-
-/** Percentage fields — they must not be run through the money formatter. */
-const KOEFICIENT_ATTRS = new Set(["koef_p20_nov", "koef_p20_vypor"])
 
 // ── Kontrolní hlášení ────────────────────────────────────────────────────────
 
@@ -232,8 +228,16 @@ export function projectKontrolniHlaseni(
 
   const a2 = byDoklad(inSection("A2")).map((rows) => {
     const first = rows[0]!
+    // A.2 splits the counterparty's VAT id: `k_stat` carries the country, and
+    // `vatid_dod` is documented "ve formátu bez mezer bez kódu členského státu".
+    // Filing the prefixed id gave EPO a value it cannot match in VIES, and for a
+    // 12-character id (NL …B01, SE, LT, XI) it also blew the maxLength="12"
+    // facet, so the whole hlášení failed XSD validation and could not be
+    // exported at all. A supplier with no VAT id legitimately has neither field.
+    const { k_stat, c_vat } = splitDic(first.dic)
     return {
-      vatid_dod: first.dic || undefined,
+      k_stat: k_stat || undefined,
+      vatid_dod: c_vat || undefined,
       c_evid_dd: first.evc,
       dppd: first.dppd,
       ...buckets(rows),
@@ -286,8 +290,15 @@ export function projectKontrolniHlaseni(
     header: {
       khdph_forma: forma,
       rok: evidence.rok,
-      // KH is monthly for a PO; fall back to the DPH month only when unset.
-      mesic: evidence.khMesic ?? evidence.mesic,
+      // KH is monthly for a právnická osoba regardless of the DPH cadence
+      // (§ 101e odst. 1), but a fyzická osoba on a quarterly zdaňovací období
+      // files it quarterly (§ 101e odst. 2). Emitting only `mesic` left a
+      // quarterly filer's hlášení with NO period at all — XSD-valid, rejected.
+      // The měsíc falls back to the DPH month, the čtvrtletí does NOT fall back
+      // to the DPH quarter: monthly is the rule (§ 101e odst. 1) and quarterly
+      // the § 101e odst. 2 exception, so a quarterly DPH filer still files
+      // twelve hlášení unless the čtvrtletní cadence is chosen deliberately.
+      ...obdobi(evidence.khObdobi, evidence.khMesic ?? evidence.mesic, evidence.khCtvrt), // prettier-ignore
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -313,20 +324,14 @@ export function projectKontrolniHlaseni(
 
 // ── Souhrnné hlášení ─────────────────────────────────────────────────────────
 
-/** VAT-registration prefixes. Greece registers under EL, Northern Ireland under XI. */
-const VAT_PREFIXES = new Set([
-  "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR", "GB",
-  "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE",
-  "SI", "SK", "XI",
-]) // prettier-ignore
-
-/** Split a DIČ into (k_stat, c_vat), removing ONLY a recognised country prefix. */
+/**
+ * Split a DIČ into (k_stat, c_vat) through the filing package's own splitter, so
+ * the member-state list exists in exactly one place. No country code is passed:
+ * on this path the id is all the caller has, and its prefix is authoritative.
+ */
 export function splitDic(dic: string): { k_stat: string; c_vat: string } {
-  const clean = dic.replace(/[\s.,-]/g, "").toUpperCase()
-  const head = clean.slice(0, 2)
-  return VAT_PREFIXES.has(head)
-    ? { k_stat: head, c_vat: clean.slice(2) }
-    : { k_stat: "", c_vat: clean }
+  const { k_stat, c_vat } = splitVatId(null, dic)
+  return { k_stat: k_stat ?? "", c_vat: c_vat ?? "" }
 }
 
 /**
@@ -377,9 +382,13 @@ export function projectSouhrnneHlaseni(
     header: {
       shvies_forma: forma,
       rok: evidence.rok,
-      mesic: evidence.shMesic ?? evidence.mesic,
-      ctvrt:
-        evidence.shCtvrt ?? (evidence.shMesic ? undefined : evidence.ctvrt),
+      // § 102 odst. 5–6: the SH cadence is not the DPH cadence, and a hlášení
+      // carrying both a měsíc and a čtvrtletí is rejected (checks.ts
+      // OBDOBI_DVOJI). A quarterly filer who had already filled the monthly
+      // přiznání period used to inherit it and emit both, with no way to clear.
+      // Same asymmetry as the KH: § 102 odst. 6 quarterly is the exception, so
+      // it is never inherited from the přiznání's cadence.
+      ...obdobi(evidence.shObdobi, evidence.shMesic ?? evidence.mesic, evidence.shCtvrt), // prettier-ignore
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -393,6 +402,54 @@ export function projectSouhrnneHlaseni(
     },
     rows: rows.length > 0 ? rows : undefined,
   }
+}
+
+// ── Pre-flight over the evidence ─────────────────────────────────────────────
+
+/**
+ * Faults the XSD cannot catch, checked against the CURRENT evidence rather than
+ * against a stale import report.
+ *
+ * Every EPO form marks nearly everything `use="optional"`, and `veta()` omits an
+ * empty attribute rather than emitting `attr=""` — so a row missing a mandatory
+ * value produces a document that validates cleanly and is rejected on upload, or
+ * worse, one that is accepted with an understated figure.
+ */
+export function evidenceIssues(
+  evidence: DphEvidence,
+  meta: DphOrgMeta,
+): string[] {
+  const out: string[] = []
+  const where = (r: DphEvidenceRow) =>
+    `${r.evc || r.dic || "doklad bez čísla"} (ř. ${r.radek})`
+
+  if (meta.c_ufo === "") out.push("Vyberte finanční úřad — bez něj podání neprojde.") // prettier-ignore
+  if (meta.dic === "") out.push("Vyplňte DIČ plátce.")
+
+  for (const r of evidence.rows) {
+    // "" means the amount could not be derived and was not typed. A zero here
+    // would file an understated return that every kontrolní vazba passes.
+    if (r.zaklad === "") out.push(`${where(r)}: chybí základ daně.`)
+    if (r.dan === "") out.push(`${where(r)}: chybí daň.`)
+    // kod_pred_pl is Povinná on A.1 and B.1 (§ 92 kód předmětu plnění).
+    if ((r.khSekce === "A1" || r.khSekce === "B1") && !r.kodPredPl) {
+      out.push(`${where(r)}: sekce ${r.khSekce} vyžaduje kód předmětu plnění (§ 92).`) // prettier-ignore
+    }
+    // dic_odb / dic_dod are Povinná on the doklad-level sections.
+    if (
+      (r.khSekce === "A1" ||
+        r.khSekce === "A4" ||
+        r.khSekce === "B1" ||
+        r.khSekce === "B2") &&
+      r.dic === ""
+    ) {
+      out.push(`${where(r)}: sekce ${r.khSekce} vyžaduje DIČ protistrany.`)
+    }
+    if (r.shKod && splitDic(r.dic).k_stat === "CZ") {
+      out.push(`${where(r)}: do souhrnného hlášení nepatří tuzemská protistrana.`) // prettier-ignore
+    }
+  }
+  return out
 }
 
 // ── Kontrolní vazby ──────────────────────────────────────────────────────────
@@ -410,14 +467,21 @@ export interface DphVazba {
  * the plátce gets a výzva.
  */
 export function kontrolniVazby(evidence: DphEvidence): DphVazba[] {
-  const onLines = (lines: string[]) =>
+  const onLines = (lines: string[], sazba?: 21 | 12) =>
     sum(
-      evidence.rows.filter((r) => lines.includes(r.radek)),
+      evidence.rows.filter(
+        (r) =>
+          lines.includes(r.radek) && (sazba === undefined || r.sazba === sazba),
+      ),
       (r) => r.zaklad,
     )
-  const inSections = (sections: string[]) =>
+  const inSections = (sections: string[], sazba?: 21 | 12) =>
     sum(
-      evidence.rows.filter((r) => sections.includes(r.khSekce ?? "")),
+      evidence.rows.filter(
+        (r) =>
+          sections.includes(r.khSekce ?? "") &&
+          (sazba === undefined || r.sazba === sazba),
+      ),
       (r) => r.zaklad,
     )
 
@@ -428,10 +492,25 @@ export function kontrolniVazby(evidence: DphEvidence): DphVazba[] {
     ok: a.equals(b),
   })
 
+  // These mirror VetaC of the DPHKH1 schema — the checks the finanční správa
+  // runs itself. They are PER RATE: comparing A.4 + A.5 against ř.1 + ř.2 summed
+  // across both rates nets out a doklad classified 21 % in the hlášení but posted
+  // to ř.2 in the přiznání, so the panel stayed green on exactly the mismatch
+  // EPO issues a výzva for. Compared exactly rather than to EPO's ±1000 Kč
+  // tolerance: both sides are drawn unrounded from the same rows, so any
+  // difference at all is a classification error, not rounding.
   return [
-    mk("KH A.4 + A.5 = přiznání ř. 1 + ř. 2", inSections(["A4", "A5"]), onLines(["1", "2"])), // prettier-ignore
-    mk("KH B.2 + B.3 = přiznání ř. 40 + ř. 41", inSections(["B2", "B3"]), onLines(["40", "41"])), // prettier-ignore
+    mk("KH A.4 + A.5 (21 %) = přiznání ř. 1", inSections(["A4", "A5"], 21), onLines(["1"], 21)), // prettier-ignore
+    mk("KH A.4 + A.5 (12 %) = přiznání ř. 2", inSections(["A4", "A5"], 12), onLines(["2"], 12)), // prettier-ignore
+    mk("KH B.2 + B.3 (21 %) = přiznání ř. 40", inSections(["B2", "B3"], 21), onLines(["40"], 21)), // prettier-ignore
+    mk("KH B.2 + B.3 (12 %) = přiznání ř. 41", inSections(["B2", "B3"], 12), onLines(["41"], 12)), // prettier-ignore
     mk("KH A.1 = přiznání ř. 25", inSections(["A1"]), onLines(["25"])),
-    mk("SH celkem = přiznání ř. 20 + ř. 21", sum(evidence.rows.filter((r) => !!r.shKod), (r) => r.zaklad), onLines(["20", "21"])), // prettier-ignore
+    mk("KH B.1 = přiznání ř. 10 + ř. 11", inSections(["B1"]), onLines(["10", "11"])), // prettier-ignore
+    mk("KH A.2 = přiznání ř. 3, 4, 5, 6, 9, 12, 13", inSections(["A2"]), onLines(["3", "4", "5", "6", "9", "12", "13"])), // prettier-ignore
+    // Kód 2 (třístranný obchod, prostřední osoba dle § 17) is reported on ř. 31,
+    // not ř. 20/21, so it belongs on both sides of the vazba. Leaving it only on
+    // the SH side made a correct filing show a permanent ✕ and taught the user to
+    // ignore the panel that exists to catch the real mismatches.
+    mk("SH celkem = přiznání ř. 20 + ř. 21 + ř. 31", sum(evidence.rows.filter((r) => !!r.shKod), (r) => r.zaklad), onLines(["20", "21", "31"])), // prettier-ignore
   ]
 }

@@ -77,12 +77,29 @@ export interface DphEvidence {
   rok: string
   mesic?: string
   ctvrt?: string
+  /** Which DPH cadence the plátce is on. A přiznání carrying both a měsíc and a
+   *  čtvrtletí is rejected, so the two inputs are an either/or, not both. */
+  obdobi?: "mesic" | "ctvrt"
   /** Kontrolní hlášení is monthly for a právnická osoba regardless of the DPH
    *  cadence (§ 101e odst. 1), so it carries its own month. */
   khMesic?: string
+  /** § 101e odst. 2: a fyzická osoba on a quarterly zdaňovací období files the KH
+   *  quarterly too, so the KH cadence is its own choice — not always monthly. */
+  khCtvrt?: string
+  khObdobi?: "mesic" | "ctvrt"
   /** Souhrnné hlášení cadence follows § 102 odst. 5–6, not the DPH cadence. */
   shMesic?: string
   shCtvrt?: string
+  /** Which SH cadence the filer chose. Explicit, because a hlášení carrying both
+   *  a měsíc and a čtvrtletí is rejected, and a fallback chain emits both. */
+  shObdobi?: "mesic" | "ctvrt"
+  /** Kód územního finančního orgánu — `use="required"` on VetaP of all three forms. */
+  cUfo?: string
+  /** Plátce's own DIČ. Not derivable from IČO: a fyzická osoba registers under a
+   *  rodné číslo and a skupinová registrace under CZ699…. */
+  dic?: string
+  /** Typ daňového subjektu: "P" právnická / "F" fyzická. Required on VetaP. */
+  typDs?: "P" | "F"
 }
 
 export function emptyEvidence(rok: string): DphEvidence {
@@ -154,7 +171,11 @@ const CSV_TEMPLATE_HEADERS = [
   "Poznámka",
 ] as const
 
-const REQUIRED = ["Směr", "DPPD", "Řádek", "Základ"]
+// "Daň" is required as a COLUMN (its cells may legitimately be blank on
+// osvobozená plnění). Without it a header typo like "Daň celkem" was silently
+// ignored and every daň filed as zero, while the kontrolní vazby — which compare
+// only the základ — stayed green.
+const REQUIRED = ["Směr", "DPPD", "Řádek", "Základ", "Daň"]
 
 export interface DphEvidenceParseResult {
   rows: DphEvidenceRow[]
@@ -185,20 +206,119 @@ export function dphEvidenceCsvTemplate(): string {
   return `\uFEFF${lines.join("\r\n")}\r\n`
 }
 
-function normalizeSazba(v: string): 21 | 12 | 0 {
-  const n = Number(v.replace(/[^\d]/g, ""))
-  return n === 21 ? 21 : n === 12 ? 12 : 0
+/** The KH sections a row may name \u2014 anything else is a typo, not a section. */
+export const KH_SEKCE_SET: ReadonlySet<string> = new Set<KhSekce>([
+  "A1", "A2", "A4", "A5", "B1", "B2", "B3",
+]) // prettier-ignore
+
+/**
+ * Normalize a sazba cell to a statutory rate.
+ *
+ * Both the CSV and the workbook feed this. A cell formatted as a PERCENTAGE is
+ * stored by Excel as the fraction `0.21`, and the module used to strip
+ * non-digits, turn that into "021", fail an `=== "21"` comparison and fall
+ * through to 0 \u2014 which drops the doklad out of the kontroln\u00ED hl\u00E1\u0161en\u00ED while the
+ * p\u0159izn\u00E1n\u00ED keeps it, the exact mismatch EPO issues a v\u00FDzva for. Anything between
+ * 0 and 1 is therefore read as a fraction.
+ *
+ * `ok: false` marks a non-empty cell that is not a rate the law recognises. From
+ * 1.1.2024 there are two: 21 % and a single sn\u00ED\u017Een\u00E1 12 %.
+ */
+export function parseSazba(v: string): { sazba: 21 | 12 | 0; ok: boolean } {
+  const text = v.replace(/[\s\u00A0\u202F%]/g, "").replace(",", ".")
+  if (text === "") return { sazba: 0, ok: true }
+  const n = Number(text)
+  if (!Number.isFinite(n)) return { sazba: 0, ok: false }
+  const pct = n > 0 && n < 1 ? n * 100 : n
+  const rounded = Math.round(pct)
+  if (rounded === 21) return { sazba: 21, ok: true }
+  if (rounded === 12) return { sazba: 12, ok: true }
+  if (rounded === 0) return { sazba: 0, ok: true }
+  return { sazba: 0, ok: false }
 }
 
-/** Normalize a Czech-formatted amount to a plain decimal string. */
-function normalizeAmount(v: string): string {
-  const cleaned = v.replace(/[\s\u00A0]/g, "").replace(",", ".")
-  if (cleaned === "" || cleaned === "-" || cleaned === "+") return "0"
-  return /^-?\d+(\.\d+)?$/.test(cleaned) ? cleaned : "0"
+/**
+ * Parse an amount cell as written by a human in Czech Excel.
+ *
+ * `value: undefined` means the cell was blank; `ok: false` means it held
+ * something that is not a number. The distinction matters: a blank amount is
+ * inherited from the den\u00EDk, whereas an unparseable one used to silently become 0
+ * and file an understated return.
+ *
+ * Accepted: "1 234,50" (incl. nbsp / narrow nbsp), "1.234,50", "1,234.50",
+ * "1 234,50 K\u010D", "(1 234,50)" as negative, and a plain machine "1234.5".
+ */
+export function parseAmount(v: string): { value?: string; ok: boolean } {
+  let text = v.replace(/[\s\u00A0\u202F]/g, "")
+  if (text === "") return { ok: true }
+  // A trailing currency token is what a \u010Dlovek types, not a parse failure.
+  text = text.replace(/(k\u010D|kc|czk)$/i, "")
+  // Accounting parentheses are a minus sign.
+  let negative = false
+  const wrapped = /^\((.*)\)$/.exec(text)
+  if (wrapped?.[1] !== undefined) {
+    negative = true
+    text = wrapped[1]
+  }
+  if (text.startsWith("-")) {
+    negative = !negative
+    text = text.slice(1)
+  } else if (text.startsWith("+")) {
+    text = text.slice(1)
+  }
+  if (text === "") return { ok: true }
+
+  const lastComma = text.lastIndexOf(",")
+  const lastDot = text.lastIndexOf(".")
+  let decimalSep = ""
+  if (lastComma >= 0 && lastDot >= 0) {
+    // Whichever comes last is the decimal separator; the other groups thousands.
+    decimalSep = lastComma > lastDot ? "," : "."
+  } else if (lastComma >= 0) {
+    decimalSep = ","
+  } else if (lastDot >= 0) {
+    // A lone dot with exactly three digits behind it is Czech thousands
+    // grouping ("1.234"), not a decimal \u2014 Czech Excel writes decimals with a
+    // comma. Two digits ("100.50") is a machine-written decimal.
+    decimalSep = /\.\d{3}$/.test(text) ? "" : "."
+  }
+
+  const whole =
+    decimalSep === ""
+      ? text.replace(/[.,]/g, "")
+      : text.slice(0, text.lastIndexOf(decimalSep)).replace(/[.,]/g, "")
+  const frac =
+    decimalSep === "" ? "" : text.slice(text.lastIndexOf(decimalSep) + 1)
+
+  if (!/^\d+$/.test(whole) || (frac !== "" && !/^\d+$/.test(frac))) {
+    return { ok: false }
+  }
+  const abs = frac === "" ? whole : `${whole}.${frac}`
+  return { value: negative ? `-${abs}` : abs, ok: true }
 }
 
-/** Parse the evidence CSV. Pure: text in, rows out. */
-export function parseDphEvidenceCsv(text: string): DphEvidenceParseResult {
+/**
+ * Neutralize a spreadsheet formula trigger before a free-text value goes into an
+ * exported CSV. The names and pozn\u00E1mky here come from third-party files the user
+ * imports, and a cell starting `=`/`+`/`-`/`@` executes when the export is
+ * reopened in Excel or LibreOffice.
+ */
+function safeText(v: string): string {
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v
+}
+
+/**
+ * Parse the evidence CSV. Pure: text in, rows out.
+ *
+ * `idPrefix` namespaces the generated row ids. The caller passes a fresh one per
+ * import, because importing a second file appends to the existing evidence and a
+ * parse-local index alone would regenerate ids that already exist — two unrelated
+ * dokladu would then edit and delete as one.
+ */
+export function parseDphEvidenceCsv(
+  text: string,
+  idPrefix = "csv",
+): DphEvidenceParseResult {
   const ignoredColumns: string[] = []
   const skipped: string[] = []
   const clean = text.replace(/^\uFEFF/, "")
@@ -257,20 +377,44 @@ export function parseDphEvidenceCsv(text: string): DphEvidenceParseResult {
     }
     const smer: DphSmer = smerRaw.startsWith("vst") ? "vstup" : "vystup"
 
+    const sazba = parseSazba(at(f, cols.sazba))
+    if (!sazba.ok) {
+      skipped.push(
+        `Řádek ${i + 1}: sazba „${at(f, cols.sazba)}“ není 21 %, 12 % ani nula — řádek je vynechán.`,
+      )
+      continue
+    }
+    const zaklad = parseAmount(at(f, cols.zaklad))
+    const dan = parseAmount(at(f, cols.dan))
+    if (!zaklad.ok || !dan.ok) {
+      skipped.push(
+        `Řádek ${i + 1}: základ nebo daň není číslo — řádek je vynechán, aby se nezaložil nulou.`,
+      )
+      continue
+    }
+
     const row: DphEvidenceRow = {
-      id: `csv-${i}`,
+      id: `${idPrefix}-${i}`,
       smer,
       dppd: at(f, cols.dppd),
       evc: at(f, cols.evc),
       dic: at(f, cols.dic).replace(/\s/g, "").toUpperCase(),
       radek,
-      sazba: normalizeSazba(at(f, cols.sazba)),
-      zaklad: normalizeAmount(at(f, cols.zaklad)),
-      dan: normalizeAmount(at(f, cols.dan)),
+      sazba: sazba.sazba,
+      zaklad: zaklad.value ?? "",
+      dan: dan.value ?? "",
     }
     const nazev = at(f, cols.nazev)
     if (nazev) row.nazev = nazev
-    const kh = at(f, cols.khSekce).toUpperCase().replace(".", "")
+    // Every dot, not just the first: "B.2." used to normalize to "B2." and then
+    // match no section at all, dropping the doklad out of the kontrolní hlášení.
+    const kh = at(f, cols.khSekce).toUpperCase().replace(/\./g, "")
+    if (kh && !KH_SEKCE_SET.has(kh)) {
+      skipped.push(
+        `Řádek ${i + 1}: „${at(f, cols.khSekce)}“ není sekce kontrolního hlášení — řádek je vynechán.`,
+      )
+      continue
+    }
     if (kh) row.khSekce = kh as KhSekce
     const kodPredPl = at(f, cols.kodPredPl)
     if (kodPredPl) row.kodPredPl = kodPredPl
@@ -297,20 +441,20 @@ export function dphEvidenceToCsv(rows: DphEvidenceRow[]): string {
     [
       r.smer,
       r.dppd,
-      r.evc,
-      r.dic,
-      r.nazev ?? "",
+      safeText(r.evc),
+      safeText(r.dic),
+      safeText(r.nazev ?? ""),
       r.radek,
       r.sazba === 0 ? "" : String(r.sazba),
       r.zaklad,
       r.dan,
       r.khSekce ?? "",
-      r.kodPredPl ?? "",
-      r.kodRezimPl ?? "",
+      safeText(r.kodPredPl ?? ""),
+      safeText(r.kodRezimPl ?? ""),
       r.zdph44 ?? "",
       r.pomer ?? "",
       r.shKod ?? "",
-      r.poznamka ?? "",
+      safeText(r.poznamka ?? ""),
     ]
       .map((v) => csvField(v))
       .join(";"),

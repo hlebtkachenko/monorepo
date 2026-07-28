@@ -76,13 +76,25 @@ const DPH_PRIZNANI: DphdpLine[] = [
   { r: "33", text: "Oprava výše daně u pohledávek za dlužníkem v insolvenčním řízení (§ 46 a násl.) — věřitel", veta: 3, base: "opr_verit" }, // prettier-ignore
   { r: "34", text: "Oprava výše daně u pohledávek za dlužníkem v insolvenčním řízení (§ 46 a násl.) — dlužník", veta: 3, base: "opr_dluz" }, // prettier-ignore
 
-  // IV. Nárok na odpočet daně — "V plné výši" only; see DPH_MANUAL_FIELDS for krácený
-  { r: "40", text: "Z přijatých zdanitelných plnění od plátců", veta: 4, base: "pln23", dan: "odp_tuz23", sazba: 21, sekce: "IV. Nárok na odpočet daně (sloupec „V plné výši“)" }, // prettier-ignore
-  { r: "41", text: "Z přijatých zdanitelných plnění od plátců", veta: 4, base: "pln5", dan: "odp_tuz5", sazba: 12 }, // prettier-ignore
-  { r: "42", text: "Při dovozu zboží, kdy je správcem daně celní úřad", veta: 4, base: "dov_cu", dan: "odp_cu" }, // prettier-ignore
+  // IV. Nárok na odpočet daně — the "V plné výši" column; see DPH_MANUAL_FIELDS
+  // for "Krácený odpočet". Which attribute is which column is settled by the FÚ
+  // popis struktury (attribute -> form label), NOT by the XSD, whose
+  // xs:documentation is byte-identical for both members of every pair:
+  //   odp_tuz23 = ř.40 Krácený   |  odp_tuz23_nar = ř.40 V plné výši
+  //   odp_tuz5  = ř.41 Krácený   |  odp_tuz5_nar  = ř.41 V plné výši
+  //   odp_cu    = ř.42 Krácený   |  odp_cu_nar    = ř.42 V plné výši
+  //   odp_rezim = ř.45 Krácený   |  odp_rez_nar   = ř.45 V plné výši
+  // The `_nar` suffix is NÁROK V PLNÉ VÝŠI. ř.43/44/46/47 use a different naming
+  // (nar_ = základ, od_ = plná, odkr_ = krácený), which is why assuming one
+  // uniform rule filed every odpočet in the krácený column: ř.63 sums the FULL
+  // column through ř.46, so the whole odpočet vanished and the plátce paid the
+  // entire daň na výstupu.
+  { r: "40", text: "Z přijatých zdanitelných plnění od plátců", veta: 4, base: "pln23", dan: "odp_tuz23_nar", sazba: 21, sekce: "IV. Nárok na odpočet daně (sloupec „V plné výši“)" }, // prettier-ignore
+  { r: "41", text: "Z přijatých zdanitelných plnění od plátců", veta: 4, base: "pln5", dan: "odp_tuz5_nar", sazba: 12 }, // prettier-ignore
+  { r: "42", text: "Při dovozu zboží, kdy je správcem daně celní úřad", veta: 4, base: "dov_cu", dan: "odp_cu_nar" }, // prettier-ignore
   { r: "43", text: "Ze zdanitelných plnění vykázaných na řádcích 3 až 13", veta: 4, base: "nar_zdp23", dan: "od_zdp23", sazba: 21 }, // prettier-ignore
   { r: "44", text: "Ze zdanitelných plnění vykázaných na řádcích 3 až 13", veta: 4, base: "nar_zdp5", dan: "od_zdp5", sazba: 12 }, // prettier-ignore
-  { r: "45", text: "Korekce odpočtů daně podle § 75 odst. 4, § 77 a § 79", veta: 4, dan: "odp_rezim" }, // prettier-ignore
+  { r: "45", text: "Korekce odpočtů daně podle § 75 odst. 4, § 77 a § 79", veta: 4, dan: "odp_rez_nar" }, // prettier-ignore
   { r: "46", text: "Odpočet daně celkem (součet řádků 40 až 45)", veta: 4, dan: "odp_sum_nar", derived: true }, // prettier-ignore
   { r: "47", text: "Hodnota pořízeného majetku vymezeného v § 4 odst. 4 písm. c)", veta: 4, base: "nar_maj", dan: "od_maj" }, // prettier-ignore
 
@@ -104,12 +116,12 @@ const DPH_PRIZNANI: DphdpLine[] = [
  * Fields that no doklad can produce and no engine can derive — they come from the
  * plátce's own §76 koeficient and from the krácený-odpočet column of ř.40–47.
  *
- * The krácený column is here rather than in `DPH_PRIZNANI` on purpose. The XSD
- * carries two parallel attribute families for ř.40–47 ("V plné výši" and "Krácený
- * odpočet") whose column roles its documentation does not settle, and the same
- * ambiguity is flagged in @workspace/filing's own adapter. Rather than guess a
- * column mapping and file a wrong return, these are entered explicitly under the
- * exact attribute name the XML will carry.
+ * The krácený column is here rather than in `DPH_PRIZNANI` because no doklad
+ * determines it — it is the plátce's own § 76 apportionment. Which attribute
+ * carries which column is NOT ambiguous: the FÚ popis struktury lists the form
+ * label for every attribute (see the table above ř.40), and it is the only
+ * source that settles it, the XSD's documentation being identical for both
+ * members of each pair.
  */
 export interface DphManualField {
   attr: string
@@ -117,23 +129,30 @@ export interface DphManualField {
   r: string
   label: string
   veta: DphVeta
+  /** A percentage, not money — it must not go through the koruna formatter. */
+  percent?: true
 }
 
 export const DPH_MANUAL_FIELDS: DphManualField[] = [
   { attr: "plnosv_nkf", r: "51", label: "ř. 51 — bez nároku na odpočet", veta: 5 }, // prettier-ignore
-  { attr: "koef_p20_nov", r: "52", label: "ř. 52 — koeficient (%)", veta: 5 },
+  { attr: "koef_p20_nov", r: "52", label: "ř. 52 — koeficient (%)", veta: 5, percent: true }, // prettier-ignore
   { attr: "odp_uprav_kf", r: "52", label: "ř. 52 — odpočet v krácené výši", veta: 5 }, // prettier-ignore
-  { attr: "koef_p20_vypor", r: "53", label: "ř. 53 — vypořádací koeficient (%)", veta: 5 }, // prettier-ignore
+  { attr: "koef_p20_vypor", r: "53", label: "ř. 53 — vypořádací koeficient (%)", veta: 5, percent: true }, // prettier-ignore
   { attr: "vypor_odp", r: "53", label: "ř. 53 — změna odpočtu", veta: 5 },
-  { attr: "odp_tuz23_nar", r: "40", label: "ř. 40 — krácený odpočet (21 %)", veta: 4 }, // prettier-ignore
-  { attr: "odp_tuz5_nar", r: "41", label: "ř. 41 — krácený odpočet (12 %)", veta: 4 }, // prettier-ignore
-  { attr: "odp_cu_nar", r: "42", label: "ř. 42 — krácený odpočet", veta: 4 },
+  { attr: "odp_tuz23", r: "40", label: "ř. 40 — krácený odpočet (21 %)", veta: 4 }, // prettier-ignore
+  { attr: "odp_tuz5", r: "41", label: "ř. 41 — krácený odpočet (12 %)", veta: 4 }, // prettier-ignore
+  { attr: "odp_cu", r: "42", label: "ř. 42 — krácený odpočet", veta: 4 },
   { attr: "odkr_zdp23", r: "43", label: "ř. 43 — krácený odpočet (21 %)", veta: 4 }, // prettier-ignore
   { attr: "odkr_zdp5", r: "44", label: "ř. 44 — krácený odpočet (12 %)", veta: 4 }, // prettier-ignore
-  { attr: "odp_rez_nar", r: "45", label: "ř. 45 — krácený odpočet", veta: 4 },
+  { attr: "odp_rezim", r: "45", label: "ř. 45 — krácený odpočet", veta: 4 },
   { attr: "odp_sum_kr", r: "46", label: "ř. 46 — krácený odpočet celkem", veta: 4 }, // prettier-ignore
   { attr: "odkr_maj", r: "47", label: "ř. 47 — krácený odpočet", veta: 4 },
 ]
+
+/** Manual fields keyed by the XML attribute they carry — the projector's lookup. */
+export const DPH_MANUAL_BY_ATTR = new Map(
+  DPH_MANUAL_FIELDS.map((f) => [f.attr, f]),
+)
 
 /** Every line that carries a value, keyed by řádek, for quick lookup. */
 export const DPH_LINE_BY_R = new Map(DPH_PRIZNANI.map((l) => [l.r, l]))

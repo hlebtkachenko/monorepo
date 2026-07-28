@@ -7,11 +7,13 @@
 // koruna for DPHDP3, haléře for DPHKH1) and drops zero-value detail lines.
 //
 // The DPHDP3 row→attribute map lives in .context/xml-filing-tier2-grounding.md.
-// The Veta4 (odpočet) column roles are the one part not fully disambiguated by the
-// XSD alone — flagged there and gated by the Advisor review before Hleb signs off.
+// The Veta4 (odpočet) column roles come from the FÚ popis struktury, which carries a
+// form label per attribute; the XSD alone cannot settle them, its documentation being
+// identical for both members of every pair.
 
 import Decimal from "decimal.js-light"
 import { koruna, korunaNahoru, haler } from "./envelope"
+import { splitVatId } from "./vat-id"
 import type { Dphdp3Input } from "../../model/dphdp3"
 import type { Dphkh1Input } from "../../model/dphkh1"
 import type { DphshvInput } from "../../model/dphshv"
@@ -126,13 +128,15 @@ export function buildDphdp3FromAccounting(
     pln_vyvoz: figures.r22_base,
     pln_rez_pren: figures.r25_base,
   })
-  // Veta4 — column roles flagged in the grounding doc; full-deduction plátce fills
-  // the "V plné výši" daň column only (no krácení here).
+  // Veta4 — a full-deduction plátce fills the "V plné výši" daň column only. Per
+  // the FÚ popis struktury that column is `odp_tuz23_nar` / `odp_tuz5_nar` on
+  // ř.40/41 (`_nar` = nárok v plné výši), NOT the bare `odp_tuz*`, which is the
+  // krácený column. ř.43/44 use the other naming: `od_` is plná, `odkr_` krácený.
   const veta4 = nonZeroKoruna({
     pln23: figures.r40_base,
-    odp_tuz23: figures.r40_dan,
+    odp_tuz23_nar: figures.r40_dan,
     pln5: figures.r41_base,
-    odp_tuz5: figures.r41_dan,
+    odp_tuz5_nar: figures.r41_dan,
     nar_zdp23: figures.r43_base,
     od_zdp23: figures.r43_dan,
     nar_zdp5: figures.r44_base,
@@ -196,6 +200,12 @@ function emptyToUndef(
 /** Subset of accounting `KhRow` (Decimal = string). */
 export interface KhRowInput {
   tax_id: string | null
+  /**
+   * ISO member state that issued `tax_id`. Only A.2 needs it — that section
+   * splits the VAT id into `k_stat` + `vatid_dod`. Everywhere else the DIČ is a
+   * Czech one and is filed whole.
+   */
+  country_code?: string | null
   doklad: string
   dppd: string
   kod: string | null
@@ -261,12 +271,20 @@ export function buildDphkh1FromAccounting(
     zakl_dane1: haler(addStr(r.base21, r.base12)) ?? "0.00",
     kod_pred_pl: r.kod ?? "",
   }))
-  const a2 = kh.a2.map((r) => ({
-    vatid_dod: r.tax_id ?? undefined,
-    c_evid_dd: r.doklad,
-    dppd: r.dppd,
-    ...buckets(r),
-  }))
+  // A.2's VAT id is split like the souhrnné hlášení's: `vatid_dod` is documented
+  // "ve formátu bez mezer bez kódu členského státu", and the country goes in
+  // `k_stat`. The prefixed form both mismatches VIES and, at 12 characters
+  // (NL …B01, SE, LT, XI), overruns the attribute's maxLength.
+  const a2 = kh.a2.map((r) => {
+    const { k_stat, c_vat } = splitVatId(r.country_code ?? null, r.tax_id)
+    return {
+      k_stat: k_stat || undefined,
+      vatid_dod: c_vat || undefined,
+      c_evid_dd: r.doklad,
+      dppd: r.dppd,
+      ...buckets(r),
+    }
+  })
   const a4 = kh.a4.map((r) => ({
     dic_odb: r.tax_id ?? "",
     c_evid_dd: r.doklad,
@@ -373,50 +391,6 @@ export interface ShRowInput {
 /** Subset of accounting `SouhrnneHlaseni` (the recap rows). */
 export interface ShData {
   rows: ShRowInput[]
-}
-
-/**
- * VAT-registration prefixes VIES accepts. This is NOT the ISO 3166-1 list: Greece
- * registers under **EL** while its ISO code is GR, and Northern Ireland uses **XI**
- * (GB survives only as a legacy value on pre-Brexit documents). Splitting on "any
- * two leading letters" instead of this set corrupts ids that legitimately begin
- * with two letters of their own — FR issues `XX123456789`, NL `…B01`, XI `GD123`.
- */
-const VAT_PREFIXES = new Set([
-  "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR", "GB",
-  "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE",
-  "SI", "SK", "XI",
-]) // prettier-ignore
-
-/** ISO 3166-1 alpha-2 → the prefix VIES actually registers under. */
-const ISO_TO_VAT_PREFIX: Record<string, string> = { GR: "EL" }
-
-/**
- * Split a VAT id into the EPO pair (`k_stat`, `c_vat`). The schema wants the id
- * "bez kódu státu ... bez mezer, čárek a teček", so separators go and a recognised
- * member-state prefix moves to `k_stat`.
- *
- * Two traps this avoids. First, the documentation calls the remainder the "číselná
- * část", but that cannot be taken literally: IE (`1234567FA`), NL (`…B01`) and ES
- * (`X1234567L`) ids legitimately carry letters, and stripping them would turn a
- * valid id into one VIES rejects — only the prefix is removed. Second, the prefix
- * on the id itself wins over the counterparty's ISO country code, because the two
- * disagree for Greece (ISO GR / VAT EL) and Northern Ireland (XI).
- */
-function splitVatId(
-  countryCode: string | null,
-  taxId: string | null,
-): { k_stat?: string; c_vat?: string } {
-  const clean = (taxId ?? "").replace(/[\s.,-]/g, "").toUpperCase()
-  const head = clean.slice(0, 2)
-  const hasPrefix = VAT_PREFIXES.has(head)
-  const iso = (countryCode ?? "").toUpperCase()
-  const country = hasPrefix ? head : (ISO_TO_VAT_PREFIX[iso] ?? iso)
-  const number = hasPrefix ? clean.slice(2) : clean
-  return {
-    k_stat: country === "" ? undefined : country,
-    c_vat: number === "" ? undefined : number,
-  }
 }
 
 /**

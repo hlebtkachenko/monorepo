@@ -30,24 +30,30 @@ const OUTPUT_TAX_ATTRS = [
   "dan_psl5_z", // ř.13
 ] as const
 
+// Which attribute is which column comes from the FÚ popis struktury, which lists
+// a form label per attribute. The XSD cannot settle it: its xs:documentation is
+// byte-identical for both members of every pair. The `_nar` suffix is NÁROK
+// V PLNÉ VÝŠI — ř.40/41/42/45 were the wrong way round here, and since ř.63 sums
+// the FULL column through ř.46, every odpočet fell out of the return.
+
 /** ř.40..45 deduction daň, "V plné výši" column. */
 const DEDUCT_FULL_ATTRS = [
-  "odp_tuz23", // ř.40
-  "odp_tuz5", // ř.41
-  "odp_cu", // ř.42 (dovoz, správce celní úřad)
-  "od_zdp23", // ř.43
-  "od_zdp5", // ř.44
-  "odp_rezim", // ř.45 (korekce §75/§77/§79)
+  "odp_tuz23_nar", // ř.40 - V plné výši
+  "odp_tuz5_nar", // ř.41 - V plné výši
+  "odp_cu_nar", // ř.42 - V plné výši (dovoz, správce celní úřad)
+  "od_zdp23", // ř.43 - V plné výši
+  "od_zdp5", // ř.44 - V plné výši
+  "odp_rez_nar", // ř.45 - V plné výši (korekce §75/§77/§79)
 ] as const
 
 /** ř.40..45 deduction daň, "Krácený odpočet" column. */
 const DEDUCT_REDUCED_ATTRS = [
-  "odp_tuz23_nar", // ř.40
-  "odp_tuz5_nar", // ř.41
-  "odp_cu_nar", // ř.42
-  "odkr_zdp23", // ř.43
-  "odkr_zdp5", // ř.44
-  "odp_rez_nar", // ř.45
+  "odp_tuz23", // ř.40 - Krácený odpočet
+  "odp_tuz5", // ř.41 - Krácený odpočet
+  "odp_cu", // ř.42 - Krácený odpočet
+  "odkr_zdp23", // ř.43 - Krácený odpočet
+  "odkr_zdp5", // ř.44 - Krácený odpočet
+  "odp_rezim", // ř.45 - Krácený odpočet
 ] as const
 
 type VetaRec = Record<string, string> | undefined
@@ -84,6 +90,8 @@ export interface Dphdp3Derived {
   r64: string
   /** ř.65 — nadměrný odpočet (0 when it is vlastní daň). */
   r65: string
+  /** ř.66 — rozdíl ř.62 − ř.63, filed ONLY on a dodatečné přiznání. */
+  r66: string
 }
 
 /** Compute the derived DPHDP3 footer lines from a model's input lines. */
@@ -119,8 +127,17 @@ export function computeDphdp3Totals(model: Dphdp3): Dphdp3Derived {
     r63: int(r63),
     r64: int(r64),
     r65: int(r65),
+    r66: int(diff),
   }
 }
+
+/**
+ * Formy of a dodatečné přiznání. On these the XSD says ř.64/65 "se nevyplňuje"
+ * and ř.66 (`dano`) "vyplňuje se pouze při podání dodatečného přiznání" — the
+ * footer swaps entirely, so emitting the řádné trio on a dodatečné return files
+ * the whole daň again instead of the difference against the last known one.
+ */
+const DODATECNE_FORMY = new Set(["D", "E"])
 
 /**
  * Fill a DPHDP3 model's derived lines (ř.46 odp_sum_*, ř.62/63/64/65 in Veta6) with
@@ -155,8 +172,9 @@ export function applyDphdp3Totals(model: Dphdp3): {
       veta6: put(model.veta6, {
         dan_zocelk: derived.r62,
         odp_zocelk: derived.r63,
-        dano_da: derived.r64,
-        dano_no: derived.r65,
+        ...(DODATECNE_FORMY.has(model.header.dapdph_forma)
+          ? { dano_da: "0", dano_no: "0", dano: derived.r66 }
+          : { dano_da: derived.r64, dano_no: derived.r65, dano: "0" }),
       }),
     },
   }

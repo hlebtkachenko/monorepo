@@ -171,6 +171,52 @@ export function checkDppo(model: Dppo): DppoCheck[] {
   }
 
   out.push(...checkPriloha(model, o))
+  out.push(...checkSpojeneOsoby(model))
+
+  return out
+}
+
+/**
+ * Samostatná příloha — transakce se spojenými osobami (VetaA).
+ *
+ * Every attribute of VetaA is `use="optional"` in the XSD, so a list with no
+ * názvy and no státy validates green and EPO refuses it on load. The duplicate
+ * rule is the XSD's own words: "V souboru nesmí existovat duplicitní listy
+ * přílohy, tj. věty A se stejnou hodnotou dvojice položek (naz_spojos,
+ * stat_spojos)."
+ */
+function checkSpojeneOsoby(model: Dppo): DppoCheck[] {
+  const out: DppoCheck[] = []
+  const vety = model.extraVety.filter((v) => v.tag === "VetaA")
+  if (vety.length === 0) return out
+
+  const seen = new Set<string>()
+  vety.forEach((veta, i) => {
+    const nazev = veta.attrs.naz_spojos
+    const stat = veta.attrs.stat_spojos
+    const kde = `Spojená osoba ${i + 1}`
+    if (!nazev) {
+      out.push({ severity: "warning", code: "naz_spojos.required", field: `spojene.${i}.naz_spojos`, message: `${kde}: název spojené osoby musí být vyplněn.` }) // prettier-ignore
+    }
+    if (!stat) {
+      out.push({ severity: "warning", code: "stat_spojos.required", field: `spojene.${i}.stat_spojos`, message: `${kde}: kód státu musí být vyplněn podle číselníku zemí (CZEM).`, suggestion: "CZ" }) // prettier-ignore
+    } else if (!/^[A-Z]{2}$/.test(stat)) {
+      out.push({ severity: "warning", code: "stat_spojos.format", field: `spojene.${i}.stat_spojos`, message: `${kde}: kód státu je dvoumístný kód velkými písmeny.`, suggestion: "CZ" }) // prettier-ignore
+    }
+    if (nazev && stat) {
+      const key = `${nazev} ${stat}`
+      if (seen.has(key)) {
+        out.push({ severity: "warning", code: "spojene.duplicate", field: `spojene.${i}.naz_spojos`, message: `${kde}: v souboru nesmí být dva listy se stejnou dvojicí název + stát; sloučte je do jednoho.` }) // prettier-ignore
+      }
+      seen.add(key)
+    }
+  })
+
+  // Položka 12 declares that transakce happened; a příloha listing them while
+  // the položka says "N" (or is blank) contradicts itself.
+  if (!model.header.spoj_zahr || model.header.spoj_zahr === "N") {
+    out.push({ severity: "warning", code: "spoj_zahr.required", field: "header.spoj_zahr", message: "I. oddíl pol. 12 neuvádí žádné transakce se spojenými osobami, ale samostatná příloha je vyplněna.", suggestion: "T / Z / A" }) // prettier-ignore
+  }
 
   return out
 }

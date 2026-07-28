@@ -18,6 +18,7 @@ import { applyDppoTotals } from "./compute"
 import { buildPrilohaVety, type DppoPriloha } from "./priloha"
 import { buildZaverkaVety, type DppoZaverka } from "./zaverka"
 import { buildZadostVety, type DppoZadostSbirka } from "./zadost"
+import { buildSpojeneVety, spojZahr, type DppoSpojenaOsoba } from "./spojene"
 import { DppoSchema, type DppoInput } from "../../../model/dppo"
 
 /** Identity + period metadata (supplied by the org, not part of the tax figures). */
@@ -102,6 +103,13 @@ export interface DppoFilingMeta {
    * the kind of závěrka. Kritická kontrola: must be filled once any výkaz is.
    */
   uz_rad?: string
+  /**
+   * I. oddíl položka 12 — transakce se spojenými osobami: "T" tuzemská, "Z"
+   * zahraniční, "A" obojí, "N" žádné. Left unset it is derived from the states
+   * of the `spojene` osoby; set it explicitly when transactions happened but no
+   * samostatná příloha is filed (the Pokyny gate the příloha, not the položka).
+   */
+  spoj_zahr?: string
 }
 
 /**
@@ -165,6 +173,10 @@ function nonZeroKoruna(
  * portal. Also optional: a return generated before the výkazy are closed is
  * still worth having, and § 18 ZoÚ is satisfied either by these tables or by
  * e-přílohy (which `meta.uc_zav` declares).
+ *
+ * `spojene` carries the samostatná příloha, transakce se spojenými osobami
+ * (§ 23 odst. 7 ZDP). Passing it also fills I. oddíl položka 12 (`spoj_zahr`)
+ * from the states of the osoby, unless `meta.spoj_zahr` says otherwise.
  */
 export function buildDppoFromAccounting(
   figures: DppoFigures,
@@ -172,6 +184,7 @@ export function buildDppoFromAccounting(
   priloha?: DppoPriloha,
   zaverka?: DppoZaverka,
   zadost?: DppoZadostSbirka,
+  spojene?: readonly DppoSpojenaOsoba[],
 ): DppoInput {
   // VetaO detail lines the worksheet produces (attribute map in the grounding doc).
   const vetaO = nonZeroKoruna({
@@ -217,6 +230,11 @@ export function buildDppoFromAccounting(
       ...(meta.audit ? { audit: meta.audit } : {}),
       ...(meta.dan_por ? { dan_por: meta.dan_por } : {}),
       ...(meta.uz_rad ? { uz_rad: meta.uz_rad } : {}),
+      ...(meta.spoj_zahr
+        ? { spoj_zahr: meta.spoj_zahr }
+        : spojene && spojene.length > 0
+          ? { spoj_zahr: spojZahr(spojene) }
+          : {}),
     },
     payer: nonEmpty({
       dic: meta.dic,
@@ -235,10 +253,12 @@ export function buildDppoFromAccounting(
     // Daňové přílohy first, then the účetní závěrka — DPPO_EXTRA_VETA_TAGS puts
     // the U-block after them, and the writer emits extraVety in array order.
     // XSD sequence: daňové přílohy (VetaU…S) -> účetní závěrka (VetaUA/UB/UD)
-    // -> žádost o sbírku listin (VetaUZ), which DPPO_EXTRA_VETA_TAGS puts last.
+    // -> spojené osoby (VetaA) -> žádost o sbírku listin (VetaUZ). `generateDppo`
+    // sorts by DPPO_EXTRA_VETA_TAGS, so this array's order is not load-bearing.
     extraVety: [
       ...(priloha ? buildPrilohaVety(priloha) : []),
       ...(zaverka ? buildZaverkaVety(zaverka) : []),
+      ...(spojene ? buildSpojeneVety(spojene) : []),
       ...(zadost ? buildZadostVety(zadost) : []),
     ],
   }

@@ -10,10 +10,12 @@ import {
   normalizeSazba,
   applyFieldChange,
   emptyTabulkaB,
+  emptySpojenaOsoba,
   tabulkaASoucet,
   tabulkaBSoucet,
   toFigures,
   toMeta,
+  toSpojene,
   toZaverka,
   toZadost,
   toPriloha,
@@ -129,6 +131,59 @@ describe("defaultSazba", () => {
   })
 })
 
+describe("toSpojene", () => {
+  const osoba = (castky: Record<string, string>) => ({
+    ...emptySpojenaOsoba(),
+    nazev: "Dodavatel s.r.o.",
+    castky,
+  })
+
+  it("folds each pair onto ITS OWN two column names", () => {
+    // _sl1/_sl2 do not mean the same thing on every row, so a flat record of
+    // attribute strings has to be read through DPPO_SPOJENE_TRANSAKCE.
+    const [out] = toSpojene(
+      form({
+        spojeneOsoby: [
+          osoba({
+            sluzby_sl1: "0",
+            sluzby_sl2: "8011",
+            hmot_sl1: "140",
+            hmot_sl2: "60",
+            uver_sl1: "0",
+            uver_sl2: "2400",
+            krpohl_sl1: "6292",
+            krpohl_sl2: "3201",
+            ost_vlkap_sl1: "500",
+            ost_vlkap_sl2: "0",
+          }),
+        ],
+      }),
+    )!
+    expect(out!.transakce).toEqual({
+      sluzby: { vynos: 0, naklad: 8011 },
+      hmotnyMajetek: { prodej: 140, nakup: 60 },
+      uveroveNastroje: { prijate: 0, vyplacene: 2400 },
+      kratkodobePohledavky: { aktualni: 6292, minule: 3201 },
+      ostatniVlastniKapital: { zvyseni: 500, snizeni: 0 },
+    })
+  })
+
+  it("treats a blank input as untouched, not as a zero", () => {
+    // Otherwise every one of the 16 rows would file as an active 0/0 pair.
+    const [out] = toSpojene(form({ spojeneOsoby: [osoba({ najem_sl2: "252" })] }))! // prettier-ignore
+    expect(out!.transakce).toEqual({ najem: { vynos: 0, naklad: 252 } })
+  })
+
+  it("accepts the grouped and comma forms the other inputs accept", () => {
+    const [out] = toSpojene(form({ spojeneOsoby: [osoba({ urok_sl2: "1 234,5" })] }))! // prettier-ignore
+    expect(out!.transakce?.uroky).toEqual({ vynos: 0, naklad: 1234.5 })
+  })
+
+  it("is undefined when no osoba was listed", () => {
+    expect(toSpojene(form())).toBeUndefined()
+  })
+})
+
 function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
   return {
     dic: "CZ12345679",
@@ -142,6 +197,7 @@ function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
     danPor: false,
     sbirkaListin: false,
     sbirkaEmail: "",
+    spojeneOsoby: [],
     typPopldpp: "1",
     zdobdOd: "1.1.2024",
     zdobdDo: "31.12.2024",

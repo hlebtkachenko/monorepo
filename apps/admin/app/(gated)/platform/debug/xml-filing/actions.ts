@@ -25,6 +25,8 @@ import {
   type DppoCheck,
 } from "@workspace/filing"
 
+import { requireAdminCapability } from "@/lib/admin-capability"
+
 export type FilingFormat = "dppo" | "dphdp3" | "dphkh1" | "dphshv" | "isdoc"
 
 const ISDOC_VERSION = "6.0.1"
@@ -122,6 +124,14 @@ export async function inspectFilingAction(
 ): Promise<
   { ok: true; result: FilingInspectResult } | { ok: false; error: string }
 > {
+  // FIRST statement, before any parsing. A Server Action is its own POST
+  // endpoint whose id is recoverable from the client bundle, and the (gated)
+  // layout does NOT run for action invocations (see lib/assert-admin-caller.ts)
+  // — without this the whole parse / generate / XSD pipeline was reachable
+  // unauthenticated. `assertAdminCaller` is the wrong tool here: it hard-throws
+  // when NODE_ENV === "production", and this surface is deliberately prod-live.
+  await requireAdminCapability("admin:read")
+
   const format = forced ?? (await detectFormat(xml))
   if (!format) {
     return {

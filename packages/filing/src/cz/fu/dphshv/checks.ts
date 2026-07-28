@@ -9,6 +9,7 @@
 // comes from the vendored XSD's xs:documentation.
 
 import { MEMBER_STATES } from "../vat-id"
+import { VAT_FORMATS, VAT_FORMAT_HINTS } from "./vat-format"
 import type { Dphshv } from "../../../model/dphshv"
 
 export interface DphshvCheck {
@@ -63,6 +64,32 @@ export function checkDphshv(m: Dphshv): DphshvCheck[] {
     })
   }
 
+  // The XSD bounds these by totalDigits only, so "99" and "0" validate.
+  const mesicNum = Number(m.header.mesic)
+  if (
+    hasMesic &&
+    !(Number.isInteger(mesicNum) && mesicNum >= 1 && mesicNum <= 12)
+  ) {
+    // prettier-ignore
+    out.push({
+      code: "MESIC_MIMO_ROZSAH",
+      severity: "error",
+      message: `Měsíc "${m.header.mesic}" není v rozsahu 1 až 12.`,
+    })
+  }
+  const ctvrtNum = Number(m.header.ctvrt)
+  if (
+    hasCtvrt &&
+    !(Number.isInteger(ctvrtNum) && ctvrtNum >= 1 && ctvrtNum <= 4)
+  ) {
+    // prettier-ignore
+    out.push({
+      code: "CTVRTLETI_MIMO_ROZSAH",
+      severity: "error",
+      message: `Čtvrtletí "${m.header.ctvrt}" není v rozsahu 1 až 4.`,
+    })
+  }
+
   // §102/6: čtvrtletní souhrnné hlášení je možné jen u samotných služeb dle §9/1.
   if (hasCtvrt && rows.some((r) => GOODS_KODY.has(r.k_pln_eu ?? ""))) {
     out.push({
@@ -87,7 +114,42 @@ export function checkDphshv(m: Dphshv): DphshvCheck[] {
       })
     }
 
+    // Any single character passes the facet, but only "A" means storno.
+    if ((r.k_storno ?? "") !== "" && r.k_storno !== "A") {
+      out.push({
+        code: "STORNO_NEPLATNA_HODNOTA",
+        severity: "error",
+        message: `Řádek ${i + 1}: příznak storna má hodnotu "${r.k_storno}" — přípustné je pouze "A".`,
+        row: i,
+      })
+    }
+
+    // A storno row is matched by FÚ on (k_stat, c_vat, k_pln_eu): "je vyhledán
+    // shodný řádek … musí být stejné". Missing any of the three cancels nothing.
+    if (
+      storno &&
+      ((r.k_stat ?? "") === "" ||
+        (r.c_vat ?? "") === "" ||
+        (r.k_pln_eu ?? "") === "")
+    ) {
+      // prettier-ignore
+      out.push({
+        code: "STORNO_BEZ_KLICE",
+        severity: "error",
+        message: `Řádek ${i + 1}: storno řádek musí nést kód státu, DIČ i kód plnění — podle nich se v původním hlášení vyhledává řádek, který ruší.`,
+        row: i,
+      })
+    }
+
     if (!storno) {
+      if (r.pln_hodnota === "0") {
+        out.push({
+          code: "HODNOTA_NULOVA",
+          severity: "warning",
+          message: `Řádek ${i + 1}: hodnota plnění je 0 Kč. Ověřte — bývá to známka toho, že se základ nepodařilo z podkladů odvodit.`,
+          row: i,
+        })
+      }
       if ((r.k_stat ?? "") === "" || (r.c_vat ?? "") === "") {
         out.push({
           code: "DIC_CHYBI",
@@ -120,6 +182,21 @@ export function checkDphshv(m: Dphshv): DphshvCheck[] {
         code: "STAT_TUZEMSKO",
         severity: "error",
         message: `Řádek ${i + 1}: tuzemský odběratel (CZ) do souhrnného hlášení nepatří — jde o tuzemské plnění, ne dodání do jiného členského státu.`,
+        row: i,
+      })
+    }
+
+    // Formální správnost DIČ per the table the XSD embeds under `c_vat`. EPO
+    // runs this check itself and a malformed id is the commonest rejection, but
+    // no XSD facet enforces it. Warning, not error: the pattern is transcribed
+    // from documentation, so it must not block a filing EPO would have taken.
+    const vat = r.c_vat ?? ""
+    const format = VAT_FORMATS[stat]
+    if (vat !== "" && format && !format.test(vat)) {
+      out.push({
+        code: "DIC_FORMAT",
+        severity: "warning",
+        message: `Řádek ${i + 1}: DIČ "${stat}${vat}" neodpovídá formátu, který finanční správa pro tento stát uvádí (${VAT_FORMAT_HINTS[stat] ?? "viz číselník"}). Ověřte je ve VIES.`,
         row: i,
       })
     }

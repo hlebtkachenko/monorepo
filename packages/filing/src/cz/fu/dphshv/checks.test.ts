@@ -124,3 +124,48 @@ describe("checkDphshv", () => {
     expect(codes({ ...base, rows: [] })).toContain("PRAZDNE_HLASENI")
   })
 })
+
+describe("DIČ format per member state", () => {
+  const shv = (k_stat: string, c_vat: string) =>
+    DphshvSchema.parse({
+      header: { shvies_forma: "R", rok: "2026", mesic: "6" },
+      payer: { c_ufo: "451", dic: "12345678", typ_ds: "P" },
+      rows: [{ k_stat, c_vat, k_pln_eu: "0", pln_hodnota: "1000" }],
+    })
+
+  const codes = (k: string, v: string) =>
+    checkDphshv(shv(k, v)).map((c) => c.code)
+
+  it("accepts the shapes the schema's own table documents", () => {
+    for (const [stat, vat] of [
+      ["SK", "1234567890"],
+      ["DE", "123456789"],
+      ["AT", "U12345678"],
+      ["NL", "123456789B01"],
+      ["IE", "1234567FA"],
+      ["ES", "X1234567L"],
+      ["FR", "12345678901"],
+      ["CY", "12345678L"],
+      ["RO", "019"],
+      ["XI", "GD123"],
+    ] as const) {
+      expect(codes(stat, vat), `${stat}${vat}`).not.toContain("DIC_FORMAT")
+    }
+  })
+
+  it("flags an id that cannot be that state's", () => {
+    // Slovak ids are 10 digits; 8 is a Slovenian one pasted under the wrong code.
+    expect(codes("SK", "12345678")).toContain("DIC_FORMAT")
+    // Austria always starts with U.
+    expect(codes("AT", "123456789")).toContain("DIC_FORMAT")
+    // The Dutch suffix runs B01..B99, never B00.
+    expect(codes("NL", "123456789B00")).toContain("DIC_FORMAT")
+    // France excludes I and O from the two leading letters.
+    expect(codes("FR", "IO345678901")).toContain("DIC_FORMAT")
+  })
+
+  it("warns rather than blocks, because the table is transcribed", () => {
+    const bad = checkDphshv(shv("SK", "1")).find((c) => c.code === "DIC_FORMAT")
+    expect(bad?.severity).toBe("warning")
+  })
+})

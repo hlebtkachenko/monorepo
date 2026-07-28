@@ -69,6 +69,11 @@ const DPH_PRIZNANI: DphdpLine[] = [
   { r: "25", text: "Režim přenesení daňové povinnosti — dodavatel zboží nebo poskytovatel služeb", veta: 2, base: "pln_rez_pren" }, // prettier-ignore
   { r: "26", text: "Ostatní uskutečněná plnění s nárokem na odpočet daně", veta: 2, base: "pln_ost" }, // prettier-ignore
 
+  // ř.14 is NOT part of the ř.62 sum — the XSD's own formula runs ř.1..13 and
+  // stops. An oprava podle § 42a is reported here AND inside the řádek whose
+  // daň it corrects, which is why adding it to the total would double it.
+  { r: "14", text: "Oprava výše daně podle § 42a a § 46fa", veta: 1, base: "opr_dane_zd", dan: "opr_dane_dan" }, // prettier-ignore
+
   // III. Doplňující údaje
   { r: "30", text: "Zjednodušený postup při dodání zboží formou třístranného obchodu (§ 17) — pořízení zboží prostřední osobou", veta: 3, base: "tri_pozb", sekce: "III. Doplňující údaje" }, // prettier-ignore
   { r: "31", text: "Zjednodušený postup při dodání zboží formou třístranného obchodu (§ 17) — dodání zboží prostřední osobou", veta: 3, base: "tri_dozb" }, // prettier-ignore
@@ -97,6 +102,9 @@ const DPH_PRIZNANI: DphdpLine[] = [
   { r: "45", text: "Korekce odpočtů daně podle § 75 odst. 4, § 77 a § 79", veta: 4, dan: "odp_rez_nar" }, // prettier-ignore
   { r: "46", text: "Odpočet daně celkem (součet řádků 40 až 45)", veta: 4, dan: "odp_sum_nar", derived: true }, // prettier-ignore
   { r: "47", text: "Hodnota pořízeného majetku vymezeného v § 4 odst. 4 písm. c)", veta: 4, base: "nar_maj", dan: "od_maj" }, // prettier-ignore
+  // ř.48 names its columns plainly (`_zd` / `_plne` / `_krac`) — the one place
+  // in this form where the naming leaves nothing to interpret.
+  { r: "48", text: "Korekce odpočtů daně podle § 74a (dodatečné přiznání za poslední zdaňovací období registrace)", veta: 4, base: "kor_odp_zd", dan: "kor_odp_plne" }, // prettier-ignore
 
   // V. Krácení nároku na odpočet daně
   { r: "50", text: "Plnění osvobozená od daně bez nároku na odpočet daně", veta: 5, base: "plnosv_kf", sekce: "V. Krácení nároku na odpočet daně" }, // prettier-ignore
@@ -147,6 +155,7 @@ export const DPH_MANUAL_FIELDS: DphManualField[] = [
   { attr: "odp_rezim", r: "45", label: "ř. 45 — krácený odpočet", veta: 4 },
   { attr: "odp_sum_kr", r: "46", label: "ř. 46 — krácený odpočet celkem", veta: 4 }, // prettier-ignore
   { attr: "odkr_maj", r: "47", label: "ř. 47 — krácený odpočet", veta: 4 },
+  { attr: "kor_odp_krac", r: "48", label: "ř. 48 — krácený odpočet", veta: 4 }, // prettier-ignore
 ]
 
 /** Manual fields keyed by the XML attribute they carry — the projector's lookup. */

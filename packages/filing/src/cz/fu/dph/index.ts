@@ -71,3 +71,5 @@ export { readDphshv } from "../dphshv/read"
 export { checkDphshv, type DphshvCheck } from "../dphshv/checks"
 
 export { koruna, korunaNahoru, haler, epoDate, dicDigits } from "../envelope"
+
+export { splitVatId } from "../vat-id"

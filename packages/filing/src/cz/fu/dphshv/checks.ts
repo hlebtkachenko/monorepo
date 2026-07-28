@@ -8,6 +8,7 @@
 // Never throws and never blocks: it reports. The rule text quoted in each message
 // comes from the vendored XSD's xs:documentation.
 
+import { MEMBER_STATES } from "../vat-id"
 import type { Dphshv } from "../../../model/dphshv"
 
 export interface DphshvCheck {
@@ -20,13 +21,6 @@ export interface DphshvCheck {
   /** 0-based index into `rows`, when the finding belongs to one row. */
   row?: number
 }
-
-/** Prefixes VIES accepts. Greece registers under EL, not its ISO code GR. */
-const MEMBER_STATES = new Set([
-  "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR",
-  "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO",
-  "SE", "SI", "SK", "XI",
-]) // prettier-ignore
 
 const KODY_PLNENI = new Set(["0", "1", "2", "3"])
 

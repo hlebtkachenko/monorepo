@@ -27,3 +27,5 @@ export {
   type DppoFilingMeta,
 } from "./dppo/adapter"
 export { checkDppo, type DppoCheck } from "./dppo/checks"
+
+export { splitVatId } from "./vat-id"

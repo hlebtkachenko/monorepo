@@ -37,5 +37,6 @@ export {
   type DppoZaverkaRadek,
   type DppoZaverkaRozvahaRadek,
 } from "./zaverka"
+export { buildZadostVety, type DppoZadostSbirka } from "./zadost"
 export { checkDppo, type DppoCheck } from "./checks"
 export * from "../../../model/dppo"

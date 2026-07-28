@@ -28,6 +28,7 @@ import {
   toFigures,
   toMeta,
   toPriloha,
+  toZadost,
   toZaverka,
   missingRequired,
   type DppoFormState,
@@ -49,6 +50,14 @@ function initForm(
   return {
     katUj: "M",
     ucZav: true,
+    cTelef: "",
+    oprJmeno: "",
+    oprPrijmeni: "",
+    oprPostaveni: "STATUTÁRNÍ ORGÁN",
+    audit: false,
+    danPor: false,
+    sbirkaListin: true,
+    sbirkaEmail: "",
     tabulkaA: [{ uctovaSkupina: "", castka: "" }],
     tabulkaB: emptyTabulkaB(),
     cistyObrat: obrat,
@@ -165,6 +174,7 @@ export function DppoForm() {
       toMeta(form, org, rozsah),
       toPriloha(form),
       toZaverka(values, crVariant, rozsah),
+      toZadost(form),
     )
     setResult(res)
     setBusy(false)
@@ -287,6 +297,93 @@ export function DppoForm() {
               ZoÚ).
             </span>
           </label>
+          <TextField
+            label="Telefon"
+            value={form.cTelef}
+            onChange={(v) => set("cTelef", v)}
+            placeholder="601020304"
+            hint="Kontakt, na který se finanční úřad obrací s dotazem."
+          />
+          <TextField
+            label="Jméno oprávněné osoby"
+            value={form.oprJmeno}
+            onChange={(v) => set("oprJmeno", v)}
+            placeholder="Jan"
+            hint="Kdo přiznání podepisuje."
+          />
+          <TextField
+            label="Příjmení oprávněné osoby"
+            value={form.oprPrijmeni}
+            onChange={(v) => set("oprPrijmeni", v)}
+            placeholder="Novák"
+          />
+          <TextField
+            label="Postavení oprávněné osoby"
+            value={form.oprPostaveni}
+            onChange={(v) => set("oprPostaveni", v)}
+            placeholder="STATUTÁRNÍ ORGÁN"
+            hint="Např. STATUTÁRNÍ ORGÁN nebo ZMOCNĚNEC."
+          />
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Lhůta pro podání
+            </span>
+            <span className="flex items-center gap-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={form.audit}
+                onChange={(e) => patch({ audit: e.target.checked })}
+                className="size-4"
+              />
+              <span className="text-sm text-foreground">
+                Závěrka ověřena auditorem
+              </span>
+            </span>
+            <span className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.danPor}
+                onChange={(e) => patch({ danPor: e.target.checked })}
+                className="size-4"
+              />
+              <span className="text-sm text-foreground">
+                Zpracoval daňový poradce
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Každá z těchto možností prodlužuje lhůtu podle § 136 daňového řádu
+              na 6 měsíců po skončení zdaňovacího období.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-medium text-muted-foreground">
+              Sbírka listin (příloha č. 11)
+            </span>
+            <span className="flex items-center gap-2 py-1.5">
+              <input
+                type="checkbox"
+                checked={form.sbirkaListin}
+                onChange={(e) => patch({ sbirkaListin: e.target.checked })}
+                className="size-4"
+              />
+              <span className="text-sm text-foreground">
+                Žádám o předání závěrky rejstříkovému soudu
+              </span>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              § 21b odst. 3 ZoÚ — finanční úřad předá rozvahu, VZZ a přílohu do
+              sbírky listin, takže se závěrka nepodává zvlášť.
+            </span>
+          </label>
+          {form.sbirkaListin ? (
+            <TextField
+              label="E-mail pro potvrzení o předání"
+              value={form.sbirkaEmail}
+              onChange={(v) => set("sbirkaEmail", v)}
+              placeholder="ucetni@firma.cz"
+              hint="Vlastní adresa, nikoli adresa rejstříkového soudu."
+            />
+          ) : null}
         </div>
       </section>
 

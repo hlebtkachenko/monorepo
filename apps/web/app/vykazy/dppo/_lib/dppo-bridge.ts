@@ -7,6 +7,7 @@ import type {
   DppoFilingMeta,
   DppoPriloha,
   DppoTabulkaB,
+  DppoZadostSbirka,
   DppoZaverka,
 } from "@workspace/filing/dppo"
 
@@ -146,6 +147,23 @@ export interface DppoFormState {
   katUj: string
   /** I. oddíl pol. 11 — účetní závěrka přiložena jako E-přílohy v EPO. */
   ucZav: boolean
+  /** Telefon poplatníka — EPO prints it and uses it for queries. */
+  cTelef: string
+  /** Osoba oprávněná jednat za poplatníka (I. oddíl, "Podpis"). */
+  oprJmeno: string
+  oprPrijmeni: string
+  oprPostaveni: string
+  /** Účetní závěrka ověřena auditorem. With `danPor`, decides the § 136 DŘ deadline. */
+  audit: boolean
+  /** Přiznání zpracoval a předkládá daňový poradce. */
+  danPor: boolean
+  /**
+   * Žádost o předání účetní závěrky do sbírky listin (§ 21b odst. 3 ZoÚ) — the
+   * FÚ forwards the závěrka to the rejstříkový soud, so it is filed once.
+   */
+  sbirkaListin: boolean
+  /** E-mail for the confirmation. The filer's own, never the soud's. */
+  sbirkaEmail: string
   /** Tabulka A — rozpis ř.40 podle účtových skupin (max 12 řádků). */
   tabulkaA: TabulkaARadek[]
   /** Tabulka B — daňové odpisy podle odpisových skupin, keyed by řádek. */
@@ -308,6 +326,11 @@ export function toMeta(
     // "A" only declares that the E-přílohy will be there; attaching Rozvahu,
     // VZZ and Přílohu účetní závěrky is a step the filer does in EPO.
     uc_zav: form.ucZav ? "A" : "N",
+    // Řádná závěrka: this builder only produces one drawn up to the rozvahový
+    // den of the zdaňovací období, never a mimořádná or mezitímní one.
+    uz_rad: "T",
+    audit: form.audit ? "A" : "N",
+    dan_por: form.danPor ? "A" : "N",
     // Vyhláška č. 500/2002 Sb. — the podnikatel výkazy this builder produces.
     uv_vyhl: "500",
     // Povinné od roku 2024. The builder reports v celých tisících Kč; § 24a ZoÚ
@@ -331,7 +354,37 @@ export function toMeta(
   if (psc) meta.psc = psc
   const nace = form.cNace.replace(/\s/g, "").trim()
   if (nace) meta.c_nace = nace
+  // Rozvahový den. The org block already carries it as the "ke dni" the výkazy
+  // are drawn up to, so the filer does not retype it.
+  const keDni = org.keDni.trim()
+  if (keDni) meta.d_uv = keDni
+  const telef = form.cTelef.replace(/\s/g, "").trim()
+  if (telef) meta.c_telef = telef
+  const oprJmeno = form.oprJmeno.trim()
+  if (oprJmeno) meta.opr_jmeno = oprJmeno
+  const oprPrijmeni = form.oprPrijmeni.trim()
+  if (oprPrijmeni) meta.opr_prijmeni = oprPrijmeni
+  const oprPostaveni = form.oprPostaveni.trim()
+  if (oprPostaveni) meta.opr_postaveni = oprPostaveni
   return meta
+}
+
+/**
+ * Žádost o předání účetní závěrky do sbírky listin, or undefined when the
+ * poplatník does not ask for one.
+ *
+ * A podnikatel draws up rozvaha, VZZ and příloha (§ 18 odst. 1), so those three
+ * are what the žádost covers. The přehledy (§ 18 odst. 2) and the MÚS závěrka
+ * (§ 19a) are outside what this builder produces, so they are never requested.
+ */
+export function toZadost(form: DppoFormState): DppoZadostSbirka | undefined {
+  if (!form.sbirkaListin) return undefined
+  return {
+    rozvaha: true,
+    vzz: true,
+    priloha: true,
+    email: form.sbirkaEmail.trim() || undefined,
+  }
 }
 
 /**

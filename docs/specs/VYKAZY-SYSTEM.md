@@ -159,10 +159,16 @@ Věty, in XSD sequence order (`DPPO_EXTRA_VETA_TAGS` in
 | `VetaE`  | 0..1        | tabulka A celkem                                            |
 | `VetaF`  | 0..1        | tabulka B, daňové odpisy                                    |
 | `VetaS`  | 0..1        | tabulka K, čistý obrat + počet zaměstnanců                  |
-| `VetaUA` | 0..∞        | Rozvaha, `c_radku` + brutto/korekce/netto/netto minulé      |
-| `VetaUB` | 0..∞        | Rozvaha pasiva, `c_radku` + `kc_sled`/`kc_min`              |
-| `VetaUD` | 0..∞        | VZZ druhové členění, `c_radku` + `kc_sled`/`kc_min`         |
-| `VetaUZ` | 0..1        | žádost o předání závěrky do sbírky listin (**not emitted**) |
+| `VetaUA` | 0..∞        | Rozvaha AKTIVA, `c_radku` + brutto/korekce/netto/netto min. |
+| `VetaUB` | 0..∞        | **VZZ** druhové členění, `c_radku` + `kc_sled`/`kc_min`     |
+| `VetaUD` | 0..∞        | **Rozvaha PASIVA**, `c_radku` + `kc_sled`/`kc_min`          |
+| `VetaUZ` | 0..1        | žádost o předání závěrky do sbírky listin                   |
+
+`VetaUB` is the VZZ and `VetaUD` is pasiva, NOT the other way round. Both are the
+same two-column shape and the XSD documents neither by name, so the block order
+reads backwards; the assignment is pinned to a submitted return in
+`zaverka.test.ts`. The XSD cannot catch a swap, since both věty accept identical
+attributes.
 
 `readDppo` captures every recognised věta into `extraVety` in XSD order, so a
 document read → edited → written round-trips losslessly.
@@ -265,8 +271,19 @@ pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
 
 ## Known gaps
 
-- `VetaUZ` is not emitted. The žádost o předání účetní závěrky do sbírky listin
-  (`pr11_rozv`, `pr11_vzz`, `pr11_puz`, `pr11_email`) has to be ticked in EPO.
+- `VetaA` (samostatná příloha, transakce se spojenými osobami) is not emitted.
+  Its 40 attributes are 16 transaction pairs plus an identity block, and the
+  entry surface is a repeating 40-column table, so it is a feature rather than a
+  gap fix. `spoj_zahr` in `VetaD` belongs with it and is left unset too.
+- `c_pracufo` in `VetaP` (územní pracoviště) needs the FÚ číselník, which the
+  repo does not vendor. `c_ufo_cil` already names the finanční úřad.
+- `kc_v_4` (zálohy, § 38b) is derived from ř.340 and belongs to the totals chain
+  in `compute.ts`, not to filing meta.
+- `uz_dle_mus` is left unset on purpose: it is "A" only for a § 19a entity, and
+  guessing "N" for everyone would be wrong for exactly those.
+- `sam_pr`, `zvl_pr` and `p_pr_2od` are NOT gaps. The XSD says each "se vyplňuje
+  automaticky" — EPO counts the přílohy itself. `c_obce` likewise carries
+  "V generovaném souboru nemusí být vyplněno".
 - Tabulka B and ř.150 are user-entered. Nothing derives daňové odpisy from a
   majetek register, so a return can charge full účetní odpisy on ř.50 and claim
   zero daňových.
@@ -274,6 +291,5 @@ pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
   figures do not move when the deník moves. Re-check them after a deník reimport.
 - VZZ účelové členění (příloha č. 3) is not implemented. Only `VetaUD`, the
   druhové členění, is produced.
-- `c_telef` in `VetaP` is not collected.
 - The DPPO form is component state. It is not part of `VykazyDoc` and does not
   survive a reload.

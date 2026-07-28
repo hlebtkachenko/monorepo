@@ -15,6 +15,7 @@ import {
   toFigures,
   toMeta,
   toZaverka,
+  toZadost,
   toPriloha,
   missingRequired,
   type DppoFormState,
@@ -133,6 +134,14 @@ function form(overrides: Partial<DppoFormState> = {}): DppoFormState {
     dic: "CZ12345679",
     cUfoCil: "451",
     cNace: "",
+    cTelef: "",
+    oprJmeno: "",
+    oprPrijmeni: "",
+    oprPostaveni: "",
+    audit: false,
+    danPor: false,
+    sbirkaListin: false,
+    sbirkaEmail: "",
     typPopldpp: "1",
     zdobdOd: "1.1.2024",
     zdobdDo: "31.12.2024",
@@ -399,5 +408,79 @@ describe("toZaverka", () => {
       "korekce",
     )
     expect(z.aktiva.find((r) => r.radek === "001")).toHaveProperty("korekce")
+  })
+})
+
+describe("toZadost", () => {
+  it("asks for the three výkazy a podnikatel draws up", () => {
+    expect(
+      toZadost(form({ sbirkaListin: true, sbirkaEmail: "u@f.cz" })),
+    ).toEqual({
+      // prettier-ignore
+      rozvaha: true,
+      vzz: true,
+      priloha: true,
+      email: "u@f.cz",
+    })
+  })
+
+  it("is undefined when the poplatník does not ask", () => {
+    expect(toZadost(form({ sbirkaListin: false }))).toBeUndefined()
+  })
+
+  it("omits a blank e-mail rather than sending an empty one", () => {
+    expect(toZadost(form({ sbirkaListin: true, sbirkaEmail: "  " }))?.email).toBeUndefined() // prettier-ignore
+  })
+})
+
+describe("toMeta — poplatník and lhůta", () => {
+  const org = {
+    nazev: "Firma s.r.o.",
+    ico: "12345679",
+    sidlo: "Ulice 12",
+    psc: "180 00",
+    obec: "Praha 8",
+    stat: "Česká republika",
+    pravniForma: "s.r.o.",
+    predmetPodnikani: "",
+    rok: "2025",
+    mesic: "12",
+    keDni: "31.12.2025",
+    sestavenoDne: "",
+    schvalenoDne: "",
+    vTisicich: true,
+  }
+
+  it("carries the signatory, the phone and the rozvahový den", () => {
+    const m = toMeta(
+      form({
+        cTelef: "601 020 304",
+        oprJmeno: "Jan",
+        oprPrijmeni: "Novák",
+        oprPostaveni: "STATUTÁRNÍ ORGÁN",
+      }),
+      org,
+      "plny",
+    )
+    expect(m.c_telef).toBe("601020304")
+    expect(m.opr_jmeno).toBe("Jan")
+    expect(m.opr_prijmeni).toBe("Novák")
+    expect(m.opr_postaveni).toBe("STATUTÁRNÍ ORGÁN")
+    // Taken from the org block, not retyped: it is the same "ke dni" the výkazy
+    // are drawn up to.
+    expect(m.d_uv).toBe("31.12.2025")
+  })
+
+  it("reports audit and daňový poradce, which set the § 136 lhůta", () => {
+    expect(toMeta(form({ audit: true, danPor: false }), org, "plny")).toMatchObject({ audit: "A", dan_por: "N" }) // prettier-ignore
+    expect(toMeta(form({ audit: false, danPor: true }), org, "plny")).toMatchObject({ audit: "N", dan_por: "A" }) // prettier-ignore
+    // The builder only ever draws up a řádná závěrka.
+    expect(toMeta(form(), org, "plny").uz_rad).toBe("T")
+  })
+
+  it("leaves an unfilled signatory out entirely", () => {
+    const m = toMeta(form(), org, "plny")
+    expect(m.opr_jmeno).toBeUndefined()
+    expect(m.c_telef).toBeUndefined()
   })
 })

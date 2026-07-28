@@ -13,10 +13,11 @@
 // the Advisor review before Hleb signs off.
 
 import Decimal from "decimal.js-light"
-import { koruna } from "../envelope"
+import { epoDate, koruna } from "../envelope"
 import { applyDppoTotals } from "./compute"
 import { buildPrilohaVety, type DppoPriloha } from "./priloha"
 import { buildZaverkaVety, type DppoZaverka } from "./zaverka"
+import { buildZadostVety, type DppoZadostSbirka } from "./zadost"
 import { DppoSchema, type DppoInput } from "../../../model/dppo"
 
 /** Identity + period metadata (supplied by the org, not part of the tax figures). */
@@ -34,7 +35,20 @@ export interface DppoFilingMeta {
   naz_obce?: string
   ulice?: string
   c_pop?: string
+  /** Číslo orientační, when the address carries one alongside č. popisné. */
+  c_orient?: string
   psc?: string
+  /** Telefon poplatníka. EPO prints it on the return and uses it for queries. */
+  c_telef?: string
+  /**
+   * Osoba oprávněná jednat za poplatníka (I. oddíl, "Podpis"). Not the same as
+   * the účetní jednotka: it is the statutární orgán or the zmocněnec who signs,
+   * so a return with no `opr_*` names nobody as the signatory.
+   */
+  opr_jmeno?: string
+  opr_prijmeni?: string
+  /** e.g. "STATUTÁRNÍ ORGÁN". */
+  opr_postaveni?: string
   /** Převažující ekonomická činnost (CZ-NACE), numeric. */
   c_nace?: string
   /**
@@ -70,6 +84,24 @@ export interface DppoFilingMeta {
   typ_popldpp?: string
   /** Forma přiznání (default "B" — řádné). */
   forma?: string
+  /**
+   * Rozvahový den (§ 19 odst. 1 ZoÚ) — the day the závěrka is drawn up to. Not
+   * derivable from `zdobd_do`: a závěrka can be mimořádná, and EPO carries the
+   * two independently.
+   */
+  d_uv?: string
+  /**
+   * Účetní závěrka ověřena auditorem ("A"/"N"). Together with `dan_por` this
+   * decides the § 136 DŘ deadline, so it is not cosmetic.
+   */
+  audit?: string
+  /** Přiznání zpracoval a předkládá daňový poradce ("A"/"N"). */
+  dan_por?: string
+  /**
+   * Jednotka účetních výkazů: "T" celé tisíce, "M" miliony (XSD `uz_rad`). NOT
+   * the kind of závěrka. Kritická kontrola: must be filled once any výkaz is.
+   */
+  uz_rad?: string
 }
 
 /**
@@ -139,6 +171,7 @@ export function buildDppoFromAccounting(
   meta: DppoFilingMeta,
   priloha?: DppoPriloha,
   zaverka?: DppoZaverka,
+  zadost?: DppoZadostSbirka,
 ): DppoInput {
   // VetaO detail lines the worksheet produces (attribute map in the grounding doc).
   const vetaO = nonZeroKoruna({
@@ -153,6 +186,15 @@ export function buildDppoFromAccounting(
     kc_ii270_280: new Decimal(figures.sazba || 0).times(100).toFixed(0),
     kc_ii290_300: figures.slevy, // ř.300 slevy §35
   })
+
+  // ř.10 carries the day the výsledek hospodaření is struck to. `dateInMultiFormat`
+  // in the XSD, so it is set beside the amounts rather than through
+  // `nonZeroKoruna`, which would treat it as a částka — and normalized here,
+  // because the writer only runs `epoDate` over the VetaD attrs in
+  // DPPO_HEADER_DATE_ATTRS and emits VetaO verbatim. Same rozvahový den as the
+  // závěrka: the VH on ř.10 IS the one the výkazy foot to.
+  const rozvahovyDen = epoDate(meta.d_uv)
+  if (rozvahovyDen) vetaO.d_hospvysl = rozvahovyDen
 
   const model: DppoInput = {
     header: {
@@ -171,6 +213,10 @@ export function buildDppoFromAccounting(
       ...(meta.uv_rozsah ? { uv_rozsah: meta.uv_rozsah } : {}),
       ...(meta.uv_rozsah_rozv ? { uv_rozsah_rozv: meta.uv_rozsah_rozv } : {}),
       ...(meta.uv_rozsah_vzz ? { uv_rozsah_vzz: meta.uv_rozsah_vzz } : {}),
+      ...(meta.d_uv ? { d_uv: meta.d_uv } : {}),
+      ...(meta.audit ? { audit: meta.audit } : {}),
+      ...(meta.dan_por ? { dan_por: meta.dan_por } : {}),
+      ...(meta.uz_rad ? { uz_rad: meta.uz_rad } : {}),
     },
     payer: nonEmpty({
       dic: meta.dic,
@@ -178,14 +224,22 @@ export function buildDppoFromAccounting(
       naz_obce: meta.naz_obce,
       ulice: meta.ulice,
       c_pop: meta.c_pop,
+      c_orient: meta.c_orient,
       psc: meta.psc,
+      c_telef: meta.c_telef,
+      opr_jmeno: meta.opr_jmeno,
+      opr_prijmeni: meta.opr_prijmeni,
+      opr_postaveni: meta.opr_postaveni,
     }),
     vetaO,
     // Daňové přílohy first, then the účetní závěrka — DPPO_EXTRA_VETA_TAGS puts
     // the U-block after them, and the writer emits extraVety in array order.
+    // XSD sequence: daňové přílohy (VetaU…S) -> účetní závěrka (VetaUA/UB/UD)
+    // -> žádost o sbírku listin (VetaUZ), which DPPO_EXTRA_VETA_TAGS puts last.
     extraVety: [
       ...(priloha ? buildPrilohaVety(priloha) : []),
       ...(zaverka ? buildZaverkaVety(zaverka) : []),
+      ...(zadost ? buildZadostVety(zadost) : []),
     ],
   }
 

@@ -203,6 +203,25 @@ function checkPriloha(model: Dppo, o: Record<string, string>): DppoCheck[] {
     out.push({ severity: "warning", code: "uc_zav.required", field: "header.uc_zav", message: "I. oddíl pol. 11 deklaruje, že účetní závěrka NENÍ přiložena; účetní jednotka ji podle § 18 zákona o účetnictví přikládá.", suggestion: "A + vložit Rozvahu, VZZ a Přílohu jako E-přílohy v EPO" }) // prettier-ignore
   }
 
+  // `d_uv` is use="optional" in the XSD but carries a kritická kontrola: it must
+  // be filled once any výkaz is present or the žádost (VetaUZ) is made. xmllint
+  // therefore passes a return EPO rejects at "Načíst písemnost", which is the
+  // one failure mode a green XSD badge actively hides.
+  const VYKAZ_VETY = ["VetaUA", "VetaUB", "VetaUD", "VetaUZ"]
+  if (
+    !h.d_uv &&
+    VYKAZ_VETY.some((tag) => vetaAttrs(model, tag) !== undefined)
+  ) {
+    out.push({ severity: "warning", code: "d_uv.required", field: "header.d_uv", message: "Rozvahový den (I. oddíl) musí být vyplněn, je-li přiložen výkaz nebo žádost o předání účetní závěrky.", suggestion: "Doplnit \"Ke dni\" v údajích účetní jednotky" }) // prettier-ignore
+  }
+  // Same kritická kontrola on the unit of the výkazy.
+  if (
+    !h.uz_rad &&
+    VYKAZ_VETY.some((tag) => vetaAttrs(model, tag) !== undefined)
+  ) {
+    out.push({ severity: "warning", code: "uz_rad.required", field: "header.uz_rad", message: "Jednotka účetních výkazů (celé tisíce / miliony) není vyplněna.", suggestion: "T" }) // prettier-ignore
+  }
+
   // ř.40 ⇄ tabulka A ř.13 (Pokyny, k ř. 40).
   const r40 = toNum(o.kc_ii50_40)
   const tabulkaA = vetaAttrs(model, "VetaE")

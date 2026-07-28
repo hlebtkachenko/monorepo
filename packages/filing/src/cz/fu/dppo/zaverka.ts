@@ -13,22 +13,30 @@ import type { DppoExtraVeta } from "../../../model/dppo"
 /**
  * Věta per výkaz table.
  *
- * `VetaUA` is the only four-column shape in the podnikatel block
- * (brutto / korekce / netto / minulé netto), which is the rozvaha's AKTIVA side;
- * `VetaUB` is the two-column shape that follows it, which is PASIVA (běžné /
- * minulé). They have to be separate věty: EPO numbers aktiva 1–81 and pasiva
- * 1–69 in two independent spaces, and `c_radku` carries a "nesmí být duplicitní"
- * critical control, so one list could not hold both. `VetaUD` is then the první
- * VZZ table, druhové členění, and `VetaUE` the účelové one we do not emit.
+ * `VetaUA` is the only four-column shape (brutto / korekce / netto / minulé
+ * netto), which is the rozvaha's AKTIVA side. `VetaUB` and `VetaUD` are both the
+ * two-column shape, and which is which cannot be read off the XSD: it documents
+ * neither by name and gives both the same attributes.
  *
- * The XSD documents neither table by name, so the assignment comes from the
- * column shapes plus the block order, which matches the order EPO lists the
- * forms in. Confirm once by loading a generated XML in EPO: the three tables
- * fill in, and nothing lands in "účelové členění".
+ * Taken from a REAL submitted DPPDP9 (BD Nehvizdy FY2025, accepted by the
+ * portal), row by row against the printed výkazy:
+ *
+ *   VetaUB c_radku 6  = 53 418   -> VZZ ř.006 A.3. Služby
+ *   VetaUB c_radku 49 = -4 849   -> VZZ ř.049 VH před zdaněním
+ *   VetaUB runs 1..56, and the VZZ druhové členění has exactly 56 řádků
+ *   VetaUD c_radku 1  = 130 347  -> rozvaha PASIVA CELKEM
+ *   VetaUD c_radku 24 = 134 474  -> pasiva B.+C. Cizí zdroje (ours 023)
+ *   VetaUD c_radku 30 = 134 474  -> pasiva C. Závazky (ours 029)
+ *
+ * So `VetaUB` is the VZZ and `VetaUD` is PASIVA — the opposite of what the
+ * block order suggests, which is how this was first got wrong. Aktiva and pasiva
+ * still have to be separate věty: EPO numbers them 1–81 and 1–69 in independent
+ * spaces and `c_radku` carries a "nesmí být duplicitní" critical control.
+ * `VetaUE` is the účelové VZZ variant, which we do not emit.
  */
 const AKTIVA_VETA = "VetaUA"
-const PASIVA_VETA = "VetaUB"
-const VZZ_DRUHOVE_VETA = "VetaUD"
+const VZZ_DRUHOVE_VETA = "VetaUB"
+const PASIVA_VETA = "VetaUD"
 
 /**
  * Our číslo řádku → EPO `c_radku`, as [from, to, offset] over our numbering.
@@ -144,8 +152,8 @@ function dvousloupcovaVeta(
 }
 
 /**
- * Build the účetní závěrka věty, in XSD sequence order (VetaUA → VetaUB →
- * VetaUD).
+ * Build the účetní závěrka věty, in XSD sequence order: VetaUA (aktiva) →
+ * VetaUB (VZZ) → VetaUD (pasiva).
  *
  * The caller passes the rows of the časové-rozlišení variant it actually
  * reports and leaves the other variant out entirely: filling both would put the
@@ -157,6 +165,15 @@ export function buildZaverkaVety(zaverka: DppoZaverka): DppoExtraVeta[] {
   for (const radek of zaverka.aktiva) {
     vety.push(rozvahaVeta(AKTIVA_VETA, radek, AKTIVA_RADKY))
   }
+  // VZZ before pasiva: the writer emits extraVety in array order, and the XSD
+  // sequence is VetaUA -> VetaUB (VZZ) -> VetaUD (pasiva).
+  for (const radek of zaverka.vzz) {
+    const n = Number(radek.radek)
+    if (n < 1 || n > VZZ_RADKU) {
+      throw new Error(`Řádek ${radek.radek} není řádkem výkazu zisku a ztráty.`)
+    }
+    vety.push(dvousloupcovaVeta(VZZ_DRUHOVE_VETA, radek, n))
+  }
   for (const radek of zaverka.pasiva) {
     vety.push(
       dvousloupcovaVeta(
@@ -165,13 +182,6 @@ export function buildZaverkaVety(zaverka: DppoZaverka): DppoExtraVeta[] {
         mapRadek(radek.radek, PASIVA_RADKY),
       ),
     )
-  }
-  for (const radek of zaverka.vzz) {
-    const n = Number(radek.radek)
-    if (n < 1 || n > VZZ_RADKU) {
-      throw new Error(`Řádek ${radek.radek} není řádkem výkazu zisku a ztráty.`)
-    }
-    vety.push(dvousloupcovaVeta(VZZ_DRUHOVE_VETA, radek, n))
   }
   return vety
 }

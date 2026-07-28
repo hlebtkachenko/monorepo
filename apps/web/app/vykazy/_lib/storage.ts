@@ -344,6 +344,16 @@ function coerceRozvrh(input: unknown): RozvrhAccount[] | undefined {
     if (ucet === "" || nazev === "") continue
     const account: RozvrhAccount = { ucet, nazev }
     if (typeof raw.opravkovy === "boolean") account.opravkovy = raw.opravkovy
+    // Placement override, both halves or neither. Validity (leaf řádek, not a
+    // syntetický účet) is re-checked by buildPlacementLookup at read time, so a
+    // document written against an older layout degrades to the vyhláška rather
+    // than filing a number on a cell that no longer exists.
+    const vykaz = asString(raw.vykaz).trim()
+    const rada = asString(raw.rada).trim()
+    if (vykaz !== "" && rada !== "" && VALUES_KEY[vykaz as StatementKey]) {
+      account.vykaz = vykaz as StatementKey
+      account.rada = rada
+    }
     out.push(account)
   }
   return out.length > 0 ? out : undefined

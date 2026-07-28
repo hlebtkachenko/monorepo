@@ -6,24 +6,40 @@
 // document (JSON export + localStorage) and out again as CSV, so a name fixed
 // here can be carried into the sheet the chart came from.
 //
-// This page never places an account on a výkaz řádek. Placement is the
-// vyhláška's, resolved from the syntetický účet in mapping.ts; the chart supplies
-// names and the oprávkovy flag, nothing else.
+// A syntetický účet's placement is the vyhláška's and is shown read-only. An
+// analytický účet's is the účetní jednotka's (§ 14), so it gets a picker: the
+// same synthetic can carry analytics that report on different řádky — 395
+// vnitřní zúčtování splits into a pohledávka and a závazek. Only leaf řádky are
+// offered; a calculated one is the sum of its children and would double-count.
 
 import { useMemo, useState } from "react"
 
 import { Button } from "@workspace/ui/components/button"
 
 import { useOrg } from "../_lib/org-context"
-import { rozvrhCsv, type RozvrhAccount } from "../_lib/rozvrh"
+import {
+  leafOptions,
+  rozvrhCsv,
+  VYKAZ_NAZEV,
+  type RozvrhAccount,
+} from "../_lib/rozvrh"
+import type { StatementKey } from "../_lib/storage"
 
-type Filter = "vse" | "vdeniku" | "chybejici" | "opravkove"
+type Filter = "vse" | "vdeniku" | "chybejici" | "opravkove" | "zarazene"
 
 const FILTER_LABEL: Record<Filter, string> = {
   vse: "Vše",
   vdeniku: "Účtované v deníku",
   chybejici: "Chybí v rozvrhu",
   opravkove: "Oprávkové",
+  zarazene: "Vlastní zařazení",
+}
+
+const VYKAZY: StatementKey[] = ["rozvaha-aktiva", "rozvaha-pasiva", "vzz"]
+
+/** A syntetický účet is the bare 3-digit number, or a 6-digit one ending 000. */
+function isSynteticky(ucet: string): boolean {
+  return ucet.length === 3 || /^\d{3}0+$/.test(ucet)
 }
 
 function download(content: string, filename: string) {
@@ -39,7 +55,8 @@ function download(content: string, filename: string) {
 }
 
 export function RozvrhTable() {
-  const { rozvrh, predvaha, importRozvrh, resolveUcetName, org } = useOrg()
+  const { rozvrh, predvaha, importRozvrh, resolveUcetName, org, crVariant } =
+    useOrg()
   const [filter, setFilter] = useState<Filter>("vse")
   const [query, setQuery] = useState("")
   const [novyUcet, setNovyUcet] = useState("")
@@ -65,6 +82,7 @@ export function RozvrhTable() {
       .filter((a) => {
         if (filter === "vdeniku" && !posted.has(a.ucet)) return false
         if (filter === "opravkove" && !a.opravkovy) return false
+        if (filter === "zarazene" && a.vykaz === undefined) return false
         return true
       })
       .filter(
@@ -80,6 +98,19 @@ export function RozvrhTable() {
       ...change,
     }
     importRozvrh([...rozvrh.filter((a) => a.ucet !== ucet), next])
+  }
+
+  // Clearing the výkaz clears the řádek with it: half a placement would be
+  // carried into the CSV and refused on the way back in. Setting one seeds the
+  // first leaf of that statement so the row is never a statement with no řádek.
+  const setVykaz = (a: RozvrhAccount, raw: string) => {
+    if (raw === "") {
+      patch(a.ucet, { vykaz: undefined, rada: undefined })
+      return
+    }
+    const vykaz = raw as StatementKey
+    const options = leafOptions(vykaz, crVariant)
+    patch(a.ucet, { vykaz, rada: a.rada ?? options[0]?.rada })
   }
 
   const remove = (ucet: string) =>
@@ -185,6 +216,7 @@ export function RozvrhTable() {
               <th className="px-2 py-1 text-left font-semibold">Účet</th>
               <th className="px-2 py-1 text-left font-semibold">Název</th>
               <th className="px-2 py-1 text-center font-semibold">Oprávkový</th>
+              <th className="px-2 py-1 text-left font-semibold">Zařazení</th>
               <th className="px-2 py-1 text-center font-semibold">V deníku</th>
               <th className="px-2 py-1" />
             </tr>
@@ -211,6 +243,45 @@ export function RozvrhTable() {
                     aria-label={`Účet ${a.ucet} je oprávkový`}
                   />
                 </td>
+                <td className="px-1 py-0.5">
+                  {isSynteticky(a.ucet) ? (
+                    <span className="px-1 text-xs text-muted-foreground">
+                      dle vyhlášky
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={a.vykaz ?? ""}
+                        onChange={(e) => setVykaz(a, e.target.value)}
+                        aria-label={`Výkaz účtu ${a.ucet}`}
+                        className="h-6 rounded border border-transparent bg-transparent px-1 hover:border-border focus:border-border focus:bg-background focus:outline-none"
+                      >
+                        <option value="">dle vyhlášky</option>
+                        {VYKAZY.map((v) => (
+                          <option key={v} value={v}>
+                            {VYKAZ_NAZEV[v]}
+                          </option>
+                        ))}
+                      </select>
+                      {a.vykaz ? (
+                        <select
+                          value={a.rada ?? ""}
+                          onChange={(e) =>
+                            patch(a.ucet, { rada: e.target.value })
+                          }
+                          aria-label={`Řádek účtu ${a.ucet}`}
+                          className="h-6 min-w-0 flex-1 rounded border border-border bg-background px-1 focus:outline-none"
+                        >
+                          {leafOptions(a.vykaz, crVariant).map((o) => (
+                            <option key={o.rada} value={o.rada}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : null}
+                    </div>
+                  )}
+                </td>
                 <td className="px-2 py-0.5 text-center text-muted-foreground">
                   {posted.has(a.ucet) ? "✓" : ""}
                 </td>
@@ -229,7 +300,7 @@ export function RozvrhTable() {
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-2 py-6 text-center text-muted-foreground"
                 >
                   {rozvrh.length === 0
@@ -243,9 +314,10 @@ export function RozvrhTable() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Rozvrh určuje názvy účtů a příznak oprávkového účtu. Zařazení účtu do
-        řádku výkazu se odvozuje ze syntetického účtu podle vyhlášky č. 500/2002
-        Sb. a rozvrhem je změnit nelze.
+        Rozvrh určuje názvy účtů, příznak oprávkového účtu a u analytických účtů
+        i zařazení do řádku výkazu. Syntetické účty zařazuje vyhláška č.
+        500/2002 Sb. a rozvrhem je změnit nelze. Nabízejí se jen součtové listy
+        výkazu: na počítaný řádek účet zařadit nelze, sečetl by se dvakrát.
       </p>
     </section>
   )

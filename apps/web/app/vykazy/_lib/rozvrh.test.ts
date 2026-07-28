@@ -8,6 +8,9 @@ import { describe, expect, it } from "vitest"
 import {
   buildNameLookup,
   buildOpravkovyLookup,
+  buildPlacementLookup,
+  isLeafRada,
+  leafOptions,
   parseRozvrhCsv,
   rozvrhCsv,
   rozvrhCsvTemplate,
@@ -107,9 +110,16 @@ describe("parseRozvrhCsv", () => {
   it("round-trips its own template", () => {
     const result = parseRozvrhCsv(rozvrhCsvTemplate())
     expect(result.headerOk).toBe(true)
-    expect(result.accounts).toHaveLength(3)
+    expect(result.accounts).toHaveLength(4)
     expect(result.accounts[2]?.opravkovy).toBe(true)
+    // The last example carries a placement override, so it must survive too.
+    expect(result.accounts[3]).toMatchObject({
+      ucet: "395002",
+      vykaz: "rozvaha-pasiva",
+      rada: "062",
+    })
     expect(result.skipped).toEqual([])
+    expect(result.rejectedPlacements).toEqual([])
     expect(result.ignoredColumns).toEqual([])
   })
 })
@@ -197,5 +207,104 @@ describe("buildOpravkovyLookup", () => {
     expect(isOpravkovy("082001")).toBe(true)
     expect(isOpravkovy("022001")).toBe(false)
     expect(isOpravkovy("082000")).toBe(true)
+  })
+})
+
+describe("placement overrides", () => {
+  it("parses a Výkaz + Řádek pair on an analytický účet", () => {
+    const result = parseRozvrhCsv(
+      [
+        "Účet;Název;Oprávkový;Výkaz;Řádek",
+        "395002;Vnitřní zúčtování: závazky;Ne;Pasiva;006",
+      ].join("\n"),
+    )
+    expect(result.rejectedPlacements).toEqual([])
+    expect(result.accounts[0]).toMatchObject({
+      ucet: "395002",
+      vykaz: "rozvaha-pasiva",
+      rada: "006",
+    })
+  })
+
+  it("refuses to place a syntetický účet, which the vyhláška owns", () => {
+    const result = parseRozvrhCsv(
+      ["Účet;Název;Výkaz;Řádek", "395;Vnitřní zúčtování;Pasiva;006"].join("\n"),
+    )
+    expect(result.accounts[0]?.vykaz).toBeUndefined()
+    expect(result.rejectedPlacements).toHaveLength(1)
+    expect(result.rejectedPlacements[0]).toContain("syntetický")
+  })
+
+  it("refuses a calculated řádek, which would double-count the account", () => {
+    // Aktiva ř.001 is AKTIVA CELKEM: the sum of its children, not a leaf.
+    const result = parseRozvrhCsv(
+      ["Účet;Název;Výkaz;Řádek", "311001;Odběratelé A;Aktiva;001"].join("\n"),
+    )
+    expect(result.accounts[0]?.vykaz).toBeUndefined()
+    expect(result.rejectedPlacements[0]).toContain("001")
+  })
+
+  it("refuses half a placement", () => {
+    const result = parseRozvrhCsv(
+      ["Účet;Název;Výkaz;Řádek", "311001;Odběratelé A;Aktiva;"].join("\n"),
+    )
+    expect(result.accounts[0]?.vykaz).toBeUndefined()
+    expect(result.rejectedPlacements).toHaveLength(1)
+  })
+
+  it("round-trips a placement through the CSV", () => {
+    const csv = rozvrhCsv([
+      { ucet: "395002", nazev: "Vnitřní zúčtování: závazky", vykaz: "rozvaha-pasiva", rada: "006" }, // prettier-ignore
+      { ucet: "311001", nazev: "Odběratelé A" },
+    ])
+    const back = parseRozvrhCsv(csv)
+    expect(back.rejectedPlacements).toEqual([])
+    expect(back.accounts.find((a) => a.ucet === "395002")).toMatchObject({
+      vykaz: "rozvaha-pasiva",
+      rada: "006",
+    })
+    expect(
+      back.accounts.find((a) => a.ucet === "311001")?.vykaz,
+    ).toBeUndefined()
+  })
+
+  it("offers only leaf řádky as placement targets", () => {
+    const options = leafOptions("rozvaha-aktiva", "D")
+    expect(options.some((o) => o.rada === "001")).toBe(false)
+    expect(options.some((o) => o.rada === "005")).toBe(true)
+    expect(isLeafRada("rozvaha-aktiva", "001")).toBe(false)
+    expect(isLeafRada("rozvaha-aktiva", "005")).toBe(true)
+  })
+})
+
+describe("buildPlacementLookup", () => {
+  it("answers only for the exact account that carries the override", () => {
+    const placementOf = buildPlacementLookup([
+      {
+        ucet: "395002",
+        nazev: "Závazky",
+        vykaz: "rozvaha-pasiva",
+        rada: "006",
+      },
+    ])
+    expect(placementOf("395002")).toEqual({
+      vykaz: "rozvaha-pasiva",
+      rada: "006",
+    })
+    // A sibling analytika of the same synthetic keeps the law mapping.
+    expect(placementOf("395001")).toBeUndefined()
+  })
+
+  it("drops an override that no longer names a leaf", () => {
+    const placementOf = buildPlacementLookup([
+      { ucet: "311001", nazev: "Odběratelé A", vykaz: "rozvaha-aktiva", rada: "001" }, // prettier-ignore
+      { ucet: "311002", nazev: "Odběratelé B", vykaz: "rozvaha-aktiva", rada: "999" }, // prettier-ignore
+    ])
+    expect(placementOf("311001")).toBeUndefined()
+    expect(placementOf("311002")).toBeUndefined()
+  })
+
+  it("is empty when nothing is loaded", () => {
+    expect(buildPlacementLookup()("311001")).toBeUndefined()
   })
 })

@@ -11,9 +11,10 @@
 // XSD alone — flagged there and gated by the Advisor review before Hleb signs off.
 
 import Decimal from "decimal.js-light"
-import { koruna, haler } from "./envelope"
+import { koruna, korunaNahoru, haler } from "./envelope"
 import type { Dphdp3Input } from "../../model/dphdp3"
 import type { Dphkh1Input } from "../../model/dphkh1"
+import type { DphshvInput } from "../../model/dphshv"
 
 /** Identity + period metadata (not part of the accounting figures — supplied by the org). */
 export interface FuFilingMeta {
@@ -322,4 +323,92 @@ export function buildDphkh1FromAccounting(
 /** Exact sum of two decimal strings (money rule — never native number arithmetic). */
 function addStr(a: string, b: string): string {
   return new Decimal(a || 0).plus(new Decimal(b || 0)).toString()
+}
+
+// ── DPHSHV ──────────────────────────────────────────────────────────────────
+
+/** Subset of accounting `ShRow` (Decimal = string). */
+export interface ShRowInput {
+  /** ISO 3166-1 alpha-2 member state that issued the acquirer's VAT id. */
+  country_code: string | null
+  /** Acquirer's VAT id, with or without the country prefix. */
+  tax_id: string | null
+  /** kód plnění: "0" zboží §13 / "1" přemístění §13/6 / "2" §17 / "3" služba §9/1. */
+  kod_plneni: string
+  /** Počet plnění tomuto pořizovateli. */
+  count: number
+  /** Celková hodnota plnění (CZK, bez daně). */
+  value: string
+}
+
+/** Subset of accounting `SouhrnneHlaseni` (the recap rows). */
+export interface ShData {
+  rows: ShRowInput[]
+}
+
+/**
+ * Split a VAT id into the EPO pair (`k_stat`, `c_vat`). The schema wants the id
+ * "bez kódu státu ... bez mezer, čárek a teček", so separators go and a leading
+ * two-letter country prefix moves to `k_stat`.
+ *
+ * The documentation calls the remainder the "číselná část", but that phrasing
+ * cannot be taken literally: IE (1234567FA), NL (…B01) and ES (X1234567L) VAT ids
+ * legitimately carry letters after the prefix, and stripping them would corrupt a
+ * valid id into one VIES rejects. Only the country prefix is removed.
+ */
+function splitVatId(
+  countryCode: string | null,
+  taxId: string | null,
+): { k_stat?: string; c_vat?: string } {
+  const clean = (taxId ?? "").replace(/[\s.,-]/g, "").toUpperCase()
+  const prefix = /^([A-Z]{2})(.+)$/.exec(clean)
+  const country = (countryCode ?? prefix?.[1] ?? "").toUpperCase()
+  const number = prefix ? prefix[2] : clean
+  return {
+    k_stat: country === "" ? undefined : country,
+    c_vat: number === "" ? undefined : number,
+  }
+}
+
+/**
+ * Build a DPHSHV model from the accounting SH rows + org meta.
+ *
+ * Every row is emitted, including one whose counterparty carries no VAT id: the
+ * hodnota is real tax data and dropping it would understate the hlášení silently.
+ * Such a row fails EPO's mandatory-field check, which is the correct place for it
+ * to surface — the caller should validate before offering the file for upload.
+ *
+ * `forma` defaults to "R" (řádné). DPHSHV uses R/N, NOT the B/O/D/E of DPHDP3 or
+ * the B/O/N of DPHKH1, so a caller passing a DPHDP3-style forma is a bug.
+ */
+export function buildDphshvFromAccounting(
+  sh: ShData,
+  meta: FuFilingMeta,
+): DphshvInput {
+  const rows = sh.rows.map((r, i) => ({
+    c_rad: String(i + 1),
+    ...splitVatId(r.country_code, r.tax_id),
+    k_pln_eu: r.kod_plneni,
+    pln_pocet: String(r.count),
+    pln_hodnota: korunaNahoru(r.value),
+  }))
+  return {
+    header: {
+      shvies_forma: meta.forma ?? "R",
+      rok: meta.rok,
+      mesic: meta.mesic,
+      ctvrt: meta.ctvrt,
+    },
+    payer: {
+      c_ufo: meta.c_ufo,
+      dic: meta.dic,
+      typ_ds: meta.typ_ds ?? "P",
+      zkrobchjm: meta.name,
+      naz_obce: meta.naz_obce,
+      ulice: meta.ulice,
+      c_pop: meta.c_pop,
+      psc: meta.psc,
+    },
+    rows: rows.length > 0 ? rows : undefined,
+  }
 }

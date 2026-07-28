@@ -64,6 +64,18 @@ export function koruna(x: VetaValue): string | undefined {
   return new Decimal(x).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toFixed(0)
 }
 
+/**
+ * Whole-koruna integer string for DPHSHV `pln_hodnota`. The schema documents a
+ * different rule from the DPH přiznání: "Celková hodnota plnění se zaokrouhlí na
+ * celé koruny NAHORU", so this rounds toward +∞ (ROUND_CEIL), never half-up.
+ * A dobropis enters the row total negatively, and "nahoru" on a negative total
+ * therefore reduces its absolute value — the literal reading of the rule.
+ */
+export function korunaNahoru(x: VetaValue): string | undefined {
+  if (x === null || x === undefined || x === "") return undefined
+  return new Decimal(x).toDecimalPlaces(0, Decimal.ROUND_CEIL).toFixed(0)
+}
+
 /** Two-decimal haléř string for DPHKH1 amounts (xs:decimal fractionDigits=2). */
 export function haler(x: VetaValue): string | undefined {
   if (x === null || x === undefined || x === "") return undefined

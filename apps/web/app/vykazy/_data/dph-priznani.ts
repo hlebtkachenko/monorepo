@@ -17,9 +17,9 @@
 // they are marked `derived` here so the UI renders them read-only.
 
 /** Which věta of the XML document a line's attributes belong to. */
-export type DphVeta = 1 | 2 | 3 | 4 | 5 | 6
+type DphVeta = 1 | 2 | 3 | 4 | 5 | 6
 
-export interface DphdpLine {
+interface DphdpLine {
   /** Číslo řádku as printed on the form ("1", "40", "62"). */
   r: string
   /** Czech label, column b of the paper form. */
@@ -44,7 +44,7 @@ export interface DphdpLine {
  * "Krácený odpočet" pair on ř.40–47), only the unambiguous columns appear here and
  * the rest are entered through `DPH_MANUAL_FIELDS` below.
  */
-export const DPH_PRIZNANI: DphdpLine[] = [
+const DPH_PRIZNANI: DphdpLine[] = [
   // I. Zdanitelná plnění
   { r: "1", text: "Dodání zboží nebo poskytnutí služby s místem plnění v tuzemsku", veta: 1, base: "obrat23", dan: "dan23", sazba: 21, sekce: "I. Zdanitelná plnění" }, // prettier-ignore
   { r: "2", text: "Dodání zboží nebo poskytnutí služby s místem plnění v tuzemsku", veta: 1, base: "obrat5", dan: "dan5", sazba: 12 }, // prettier-ignore

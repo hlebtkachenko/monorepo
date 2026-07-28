@@ -66,7 +66,7 @@ export interface DphEvidenceRow {
 }
 
 /** Values no doklad produces — the §76 koeficient block and the krácený column. */
-export type DphManualValues = Record<string, string>
+type DphManualValues = Record<string, string>
 
 /** The module's whole persisted state. */
 export interface DphEvidence {

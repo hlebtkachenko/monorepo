@@ -157,6 +157,12 @@ function looseDokladKey(zdroj: string, cislo: string): string {
 }
 
 interface DokladTotals {
+  /** Zdroj and číslo exactly as the deník spells them, for the user-facing
+   *  messages. The join key is folded and joined with "|", so reconstructing
+   *  them from it would both lose the original case and break on a číslo that
+   *  contains a "|" of its own. */
+  zdroj: string
+  cislo: string
   /** Sum of the 343 legs — the daň actually booked for this doklad. */
   dan: Decimal
   /** Sum of every non-343 leg on the side opposite the daň. */
@@ -229,7 +235,10 @@ export function indexDenikByDoklad(
     }
 
     const withParty = group.find((r) => r.firma || r.ic)
+    const first = group[0]!
     out.set(key, {
+      zdroj: first.zdroj.trim(),
+      cislo: first.cislo.trim(),
       dan,
       zaklad,
       firma: withParty?.firma,
@@ -306,9 +315,8 @@ export function parseDphSheet(
   // Relaxed index, for the leading-zero coercion only. Ambiguous entries (both
   // "001" and "1" booked under the same Zdroj) are dropped rather than guessed.
   const loose = new Map<string, string | null>()
-  for (const key of index.keys()) {
-    const [z = "", c = ""] = key.split("|")
-    const lk = looseDokladKey(z, c)
+  for (const [key, totals] of index) {
+    const lk = looseDokladKey(totals.zdroj, totals.cislo)
     loose.set(lk, loose.has(lk) ? null : key)
   }
 
@@ -359,12 +367,13 @@ export function parseDphSheet(
     let booked = index.get(key)
     if (!booked) {
       const alias = loose.get(looseDokladKey(zdroj, cislo))
-      if (alias) {
-        booked = index.get(alias)
+      const aliased = alias ? index.get(alias) : undefined
+      if (alias && aliased) {
+        booked = aliased
         seen.add(alias)
         issues.push({
           severity: "warning",
-          message: `${where}: doklad ${zdroj} ${cislo} spárován s dokladem ${alias.replace("|", " ")} (Excel odstranil vodicí nuly). Ověřte, že jde o tentýž doklad.`,
+          message: `${where}: doklad ${zdroj} ${cislo} spárován s dokladem ${aliased.zdroj} ${aliased.cislo} (Excel odstranil vodicí nuly). Ověřte, že jde o tentýž doklad.`,
         })
       }
     }
@@ -508,10 +517,9 @@ export function parseDphSheet(
   // direction of this error.
   for (const [key, totals] of index) {
     if (seen.has(key) || totals.dan.isZero()) continue
-    const [zdroj, cislo] = key.split("|")
     issues.push({
       severity: "error",
-      message: `Doklad ${zdroj} ${cislo} má v deníku daň ${totals.dan.toString()} Kč, ale v evidenci DPH chybí.`,
+      message: `Doklad ${totals.zdroj} ${totals.cislo} má v deníku daň ${totals.dan.toString()} Kč, ale v evidenci DPH chybí.`,
     })
   }
 

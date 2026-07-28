@@ -356,3 +356,16 @@ describe("parseDphSheet", () => {
     expect(result.issues.some((i) => i.severity === "error" && i.message.includes("Ev. číslo dodavatele"))).toBe(true) // prettier-ignore
   })
 })
+
+describe("doklad identity in messages", () => {
+  it("reports the deník's own spelling, not the folded join key", () => {
+    const result = parseDphSheet(
+      sheet([HEADER]),
+      issuedInvoice("A|B/001", 100000, 21000),
+    )
+    // A číslo carrying a "|" must survive intact: the join key folds case and
+    // joins its two halves with "|", so rebuilding the label out of that key
+    // both lower-cased the doklad and split it at the wrong place.
+    expect(result.issues.some((i) => i.message.includes("Vydané faktury A|B/001"))).toBe(true) // prettier-ignore
+  })
+})

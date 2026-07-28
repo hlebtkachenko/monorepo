@@ -473,6 +473,21 @@ The join key folds case, diacritics and repeated whitespace, and falls back to a
 leading-zero-stripped číslo — Excel coerces a `001` typed on one sheet into the
 number 1 while the other keeps it as text. The relaxed match is always reported.
 
+**What a real workbook actually looks like.** Verified against a hand-built
+`ucetni-knihy-*.xlsx` carrying three companies:
+
+- tabs are prefixed to order them and to name the účetní jednotka —
+  `1-BDN-Ucetni-denik`, `4-HHC-Ucetni-denik`, `2-BDN-Uctovy-rozvrh` — so sheets
+  are matched by CONTAINMENT of the folded name, not equality;
+- row 1 is a title band (`ÚČETNÍ DENÍK — <firma> — <období>`) followed by blank
+  spacer rows, so the header row is located by scanning for the required
+  columns rather than assumed to be row 1;
+- there is no `TpUD` column. That is a POHODA export artifact and nothing
+  computes with it, so it is optional; requiring it rejected the whole file;
+- one workbook holds several companies. `findSheets` returns every match and the
+  import warns, naming each one — silently taking the first would file one
+  company's books under another's DIČ, and nothing downstream could tell.
+
 The reader honours `workbookPr date1904` (a Mac-authored workbook is otherwise
 four years and a day early, and XSD-valid), skips hidden sheets when matching by
 tab name, and reads a `Sazba` cell formatted as a percentage (Excel stores it as

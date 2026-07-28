@@ -58,9 +58,12 @@ type FieldKey =
   | "_jmeno"
 
 // Header string (row 1, exact Czech) -> DenikRow field.
+// The seven columns a deník genuinely needs to be a deník. `TpUD` used to be
+// among them, which excluded every hand-built workbook: it is a POHODA export
+// artifact, it is carried on the row but nothing computes with it, and a deník
+// written by hand in Excel simply has no such column.
 const REQUIRED_HEADERS: Record<string, FieldKey> = {
   Datum: "datum",
-  TpUD: "tpUD",
   Zdroj: "zdroj",
   Číslo: "cislo",
   Text: "text",
@@ -70,14 +73,18 @@ const REQUIRED_HEADERS: Record<string, FieldKey> = {
 }
 
 const OPTIONAL_HEADERS: Record<string, FieldKey> = {
+  TpUD: "tpUD",
   "Cizí měna": "ciziMena",
   Středisko: "stredisko",
   Zakázka: "zakazka",
   Činnost: "cinnost",
   Pársym: "parsym",
+  PárSym: "parsym",
+  Parsym: "parsym",
   Firma: "firma",
   Jméno: "_jmeno",
   IČ: "ic",
+  IC: "ic",
 }
 
 const REQUIRED_HEADER_NAMES = Object.keys(REQUIRED_HEADERS)
@@ -277,12 +284,18 @@ function sheetNameToFile(
   return out
 }
 
-/** Fold case and diacritics so "Účetní deník", "ucetni denik" and "DENÍK" match. */
+/**
+ * Fold a tab name so "Účetní deník", "ucetni denik", "DENÍK" and
+ * "1-BDN-Ucetni-denik" all reduce to something comparable: case and diacritics
+ * go, and the separators a real workbook uses to prefix a tab (hyphens,
+ * underscores, dots) become spaces.
+ */
 function normalizeSheetName(name: string): string {
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[-_.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
 }
@@ -337,16 +350,67 @@ export function parseWorkbookSheets(buf: ArrayBuffer): WorkbookSheets {
   return { grids, names, ok: true, date1904 }
 }
 
-/** Find a sheet by any of several accepted names (diacritics/case-insensitive). */
+/**
+ * Every sheet whose tab name matches one of `accepted`.
+ *
+ * Matching is by CONTAINMENT of the folded name, not equality: a real workbook
+ * prefixes its tabs to order them and to name the company —
+ * "1-BDN-Ucetni-denik", "4-HHC-Ucetni-denik" — and an equality test misses all
+ * of them, falls back to the first sheet in the book, and reads whatever
+ * happens to be there.
+ *
+ * Returns ALL matches in workbook order, because one workbook routinely holds
+ * several companies. Silently taking the first would file one company's books
+ * under another's DIČ.
+ */
+export function findSheets(
+  sheets: WorkbookSheets,
+  accepted: readonly string[],
+): { name: string; grid: Cell[][] }[] {
+  const want = accepted.map(normalizeSheetName)
+  const out: { name: string; grid: Cell[][] }[] = []
+  for (const [name, grid] of sheets.grids) {
+    const folded = normalizeSheetName(name)
+    if (want.some((w) => folded === w || folded.includes(w))) {
+      out.push({ name, grid })
+    }
+  }
+  return out
+}
+
+/** The first matching sheet. Use `findSheets` where several are meaningful. */
 export function findSheet(
   sheets: WorkbookSheets,
   accepted: readonly string[],
 ): { name: string; grid: Cell[][] } | undefined {
-  const want = new Set(accepted.map(normalizeSheetName))
-  for (const [name, grid] of sheets.grids) {
-    if (want.has(normalizeSheetName(name))) return { name, grid }
+  return findSheets(sheets, accepted)[0]
+}
+
+/**
+ * Locate the header row.
+ *
+ * A hand-built workbook opens with a title band ("ÚČETNÍ DENÍK — <firma> —
+ * <období>") and blank spacer rows, so the header is routinely several rows
+ * down. Assuming row 1 read the title as the header, reported every required
+ * column as missing, and parsed nothing at all.
+ */
+export function findHeaderRow(
+  grid: Cell[][],
+  hasAllRequired: (row: Cell[]) => boolean,
+  maxScan = 25,
+): number {
+  const limit = Math.min(grid.length, maxScan)
+  for (let i = 0; i < limit; i++) {
+    const row = grid[i]
+    if (row && hasAllRequired(row)) return i
   }
-  return undefined
+  return -1
+}
+
+/** Trimmed text of a cell, for header matching. */
+export function headerText(cell: Cell): string {
+  if (cell === null || cell === undefined) return ""
+  return typeof cell === "string" ? cell.trim() : String(cell).trim()
 }
 
 // --- value coercion ----------------------------------------------------------
@@ -432,31 +496,41 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
     }
   }
 
-  const named = findSheet(sheets, DENIK_SHEET_NAMES)
   const warnings: string[] = []
   // A workbook that carries the deník alongside a DPH / Rozvrh sheet is the
   // normal shape now, so several sheets is no longer worth warning about — but
   // a workbook with no sheet actually NAMED deník still falls back to the first
   // one, and that guess is worth saying out loud.
+  const matches = findSheets(sheets, DENIK_SHEET_NAMES)
+  const named = matches[0]
   const grid = named?.grid ?? sheets.grids.get(sheets.names[0] ?? "") ?? []
   if (!named && sheets.names.length > 1) {
     warnings.push(
       `Sešit nemá list pojmenovaný „Deník“ — načten je první list („${sheets.names[0] ?? "?"}“).`,
     )
   }
+  // One workbook routinely holds several companies, each with its own deník.
+  // Taking the first without saying so would file one company's books under
+  // another's DIČ, and nothing downstream could tell.
+  if (matches.length > 1) {
+    warnings.push(
+      `Sešit obsahuje ${matches.length} deníků (${matches.map((m) => m.name).join(", ")}) — načten je „${named?.name ?? "?"}“. Ověřte, že jde o správnou účetní jednotku.`,
+    )
+  }
 
   const ignoredColumns: string[] = []
-  const header = grid[0] ?? []
+  // A hand-built deník opens with a title band and blank spacer rows, so the
+  // header is routinely several rows down. Reading row 1 read the title.
+  const headerRow = findHeaderRow(grid, (row) => {
+    const names = new Set(row.map(headerText))
+    return REQUIRED_HEADER_NAMES.every((n) => names.has(n))
+  })
+  const header = grid[headerRow] ?? grid[0] ?? []
 
   // Map every header cell to a field, collecting unknown headers to ignore.
   const cols: Partial<Record<FieldKey, number>> = {}
   header.forEach((cell, idx) => {
-    const name =
-      typeof cell === "string"
-        ? cell.trim()
-        : cell === null
-          ? ""
-          : String(cell).trim()
+    const name = headerText(cell)
     if (name === "") return
     const field = REQUIRED_HEADERS[name] ?? OPTIONAL_HEADERS[name]
     if (field === undefined) {
@@ -480,7 +554,7 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
   }
 
   const rows: DenikRow[] = []
-  for (let r = 1; r < grid.length; r++) {
+  for (let r = Math.max(headerRow, 0) + 1; r < grid.length; r++) {
     const gridRow = grid[r]
     if (!gridRow) continue
 

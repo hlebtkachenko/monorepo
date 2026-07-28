@@ -18,7 +18,7 @@ import { OSNOVA } from "../_data/osnova"
 import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { csvField, detectDelimiter, splitCsvLine } from "./csv"
-import { findSheet, type Cell, type WorkbookSheets } from "./denik"
+import { findHeaderRow, findSheets, headerText, type Cell, type WorkbookSheets } from "./denik" // prettier-ignore
 import type { StatementKey } from "./storage"
 import type { CasoveRozliseni } from "./types"
 
@@ -458,7 +458,7 @@ const ROZVRH_SHEET_NAMES = [
 export function parseRozvrhSheet(
   sheets: WorkbookSheets,
 ): RozvrhParseResult & { found: boolean } {
-  const found = findSheet(sheets, ROZVRH_SHEET_NAMES)
+  const found = findSheets(sheets, ROZVRH_SHEET_NAMES)[0]
   if (!found) {
     return {
       accounts: [],
@@ -471,7 +471,14 @@ export function parseRozvrhSheet(
       found: false,
     }
   }
+  // Same title-band problem as the deník: the header is not row 1. Slice from
+  // it before handing the grid to the CSV parser, which does its own matching.
+  const headerRow = findHeaderRow(found.grid, (row) => {
+    const names = new Set(row.map(headerText))
+    return REQUIRED_NAMES.every((n) => names.has(n))
+  })
   const csv = found.grid
+    .slice(Math.max(headerRow, 0))
     .map((row: Cell[]) =>
       row
         .map((cell: Cell) =>

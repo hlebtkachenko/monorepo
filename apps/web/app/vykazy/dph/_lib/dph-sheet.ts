@@ -15,7 +15,7 @@
 
 import Decimal from "decimal.js-light"
 
-import { excelSerialToDate, findSheet, type Cell, type DenikRow, type WorkbookSheets } from "../../_lib/denik" // prettier-ignore
+import { excelSerialToDate, findHeaderRow, findSheet, headerText, type Cell, type DenikRow, type WorkbookSheets } from "../../_lib/denik" // prettier-ignore
 import { DPH_LINE_BY_R } from "../../_data/dph-priznani"
 import {
   KH_SEKCE_SET,
@@ -274,11 +274,17 @@ export function parseDphSheet(
   }
 
   const grid = found.grid
-  const header = grid[0] ?? []
+  // The header is not necessarily row 1: a hand-built sheet opens with a title
+  // band and blank spacer rows.
+  const headerRow = findHeaderRow(grid, (row) => {
+    const names = new Set(row.map(headerText))
+    return REQUIRED.every((n) => names.has(n))
+  })
+  const header = grid[headerRow] ?? grid[0] ?? []
   const ignoredColumns: string[] = []
   const cols: Partial<Record<FieldKey, number>> = {}
   header.forEach((cell, idx) => {
-    const name = typeof cell === "string" ? cell.trim() : cell === null ? "" : String(cell).trim() // prettier-ignore
+    const name = headerText(cell)
     if (name === "") return
     const field = HEADERS[name]
     if (field === undefined) {
@@ -326,7 +332,7 @@ export function parseDphSheet(
   // every received invoice.
   const hasEvcColumn = cols.evc !== undefined
 
-  for (let i = 1; i < grid.length; i++) {
+  for (let i = Math.max(headerRow, 0) + 1; i < grid.length; i++) {
     const line = grid[i]
     if (!line) continue
     const zdroj = cellText(line, cols.zdroj)

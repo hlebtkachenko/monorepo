@@ -124,6 +124,13 @@ export function Toolbar() {
         return
       }
       importDenik(result)
+      // The parser's warnings were collected and never shown. The one that
+      // matters says which deník was taken when the workbook holds several
+      // companies — invisible, that silently files one company's books under
+      // another's DIČ.
+      if (result.warnings.length > 0) {
+        window.alert(result.warnings.join("\n\n"))
+      }
     } catch {
       window.alert(
         "Deník se nepodařilo načíst — očekává se účetní deník exportovaný z POHODY do XLSX.",

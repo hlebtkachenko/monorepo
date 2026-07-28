@@ -369,3 +369,65 @@ describe("doklad identity in messages", () => {
     expect(result.issues.some((i) => i.message.includes("Vydané faktury A|B/001"))).toBe(true) // prettier-ignore
   })
 })
+
+describe("dobropis", () => {
+  // Two conventions exist and nothing in ČÚS or vyhláška 500/2002 Sb. mandates
+  // either. POHODA documents entering an opravný daňový doklad as a NEGATIVE
+  // amount on the same accounts; some books swap MD/DAL instead. The DPHSHV XSD
+  // settles the destination either way: "Daňový doklad dobropis se do celkové
+  // částky započítává záporně."
+  it("carries a negative-amount dobropis straight through", () => {
+    const index = indexDenikByDoklad([
+      denikRow({ cislo: "D1", md: "311000", dal: "602001", castka: -10000 }),
+      denikRow({ cislo: "D1", md: "311000", dal: "343001", castka: -2100 }),
+    ])
+    const d = index.get("vydane faktury|d1")
+    expect(d?.zaklad.toString()).toBe("-10000")
+    expect(d?.dan.toString()).toBe("-2100")
+    expect(d?.reversed).toBe(false)
+  })
+
+  it("recognises a dobropis booked by swapping the sides, and negates it", () => {
+    // 602 MD / 311 DAL + 343 MD / 311 DAL — revenue DEBITED alongside the daň.
+    // Read as an ordinary plnění this overstates output VAT by twice the credit.
+    const index = indexDenikByDoklad([
+      denikRow({ cislo: "D2", md: "602001", dal: "311000", castka: 10000 }),
+      denikRow({ cislo: "D2", md: "343001", dal: "311000", castka: 2100 }),
+    ])
+    const d = index.get("vydane faktury|d2")
+    expect(d?.reversed).toBe(true)
+    expect(d?.zaklad.toString()).toBe("-10000")
+    expect(d?.dan.toString()).toBe("-2100")
+  })
+
+  it("recognises the received-side reversal too", () => {
+    // 321 MD / 501 DAL + 321 MD / 343 DAL — a cost CREDITED alongside the daň.
+    const index = indexDenikByDoklad([
+      denikRow({ zdroj: "Přijaté faktury", cislo: "D3", md: "321000", dal: "501000", castka: 5000 }), // prettier-ignore
+      denikRow({ zdroj: "Přijaté faktury", cislo: "D3", md: "321000", dal: "343002", castka: 1050 }), // prettier-ignore
+    ])
+    const d = index.get("prijate faktury|d3")
+    expect(d?.reversed).toBe(true)
+    expect(d?.zaklad.toString()).toBe("-5000")
+  })
+
+  it("does not mistake an ordinary invoice for a reversal", () => {
+    expect(indexDenikByDoklad(issuedInvoice("001", 100000, 21000)).get("vydane faktury|001")?.reversed).toBe(false) // prettier-ignore
+    expect(indexDenikByDoklad(receivedInvoice("FP1", 50000, 10500)).get("prijate faktury|fp1")?.reversed).toBe(false) // prettier-ignore
+  })
+
+  it("warns when it had to infer the sign from swapped sides", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "D2", "CZ99999999", "15.06.2026", "", "1", "21", "", "A4", ""], // prettier-ignore
+      ]),
+      [
+        denikRow({ cislo: "D2", md: "602001", dal: "311000", castka: 10000 }),
+        denikRow({ cislo: "D2", md: "343001", dal: "311000", castka: 2100 }),
+      ],
+    )
+    expect(result.rows[0]?.zaklad).toBe("-10000")
+    expect(result.issues.some((i) => i.message.includes("prohozenými stranami"))).toBe(true) // prettier-ignore
+  })
+})

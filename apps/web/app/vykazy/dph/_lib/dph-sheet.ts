@@ -165,8 +165,13 @@ interface DokladTotals {
   cislo: string
   /** Sum of the 343 legs — the daň actually booked for this doklad. */
   dan: Decimal
-  /** Sum of every non-343 leg on the side opposite the daň. */
+  /** Sum of every non-343 leg on the side opposite the daň. Negative on a
+   *  dobropis, whichever way the books express one. */
   zaklad: Decimal
+  /** The doklad is booked with its sides SWAPPED — a dobropis expressed by
+   *  reversing MD/DAL rather than by a negative částka. Reported, because the
+   *  two conventions are indistinguishable from the amount alone. */
+  reversed: boolean
   firma?: string
   ic?: string
   rows: number
@@ -216,6 +221,13 @@ export function indexDenikByDoklad(
     }
 
     let zaklad = new Decimal(0)
+    // A dobropis booked by SWAPPING the sides rather than by a negative částka.
+    // Both conventions exist — POHODA documents entering an opravný daňový
+    // doklad as a negative amount, and nothing in ČÚS or vyhláška 500/2002 Sb.
+    // mandates either — so the reader has to recognise the swapped form instead
+    // of reading it as an ordinary positive plnění. Getting this wrong
+    // OVERSTATES output VAT by twice the credit note.
+    let reversed = false
     for (const r of group) {
       const md = r.md.trim()
       const dal = r.dal.trim()
@@ -231,7 +243,18 @@ export function indexDenikByDoklad(
         : vatOnMd
           ? !md.startsWith("3") && !md.startsWith("2")
           : false
-      if (isBase) zaklad = zaklad.plus(new Decimal(r.castka))
+      if (!isBase) continue
+      // Only the two unambiguous signals: a VÝNOS (6xx) debited while the daň
+      // is also debited reverses a sale, and a NÁKLAD (5xx) credited while the
+      // daň is credited reverses a purchase. Neither can be an ordinary doklad.
+      const account = vatOnDal ? dal : md
+      if (vatOnMd && account.startsWith("6")) reversed = true
+      if (vatOnDal && account.startsWith("5")) reversed = true
+      zaklad = zaklad.plus(new Decimal(r.castka))
+    }
+    if (reversed) {
+      zaklad = zaklad.negated()
+      dan = dan.negated()
     }
 
     const withParty = group.find((r) => r.firma || r.ic)
@@ -239,6 +262,7 @@ export function indexDenikByDoklad(
     out.set(key, {
       zdroj: first.zdroj.trim(),
       cislo: first.cislo.trim(),
+      reversed,
       dan,
       zaklad,
       firma: withParty?.firma,
@@ -417,6 +441,13 @@ export function parseDphSheet(
     let zaklad = typedZaklad
     let dan = typedDan
 
+    if (booked?.reversed) {
+      issues.push({
+        severity: "warning",
+        message: `${where}: doklad ${zdroj} ${cislo} je zaúčtován prohozenými stranami (MD/DAL) — načten jako dobropis se zápornými částkami. Ověřte znaménko.`,
+      })
+    }
+
     if (booked && !repeated) {
       if (typedZaklad === undefined) {
         // Fire whenever the base could not be DERIVED, not only when a daň was
@@ -424,6 +455,9 @@ export function parseDphSheet(
         // plnění § 64/§ 66, the PDP dodavatel side, ř. 20/21/22/25 — leaves both
         // totals at zero, and the old guard (`zaklad.isZero() && !dan.isZero()`)
         // stayed silent on exactly those rows and filed a zero.
+        // Zero, not "non-positive": a dobropis has a NEGATIVE base and must
+        // still inherit it. Only an amount that could not be derived at all
+        // lands on exactly zero.
         if (booked.zaklad.isZero()) {
           issues.push({
             severity: "error",

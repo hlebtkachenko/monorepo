@@ -430,6 +430,35 @@ A souhrnné hlášení is corrected differently: a **následné** hlášení car
 that triple on purpose, so the storno flag is part of the projection's grouping
 key — merging them would cancel the correction against itself.
 
+### Dobropis (opravný daňový doklad)
+
+Two bookkeeping conventions exist and **neither is mandated** — no sentence in
+ČÚS 001, ČÚS 019 or vyhláška č. 500/2002 Sb. fixes the sign, and a search of the
+official sources turned up no normative rule either way:
+
+1. a **negative** amount on the same accounts as the original (311 MD / 602 DAL
+   / 343 DAL with minus signs). This is what POHODA documents — "Opravný daňový
+   doklad, který má nahrazovat dřívější Dobropis, je třeba zadat záporně";
+2. a **positive** amount with MD and DAL **swapped** (602 MD / 311 DAL).
+
+The reader handles both. Form 1 flows through unchanged. Form 2 is detected from
+the only two unambiguous signals — a **výnos (6xx) debited** while the daň is
+also debited, and a **náklad (5xx) credited** while the daň is credited, neither
+of which can be an ordinary doklad — and the amounts are negated, with a warning
+so the sign is checked by a human. Read as an ordinary plnění instead, form 2
+overstates output VAT by twice the credit note.
+
+The destination is not ambiguous. `pln_hodnota` on the souhrnné hlášení carries
+the XSD's own instruction: *"Daňový doklad dobropis se do celkové částky
+započítává záporně."*
+
+**Unresolved, deliberately:** the same attribute is documented as rounded
+"na celé koruny **nahoru**", and no official source states what that means for a
+NEGATIVE total. `korunaNahoru` implements the literal reading (`ROUND_CEIL`,
+toward +∞), which reduces the absolute value of a negative — the alternative
+reading is away from zero. Worth settling against a filed return before relying
+on it for a large credit note.
+
 ### DIČ format checking
 
 `checkDphshv` validates `c_vat` against the per-member-state table the DPHSHV XSD

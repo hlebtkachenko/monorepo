@@ -437,7 +437,7 @@ export function buildPlacementLookup(
 }
 
 /** Sheet-tab names accepted for the účtový rozvrh in a multi-sheet workbook. */
-export const ROZVRH_SHEET_NAMES = [
+const ROZVRH_SHEET_NAMES = [
   "rozvrh",
   "účtový rozvrh",
   "uctovy rozvrh",

@@ -280,7 +280,7 @@ function sheetNameToFile(
 }
 
 /** Fold case and diacritics so "Účetní deník", "ucetni denik" and "DENÍK" match. */
-export function normalizeSheetName(name: string): string {
+function normalizeSheetName(name: string): string {
   return name
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -377,7 +377,7 @@ function parseCastka(row: Cell[], col: number | undefined): number {
 // --- public API --------------------------------------------------------------
 
 /** Sheet-tab names accepted for the deník, in a multi-sheet workbook. */
-export const DENIK_SHEET_NAMES = [
+const DENIK_SHEET_NAMES = [
   "deník",
   "denik",
   "účetní deník",

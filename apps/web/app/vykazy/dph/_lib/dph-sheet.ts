@@ -19,7 +19,7 @@ import { findSheet, type Cell, type DenikRow, type WorkbookSheets } from "../../
 import type { DphEvidenceRow, DphSmer, KhSekce } from "./dph-evidence"
 
 /** Sheet-tab names accepted for the DPH evidence. */
-export const DPH_SHEET_NAMES = [
+const DPH_SHEET_NAMES = [
   "dph",
   "evidence dph",
   "dph evidence",

@@ -45,6 +45,7 @@ import {
 import { kontrolniVazby, type DphOrgMeta } from "../_lib/dph-project"
 import { parseDphSheet, type DphSheetIssue } from "../_lib/dph-sheet"
 import { parseWorkbookSheets } from "../../_lib/denik"
+import { parseRozvrhSheet } from "../../_lib/rozvrh"
 import { buildDphXml, downloadXml, type DphFormKind } from "../_lib/dph-xml"
 
 const KH_SEKCE: KhSekce[] = ["A1", "A2", "A4", "A5", "B1", "B2", "B3"]
@@ -67,7 +68,7 @@ function download(text: string, fileName: string, mime: string) {
 }
 
 export function DphModule({ kind }: { kind: DphFormKind }) {
-  const { org, denik } = useOrg()
+  const { org, denik, importRozvrh } = useOrg()
   const [evidence, setEvidence] = useState<DphEvidence | null>(null)
   const [mode, setMode] = useState<DphStorageMode>("session")
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -158,9 +159,24 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
   // partner, so amounts come from the books rather than being typed twice.
   const onWorkbook = async (file: File) => {
     const sheets = parseWorkbookSheets(await file.arrayBuffer())
+
+    // The same workbook usually carries the účtový rozvrh; loading it here means
+    // the analytical account names and placement overrides arrive with the
+    // evidence instead of needing a second, separate CSV upload.
+    const rozvrh = parseRozvrhSheet(sheets)
+    const notes: DphSheetIssue[] = []
+    if (rozvrh.found && rozvrh.accounts.length > 0) {
+      importRozvrh(rozvrh.accounts)
+      notes.push({
+        severity: "warning",
+        message: `Z listu „Rozvrh“ načteno ${rozvrh.accounts.length} účtů.`,
+      })
+    }
+
     const parsed = parseDphSheet(sheets, denik)
     if (!parsed.found) {
       setSheetIssues([
+        ...notes,
         {
           severity: "error",
           message: `Sešit nemá list „DPH“. Nalezené listy: ${sheets.names.join(", ") || "žádné"}.`,
@@ -168,7 +184,7 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
       ])
       return
     }
-    setSheetIssues(parsed.issues)
+    setSheetIssues([...notes, ...parsed.issues])
     if (parsed.rows.length > 0) {
       update({ ...evidence, rows: parsed.rows })
     }

@@ -27,7 +27,7 @@ import {
   type DphshvCheck,
 } from "@workspace/filing/dph"
 
-import type { DphEvidence } from "./dph-evidence"
+import type { DphEvidence, DphFormKind } from "./dph-evidence"
 import {
   projectPriznani,
   projectKontrolniHlaseni,
@@ -35,7 +35,8 @@ import {
   type DphOrgMeta,
 } from "./dph-project"
 
-export type DphFormKind = "priznani" | "kh" | "sh"
+// Declared in dph-evidence so dph-project can take it without an import cycle.
+export type { DphFormKind } from "./dph-evidence"
 
 export interface DphXmlResult {
   ok: boolean
@@ -48,17 +49,67 @@ export interface DphXmlResult {
   error?: string
 }
 
-const VERSIONS: Record<DphFormKind, string> = {
-  priznani: DPHDP3_VERSION,
-  kh: DPHKH1_VERSION,
-  sh: DPHSHV_VERSION,
+/**
+ * Everything that varies per filing, in ONE place.
+ *
+ * The forma ternary used to be duplicated byte-for-byte between this file and
+ * dph-module.tsx: the dropdown and the writer each decided independently which
+ * evidence field holds the druh podání and what its fallback is, so editing one
+ * alone let the filer pick one and file another.
+ */
+export const DPH_KINDS: Record<
+  DphFormKind,
+  {
+    title: string
+    prefix: string
+    version: string
+    filingType: "dphdp3" | "dphkh1" | "dphshv"
+    /** Each form's own alphabet — they do not overlap. */
+    formy: { value: string; label: string }[]
+    formaOf: (e: DphEvidence) => string
+    withForma: (e: DphEvidence, v: string) => Partial<DphEvidence>
+  }
+> = {
+  priznani: {
+    title: "Přiznání k DPH (DPHDP3)",
+    prefix: "DPHDP3",
+    version: DPHDP3_VERSION,
+    filingType: "dphdp3",
+    formy: [
+      { value: "B", label: "Řádné" },
+      { value: "O", label: "Opravné (§ 138 DŘ — před uplynutím lhůty)" },
+      { value: "D", label: "Dodatečné (§ 141 DŘ)" },
+      { value: "E", label: "Opravné dodatečné" },
+    ],
+    formaOf: (e) => e.forma ?? "B",
+    withForma: (_e, v) => ({ forma: v }),
+  },
+  kh: {
+    title: "Kontrolní hlášení (DPHKH1)",
+    prefix: "DPHKH1",
+    version: DPHKH1_VERSION,
+    filingType: "dphkh1",
+    formy: [
+      { value: "B", label: "Řádné (§ 101e)" },
+      { value: "O", label: "Řádné/opravné (§ 101f odst. 1)" },
+      { value: "N", label: "Následné (§ 101f odst. 2)" },
+    ],
+    formaOf: (e) => e.khForma ?? "B",
+    withForma: (_e, v) => ({ khForma: v }),
+  },
+  sh: {
+    title: "Souhrnné hlášení VIES (DPHSHV)",
+    prefix: "DPHSHV",
+    version: DPHSHV_VERSION,
+    filingType: "dphshv",
+    formy: [
+      { value: "R", label: "Řádné" },
+      { value: "N", label: "Následné (opravuje se storno řádky)" },
+    ],
+    formaOf: (e) => e.shForma ?? "R",
+    withForma: (_e, v) => ({ shForma: v }),
+  },
 }
-
-const FILING_TYPE = {
-  priznani: "dphdp3",
-  kh: "dphkh1",
-  sh: "dphshv",
-} as const
 
 /** Build one filing: project → parse → serialize → XSD-validate → business checks. */
 export async function buildDphXml(
@@ -70,12 +121,7 @@ export async function buildDphXml(
     // Each form has its own alphabet and they do not overlap: přiznání B/O/D/E,
     // kontrolní hlášení B/O/N, souhrnné hlášení R/N. Reading one field for all
     // three would let a DPHDP3-style "B" reach the souhrnné hlášení.
-    const forma =
-      kind === "priznani"
-        ? (evidence.forma ?? "B")
-        : kind === "kh"
-          ? (evidence.khForma ?? "B")
-          : (evidence.shForma ?? "R")
+    const forma = DPH_KINDS[kind].formaOf(evidence)
     let xml: string
     let checks: DphshvCheck[] = []
 
@@ -101,7 +147,8 @@ export async function buildDphXml(
 
     // Lazy — keeps the WASM validator out of the initial bundle.
     const { validateFiling } = await import("@workspace/filing")
-    const xsd = await validateFiling(xml, FILING_TYPE[kind], VERSIONS[kind])
+    const { filingType, version } = DPH_KINDS[kind]
+    const xsd = await validateFiling(xml, filingType, version)
 
     return {
       ok: true,
@@ -122,9 +169,7 @@ function fileNameFor(kind: DphFormKind, e: DphEvidence): string {
       : kind === "sh"
         ? (e.shMesic ?? e.mesic ?? e.shCtvrt ?? e.ctvrt ?? "")
         : (e.mesic ?? e.ctvrt ?? "")
-  const prefix =
-    kind === "priznani" ? "DPHDP3" : kind === "kh" ? "DPHKH1" : "DPHSHV"
-  return `${prefix}-${e.rok}${obdobi ? `-${obdobi}` : ""}.xml`
+  return `${DPH_KINDS[kind].prefix}-${e.rok}${obdobi ? `-${obdobi}` : ""}.xml`
 }
 
 function describeFailure(error: unknown): string {

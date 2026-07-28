@@ -49,45 +49,17 @@ import {
 import {
   evidenceIssues,
   kontrolniVazby,
+  resolveObdobi,
   type DphOrgMeta,
 } from "../_lib/dph-project"
 import { parseDphSheet, type DphSheetIssue } from "../_lib/dph-sheet"
 import { parseWorkbookSheets } from "../../_lib/denik"
 import { parseRozvrhSheet } from "../../_lib/rozvrh"
-import { buildDphXml, downloadXml, type DphFormKind } from "../_lib/dph-xml"
+import { buildDphXml, downloadXml, DPH_KINDS, type DphFormKind } from "../_lib/dph-xml"
 
 const KH_SEKCE: KhSekce[] = ["A1", "A2", "A4", "A5", "B1", "B2", "B3"]
 
-/**
- * Druh podání per form. The three alphabets do NOT overlap and mean different
- * things — a DPHDP3 "D" is dodatečné, a DPHKH1 "N" is následné, and the souhrnné
- * hlášení has no opravné form at all: a correction there is a následné hlášení
- * carrying storno rows.
- */
-const FORMY: Record<DphFormKind, { value: string; label: string }[]> = {
-  priznani: [
-    { value: "B", label: "Řádné" },
-    { value: "O", label: "Opravné (§ 138 DŘ — před uplynutím lhůty)" },
-    { value: "D", label: "Dodatečné (§ 141 DŘ)" },
-    { value: "E", label: "Opravné dodatečné" },
-  ],
-  kh: [
-    { value: "B", label: "Řádné (§ 101e)" },
-    { value: "O", label: "Řádné/opravné (§ 101f odst. 1)" },
-    { value: "N", label: "Následné (§ 101f odst. 2)" },
-  ],
-  sh: [
-    { value: "R", label: "Řádné" },
-    { value: "N", label: "Následné (opravuje se storno řádky)" },
-  ],
-}
 const SH_KODY = ["", "0", "1", "2", "3"]
-
-const TITLES: Record<DphFormKind, string> = {
-  priznani: "Přiznání k DPH (DPHDP3)",
-  kh: "Kontrolní hlášení (DPHKH1)",
-  sh: "Souhrnné hlášení VIES (DPHSHV)",
-}
 
 function download(text: string, fileName: string, mime: string) {
   const blob = new Blob([text], { type: mime })
@@ -309,19 +281,23 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
   // clears them. Nearly every EPO attribute is `use="optional"` and an empty one
   // is omitted rather than emitted, so a document missing a mandatory value
   // validates cleanly and is rejected on upload.
-  const forma =
-    kind === "priznani"
-      ? (evidence.forma ?? "B")
-      : kind === "kh"
-        ? (evidence.khForma ?? "B")
-        : (evidence.shForma ?? "R")
+  // Same descriptor the writer uses, so the dropdown and the XML can never
+  // disagree about which field holds the druh podání.
+  const spec = DPH_KINDS[kind]
+  const forma = spec.formaOf(evidence)
   // Datum zjištění is required on a dodatečné přiznání (D/E) and on a následné
   // kontrolní hlášení (N); the souhrnné hlášení has no such field.
   const needsZjist =
     (kind === "priznani" && (forma === "D" || forma === "E")) ||
     (kind === "kh" && forma === "N")
 
-  const preflight = evidenceIssues(evidence, meta)
+  // Exactly what the XML will carry — same resolver, so the box can never show a
+  // period the document does not have.
+  const obdobiPriznani = resolveObdobi(evidence, "priznani")
+  const obdobiKh = resolveObdobi(evidence, "kh")
+  const obdobiSh = resolveObdobi(evidence, "sh")
+
+  const preflight = evidenceIssues(evidence, meta, kind)
   if (needsZjist && (evidence.dZjist ?? "") === "") {
     preflight.push("Vyplňte datum zjištění důvodů — na tomto druhu podání je povinné.") // prettier-ignore
   }
@@ -403,17 +379,10 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               className="w-72 rounded border border-input bg-background px-2 py-1 text-sm"
               value={forma}
               onChange={(e) =>
-                update({
-                  ...evidence,
-                  ...(kind === "priznani"
-                    ? { forma: e.target.value }
-                    : kind === "kh"
-                      ? { khForma: e.target.value }
-                      : { shForma: e.target.value }),
-                })
+                update({ ...evidence, ...spec.withForma(evidence, e.target.value) })
               }
             >
-              {FORMY[kind].map((f) => (
+              {spec.formy.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
                 </option>
@@ -481,27 +450,9 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
           </Labeled>
           {kind === "priznani" ? (
             <Obdobi
-              choice={evidence.obdobi ?? (evidence.ctvrt ? "ctvrt" : "mesic")}
-              mesic={evidence.mesic ?? ""}
-              ctvrt={evidence.ctvrt ?? ""}
-              onChoice={(obdobi) => update({ ...evidence, obdobi })}
-              onMesic={(mesic) =>
-                update({ ...evidence, mesic: mesic || undefined })
-              }
-              onCtvrt={(ctvrt) =>
-                update({ ...evidence, ctvrt: ctvrt || undefined })
-              }
-              note="Přiznání nese buď měsíc, nebo čtvrtletí — nikdy obojí."
-            />
-          ) : null}
-          {kind === "kh" ? (
-            <Obdobi
-              choice={
-                evidence.khObdobi ??
-                (evidence.typDs === "F" && evidence.ctvrt ? "ctvrt" : "mesic")
-              }
-              mesic={evidence.khMesic ?? evidence.mesic ?? ""}
-              ctvrt={evidence.khCtvrt ?? evidence.ctvrt ?? ""}
+              choice={obdobiKh.choice}
+              mesic={obdobiKh.mesic}
+              ctvrt={obdobiKh.ctvrt}
               onChoice={(khObdobi) => update({ ...evidence, khObdobi })}
               onMesic={(khMesic) =>
                 update({ ...evidence, khMesic: khMesic || undefined })
@@ -514,9 +465,9 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
           ) : null}
           {kind === "sh" ? (
             <Obdobi
-              choice={evidence.shObdobi ?? (evidence.shCtvrt ? "ctvrt" : "mesic")} // prettier-ignore
-              mesic={evidence.shMesic ?? evidence.mesic ?? ""}
-              ctvrt={evidence.shCtvrt ?? evidence.ctvrt ?? ""}
+              choice={obdobiSh.choice}
+              mesic={obdobiSh.mesic}
+              ctvrt={obdobiSh.ctvrt}
               onChoice={(shObdobi) => update({ ...evidence, shObdobi })}
               onMesic={(shMesic) =>
                 update({ ...evidence, shMesic: shMesic || undefined })
@@ -982,7 +933,7 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
             onClick={() => void generate()}
             disabled={busy || preflight.length > 0}
           >
-            {busy ? "Generuji…" : `Vytvořit XML — ${TITLES[kind]}`}
+            {busy ? "Generuji…" : `Vytvořit XML — ${spec.title}`}
           </Button>
           {canDownload && result?.xml && result.fileName ? (
             <Button

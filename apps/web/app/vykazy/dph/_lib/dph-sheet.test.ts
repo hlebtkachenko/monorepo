@@ -243,7 +243,10 @@ describe("parseDphSheet", () => {
       ]),
       issuedInvoice("001", 100000, 21000),
     )
-    expect(result.rows[0]?.zaklad).toBe("100000")
+    // NEITHER row inherits. The first used to take the whole doklad's total, so
+    // typing the second row's base — exactly what the message asks for —
+    // overstated the filing by that amount with every check green.
+    expect(result.rows[0]?.zaklad).toBe("")
     expect(result.rows[1]?.zaklad).toBe("")
     expect(result.issues.some((i) => i.severity === "error" && i.message.includes("vícekrát"))).toBe(true) // prettier-ignore
   })
@@ -374,10 +377,9 @@ describe("doklad identity in messages", () => {
 
 describe("dobropis", () => {
   // Two conventions exist and nothing in ČÚS or vyhláška 500/2002 Sb. mandates
-  // either. POHODA documents entering an opravný daňový doklad as a NEGATIVE
-  // amount on the same accounts; some books swap MD/DAL instead. The DPHSHV XSD
-  // settles the destination either way: "Daňový doklad dobropis se do celkové
-  // částky započítává záporně."
+  // either. A NEGATIVE částka on the original accounts needs nothing special.
+  // The swapped-sides form is a different matter: it is indistinguishable from
+  // an ordinary refakturace, so the shape is detected but the SIGN is refused.
   it("carries a negative-amount dobropis straight through", () => {
     const index = indexDenikByDoklad([
       denikRow({ cislo: "D1", md: "311000", dal: "602001", castka: -10000 }),
@@ -386,51 +388,52 @@ describe("dobropis", () => {
     const d = index.get("vydane faktury|d1")
     expect(d?.zaklad.toString()).toBe("-10000")
     expect(d?.dan.toString()).toBe("-2100")
-    expect(d?.reversed).toBe(false)
+    expect(d?.signAmbiguous).toBe(false)
   })
 
-  it("recognises a dobropis booked by swapping the sides, and negates it", () => {
-    // 602 MD / 311 DAL + 343 MD / 311 DAL — revenue DEBITED alongside the daň.
-    // Read as an ordinary plnění this overstates output VAT by twice the credit.
-    const index = indexDenikByDoklad([
-      denikRow({ cislo: "D2", md: "602001", dal: "311000", castka: 10000 }),
-      denikRow({ cislo: "D2", md: "343001", dal: "311000", castka: 2100 }),
+  // The reason the sign is never guessed. A refakturace of a cost books
+  // 311 MD / 518 DAL + 311 MD / 343 DAL — an ordinary ISSUED invoice — and a
+  // received dobropis booked by swapping books 321 MD / 501 DAL + 321 MD /
+  // 343 DAL. Same account classes; only the settlement account differs, and that
+  // varies by chart of accounts. Negating on this signal turned a routine
+  // refakturace into −100 000 / −21 000 on ř.1, XSD-valid and vazby green.
+  it("refuses to derive a sign when the sides are the other way round", () => {
+    const refakturace = indexDenikByDoklad([
+      denikRow({ cislo: "R1", md: "311000", dal: "518000", castka: 100000 }),
+      denikRow({ cislo: "R1", md: "311000", dal: "343001", castka: 21000 }),
     ])
-    const d = index.get("vydane faktury|d2")
-    expect(d?.reversed).toBe(true)
-    expect(d?.zaklad.toString()).toBe("-10000")
-    expect(d?.dan.toString()).toBe("-2100")
-  })
+    const r = refakturace.get("vydane faktury|r1")
+    expect(r?.signAmbiguous).toBe(true)
+    // NOT negated — the amount is reported as booked, and the row must be typed.
+    expect(r?.zaklad.toString()).toBe("100000")
 
-  it("recognises the received-side reversal too", () => {
-    // 321 MD / 501 DAL + 321 MD / 343 DAL — a cost CREDITED alongside the daň.
-    const index = indexDenikByDoklad([
+    const dobropis = indexDenikByDoklad([
       denikRow({ zdroj: "Přijaté faktury", cislo: "D3", md: "321000", dal: "501000", castka: 5000 }), // prettier-ignore
       denikRow({ zdroj: "Přijaté faktury", cislo: "D3", md: "321000", dal: "343002", castka: 1050 }), // prettier-ignore
     ])
-    const d = index.get("prijate faktury|d3")
-    expect(d?.reversed).toBe(true)
-    expect(d?.zaklad.toString()).toBe("-5000")
+    expect(dobropis.get("prijate faktury|d3")?.signAmbiguous).toBe(true)
   })
 
-  it("does not mistake an ordinary invoice for a reversal", () => {
-    expect(indexDenikByDoklad(issuedInvoice("001", 100000, 21000)).get("vydane faktury|001")?.reversed).toBe(false) // prettier-ignore
-    expect(indexDenikByDoklad(receivedInvoice("FP1", 50000, 10500)).get("prijate faktury|fp1")?.reversed).toBe(false) // prettier-ignore
+  it("does not flag an ordinary invoice", () => {
+    expect(indexDenikByDoklad(issuedInvoice("001", 100000, 21000)).get("vydane faktury|001")?.signAmbiguous).toBe(false) // prettier-ignore
+    expect(indexDenikByDoklad(receivedInvoice("FP1", 50000, 10500)).get("prijate faktury|fp1")?.signAmbiguous).toBe(false) // prettier-ignore
   })
 
-  it("warns when it had to infer the sign from swapped sides", () => {
+  it("blocks the row instead of inheriting a guessed sign", () => {
     const result = parseDphSheet(
       sheet([
         HEADER,
-        ["Vydané faktury", "D2", "CZ99999999", "15.06.2026", "", "1", "21", "", "A4", ""], // prettier-ignore
+        ["Vydané faktury", "R1", "CZ99999999", "15.06.2026", "", "1", "21", "", "A4", ""], // prettier-ignore
       ]),
       [
-        denikRow({ cislo: "D2", md: "602001", dal: "311000", castka: 10000 }),
-        denikRow({ cislo: "D2", md: "343001", dal: "311000", castka: 2100 }),
+        denikRow({ cislo: "R1", md: "311000", dal: "518000", castka: 100000 }),
+        denikRow({ cislo: "R1", md: "311000", dal: "343001", castka: 21000 }),
       ],
     )
-    expect(result.rows[0]?.zaklad).toBe("-10000")
-    expect(result.issues.some((i) => i.message.includes("prohozenými stranami"))).toBe(true) // prettier-ignore
+    // Nothing inherited, and an ERROR so the download stays blocked until the
+    // filer types the signed amounts.
+    expect(result.rows[0]?.zaklad).toBe("")
+    expect(result.issues.some((i) => i.severity === "error" && i.message.includes("prohozenými stranami"))).toBe(true) // prettier-ignore
   })
 })
 

@@ -21,6 +21,9 @@ import { csvField, detectDelimiter, splitCsvLine } from "../../_lib/csv"
 /** Which side of the books a doklad sits on. */
 export type DphSmer = "vystup" | "vstup"
 
+/** The three filings. Declared here so the projector can take it without a cycle. */
+export type DphFormKind = "priznani" | "kh" | "sh"
+
 /**
  * A statutory rate a doklad can carry.
  *

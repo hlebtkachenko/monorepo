@@ -76,10 +76,15 @@ export function switchStorageMode(
   const abandoned = mode === "local" ? "session" : "local"
   setStorageMode(mode)
   const result = saveEvidence(evidence)
-  try {
-    store(abandoned)?.removeItem(KEY)
-  } catch {
-    // Best effort — a blocked storage holds nothing to leave behind.
+  // ONLY once the new store actually holds it. The save can fail on quota, on a
+  // blocked storage, or on MAX_BYTES — deleting the abandoned copy first would
+  // destroy the only copy there is.
+  if (result.ok) {
+    try {
+      store(abandoned)?.removeItem(KEY)
+    } catch {
+      // Best effort — a blocked storage holds nothing to leave behind.
+    }
   }
   return result
 }

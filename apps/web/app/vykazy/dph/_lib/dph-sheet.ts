@@ -168,10 +168,10 @@ interface DokladTotals {
   /** Sum of every non-343 leg on the side opposite the daň. Negative on a
    *  dobropis, whichever way the books express one. */
   zaklad: Decimal
-  /** The doklad is booked with its sides SWAPPED — a dobropis expressed by
-   *  reversing MD/DAL rather than by a negative částka. Reported, because the
-   *  two conventions are indistinguishable from the amount alone. */
-  reversed: boolean
+  /** The sides are the opposite way round from an ordinary doklad, so the SIGN
+   *  cannot be derived: a swapped-sides dobropis and a refakturace of a cost
+   *  book identically. The amounts must be typed. */
+  signAmbiguous: boolean
   firma?: string
   ic?: string
   rows: number
@@ -221,13 +221,22 @@ export function indexDenikByDoklad(
     }
 
     let zaklad = new Decimal(0)
-    // A dobropis booked by SWAPPING the sides rather than by a negative částka.
-    // Both conventions exist — POHODA documents entering an opravný daňový
-    // doklad as a negative amount, and nothing in ČÚS or vyhláška 500/2002 Sb.
-    // mandates either — so the reader has to recognise the swapped form instead
-    // of reading it as an ordinary positive plnění. Getting this wrong
-    // OVERSTATES output VAT by twice the credit note.
-    let reversed = false
+    // The doklad is booked with its sides the opposite way round from an
+    // ordinary one. That SHAPE is detectable; the SIGN is not.
+    //
+    // A dobropis can be booked either as a negative částka on the original
+    // accounts (what POHODA documents) or by swapping MD/DAL — nothing in ČÚS or
+    // vyhláška 500/2002 Sb. mandates either. The negative form needs nothing
+    // special. The swapped form is indistinguishable from an ordinary
+    // refakturace: re-billing a cost books 311 MD / 518 DAL + 311 MD / 343 DAL,
+    // which is exactly the shape of a received dobropis (321 MD / 501 DAL +
+    // 321 MD / 343 DAL). Only the settlement account differs, and that varies by
+    // chart of accounts.
+    //
+    // So this flag means "the sign cannot be derived here", not "negate this".
+    // Guessing negated a perfectly ordinary refakturace to −100 000 / −21 000 on
+    // ř.1 and the result was XSD-valid with every kontrolní vazba green.
+    let signAmbiguous = false
     for (const r of group) {
       const md = r.md.trim()
       const dal = r.dal.trim()
@@ -248,13 +257,9 @@ export function indexDenikByDoklad(
       // is also debited reverses a sale, and a NÁKLAD (5xx) credited while the
       // daň is credited reverses a purchase. Neither can be an ordinary doklad.
       const account = vatOnDal ? dal : md
-      if (vatOnMd && account.startsWith("6")) reversed = true
-      if (vatOnDal && account.startsWith("5")) reversed = true
+      if (vatOnMd && account.startsWith("6")) signAmbiguous = true
+      if (vatOnDal && account.startsWith("5")) signAmbiguous = true
       zaklad = zaklad.plus(new Decimal(r.castka))
-    }
-    if (reversed) {
-      zaklad = zaklad.negated()
-      dan = dan.negated()
     }
 
     const withParty = group.find((r) => r.firma || r.ic)
@@ -262,7 +267,7 @@ export function indexDenikByDoklad(
     out.set(key, {
       zdroj: first.zdroj.trim(),
       cislo: first.cislo.trim(),
-      reversed,
+      signAmbiguous,
       dan,
       zaklad,
       firma: withParty?.firma,
@@ -356,6 +361,22 @@ export function parseDphSheet(
   // every received invoice.
   const hasEvcColumn = cols.evc !== undefined
 
+  // Count every doklad key BEFORE the row loop. Deciding "is this a repeat?"
+  // while walking meant the FIRST row inherited the whole doklad's total and
+  // only the second was left empty — so typing the second row's base, which is
+  // exactly what the error message asks for, overstated the filing by that
+  // amount with every check green.
+  const keyCount = new Map<string, number>()
+  for (let i = 1; i < grid.length; i++) {
+    const line = grid[i]
+    if (!line) continue
+    const z = cellText(line, cols.zdroj)
+    const c = cellText(line, cols.cislo)
+    if (c === "") continue
+    const k = dokladKey(z, c)
+    keyCount.set(k, (keyCount.get(k) ?? 0) + 1)
+  }
+
   for (let i = Math.max(headerRow, 0) + 1; i < grid.length; i++) {
     const line = grid[i]
     if (!line) continue
@@ -385,7 +406,7 @@ export function parseDphSheet(
     // A doklad listed twice is legitimate (one doklad across two sazby), but the
     // second row must NOT inherit the deník totals again: both rows would then
     // carry the whole amount and the filed základ would be double.
-    const repeated = seen.has(key)
+    const repeated = (keyCount.get(key) ?? 0) > 1
     if (repeated) {
       issues.push({
         severity: "error",
@@ -441,14 +462,17 @@ export function parseDphSheet(
     let zaklad = typedZaklad
     let dan = typedDan
 
-    if (booked?.reversed) {
+    // Shape recognised, sign not derivable — so nothing is inherited and the
+    // filer types the signed amounts. Blocking, because the alternative is a
+    // guessed sign on a filed tax return.
+    if (booked?.signAmbiguous) {
       issues.push({
-        severity: "warning",
-        message: `${where}: doklad ${zdroj} ${cislo} je zaúčtován prohozenými stranami (MD/DAL) — načten jako dobropis se zápornými částkami. Ověřte znaménko.`,
+        severity: "error",
+        message: `${where}: doklad ${zdroj} ${cislo} je zaúčtován prohozenými stranami (MD/DAL). Tak se účtuje dobropis i refakturace nákladu a z účtů se to nepozná — vyplňte Základ a Daň ručně, včetně znaménka.`,
       })
     }
 
-    if (booked && !repeated) {
+    if (booked && !repeated && !booked.signAmbiguous) {
       if (typedZaklad === undefined) {
         // Fire whenever the base could not be DERIVED, not only when a daň was
         // booked without one. A doklad with no 343 leg at all — osvobozené

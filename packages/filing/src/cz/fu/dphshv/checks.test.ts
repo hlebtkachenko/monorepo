@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { checkDphshv } from "./checks"
+import { splitVatId } from "../vat-id"
 import { DphshvSchema, type DphshvInput } from "../../../model/dphshv"
 
 const base: DphshvInput = {
@@ -167,5 +168,32 @@ describe("DIČ format per member state", () => {
   it("warns rather than blocks, because the table is transcribed", () => {
     const bad = checkDphshv(shv("SK", "1")).find((c) => c.code === "DIC_FORMAT")
     expect(bad?.severity).toBe("warning")
+  })
+})
+
+describe("splitVatId when the prefix disagrees with the country", () => {
+  it("keeps a prefixed id under the state its prefix names", () => {
+    // A supplier registered outside its address country is routine with
+    // warehousing. Taking the country code left the prefix on c_vat, and a
+    // 14-character result blew A.2's maxLength="12".
+    expect(splitVatId("DE", "NL123456789B01")).toEqual({
+      k_stat: "NL",
+      c_vat: "123456789B01",
+    })
+  })
+
+  it("still treats a bare id as belonging to the supplied country", () => {
+    // FR ids may start with two letters of their own; BE123456789 under FR is
+    // a French id, not a Belgian one.
+    expect(splitVatId("FR", "BE123456789")).toEqual({
+      k_stat: "FR",
+      c_vat: "BE123456789",
+    })
+  })
+
+  it("leaves the agreeing and no-country cases exactly as they were", () => {
+    expect(splitVatId("SK", "SK1234567890")).toEqual({ k_stat: "SK", c_vat: "1234567890" }) // prettier-ignore
+    expect(splitVatId(null, "DE123456789")).toEqual({ k_stat: "DE", c_vat: "123456789" }) // prettier-ignore
+    expect(splitVatId("GR", "123456789")).toEqual({ k_stat: "EL", c_vat: "123456789" }) // prettier-ignore
   })
 })

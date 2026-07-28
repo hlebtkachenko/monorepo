@@ -6,6 +6,8 @@
 // state to one and not the others yields either a corrupted c_vat split or a
 // false "není kód členského státu" on a perfectly good hlášení.
 
+import { VAT_FORMATS } from "./dphshv/vat-format"
+
 /**
  * VAT-registration prefixes VIES accepts. This is NOT the ISO 3166-1 list:
  * Greece registers under **EL** while its ISO code is GR, and Northern Ireland
@@ -56,8 +58,28 @@ export function splitVatId(
   const head = clean.slice(0, 2)
   const iso = (countryCode ?? "").toUpperCase()
   const expected = ISO_TO_VAT_PREFIX[iso] ?? iso
+  const headIsPrefix = VAT_PREFIXES.has(head)
+
+  // When the id's own prefix names a DIFFERENT state from the supplied country
+  // code, the two have to be told apart rather than one blindly winning. A
+  // supplier registered outside its address country is routine with warehousing,
+  // and taking the country code there left the prefix on `c_vat` — a 14-char
+  // NL id under `country_code: "DE"` then blew A.2's maxLength="12", the exact
+  // XSD failure the split exists to prevent. The per-state format table settles
+  // it: whichever reading produces a well-formed id is the right one.
+  if (headIsPrefix && expected !== "" && head !== expected) {
+    const asUnprefixed = VAT_FORMATS[expected]
+    const asPrefixed = VAT_FORMATS[head]
+    if (asUnprefixed?.test(clean)) {
+      return { k_stat: expected, c_vat: clean }
+    }
+    if (asPrefixed?.test(clean.slice(2))) {
+      return { k_stat: head, c_vat: clean.slice(2) || undefined }
+    }
+  }
+
   const hasPrefix =
-    VAT_PREFIXES.has(head) && (expected === "" || head === expected)
+    headIsPrefix && (expected === "" || head === expected)
   const country = hasPrefix ? head : expected
   const number = hasPrefix ? clean.slice(2) : clean
   return {

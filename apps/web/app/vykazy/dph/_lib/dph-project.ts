@@ -20,7 +20,7 @@ import {
 
 import { DPH_LINE_BY_R, DPH_MANUAL_BY_ATTR } from "../../_data/dph-priznani"
 import { sazbaBucket, SAZBY_DO_2023 } from "./dph-evidence"
-import type { DphEvidence, DphEvidenceRow } from "./dph-evidence"
+import type { DphEvidence, DphEvidenceRow, DphFormKind } from "./dph-evidence"
 
 /** Identity block — mirrors the org config the builder already collects. */
 export interface DphOrgMeta {
@@ -48,13 +48,46 @@ const dec = (v: string | undefined) => new Decimal(v && v !== "" ? v : 0)
  * validation and is then rejected on upload. The chosen cadence is explicit; the
  * fallback only picks a default for evidence saved before the choice existed.
  */
-function obdobi(
-  choice: "mesic" | "ctvrt" | undefined,
-  mesic: string | undefined,
-  ctvrt: string | undefined,
-): { mesic?: string; ctvrt?: string } {
-  const monthly = choice ? choice === "mesic" : !ctvrt
-  return monthly ? { mesic } : { ctvrt }
+export interface DphObdobi {
+  choice: "mesic" | "ctvrt"
+  mesic: string
+  ctvrt: string
+}
+
+/**
+ * The zdaňovací období a given filing will actually carry.
+ *
+ * ONE resolver for both the form and the XML. They used to disagree: the KH and
+ * SH boxes displayed `khCtvrt ?? ctvrt`, inheriting the přiznání's quarter,
+ * while the projections deliberately did NOT inherit it. Choosing "Čtvrtletní"
+ * therefore showed a quarter and filed a hlášení with no period at all — both
+ * attributes are `use="optional"`, so it validated, downloaded, and EPO rejected
+ * it on upload.
+ *
+ * The měsíc falls back to the DPH month; the čtvrtletí never falls back, because
+ * quarterly is the exception on both forms (§ 101e odst. 2, § 102 odst. 6) and
+ * has to be chosen deliberately.
+ */
+export function resolveObdobi(e: DphEvidence, kind: DphFormKind): DphObdobi {
+  const pick = (
+    choice: "mesic" | "ctvrt" | undefined,
+    mesic: string | undefined,
+    ctvrt: string | undefined,
+  ): DphObdobi => ({
+    choice: choice ?? (ctvrt ? "ctvrt" : "mesic"),
+    mesic: mesic ?? "",
+    ctvrt: ctvrt ?? "",
+  })
+  if (kind === "priznani") return pick(e.obdobi, e.mesic, e.ctvrt)
+  if (kind === "kh") return pick(e.khObdobi, e.khMesic ?? e.mesic, e.khCtvrt)
+  return pick(e.shObdobi, e.shMesic ?? e.mesic, e.shCtvrt)
+}
+
+/** Exactly ONE of the pair — a document carrying both is rejected. */
+function obdobiHeader(o: DphObdobi): { mesic?: string; ctvrt?: string } {
+  return o.choice === "mesic"
+    ? { mesic: o.mesic || undefined }
+    : { ctvrt: o.ctvrt || undefined }
 }
 
 /** Sum a field over rows, exactly (never native number arithmetic — money rule). */
@@ -135,7 +168,7 @@ export function projectPriznani(
       // "Vyplníte jen tehdy, pokud podáváte dodatečné daňové přiznání" — and
       // there it is nezbytné for further processing.
       d_zjist: evidence.dZjist,
-      ...obdobi(evidence.obdobi, evidence.mesic, evidence.ctvrt),
+      ...obdobiHeader(resolveObdobi(evidence, "priznani")),
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -303,11 +336,7 @@ export function projectKontrolniHlaseni(
       // (§ 101e odst. 1), but a fyzická osoba on a quarterly zdaňovací období
       // files it quarterly (§ 101e odst. 2). Emitting only `mesic` left a
       // quarterly filer's hlášení with NO period at all — XSD-valid, rejected.
-      // The měsíc falls back to the DPH month, the čtvrtletí does NOT fall back
-      // to the DPH quarter: monthly is the rule (§ 101e odst. 1) and quarterly
-      // the § 101e odst. 2 exception, so a quarterly DPH filer still files
-      // twelve hlášení unless the čtvrtletní cadence is chosen deliberately.
-      ...obdobi(evidence.khObdobi, evidence.khMesic ?? evidence.mesic, evidence.khCtvrt), // prettier-ignore
+      ...obdobiHeader(resolveObdobi(evidence, "kh")),
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -401,9 +430,7 @@ export function projectSouhrnneHlaseni(
       // carrying both a měsíc and a čtvrtletí is rejected (checks.ts
       // OBDOBI_DVOJI). A quarterly filer who had already filled the monthly
       // přiznání period used to inherit it and emit both, with no way to clear.
-      // Same asymmetry as the KH: § 102 odst. 6 quarterly is the exception, so
-      // it is never inherited from the přiznání's cadence.
-      ...obdobi(evidence.shObdobi, evidence.shMesic ?? evidence.mesic, evidence.shCtvrt), // prettier-ignore
+      ...obdobiHeader(resolveObdobi(evidence, "sh")),
     },
     payer: {
       c_ufo: meta.c_ufo,
@@ -448,8 +475,21 @@ export function projectSouhrnneHlaseni(
 export function evidenceIssues(
   evidence: DphEvidence,
   meta: DphOrgMeta,
+  kind: DphFormKind = "priznani",
 ): string[] {
   const out: string[] = []
+
+  // Both period attributes are `use="optional"` on every form, so a document
+  // with NEITHER validates cleanly and EPO rejects it on upload.
+  const period = resolveObdobi(evidence, kind)
+  if ((period.choice === "mesic" ? period.mesic : period.ctvrt) === "") {
+    out.push(
+      period.choice === "mesic"
+        ? "Vyplňte měsíc zdaňovacího období."
+        : "Vyplňte čtvrtletí zdaňovacího období.",
+    )
+  }
+  if (evidence.rok.trim() === "") out.push("Vyplňte rok zdaňovacího období.")
   const where = (r: DphEvidenceRow) =>
     `${r.evc || r.dic || "doklad bez čísla"} (ř. ${r.radek})`
 

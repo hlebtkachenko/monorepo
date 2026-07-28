@@ -65,27 +65,35 @@ export async function buildDphXml(
   kind: DphFormKind,
   evidence: DphEvidence,
   meta: DphOrgMeta,
-  forma?: string,
 ): Promise<DphXmlResult> {
   try {
+    // Each form has its own alphabet and they do not overlap: přiznání B/O/D/E,
+    // kontrolní hlášení B/O/N, souhrnné hlášení R/N. Reading one field for all
+    // three would let a DPHDP3-style "B" reach the souhrnné hlášení.
+    const forma =
+      kind === "priznani"
+        ? (evidence.forma ?? "B")
+        : kind === "kh"
+          ? (evidence.khForma ?? "B")
+          : (evidence.shForma ?? "R")
     let xml: string
     let checks: DphshvCheck[] = []
 
     if (kind === "priznani") {
       const model = Dphdp3Schema.parse(
-        projectPriznani(evidence, meta, forma ?? "B"),
+        projectPriznani(evidence, meta, forma),
       )
       // ř.62–65 come from the filing engine's own derivation, never from the app.
       const { model: withTotals } = applyDphdp3Totals(model)
       xml = generateDphdp3(withTotals)
     } else if (kind === "kh") {
       const model = Dphkh1Schema.parse(
-        projectKontrolniHlaseni(evidence, meta, forma ?? "B"),
+        projectKontrolniHlaseni(evidence, meta, forma),
       )
       xml = generateDphkh1(model)
     } else {
       const model = DphshvSchema.parse(
-        projectSouhrnneHlaseni(evidence, meta, forma ?? "R"),
+        projectSouhrnneHlaseni(evidence, meta, forma),
       )
       checks = checkDphshv(model)
       xml = generateDphshv(model)

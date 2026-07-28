@@ -62,6 +62,10 @@ export interface DphEvidenceRow {
   pomer?: string
   /** Kód plnění for the souhrnné hlášení: "0" / "1" / "2" / "3". */
   shKod?: string
+  /** Storno row of a NÁSLEDNÉ souhrnné hlášení (`k_storno="A"`). FÚ matches it
+   *  against the original on (k_stat, c_vat, k_pln_eu), so a storno and its
+   *  replacement carry the same triple and must not be merged together. */
+  shStorno?: boolean
   poznamka?: string
 }
 
@@ -100,6 +104,19 @@ export interface DphEvidence {
   dic?: string
   /** Typ daňového subjektu: "P" právnická / "F" fyzická. Required on VetaP. */
   typDs?: "P" | "F"
+  /** Druh podání. Each form has its OWN alphabet and they do not overlap:
+   *  přiznání B/O/D/E, kontrolní hlášení B/O/N, souhrnné hlášení R/N. */
+  forma?: string
+  khForma?: string
+  shForma?: string
+  /** Datum zjištění důvodů — required on a dodatečné přiznání and on a následné
+   *  kontrolní hlášení, ignored otherwise. The SH has no equivalent: there a
+   *  correction is a následné hlášení carrying storno rows. */
+  dZjist?: string
+  /** Číslo jednací výzvy, and the reason for answering it (kontrolní hlášení
+   *  podané v reakci na výzvu správce daně). */
+  cJedVyzvy?: string
+  vyzvaOdp?: string
 }
 
 export function emptyEvidence(rok: string): DphEvidence {

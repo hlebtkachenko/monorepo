@@ -158,5 +158,11 @@ function normalize(input: unknown, rok: string): DphEvidence {
     cUfo: typeof o.cUfo === "string" ? o.cUfo : undefined,
     dic: typeof o.dic === "string" ? o.dic : undefined,
     typDs: o.typDs === "P" || o.typDs === "F" ? o.typDs : undefined,
+    forma: typeof o.forma === "string" ? o.forma : undefined,
+    khForma: typeof o.khForma === "string" ? o.khForma : undefined,
+    shForma: typeof o.shForma === "string" ? o.shForma : undefined,
+    dZjist: typeof o.dZjist === "string" ? o.dZjist : undefined,
+    cJedVyzvy: typeof o.cJedVyzvy === "string" ? o.cJedVyzvy : undefined,
+    vyzvaOdp: typeof o.vyzvaOdp === "string" ? o.vyzvaOdp : undefined,
   }
 }

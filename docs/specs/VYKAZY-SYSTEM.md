@@ -403,13 +403,45 @@ it is an explicit opt-in, and the wipe button clears both storages.
 - ř.14 (oprava § 42a) and ř.48 (§ 74a korekce) are not in the taxonomy. Neither
   feeds ř.62 or ř.63, so nothing miscomputes, but a filer needing them cannot
   produce a complete return here.
-- Opravné / dodatečné forms are not exposed in the UI. `d_zjist` and
-  `c_jed_vyzvy` exist on the header models, so the engine supports them.
-- Call-off stock (`VetaS`) and SH storno rows are modelled and validated but have
-  no UI.
-- `c_vat` is not checked against the per-member-state format table the DPHSHV XSD
-  embeds (SK 10 digits, DE 9, AT `U` + 8, NL 9 + `B01`–`B99`, …). That table is
-  the most common cause of an SH rejection.
+- Call-off stock (`VetaS`) has no UI. It is modelled and validated, and it is not
+  a kód plnění — it is a separate věta with its own `k_cos` 1/2/3.
+- ř.62 omits the daň podle § 108 odst. 4 písm. g) a h): the schema has no input
+  attribute for it, so it is treated as zero.
+- A pre-2024 oprava needs the KH's third rate bucket (druhá snížená sazba), which
+  is deliberately never emitted.
+### Correction filings
+
+Each form has its OWN alphabet and they do not overlap, which is exactly why they
+are three separate fields on the evidence rather than one:
+
+| Form | Formy |
+|---|---|
+| DPHDP3 | `B` řádné · `O` opravné · `D` dodatečné · `E` opravné dodatečné |
+| DPHKH1 | `B` řádné · `O` řádné/opravné (§ 101f/1) · `N` následné (§ 101f/2) |
+| DPHSHV | `R` řádné · `N` následné — there is **no** opravné form |
+
+`d_zjist` (datum zjištění důvodů) is required on a dodatečné přiznání and on a
+následné kontrolní hlášení; the UI blocks generation without it. The kontrolní
+hlášení additionally carries `c_jed_vyzvy` + `vyzva_odp` when it answers a výzva.
+
+A souhrnné hlášení is corrected differently: a **následné** hlášení carries
+`k_storno="A"` rows, which FÚ matches against the original on
+(`k_stat`, `c_vat`, `k_pln_eu`). A storno row and its replacement therefore share
+that triple on purpose, so the storno flag is part of the projection's grouping
+key — merging them would cancel the correction against itself.
+
+### DIČ format checking
+
+`checkDphshv` validates `c_vat` against the per-member-state table the DPHSHV XSD
+embeds in its own `c_vat` documentation (SK 10 digits, DE 9, AT `U` + 8, NL 9
+digits + `B01`–`B99`, FR 11 with a leading letter that is never I or O, …). EPO
+runs this check itself and a malformed id is the commonest SH rejection, but no
+XSD facet enforces it.
+
+The findings are **warnings, never errors**: the table is transcribed from
+documentation rather than a machine-readable source, and a filing that a derived
+regex rejects but the finanční správa would have accepted must not be blocked.
+
 ### The workbook join
 
 The evidence can also live as a `DPH` sheet in the SAME workbook as the deník

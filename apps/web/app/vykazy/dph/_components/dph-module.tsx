@@ -54,6 +54,30 @@ import { parseRozvrhSheet } from "../../_lib/rozvrh"
 import { buildDphXml, downloadXml, type DphFormKind } from "../_lib/dph-xml"
 
 const KH_SEKCE: KhSekce[] = ["A1", "A2", "A4", "A5", "B1", "B2", "B3"]
+
+/**
+ * Druh podání per form. The three alphabets do NOT overlap and mean different
+ * things — a DPHDP3 "D" is dodatečné, a DPHKH1 "N" is následné, and the souhrnné
+ * hlášení has no opravné form at all: a correction there is a následné hlášení
+ * carrying storno rows.
+ */
+const FORMY: Record<DphFormKind, { value: string; label: string }[]> = {
+  priznani: [
+    { value: "B", label: "Řádné" },
+    { value: "O", label: "Opravné (§ 138 DŘ — před uplynutím lhůty)" },
+    { value: "D", label: "Dodatečné (§ 141 DŘ)" },
+    { value: "E", label: "Opravné dodatečné" },
+  ],
+  kh: [
+    { value: "B", label: "Řádné (§ 101e)" },
+    { value: "O", label: "Řádné/opravné (§ 101f odst. 1)" },
+    { value: "N", label: "Následné (§ 101f odst. 2)" },
+  ],
+  sh: [
+    { value: "R", label: "Řádné" },
+    { value: "N", label: "Následné (opravuje se storno řádky)" },
+  ],
+}
 const SH_KODY = ["", "0", "1", "2", "3"]
 
 const TITLES: Record<DphFormKind, string> = {
@@ -256,7 +280,22 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
   // clears them. Nearly every EPO attribute is `use="optional"` and an empty one
   // is omitted rather than emitted, so a document missing a mandatory value
   // validates cleanly and is rejected on upload.
+  const forma =
+    kind === "priznani"
+      ? (evidence.forma ?? "B")
+      : kind === "kh"
+        ? (evidence.khForma ?? "B")
+        : (evidence.shForma ?? "R")
+  // Datum zjištění is required on a dodatečné přiznání (D/E) and on a následné
+  // kontrolní hlášení (N); the souhrnné hlášení has no such field.
+  const needsZjist =
+    (kind === "priznani" && (forma === "D" || forma === "E")) ||
+    (kind === "kh" && forma === "N")
+
   const preflight = evidenceIssues(evidence, meta)
+  if (needsZjist && (evidence.dZjist ?? "") === "") {
+    preflight.push("Vyplňte datum zjištění důvodů — na tomto druhu podání je povinné.") // prettier-ignore
+  }
   const importErrors = sheetIssues.filter((i) => i.severity === "error")
 
   const generate = async () => {
@@ -330,6 +369,74 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               <option value="F">Fyzická osoba</option>
             </select>
           </Labeled>
+          <Labeled label="Druh podání">
+            <select
+              className="w-72 rounded border border-input bg-background px-2 py-1 text-sm"
+              value={forma}
+              onChange={(e) =>
+                update({
+                  ...evidence,
+                  ...(kind === "priznani"
+                    ? { forma: e.target.value }
+                    : kind === "kh"
+                      ? { khForma: e.target.value }
+                      : { shForma: e.target.value }),
+                })
+              }
+            >
+              {FORMY[kind].map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+          </Labeled>
+          {needsZjist ? (
+            <Labeled label="Datum zjištění důvodů">
+              <Input
+                className="w-32"
+                placeholder="15.6.2026"
+                value={evidence.dZjist ?? ""}
+                onChange={(e) =>
+                  update({ ...evidence, dZjist: e.target.value || undefined })
+                }
+              />
+            </Labeled>
+          ) : null}
+          {kind === "kh" ? (
+            <>
+              <Labeled label="Č. j. výzvy (nepovinné)">
+                <Input
+                  className="w-44"
+                  value={evidence.cJedVyzvy ?? ""}
+                  onChange={(e) =>
+                    update({
+                      ...evidence,
+                      cJedVyzvy: e.target.value || undefined,
+                    })
+                  }
+                />
+              </Labeled>
+              {evidence.cJedVyzvy ? (
+                <Labeled label="Odpověď na výzvu">
+                  <select
+                    className="w-64 rounded border border-input bg-background px-2 py-1 text-sm"
+                    value={evidence.vyzvaOdp ?? ""}
+                    onChange={(e) =>
+                      update({
+                        ...evidence,
+                        vyzvaOdp: e.target.value || undefined,
+                      })
+                    }
+                  >
+                    <option value="">—</option>
+                    <option value="P">Potvrzuji správnost naposledy podaného KH</option>
+                    <option value="N">Podávám následné KH</option>
+                  </select>
+                </Labeled>
+              ) : null}
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -504,6 +611,11 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
                 <TableHead className="text-right">Daň</TableHead>
                 <TableHead>KH</TableHead>
                 <TableHead>SH</TableHead>
+                {kind === "sh" && forma === "N" ? (
+                  <TableHead title="Storno řádek následného hlášení">
+                    Storno
+                  </TableHead>
+                ) : null}
                 <TableHead />
               </TableRow>
             </TableHeader>
@@ -623,6 +735,20 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
                       ))}
                     </select>
                   </TableCell>
+                  {kind === "sh" && forma === "N" ? (
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        aria-label="Storno řádek"
+                        checked={r.shStorno === true}
+                        onChange={(e) =>
+                          setRow(r.id, {
+                            shStorno: e.target.checked ? true : undefined,
+                          })
+                        }
+                      />
+                    </TableCell>
+                  ) : null}
                   <TableCell>
                     <Button
                       size="sm"
@@ -637,7 +763,7 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               {evidence.rows.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={11}
+                    colSpan={kind === "sh" && forma === "N" ? 12 : 11}
                     className="p-6 text-center text-sm text-muted-foreground"
                   >
                     Zatím žádné doklady. Přidejte řádek nebo importujte CSV.

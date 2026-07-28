@@ -131,6 +131,9 @@ export function projectPriznani(
       dapdph_forma: forma,
       typ_platce: "P",
       rok: evidence.rok,
+      // "Vyplníte jen tehdy, pokud podáváte dodatečné daňové přiznání" — and
+      // there it is nezbytné for further processing.
+      d_zjist: evidence.dZjist,
       ...obdobi(evidence.obdobi, evidence.mesic, evidence.ctvrt),
     },
     payer: {
@@ -290,6 +293,9 @@ export function projectKontrolniHlaseni(
     header: {
       khdph_forma: forma,
       rok: evidence.rok,
+      d_zjist: evidence.dZjist,
+      c_jed_vyzvy: evidence.cJedVyzvy,
+      vyzva_odp: evidence.vyzvaOdp,
       // KH is monthly for a právnická osoba regardless of the DPH cadence
       // (§ 101e odst. 1), but a fyzická osoba on a quarterly zdaňovací období
       // files it quarterly (§ 101e odst. 2). Emitting only `mesic` left a
@@ -348,13 +354,17 @@ export function projectSouhrnneHlaseni(
 ): DphshvInput {
   const merged = new Map<
     string,
-    { k_stat: string; c_vat: string; kod: string; doklady: Set<string>; value: Decimal } // prettier-ignore
+    { k_stat: string; c_vat: string; kod: string; storno: boolean; doklady: Set<string>; value: Decimal } // prettier-ignore
   >()
 
   for (const row of evidence.rows) {
     if (!row.shKod) continue
     const { k_stat, c_vat } = splitDic(row.dic)
-    const key = `${k_stat}|${c_vat}|${row.shKod}`
+    // The storno flag is part of the grouping key. FÚ matches a storno against
+    // the original on exactly (k_stat, c_vat, k_pln_eu), so a následné hlášení
+    // legitimately carries a storno row and its replacement under the same
+    // triple — merging them would cancel the correction against itself.
+    const key = `${k_stat}|${c_vat}|${row.shKod}|${row.shStorno ? "S" : ""}`
     const entry = merged.get(key)
     if (entry) {
       entry.doklady.add(`${row.evc}|${row.dppd}`)
@@ -364,6 +374,7 @@ export function projectSouhrnneHlaseni(
         k_stat,
         c_vat,
         kod: row.shKod,
+        storno: row.shStorno === true,
         doklady: new Set([`${row.evc}|${row.dppd}`]),
         value: dec(row.zaklad),
       })
@@ -376,6 +387,7 @@ export function projectSouhrnneHlaseni(
     k_pln_eu: r.kod,
     pln_pocet: String(r.doklady.size),
     pln_hodnota: korunaNahoru(r.value.toString()),
+    ...(r.storno ? { k_storno: "A" } : {}),
   }))
 
   return {

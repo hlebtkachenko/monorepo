@@ -15,8 +15,16 @@
 
 import Decimal from "decimal.js-light"
 
-import { findSheet, type Cell, type DenikRow, type WorkbookSheets } from "../../_lib/denik" // prettier-ignore
-import type { DphEvidenceRow, DphSmer, KhSekce } from "./dph-evidence"
+import { excelSerialToDate, findSheet, type Cell, type DenikRow, type WorkbookSheets } from "../../_lib/denik" // prettier-ignore
+import { DPH_LINE_BY_R } from "../../_data/dph-priznani"
+import {
+  KH_SEKCE_SET,
+  parseAmount,
+  parseSazba,
+  type DphEvidenceRow,
+  type DphSmer,
+  type KhSekce,
+} from "./dph-evidence"
 
 /** Sheet-tab names accepted for the DPH evidence. */
 const DPH_SHEET_NAMES = [
@@ -98,27 +106,54 @@ function cellText(row: Cell[], col: number | undefined): string {
   return typeof v === "string" ? v.trim() : String(v)
 }
 
-/** Excel serial → D.M.YYYY, matching the deník's own date coercion. */
-function cellDate(row: Cell[], col: number | undefined): string {
+/** Excel serial -> D.M.YYYY, through the deník's own converter (1904-aware). */
+function cellDate(
+  row: Cell[],
+  col: number | undefined,
+  date1904: boolean,
+): string {
   if (col === undefined) return ""
   const v = row[col]
   if (typeof v === "number" && Number.isFinite(v)) {
-    const ms = Date.UTC(1899, 11, 30) + Math.round(v) * 86400000
-    const d = new Date(ms)
-    return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${d.getUTCFullYear()}`
+    // Through the deník's converter so the 1904 date system is handled once,
+    // then back to the EPO D.M.YYYY shape this module has always emitted.
+    return excelSerialToDate(v, date1904).replace(/\b0(\d)/g, "$1")
   }
   return typeof v === "string" ? v.trim() : ""
 }
 
-function amount(raw: string): string | undefined {
-  if (raw === "") return undefined
-  const cleaned = raw.replace(/[\s ]/g, "").replace(",", ".")
-  return /^-?\d+(\.\d+)?$/.test(cleaned) ? cleaned : undefined
+/**
+ * Fold a join component the way the reader folds tab names.
+ *
+ * Case, diacritics and internal whitespace all vary between two sheets of the
+ * same workbook ("Přijaté faktury" on one, "prijate  faktury" on the other), and
+ * an exact string comparison turns that into "doklad není v deníku".
+ */
+function foldKeyPart(v: string): string {
+  return v
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 /** Join key. (Zdroj, Číslo) — see the module doc for why Číslo alone is wrong. */
 function dokladKey(zdroj: string, cislo: string): string {
-  return `${zdroj.trim().toLowerCase()}|${cislo.trim().toLowerCase()}`
+  return `${foldKeyPart(zdroj)}|${foldKeyPart(cislo)}`
+}
+
+/**
+ * The same key with the číslo's leading zeros removed.
+ *
+ * Excel coerces a číslo typed as `001` into the number 1 on one sheet while the
+ * other keeps it as text, so the two sides of the join disagree about a doklad
+ * that is plainly the same one. This relaxed key is a FALLBACK and it is
+ * reported when it fires — a silent match on a relaxed key is how the wrong
+ * doklad gets paired.
+ */
+function looseDokladKey(zdroj: string, cislo: string): string {
+  return `${foldKeyPart(zdroj)}|${foldKeyPart(cislo).replace(/^0+(?=\d)/, "")}`
 }
 
 interface DokladTotals {
@@ -181,6 +216,10 @@ export function indexDenikByDoklad(
       if (md.startsWith(VAT_ACCOUNT_PREFIX) || dal.startsWith(VAT_ACCOUNT_PREFIX)) continue // prettier-ignore
       // Base sits opposite the daň: daň on DAL (issued) → base is the DAL leg
       // (výnos); daň on MD (received) → base is the MD leg (náklad/majetek).
+      // A leg missing one of its sides carries no information about which side
+      // the base sits on; treating a blank DAL as "not a 3xx account" made a
+      // one-sided 311 leg count as base and doubled the figure.
+      if (md === "" || dal === "") continue
       const isBase = vatOnDal
         ? !dal.startsWith("3") && !dal.startsWith("2")
         : vatOnMd
@@ -264,6 +303,21 @@ export function parseDphSheet(
   const rows: DphEvidenceRow[] = []
   const seen = new Set<string>()
 
+  // Relaxed index, for the leading-zero coercion only. Ambiguous entries (both
+  // "001" and "1" booked under the same Zdroj) are dropped rather than guessed.
+  const loose = new Map<string, string | null>()
+  for (const key of index.keys()) {
+    const [z = "", c = ""] = key.split("|")
+    const lk = looseDokladKey(z, c)
+    loose.set(lk, loose.has(lk) ? null : key)
+  }
+
+  // A sheet with NO evidenční-číslo column at all is different from a blank cell:
+  // the fallback would file the plátce's own internal doklad number as the
+  // counterparty's, which pairs with nothing on their side and earns a výzva on
+  // every received invoice.
+  const hasEvcColumn = cols.evc !== undefined
+
   for (let i = 1; i < grid.length; i++) {
     const line = grid[i]
     if (!line) continue
@@ -281,16 +335,39 @@ export function parseDphSheet(
       continue
     }
 
-    const key = dokladKey(zdroj, cislo)
-    if (seen.has(key)) {
+    if (!DPH_LINE_BY_R.has(radek)) {
       issues.push({
-        severity: "warning",
-        message: `${where}: doklad ${zdroj} ${cislo} je v evidenci vícekrát. Je-li to záměr (jeden doklad ve dvou sazbách), rozdělte základ ručně.`,
+        severity: "error",
+        message: `${where}: „${radek}“ není řádek přiznání k DPH — řádek je vynechán.`,
+      })
+      continue
+    }
+
+    const key = dokladKey(zdroj, cislo)
+    // A doklad listed twice is legitimate (one doklad across two sazby), but the
+    // second row must NOT inherit the deník totals again: both rows would then
+    // carry the whole amount and the filed základ would be double.
+    const repeated = seen.has(key)
+    if (repeated) {
+      issues.push({
+        severity: "error",
+        message: `${where}: doklad ${zdroj} ${cislo} je v evidenci vícekrát. Vyplňte u obou řádků Základ i Daň ručně — z deníku se rozdělit nedají.`,
       })
     }
     seen.add(key)
 
-    const booked = index.get(key)
+    let booked = index.get(key)
+    if (!booked) {
+      const alias = loose.get(looseDokladKey(zdroj, cislo))
+      if (alias) {
+        booked = index.get(alias)
+        seen.add(alias)
+        issues.push({
+          severity: "warning",
+          message: `${where}: doklad ${zdroj} ${cislo} spárován s dokladem ${alias.replace("|", " ")} (Excel odstranil vodicí nuly). Ověřte, že jde o tentýž doklad.`,
+        })
+      }
+    }
     if (!booked) {
       issues.push({
         severity: "error",
@@ -298,25 +375,48 @@ export function parseDphSheet(
       })
     }
 
-    const sazbaRaw = cellText(line, cols.sazba).replace(/[^\d]/g, "")
-    const sazba: 21 | 12 | 0 =
-      sazbaRaw === "21" ? 21 : sazbaRaw === "12" ? 12 : 0
+    const sazbaCell = cellText(line, cols.sazba)
+    const sazba = parseSazba(sazbaCell)
+    if (!sazba.ok) {
+      issues.push({
+        severity: "error",
+        message: `${where}: sazba „${sazbaCell}“ není 21 %, 12 % ani nula — řádek je vynechán, aby doklad nevypadl z kontrolního hlášení.`,
+      })
+      continue
+    }
 
-    const typedZaklad = amount(cellText(line, cols.zaklad))
-    const typedDan = amount(cellText(line, cols.dan))
+    const zakladCell = cellText(line, cols.zaklad)
+    const danCell = cellText(line, cols.dan)
+    const parsedZaklad = parseAmount(zakladCell)
+    const parsedDan = parseAmount(danCell)
+    if (!parsedZaklad.ok || !parsedDan.ok) {
+      issues.push({
+        severity: "error",
+        message: `${where}: základ nebo daň není číslo („${!parsedZaklad.ok ? zakladCell : danCell}“) — řádek je vynechán, aby se nezaložil nulou.`,
+      })
+      continue
+    }
+    const typedZaklad = parsedZaklad.value
+    const typedDan = parsedDan.value
 
     let zaklad = typedZaklad
     let dan = typedDan
 
-    if (booked) {
+    if (booked && !repeated) {
       if (typedZaklad === undefined) {
-        if (booked.zaklad.isZero() && !booked.dan.isZero()) {
+        // Fire whenever the base could not be DERIVED, not only when a daň was
+        // booked without one. A doklad with no 343 leg at all — osvobozené
+        // plnění § 64/§ 66, the PDP dodavatel side, ř. 20/21/22/25 — leaves both
+        // totals at zero, and the old guard (`zaklad.isZero() && !dan.isZero()`)
+        // stayed silent on exactly those rows and filed a zero.
+        if (booked.zaklad.isZero()) {
           issues.push({
-            severity: "warning",
-            message: `${where}: doklad ${zdroj} ${cislo} — základ se z deníku odvodit nepodařilo. Vyplňte sloupec Základ.`,
+            severity: "error",
+            message: `${where}: doklad ${zdroj} ${cislo} — základ se ze zaúčtování odvodit nedá (doklad nemá účet 343). Vyplňte sloupec Základ.`,
           })
+        } else {
+          zaklad = booked.zaklad.toString()
         }
-        zaklad = booked.zaklad.toString()
       } else if (
         !new Decimal(typedZaklad).equals(booked.zaklad) &&
         !booked.zaklad.isZero()
@@ -352,19 +452,38 @@ export function parseDphSheet(
       })
     }
 
-    const khRaw = cellText(line, cols.khSekce).toUpperCase().replace(".", "")
+    // Every dot, not just the first: "B.2." folded to "B2." and then matched no
+    // section, dropping the doklad out of the kontrolní hlášení entirely.
+    const khCell = cellText(line, cols.khSekce)
+    const khRaw = khCell.toUpperCase().replace(/\./g, "")
+    if (khRaw !== "" && !KH_SEKCE_SET.has(khRaw)) {
+      issues.push({
+        severity: "error",
+        message: `${where}: „${khCell}“ není sekce kontrolního hlášení — řádek je vynechán.`,
+      })
+      continue
+    }
+    if (!hasEvcColumn && (khRaw === "B1" || khRaw === "B2")) {
+      issues.push({
+        severity: "error",
+        message: `${where}: sekce ${khRaw} vyžaduje evidenční číslo dokladu dodavatele, ale list nemá sloupec „Ev. číslo dodavatele“.`,
+      })
+    }
+
     const smer: DphSmer = Number(radek) >= 40 && Number(radek) <= 47 ? "vstup" : "vystup" // prettier-ignore
 
     const row: DphEvidenceRow = {
       id: `sheet-${zdroj}-${cislo}-${i}`,
       smer,
-      dppd: cellDate(line, cols.dppd),
+      dppd: cellDate(line, cols.dppd, sheets.date1904),
       evc: cellText(line, cols.evc) || cislo,
       dic,
       radek,
-      sazba,
-      zaklad: zaklad ?? "0",
-      dan: dan ?? "0",
+      sazba: sazba.sazba,
+      // Empty, never "0": an amount that could not be derived is UNKNOWN, and a
+      // zero here files an understated return that every kontrolní vazba passes.
+      zaklad: zaklad ?? "",
+      dan: dan ?? "",
     }
     if (booked?.firma) row.nazev = booked.firma
     if (khRaw) row.khSekce = khRaw as KhSekce

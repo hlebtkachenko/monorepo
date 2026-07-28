@@ -220,13 +220,6 @@ function orderedSheetFiles(files: Record<string, Uint8Array>): string[] {
     )
 }
 
-function firstSheetXml(
-  files: Record<string, Uint8Array>,
-): Uint8Array | undefined {
-  const first = orderedSheetFiles(files)[0]
-  return first ? files[first] : undefined
-}
-
 /**
  * Map each worksheet's DISPLAY NAME to its part inside the zip.
  *
@@ -274,6 +267,11 @@ function sheetNameToFile(
     const file =
       (rid ? relTargets.get(rid) : undefined) ?? ordered[index] ?? undefined
     index += 1
+    // A hidden tab still occupies its slot in the positional fallback, but must
+    // never be MATCHED by name: accountants keep hidden last-year backups called
+    // "Deník", and the first match in workbook order would silently win over the
+    // visible sheet the user is looking at.
+    if (/\bstate="(?:hidden|veryHidden)"/.test(tag)) continue
     if (file && files[file]) out.set(decodeXmlEntities(name), file)
   }
   return out
@@ -295,6 +293,19 @@ export interface WorkbookSheets {
   grids: Map<string, Cell[][]>
   /** Tab names in workbook order. */
   names: string[]
+  /**
+   * False when the file could not be unzipped at all — a renamed `.xls` (OLE2)
+   * or anything that is not a zip. Distinct from "unzipped fine but has no
+   * sheets", which the caller must report differently.
+   */
+  ok: boolean
+  /**
+   * The workbook uses Excel's 1904 date system (`<workbookPr date1904="1"/>`,
+   * the Mac default for a long time). Every serial is then 1462 days later than
+   * the 1900 reading — silently four years and a day off, which lands a doklad
+   * in the wrong zdaňovací období with nothing to catch it.
+   */
+  date1904: boolean
 }
 
 /**
@@ -309,8 +320,12 @@ export function parseWorkbookSheets(buf: ArrayBuffer): WorkbookSheets {
   try {
     files = unzipSync(new Uint8Array(buf))
   } catch {
-    return { grids, names }
+    return { grids, names, ok: false, date1904: false }
   }
+  const workbook = files["xl/workbook.xml"]
+  const date1904 = workbook
+    ? /<[^>]*workbookPr\b[^>]*\bdate1904="(?:1|true)"/.test(strFromU8(workbook))
+    : false
   const sharedEntry = files["xl/sharedStrings.xml"]
   const shared = sharedEntry ? parseSharedStrings(strFromU8(sharedEntry)) : []
   for (const [name, file] of sheetNameToFile(files)) {
@@ -319,7 +334,7 @@ export function parseWorkbookSheets(buf: ArrayBuffer): WorkbookSheets {
     names.push(name)
     grids.set(name, parseSheet(strFromU8(entry), shared))
   }
-  return { grids, names }
+  return { grids, names, ok: true, date1904 }
 }
 
 /** Find a sheet by any of several accepted names (diacritics/case-insensitive). */
@@ -348,18 +363,25 @@ function cellString(row: Cell[], col: number | undefined): string {
  * known 1900 leap-year bug means serial day 0 = 1899-12-30; every accounting
  * date is well past the bug boundary so this is exact.
  */
-function excelSerialToDate(serial: number): string {
-  const ms = Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000
+export function excelSerialToDate(serial: number, date1904 = false): string {
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)
+  const ms = epoch + Math.round(serial) * 86400000
   const d = new Date(ms)
   const dd = String(d.getUTCDate()).padStart(2, "0")
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0")
   return `${dd}.${mm}.${d.getUTCFullYear()}`
 }
 
-function parseDatum(row: Cell[], col: number | undefined): string {
+function parseDatum(
+  row: Cell[],
+  col: number | undefined,
+  date1904: boolean,
+): string {
   if (col === undefined) return ""
   const v = row[col]
-  if (typeof v === "number" && Number.isFinite(v)) return excelSerialToDate(v)
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return excelSerialToDate(v, date1904)
+  }
   if (typeof v === "string") return v.trim()
   return ""
 }
@@ -385,10 +407,13 @@ const DENIK_SHEET_NAMES = [
 ] as const
 
 export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
-  let files: Record<string, Uint8Array>
-  try {
-    files = unzipSync(new Uint8Array(buf))
-  } catch {
+  // One inflate, one sheet-discovery path. Reading the zip twice (once to probe
+  // for a worksheet by filename, once through parseWorkbookSheets) let the two
+  // disagree: a workbook with worksheets but no readable xl/workbook.xml passed
+  // the probe and then reported every required column as missing, which reads to
+  // the user as "your columns are wrong" for what is a malformed file.
+  const sheets = parseWorkbookSheets(buf)
+  if (!sheets.ok) {
     return {
       rows: [],
       ignoredColumns: [],
@@ -397,7 +422,7 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
       missingHeaders: REQUIRED_HEADER_NAMES,
     }
   }
-  if (!firstSheetXml(files)) {
+  if (sheets.names.length === 0) {
     return {
       rows: [],
       ignoredColumns: [],
@@ -407,7 +432,6 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
     }
   }
 
-  const sheets = parseWorkbookSheets(buf)
   const named = findSheet(sheets, DENIK_SHEET_NAMES)
   const warnings: string[] = []
   // A workbook that carries the deník alongside a DPH / Rozvrh sheet is the
@@ -460,7 +484,7 @@ export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
     const gridRow = grid[r]
     if (!gridRow) continue
 
-    const datum = parseDatum(gridRow, cols.datum)
+    const datum = parseDatum(gridRow, cols.datum, sheets.date1904)
     const tpUD = cellString(gridRow, cols.tpUD)
     const zdroj = cellString(gridRow, cols.zdroj)
     const cislo = cellString(gridRow, cols.cislo)

@@ -33,8 +33,20 @@ function receivedInvoice(cislo: string, base: number, dan: number): DenikRow[] {
   ]
 }
 
-function sheet(rows: Cell[][]): WorkbookSheets {
-  return { grids: new Map([["DPH", rows]]), names: ["DPH"] }
+function sheet(rows: Cell[][], date1904 = false): WorkbookSheets {
+  return {
+    grids: new Map([["DPH", rows]]),
+    names: ["DPH"],
+    ok: true,
+    date1904,
+  }
+}
+
+const NO_SHEETS: WorkbookSheets = {
+  grids: new Map(),
+  names: [],
+  ok: true,
+  date1904: false,
 }
 
 const HEADER: Cell[] = [
@@ -55,14 +67,14 @@ describe("indexDenikByDoklad", () => {
     // 311 MD 121 000 / 602 DAL 100 000 / 343 DAL 21 000. Counting every non-343
     // leg would add the 311 receivable to the 602 revenue and report 221 000.
     const index = indexDenikByDoklad(issuedInvoice("001", 100000, 21000))
-    const doklad = index.get("vydané faktury|001")
+    const doklad = index.get("vydane faktury|001")
     expect(doklad?.zaklad.toString()).toBe("100000")
     expect(doklad?.dan.toString()).toBe("21000")
   })
 
   it("handles the received side, where the daň sits on MD", () => {
     const index = indexDenikByDoklad(receivedInvoice("FP001", 50000, 10500))
-    const doklad = index.get("přijaté faktury|fp001")
+    const doklad = index.get("prijate faktury|fp001")
     expect(doklad?.zaklad.toString()).toBe("50000")
     expect(doklad?.dan.toString()).toBe("10500")
   })
@@ -72,8 +84,8 @@ describe("indexDenikByDoklad", () => {
       ...issuedInvoice("001", 100000, 21000),
       ...receivedInvoice("001", 50000, 10500),
     ])
-    expect(index.get("vydané faktury|001")?.zaklad.toString()).toBe("100000")
-    expect(index.get("přijaté faktury|001")?.zaklad.toString()).toBe("50000")
+    expect(index.get("vydane faktury|001")?.zaklad.toString()).toBe("100000")
+    expect(index.get("prijate faktury|001")?.zaklad.toString()).toBe("50000")
   })
 
   it("ignores a 343↔343 leg, which moves daň without creating any", () => {
@@ -81,13 +93,13 @@ describe("indexDenikByDoklad", () => {
       ...issuedInvoice("001", 100000, 21000),
       denikRow({ cislo: "001", md: "343999", dal: "343001", castka: 21000 }),
     ])
-    expect(index.get("vydané faktury|001")?.dan.toString()).toBe("21000")
+    expect(index.get("vydane faktury|001")?.dan.toString()).toBe("21000")
   })
 })
 
 describe("parseDphSheet", () => {
   it("reports no sheet without treating it as an error", () => {
-    const result = parseDphSheet({ grids: new Map(), names: [] }, [])
+    const result = parseDphSheet(NO_SHEETS, [])
     expect(result.found).toBe(false)
     expect(result.issues).toEqual([])
   })
@@ -204,5 +216,143 @@ describe("parseDphSheet", () => {
     const result = parseDphSheet(sheet([["Zdroj", "Číslo"]]), [])
     expect(result.headerOk).toBe(false)
     expect(result.missingHeaders).toContain("Řádek")
+  })
+
+  // A doklad with no 343 leg at all — osvobozené plnění § 64/§ 66, the PDP
+  // dodavatel side, ř.20/21/22/25. Both derived totals are zero, so the old
+  // "zaklad.isZero() && !dan.isZero()" guard could never fire and the row was
+  // filed as a zero with every kontrolní vazba green.
+  it("errors instead of filing a zero when the base cannot be derived", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "V1", "SK1234567890", "15.06.2026", "", "20", "", "", "", "0"], // prettier-ignore
+      ]),
+      [denikRow({ cislo: "V1", md: "311000", dal: "604001", castka: 500000 })],
+    )
+    expect(result.rows[0]?.zaklad).toBe("")
+    expect(result.issues.some((i) => i.severity === "error" && i.message.includes("odvodit nedá"))).toBe(true) // prettier-ignore
+  })
+
+  it("does not let a doklad listed twice inherit the full total twice", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", "21", "", "A4", ""], // prettier-ignore
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "2", "12", "", "A4", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows[0]?.zaklad).toBe("100000")
+    expect(result.rows[1]?.zaklad).toBe("")
+    expect(result.issues.some((i) => i.severity === "error" && i.message.includes("vícekrát"))).toBe(true) // prettier-ignore
+  })
+
+  // Excel stores a percentage-formatted cell as the fraction. Stripping
+  // non-digits turned 0.21 into "021", missed an === "21" test, fell through to
+  // sazba 0, and the doklad vanished from the kontrolní hlášení while the
+  // přiznání kept it — the exact mismatch EPO issues a výzva for.
+  it("reads a percentage-formatted sazba cell", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", 0.21, "", "A4", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows[0]?.sazba).toBe(21)
+  })
+
+  it("drops a row whose sazba is not a statutory rate, loudly", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", "15", "", "A4", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows).toHaveLength(0)
+    expect(result.issues.some((i) => i.severity === "error" && i.message.includes("sazba"))).toBe(true) // prettier-ignore
+  })
+
+  it("matches a doklad Excel stripped the leading zeros from, and says so", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", 1, "CZ99999999", "15.06.2026", "", "1", "21", "", "A4", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows[0]?.zaklad).toBe("100000")
+    expect(result.issues.some((i) => i.message.includes("vodicí nuly"))).toBe(true) // prettier-ignore
+  })
+
+  it("folds diacritics and doubled spaces in the Zdroj half of the key", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["prijate  faktury", "FP001", "CZ88888888", "20.06.2026", "F-9", "40", "21", "", "B2", ""], // prettier-ignore
+      ]),
+      receivedInvoice("FP001", 50000, 10500),
+    )
+    expect(result.rows[0]?.zaklad).toBe("50000")
+  })
+
+  it("rejects an unknown řádek and an unknown KH sekce", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "01", "21", "", "A4", ""], // prettier-ignore
+        ["Vydané faktury", "002", "CZ99999999", "15.06.2026", "", "1", "21", "", "X9", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows).toHaveLength(0)
+    expect(result.issues.some((i) => i.message.includes("není řádek přiznání"))).toBe(true) // prettier-ignore
+  })
+
+  it("normalizes a KH sekce written with trailing dots", () => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", "21", "", "A.4.", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows[0]?.khSekce).toBe("A4")
+  })
+
+  it("shifts an Excel serial by 1462 days in a 1904-system workbook", () => {
+    const result = parseDphSheet(
+      sheet(
+        [
+          HEADER,
+          ["Vydané faktury", "001", "CZ99999999", 46188, "", "1", "21", "", "A4", ""], // prettier-ignore
+        ],
+        true,
+      ),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows[0]?.dppd).toBe("16.6.2030")
+  })
+
+  it("demands the supplier's own evidenční číslo for a B.2 row", () => {
+    const noEvc: Cell[] = [
+      "Zdroj",
+      "Číslo",
+      "DIČ",
+      "DPPD",
+      "Řádek",
+      "Sazba",
+      "KH sekce",
+    ]
+    const result = parseDphSheet(
+      sheet([
+        noEvc,
+        ["Přijaté faktury", "FP001", "CZ88888888", "20.06.2026", "40", "21", "B2"], // prettier-ignore
+      ]),
+      receivedInvoice("FP001", 50000, 10500),
+    )
+    expect(result.issues.some((i) => i.severity === "error" && i.message.includes("Ev. číslo dodavatele"))).toBe(true) // prettier-ignore
   })
 })

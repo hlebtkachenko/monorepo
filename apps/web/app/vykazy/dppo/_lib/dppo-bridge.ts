@@ -1,11 +1,16 @@
 // Pure bridge between the /vykazy statement builder and the @workspace/filing
-// DPPO engine. No React, no I/O, no filing runtime import (types only) — safe to
-// unit-test and to call from both the client page and the server action.
+// DPPO engine. No React, no I/O, and nothing from filing beyond types and its
+// static form tables — safe to unit-test and to call from both the client page
+// and the server action.
 
+import { DPPO_SPOJENE_TRANSAKCE } from "@workspace/filing/dppo"
 import type {
   DppoFigures,
   DppoFilingMeta,
   DppoPriloha,
+  DppoSpojenaOsoba,
+  DppoSpojeneCastky,
+  DppoSpojeneTransakce,
   DppoTabulkaB,
   DppoZadostSbirka,
   DppoZaverka,
@@ -172,11 +177,46 @@ export interface DppoFormState {
   cistyObrat: string
   /** Tabulka K ř.2 — průměrný přepočtený počet zaměstnanců. */
   pocetZamestnancu: string
+  /** Samostatná příloha — transakce se spojenými osobami (§ 23 odst. 7 ZDP). */
+  spojeneOsoby: SpojenaOsobaRadek[]
 }
 
 export interface TabulkaARadek {
   uctovaSkupina: string
   castka: string
+}
+
+/** One list of the samostatná příloha, as the form holds it (amounts as text). */
+export interface SpojenaOsobaRadek {
+  nazev: string
+  ic: string
+  stat: string
+  cashpooling: boolean
+  bezuplatnePoskytnute: boolean
+  bezuplatnePrijate: boolean
+  zarukaPrijata: boolean
+  zarukaPoskytnuta: boolean
+  /**
+   * Amounts v tis. Kč keyed by the XSD attribute ("sluzby_sl1"). Flat and
+   * string-valued because that is what the inputs bind to; `toSpojene` turns it
+   * back into the typed pairs, where each column is named by what it means.
+   */
+  castky: Record<string, string>
+}
+
+/** A blank list — a fresh row of the repeating table. */
+export function emptySpojenaOsoba(): SpojenaOsobaRadek {
+  return {
+    nazev: "",
+    ic: "",
+    stat: "CZ",
+    cashpooling: false,
+    bezuplatnePoskytnute: false,
+    bezuplatnePrijate: false,
+    zarukaPrijata: false,
+    zarukaPoskytnuta: false,
+    castky: {},
+  }
 }
 
 export type TabulkaBKey = keyof DppoTabulkaB
@@ -385,6 +425,51 @@ export function toZadost(form: DppoFormState): DppoZadostSbirka | undefined {
     priloha: true,
     email: form.sbirkaEmail.trim() || undefined,
   }
+}
+
+/** Parse a tis. Kč input; blank stays blank, so an untouched pair is not "0". */
+function tis(v: string | undefined): number | undefined {
+  const cleaned = (v ?? "").replace(/\s/g, "").replace(",", ".").trim()
+  if (!cleaned || cleaned === "-") return undefined
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : undefined
+}
+
+/**
+ * Samostatná příloha — transakce se spojenými osobami, or undefined when the
+ * poplatník listed none.
+ *
+ * The flat `castky` record is folded back into the typed pairs here: each
+ * transaction row gets ITS OWN two column names (výnos/náklad, prodej/nákup,
+ * přijaté/vyplacené, zvýšení/snížení, aktuální/minulé stav), taken from
+ * `DPPO_SPOJENE_TRANSAKCE` rather than assumed, because `_sl1` does not mean the
+ * same thing on every row.
+ */
+export function toSpojene(form: DppoFormState): DppoSpojenaOsoba[] | undefined {
+  const osoby = form.spojeneOsoby.map((radek) => {
+    const transakce: DppoSpojeneTransakce = {}
+    for (const { key, attr, sl1, sl2 } of DPPO_SPOJENE_TRANSAKCE) {
+      const a = tis(radek.castky[`${attr}_sl1`])
+      const b = tis(radek.castky[`${attr}_sl2`])
+      if (a === undefined && b === undefined) continue
+      // One cast: the pair's field names come from the table, so TypeScript
+      // cannot see that they are the two the row's own type allows.
+      const castky: DppoSpojeneCastky = { [sl1]: a ?? 0, [sl2]: b ?? 0 }
+      transakce[key] = castky as DppoSpojeneTransakce[typeof key]
+    }
+    return {
+      nazev: radek.nazev.trim(),
+      ic: radek.ic.trim() || undefined,
+      stat: radek.stat.trim(),
+      cashpooling: radek.cashpooling,
+      bezuplatnePoskytnute: radek.bezuplatnePoskytnute,
+      bezuplatnePrijate: radek.bezuplatnePrijate,
+      zarukaPrijata: radek.zarukaPrijata,
+      zarukaPoskytnuta: radek.zarukaPoskytnuta,
+      transakce,
+    }
+  })
+  return osoby.length > 0 ? osoby : undefined
 }
 
 /**

@@ -38,5 +38,15 @@ export {
   type DppoZaverkaRozvahaRadek,
 } from "./zaverka"
 export { buildZadostVety, type DppoZadostSbirka } from "./zadost"
+export {
+  buildSpojeneVety,
+  spojZahr,
+  DPPO_SPOJENE_TRANSAKCE,
+  DPPO_SPOJENE_PRIZNAKY,
+  type DppoSpojenaOsoba,
+  type DppoSpojeneCastky,
+  type DppoSpojeneTransakce,
+  type DppoSpojenyPriznak,
+} from "./spojene"
 export { checkDppo, type DppoCheck } from "./checks"
 export * from "../../../model/dppo"

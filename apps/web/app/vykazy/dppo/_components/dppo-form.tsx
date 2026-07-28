@@ -11,7 +11,11 @@ import { useMemo, useState } from "react"
 import { Button } from "@workspace/ui/components/button"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { DPPO_TABULKA_B_RADKY } from "@workspace/filing/dppo"
+import {
+  DPPO_TABULKA_B_RADKY,
+  DPPO_SPOJENE_PRIZNAKY,
+  DPPO_SPOJENE_TRANSAKCE,
+} from "@workspace/filing/dppo"
 
 import { useOrg } from "../../_lib/org-context"
 import { FINANCNI_URADY } from "../../_data/ufo"
@@ -23,15 +27,18 @@ import {
   filingYear,
   applyFieldChange,
   emptyTabulkaB,
+  emptySpojenaOsoba,
   tabulkaASoucet,
   tabulkaBSoucet,
   toFigures,
   toMeta,
   toPriloha,
+  toSpojene,
   toZadost,
   toZaverka,
   missingRequired,
   type DppoFormState,
+  type SpojenaOsobaRadek,
   type TabulkaARadek,
   type TabulkaBKey,
 } from "../_lib/dppo-bridge"
@@ -59,6 +66,7 @@ function initForm(
     sbirkaListin: true,
     sbirkaEmail: "",
     tabulkaA: [{ uctovaSkupina: "", castka: "" }],
+    spojeneOsoby: [],
     tabulkaB: emptyTabulkaB(),
     cistyObrat: obrat,
     pocetZamestnancu: "0",
@@ -155,6 +163,14 @@ export function DppoForm() {
     patch({
       tabulkaA: form.tabulkaA.map((r, i) => (i === index ? { ...r, ...next } : r)), // prettier-ignore
     })
+  const setOsoba = (index: number, next: Partial<SpojenaOsobaRadek>) =>
+    patch({
+      spojeneOsoby: form.spojeneOsoby.map((o, i) => (i === index ? { ...o, ...next } : o)), // prettier-ignore
+    })
+  const setCastka = (index: number, attr: string, value: string) =>
+    setOsoba(index, {
+      castky: { ...form.spojeneOsoby[index]?.castky, [attr]: value },
+    })
 
   const souctA = tabulkaASoucet(form.tabulkaA)
   const r40 = Number(form.nedanoveNaklady.replace(/\s/g, "").replace(",", ".")) || 0 // prettier-ignore
@@ -175,6 +191,7 @@ export function DppoForm() {
       toPriloha(form),
       toZaverka(values, crVariant, rozsah),
       toZadost(form),
+      toSpojene(form),
     )
     setResult(res)
     setBusy(false)
@@ -638,6 +655,140 @@ export function DppoForm() {
             hint="Nula je platná odpověď, prázdné pole není."
           />
         </div>
+      </section>
+
+      <section className="rounded-lg border border-border bg-muted/40 p-4">
+        <h2 className="mb-1 text-sm font-semibold text-foreground">
+          Samostatná příloha — transakce se spojenými osobami
+        </h2>
+        <p className="mb-3 text-xs text-muted-foreground">
+          § 23 odst. 7 ZDP, jeden list na každou spojenou osobu. Částky v celých
+          tisících Kč. Sloupce neznamenají na všech řádcích totéž, proto je u
+          každého řádku uveden jeho vlastní popis. Vyplněná příloha zároveň
+          nastaví položku 12 I. oddílu.
+        </p>
+
+        <div className="space-y-4">
+          {form.spojeneOsoby.map((osoba, index) => (
+            <div
+              key={index}
+              className="rounded border border-border bg-card p-3"
+            >
+              <div className="mb-3 flex items-start gap-2">
+                <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr_1fr]">
+                  <TextField
+                    label={`${index + 1}. Název spojené osoby`}
+                    value={osoba.nazev}
+                    onChange={(v) => setOsoba(index, { nazev: v })}
+                    placeholder="Dodavatel s.r.o."
+                    hint="Obchodní firma včetně právní formy; u fyzické osoby jméno a příjmení."
+                  />
+                  <TextField
+                    label="IČ / daňový identifikátor"
+                    value={osoba.ic}
+                    onChange={(v) => setOsoba(index, { ic: v })}
+                    placeholder="00000019"
+                  />
+                  <TextField
+                    label="Stát"
+                    value={osoba.stat}
+                    onChange={(v) => setOsoba(index, { stat: v })}
+                    placeholder="CZ"
+                    hint="Dvoumístný kód podle číselníku zemí (CZEM)."
+                  />
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Odebrat spojenou osobu ${index + 1}`}
+                  onClick={() =>
+                    patch({
+                      spojeneOsoby: form.spojeneOsoby.filter(
+                        (_, i) => i !== index,
+                      ),
+                    })
+                  }
+                  className="px-1 pt-5 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1.5">
+                {DPPO_SPOJENE_PRIZNAKY.map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={osoba[key]}
+                      onChange={(e) =>
+                        setOsoba(index, { [key]: e.target.checked })
+                      }
+                      className="size-4"
+                    />
+                    <span className="text-xs text-foreground">{label}</span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="space-y-1.5">
+                {DPPO_SPOJENE_TRANSAKCE.map(
+                  ({ attr, label, sl1Label, sl2Label }) => (
+                    <div key={attr} className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 text-xs text-foreground">
+                        {label}
+                      </span>
+                      <label className="flex items-center gap-1.5">
+                        <span className="hidden w-44 text-right text-xs text-muted-foreground sm:inline">
+                          {sl1Label}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          aria-label={`${label} — ${sl1Label}`}
+                          value={osoba.castky[`${attr}_sl1`] ?? ""}
+                          onChange={(e) =>
+                            setCastka(index, `${attr}_sl1`, e.target.value)
+                          }
+                          className={cn(INPUT_CLASS, "w-28 text-right tabular-nums")} // prettier-ignore
+                        />
+                      </label>
+                      <label className="flex items-center gap-1.5">
+                        <span className="hidden w-44 text-right text-xs text-muted-foreground sm:inline">
+                          {sl2Label}
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          aria-label={`${label} — ${sl2Label}`}
+                          value={osoba.castky[`${attr}_sl2`] ?? ""}
+                          onChange={(e) =>
+                            setCastka(index, `${attr}_sl2`, e.target.value)
+                          }
+                          className={cn(INPUT_CLASS, "w-28 text-right tabular-nums")} // prettier-ignore
+                        />
+                      </label>
+                    </div>
+                  ),
+                )}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Vyplněný řádek se odešle celý — prázdná polovina dvojice jde
+                jako nula, tak jak to dělá i EPO.
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            patch({
+              spojeneOsoby: [...form.spojeneOsoby, emptySpojenaOsoba()],
+            })
+          }
+          className="mt-3 text-xs text-primary hover:underline"
+        >
+          + Přidat spojenou osobu
+        </button>
       </section>
 
       {periodOutOfRange ? (

@@ -162,6 +162,7 @@ Věty, in XSD sequence order (`DPPO_EXTRA_VETA_TAGS` in
 | `VetaUA` | 0..∞        | Rozvaha AKTIVA, `c_radku` + brutto/korekce/netto/netto min. |
 | `VetaUB` | 0..∞        | **VZZ** druhové členění, `c_radku` + `kc_sled`/`kc_min`     |
 | `VetaUD` | 0..∞        | **Rozvaha PASIVA**, `c_radku` + `kc_sled`/`kc_min`          |
+| `VetaA`  | 0..∞        | samostatná příloha, one list per spojená osoba              |
 | `VetaUZ` | 0..1        | žádost o předání závěrky do sbírky listin                   |
 
 `VetaUB` is the VZZ and `VetaUD` is pasiva, NOT the other way round. Both are the
@@ -172,6 +173,16 @@ attributes.
 
 `readDppo` captures every recognised věta into `extraVety` in XSD order, so a
 document read → edited → written round-trips losslessly.
+
+`VetaA`'s sixteen amount pairs are `<name>_sl1` / `<name>_sl2`, and the two
+columns do NOT mean the same thing across rows: Služby is výnos/náklad,
+Dlouhodobý majetek is prodej/pořizovací cena, Úvěrové nástroje is
+přijaté/vyplacené, Vlastní kapitál is zvýšení/snížení, and pohledávky/závazky are
+stav aktuálního/minulého období. `DPPO_SPOJENE_TRANSAKCE` in `spojene.ts` carries
+each row's own two column names, so no caller ever writes `sl1`. Two emission
+rules the XSD does not state, both pinned to a submitted return: a pair with any
+activity ships BOTH halves (the idle one as `0`), and all five A/N příznaky are
+always present.
 
 ## Rules that are easy to get wrong
 
@@ -271,10 +282,6 @@ pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
 
 ## Known gaps
 
-- `VetaA` (samostatná příloha, transakce se spojenými osobami) is not emitted.
-  Its 40 attributes are 16 transaction pairs plus an identity block, and the
-  entry surface is a repeating 40-column table, so it is a feature rather than a
-  gap fix. `spoj_zahr` in `VetaD` belongs with it and is left unset too.
 - `c_pracufo` in `VetaP` (územní pracoviště) needs the FÚ číselník, which the
   repo does not vendor. `c_ufo_cil` already names the finanční úřad.
 - `kc_v_4` (zálohy, § 38b) is derived from ř.340 and belongs to the totals chain

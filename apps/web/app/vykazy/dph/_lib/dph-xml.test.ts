@@ -148,3 +148,35 @@ describe("buildDphXml against the official XSDs", () => {
     expect(result.xml).toContain('k_storno="A"')
   })
 })
+
+describe("the two remaining gaps, against the schema", () => {
+  it("emits call-off stock as VetaS and still validates", async () => {
+    const e = evidence()
+    e.callOff = [
+      { id: "1", dic: "SK1234567890", kod: "1" },
+      { id: "2", dic: "DE123456789", kod: "3", dicPuvodni: "ATU12345678" },
+    ]
+    const result = await buildDphXml("sh", e, meta)
+    expect(result.xsd?.errors ?? []).toEqual([])
+    expect(result.xsd?.valid).toBe(true)
+    expect(result.xml?.match(/<VetaS\b/g)).toHaveLength(2)
+    expect(result.xml).toContain('k_cos="3"')
+    // On a change of acquirer the schema wants BOTH ids on the row.
+    expect(result.xml).toContain('c_vat_puv="U12345678"')
+  })
+
+  it("files a pre-2024 oprava into the third rate bucket and still validates", async () => {
+    const e = evidence()
+    e.rows = [
+      { id: "p15", smer: "vystup", dppd: "15.6.2023", evc: "2023001", dic: "CZ87654321", radek: "2", sazba: 15, zaklad: "2000", dan: "300", khSekce: "A4" }, // prettier-ignore
+      { id: "p10", smer: "vystup", dppd: "15.6.2023", evc: "2023002", dic: "CZ87654321", radek: "2", sazba: 10, zaklad: "3000", dan: "300", khSekce: "A4" }, // prettier-ignore
+    ]
+    const result = await buildDphXml("kh", e, meta)
+    expect(result.xsd?.errors ?? []).toEqual([])
+    expect(result.xsd?.valid).toBe(true)
+    // 15 % rides in bucket 2 next to today's 12 %; 10 % gets bucket 3.
+    expect(result.xml).toContain('zakl_dane2="2000.00"')
+    expect(result.xml).toContain('zakl_dane3="3000.00"')
+    expect(result.xml).toContain('dan3="300.00"')
+  })
+})

@@ -10,21 +10,26 @@ the invariants that must hold, and the known gaps. For what each individual
 
 A single-user, client-side builder for the Czech statutory účetní závěrka of a
 podnikatel účtující v soustavě podvojného účetnictví, plus the corporate income
-tax return derived from the same book. No database, no server state: everything
-lives in `localStorage` and is exported as files. The only server calls are the
-ARES lookup and the DPPO XML build.
+tax return derived from the same book, plus the three statutory DPH filings. No
+database, no server state: everything lives in browser storage and is exported as
+files. The only server calls are the ARES lookup and the DPPO XML build — the DPH
+module builds and validates entirely client-side (see below).
 
 ## Routes
 
-| Route              | Purpose                                               |
-| ------------------ | ----------------------------------------------------- |
-| `/vykazy`          | landing, identification block, toolbar, import/export |
-| `/vykazy/rozvaha`  | Rozvaha, aktiva + pasiva tables                       |
-| `/vykazy/vzz`      | Výkaz zisku a ztráty, druhové členění                 |
-| `/vykazy/predvaha` | obratová předvaha built from the deník                |
-| `/vykazy/denik`    | imported účetní deník, screen + print                 |
-| `/vykazy/rozvrh`   | účtový rozvrh editor                                  |
-| `/vykazy/dppo`     | DPPO form and XML generator                           |
+| Route                  | Purpose                                               |
+| ---------------------- | ----------------------------------------------------- |
+| `/vykazy`              | landing, identification block, toolbar, import/export |
+| `/vykazy/rozvaha`      | Rozvaha, aktiva + pasiva tables                       |
+| `/vykazy/vzz`          | Výkaz zisku a ztráty, druhové členění                 |
+| `/vykazy/predvaha`     | obratová předvaha built from the deník                |
+| `/vykazy/denik`        | imported účetní deník, screen + print                 |
+| `/vykazy/rozvrh`       | účtový rozvrh editor                                  |
+| `/vykazy/dppo`         | DPPO form and XML generator                           |
+| `/vykazy/dph`          | DPH landing — the three VAT filings                   |
+| `/vykazy/dph/priznani` | Přiznání k DPH (DPHDP3) + XML generator               |
+| `/vykazy/dph/kh`       | Kontrolní hlášení (DPHKH1) + XML generator            |
+| `/vykazy/dph/sh`       | Souhrnné hlášení VIES (DPHSHV) + XML generator        |
 
 ## Data flow
 
@@ -59,10 +64,12 @@ so the client bundle stays on `decimal.js-light` + `zod`.
 
 ## Persistence
 
-| Key                    | Contents                                     |
-| ---------------------- | -------------------------------------------- |
-| `vykazy-doc`           | the whole `VykazyDoc`, `DOC_VERSION = 3`     |
-| `vykazy-org-templates` | saved identification blocks, `OrgTemplate[]` |
+| Key                    | Contents                                                       |
+| ---------------------- | -------------------------------------------------------------- |
+| `vykazy-doc`           | the whole `VykazyDoc`, `DOC_VERSION = 3`                       |
+| `vykazy-org-templates` | saved identification blocks, `OrgTemplate[]`                   |
+| `vykazy-dph`           | DPH evidence, `DphEvidence` — **sessionStorage by default**    |
+| `vykazy-dph-mode`      | `"local"` when the user opted into persisting the DPH evidence |
 
 `VykazyDoc` holds `org`, `values` (three statement maps), `rozsah`, `crVariant`,
 `rozvrh`, `denik`, `overrides`. Migration from older `version` values lives in
@@ -300,3 +307,76 @@ pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
   druhové členění, is produced; the účelové variant is `VetaUE`.
 - The DPPO form is component state. It is not part of `VykazyDoc` and does not
   survive a reload.
+
+## DPH module (`/vykazy/dph`)
+
+Three statutory filings — přiznání k DPH (DPHDP3), kontrolní hlášení (DPHKH1) and
+souhrnné hlášení VIES (DPHSHV) — exported as official Finanční správa EPO XML for
+upload to the daňový portál.
+
+### Why it is not built from the deník
+
+The deník is an accounting record. VAT reporting stands on the separate evidence
+required by § 100 odst. 1 ZDPH, kept "v členění potřebném pro sestavení daňového
+přiznání, souhrnného hlášení nebo kontrolního hlášení". A deník export cannot
+supply what the three filings need: the counterparty's DIČ (it carries IČ at
+best), the DPPD as distinct from the účetní datum, the supplier's own evidenční
+číslo that KH B.2 requires, or the § 92 kód předmětu plnění. It also cannot tell
+an EU acquisition from a domestic § 92 PDP or a § 108 residual — all three post
+343 against 343 — and ř.20/21/22/25/50 carry no 343 leg at all.
+
+So the evidence is entered or imported directly (`_lib/dph-evidence.ts`, with a
+CSV template mirroring the deník and rozvrh imports), and the deník is used for
+what it is good for: the kontrolní vazby.
+
+### One evidence, three projections
+
+```
+DphEvidenceRow[]                      dph/_lib/dph-evidence.ts
+  → projectPriznani                   dph/_lib/dph-project.ts  → Dphdp3Input
+  → projectKontrolniHlaseni                                    → Dphkh1Input
+  → projectSouhrnneHlaseni                                     → DphshvInput
+  → generate* + validateFiling        dph/_lib/dph-xml.ts      → XML + XSD verdict
+```
+
+All three project from ONE array because EPO cross-checks them against each other
+(Σ A.4 + A.5 základ against ř.1 + ř.2, and so on). `kontrolniVazby()` runs those
+same checks in the UI before anything is downloaded.
+
+### Client-side by design
+
+Unlike the DPPO export, the DPH module has **no server action**. A kontrolní
+hlášení is line-level personal data — every counterparty's DIČ, and for an OSVČ
+that DIČ is a rodné číslo — so it is never sent anywhere. The writers are pure
+string builders and `xmllint-wasm` ships a browser build, so generation and XSD
+validation both run in the tab; the validator is imported lazily so its WASM
+payload stays out of the initial bundle. `/vykazy` is a login-free public route,
+so this also avoids adding an unauthenticated endpoint that would accept an
+arbitrary-length KH array.
+
+The evidence defaults to `sessionStorage` and disappears with the tab. Persisting
+it is an explicit opt-in, and the wipe button clears both storages.
+
+### Cadence traps
+
+- **Kontrolní hlášení is monthly for every právnická osoba** (§ 101e odst. 1),
+  even for a quarterly DPH plátce. It carries its own `khMesic`, and deriving the
+  KH period from the přiznání period is the classic way to file a wrong hlášení.
+- **Souhrnné hlášení** may be quarterly only when the filer supplies nothing but
+  § 9 odst. 1 services; any goods force monthly (§ 102 odst. 6). `checkDphshv`
+  rejects a quarterly hlášení carrying kód 0/1/2.
+- `shvies_forma` is **R / N**, not the B/O/D/E of DPHDP3 or the B/O/N of DPHKH1.
+
+### Known gaps
+
+- ř.40–47 file the "V plné výši" column from the evidence; the "Krácený odpočet"
+  column is entered by hand under its exact XML attribute name
+  (`DPH_MANUAL_FIELDS`). The XSD carries two parallel attribute families for
+  those řádky whose column roles its own documentation does not settle, and
+  guessing would file a wrong return.
+- Opravné / dodatečné forms are not exposed in the UI. `d_zjist` and
+  `c_jed_vyzvy` exist on the header models, so the engine supports them.
+- Call-off stock (`VetaS`) and SH storno rows are modelled and validated but have
+  no UI.
+- Nothing seeds the evidence from the deník. That would need a per-doklad
+  classification the deník cannot supply; see the reasoning above.

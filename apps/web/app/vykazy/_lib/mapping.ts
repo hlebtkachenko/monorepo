@@ -47,7 +47,11 @@
 import { CR_COUNTERPART } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { computeColumn } from "./engine"
-import { buildOpravkovyLookup, type RozvrhAccount } from "./rozvrh"
+import {
+  buildOpravkovyLookup,
+  buildPlacementLookup,
+  type RozvrhAccount,
+} from "./rozvrh"
 import type { CasoveRozliseni, VykazValues } from "./types"
 
 /** Pasiva A.V. Výsledek hospodaření běžného účetního období. */
@@ -480,12 +484,44 @@ function mapAccount(
 }
 
 /**
+ * The účtový rozvrh's own placement for one analytický účet, as an
+ * AccountTarget. The column follows from the statement it names: an aktivum
+ * posts brutto unless it is an opravkový účet, and pasiva and VZZ have only the
+ * one column. Null = no override, so the vyhláška's mapping stands.
+ */
+function placementTarget(
+  placement: { vykaz: AccountTarget["statement"]; rada: string } | undefined,
+  opravkovy: boolean,
+  crVariant: CasoveRozliseni,
+): AccountTarget | null {
+  if (placement === undefined) return null
+  const base: AccountTarget =
+    placement.vykaz === "rozvaha-aktiva"
+      ? {
+          statement: "rozvaha-aktiva",
+          rada: placement.rada,
+          col: opravkovy ? "korekce" : "brutto",
+          sign: 1,
+        }
+      : placement.vykaz === "rozvaha-pasiva"
+        ? {
+            statement: "rozvaha-pasiva",
+            rada: placement.rada,
+            col: "bezne",
+            sign: -1,
+          }
+        : { statement: "vzz", rada: placement.rada, col: "bezne", sign: 1 }
+  return applyCrVariant(base, crVariant)
+}
+
+/**
  * Turn an obratová předvaha into výkaz leaf values.
  *
- * For each account: resolve its opravkovy flag from the loaded účtový rozvrh,
- * else the směrná osnova (both exact 6-digit; if absent, fall back to false —
- * the synthetic-nature default), map it, and accumulate its contribution per
- * (statement, řádek, column) in Kč.
+ * For each account: resolve its placement — the účtový rozvrh's own analytické
+ * zařazení first, then the vyhláška's mapping of its syntetický účet — and its
+ * opravkovy flag from the loaded rozvrh, else the směrná osnova (both exact
+ * 6-digit; if absent, fall back to false — the synthetic-nature default), then
+ * accumulate its contribution per (statement, řádek, column) in Kč.
  *
  * The výkaz is filed "v celých tisících Kč", and rounding every cell on its own
  * breaks the bilanční rovnost: Σ round(x) is not round(Σ x), so a book that ties
@@ -521,6 +557,7 @@ export function mapPredvahaToValues(
   unmapped: string[]
 } {
   const isOpravkovy = buildOpravkovyLookup(rozvrh)
+  const placementOf = buildPlacementLookup(rozvrh)
   // Accumulators in Kč, keyed by řádek -> column -> amount.
   const rozvahaAktivaKc: Record<
     string,
@@ -541,7 +578,10 @@ export function mapPredvahaToValues(
 
   for (const row of ucty) {
     const syn = row.synteticky.slice(0, 3)
-    const target = mapAccount(syn, isOpravkovy(row.ucet), crVariant)
+    const opravkovy = isOpravkovy(row.ucet)
+    const target =
+      placementTarget(placementOf(row.ucet), opravkovy, crVariant) ??
+      mapAccount(syn, opravkovy, crVariant)
     if (!target) {
       unmapped.push(row.ucet)
       continue

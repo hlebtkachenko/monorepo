@@ -4,10 +4,22 @@
 // to its synthetic's generic name ("Dlouhodobé přijaté zálohy") wherever a name
 // is rendered. A loaded rozvrh supplies the real one ("Byt 17, ...").
 //
+// § 14 also splits the ownership of a placement. A syntetický účet's výkaz řádek
+// is given by vyhláška 500/2002 Sb. and is not the user's to change. An
+// analytický účet's is: the same synthetic can carry analytics that report on
+// different řádky — 395 vnitřní zúčtování is the classic one, some analytics are
+// a pohledávka and others a závazek. Those overrides ride in the same CSV and
+// are resolved by `buildPlacementLookup`, which `mapping.ts` consults before its
+// own law table.
+//
 // Pure: text in, accounts out. No React, no I/O.
 
 import { OSNOVA } from "../_data/osnova"
+import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
+import { VZZ } from "../_data/vzz"
 import { csvField, detectDelimiter, splitCsvLine } from "./csv"
+import type { StatementKey } from "./storage"
+import type { CasoveRozliseni } from "./types"
 
 export interface RozvrhAccount {
   /** Full account number as it appears in the deník (usually 6 digits). */
@@ -15,6 +27,11 @@ export interface RozvrhAccount {
   nazev: string
   /** Účet oprávek / opravných položek — its balance belongs in the korekce column. */
   opravkovy?: boolean
+  /** Placement override: which statement this account reports on. Analytické
+   * účty only; absent = the vyhláška's placement of its syntetický účet. */
+  vykaz?: StatementKey
+  /** Leaf řádek inside `vykaz` (e.g. "067"). Only meaningful together with it. */
+  rada?: string
 }
 
 export interface RozvrhParseResult {
@@ -23,11 +40,13 @@ export interface RozvrhParseResult {
   duplicates: string[]
   /** Rows dropped for want of an account number or a name, with their line. */
   skipped: string[]
+  /** Placement overrides dropped as not the user's to make, with their line. */
+  rejectedPlacements: string[]
   headerOk: boolean
   missingHeaders: string[]
 }
 
-type FieldKey = "ucet" | "nazev" | "opravkovy"
+type FieldKey = "ucet" | "nazev" | "opravkovy" | "vykaz" | "rada"
 
 const CSV_HEADERS: Record<string, FieldKey> = {
   Účet: "ucet",
@@ -36,6 +55,10 @@ const CSV_HEADERS: Record<string, FieldKey> = {
   Nazev: "nazev",
   Oprávkový: "opravkovy",
   Opravkovy: "opravkovy",
+  Výkaz: "vykaz",
+  Vykaz: "vykaz",
+  Řádek: "rada",
+  Radek: "rada",
 }
 
 /**
@@ -60,7 +83,13 @@ const REQUIRED_NAMES = ["Účet", "Název"]
 
 /** Ordered columns of the downloadable template. A superset is accepted on
  * import: the full účtový rozvrh sheet imports as-is, extra columns and all. */
-const TEMPLATE_HEADERS = ["Účet", "Název", "Oprávkový"] as const
+const TEMPLATE_HEADERS = [
+  "Účet",
+  "Název",
+  "Oprávkový",
+  "Výkaz",
+  "Řádek",
+] as const
 
 /** "Ano" / "Ne" as the Czech accounting software writes it, plus the usual aliases. */
 function parseOpravkovy(v: string): boolean {
@@ -68,11 +97,29 @@ function parseOpravkovy(v: string): boolean {
   return s === "ano" || s === "true" || s === "1" || s === "yes"
 }
 
+/** Statement label as the CSV carries it. Empty = the vyhláška's placement. */
+const VYKAZ_LABEL: Record<StatementKey, string> = {
+  "rozvaha-aktiva": "Aktiva",
+  "rozvaha-pasiva": "Pasiva",
+  vzz: "VZZ",
+}
+
+const VYKAZ_BY_LABEL: Record<string, StatementKey> = {
+  aktiva: "rozvaha-aktiva",
+  "rozvaha-aktiva": "rozvaha-aktiva",
+  pasiva: "rozvaha-pasiva",
+  "rozvaha-pasiva": "rozvaha-pasiva",
+  vzz: "vzz",
+  výsledovka: "vzz",
+  vysledovka: "vzz",
+}
+
 export function rozvrhCsvTemplate(): string {
   const examples = [
-    ["221003", "Bankovní účet EUR: Raiffeisenbank (devizový)", "Ne"],
-    ["475017", "Dlouhodobé přijaté zálohy: Byt 17", "Ne"],
-    ["391001", "Opravná položka k pohledávkám", "Ano"],
+    ["221003", "Bankovní účet EUR: Raiffeisenbank (devizový)", "Ne", "", ""],
+    ["475017", "Dlouhodobé přijaté zálohy: Byt 17", "Ne", "", ""],
+    ["391001", "Opravná položka k pohledávkám", "Ano", "", ""],
+    ["395002", "Vnitřní zúčtování: závazky", "Ne", "Pasiva", "062"],
   ]
   const lines = [
     TEMPLATE_HEADERS.join(";"),
@@ -89,7 +136,13 @@ export function rozvrhCsv(accounts: readonly RozvrhAccount[]): string {
     ...[...accounts]
       .sort((a, b) => a.ucet.localeCompare(b.ucet, "cs"))
       .map((a) =>
-        [a.ucet, a.nazev, a.opravkovy ? "Ano" : "Ne"]
+        [
+          a.ucet,
+          a.nazev,
+          a.opravkovy ? "Ano" : "Ne",
+          a.vykaz ? VYKAZ_LABEL[a.vykaz] : "",
+          a.vykaz ? (a.rada ?? "") : "",
+        ]
           .map((f) => csvField(f))
           .join(";"),
       ),
@@ -97,10 +150,102 @@ export function rozvrhCsv(accounts: readonly RozvrhAccount[]): string {
   return `﻿${lines.join("\r\n")}\r\n`
 }
 
+/**
+ * The leaf řádky an account may be placed on, per statement. LEAVES ONLY: a
+ * calculated řádek is the sum of its children, so posting an account straight
+ * onto one would double-count it. Both časové-rozlišení layouts are collected,
+ * since `mapping.ts` moves a "D" target onto its "C" counterpart when that
+ * layout is in force.
+ */
+const LEAF_RADKY: Record<StatementKey, Set<string>> = {
+  "rozvaha-aktiva": new Set(
+    [...rozvahaAktiva("D").lines, ...rozvahaAktiva("C").lines]
+      .filter((line) => line.kind === "input")
+      .map((line) => line.rada),
+  ),
+  "rozvaha-pasiva": new Set(
+    [...rozvahaPasiva("D").lines, ...rozvahaPasiva("C").lines]
+      .filter((line) => line.kind === "input")
+      .map((line) => line.rada),
+  ),
+  vzz: new Set(
+    VZZ.lines.filter((line) => line.kind === "input").map((line) => line.rada),
+  ),
+}
+
+export function isLeafRada(vykaz: StatementKey, rada: string): boolean {
+  return LEAF_RADKY[vykaz].has(rada)
+}
+
+/** A syntetický účet is the bare 3-digit number, or a 6-digit one ending 000. */
+function isSynteticky(ucet: string): boolean {
+  const clean = ucet.trim()
+  return clean.length === 3 || /^\d{3}0+$/.test(clean)
+}
+
+/**
+ * Why a placement override cannot be accepted, or null when it can.
+ *
+ * Three ways to get it wrong, and the reason each is refused rather than
+ * silently corrected: a syntetický účet's řádek is the vyhláška's, not the
+ * user's (§ 14); half a placement says nothing; and a non-leaf řádek would be
+ * double-counted against the children it sums.
+ */
+function placementProblem(
+  ucet: string,
+  vykazRaw: string,
+  radaRaw: string,
+): string | null {
+  const vykaz = VYKAZ_BY_LABEL[vykazRaw.toLowerCase()]
+  if (vykazRaw !== "" && vykaz === undefined) {
+    return `neznámý výkaz "${vykazRaw}"`
+  }
+  if (vykaz === undefined || radaRaw === "") {
+    return `účet ${ucet}: zařazení vyžaduje výkaz i řádek`
+  }
+  if (isSynteticky(ucet)) {
+    return `účet ${ucet}: syntetický účet zařazuje vyhláška, nelze přepsat`
+  }
+  if (!isLeafRada(vykaz, radaRaw)) {
+    return `účet ${ucet}: řádek ${radaRaw} není součtový list výkazu ${VYKAZ_LABEL[vykaz]}`
+  }
+  return null
+}
+
+/** One selectable placement target: the leaf řádek as the form prints it. */
+export interface LeafOption {
+  rada: string
+  /** "C.II.2.4.6 Jiné pohledávky (067)" — označení, text, číslo řádku. */
+  label: string
+}
+
+/** The leaf řádky of one statement in the given layout, as picker options. */
+export function leafOptions(
+  vykaz: StatementKey,
+  crVariant: CasoveRozliseni,
+): LeafOption[] {
+  const statement =
+    vykaz === "rozvaha-aktiva"
+      ? rozvahaAktiva(crVariant)
+      : vykaz === "rozvaha-pasiva"
+        ? rozvahaPasiva(crVariant)
+        : VZZ
+  return statement.lines
+    .filter((line) => line.kind === "input")
+    .map((line) => ({
+      rada: line.rada,
+      label: `${line.ozn} ${line.text} (${line.rada})`.trim(),
+    }))
+}
+
+/** Short name of a statement, for the picker and the "dle vyhlášky" hint. */
+export const VYKAZ_NAZEV: Record<StatementKey, string> = VYKAZ_LABEL
+
 export function parseRozvrhCsv(text: string): RozvrhParseResult {
   const ignoredColumns: string[] = []
   const duplicates: string[] = []
   const skipped: string[] = []
+  const rejectedPlacements: string[] = []
   const rawLines = text.replace(/^\uFEFF/, "").split(/\r\n|\n|\r/)
   const headerLine = rawLines[0] ?? ""
   if (headerLine.trim() === "") {
@@ -109,6 +254,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
       ignoredColumns,
       duplicates,
       skipped,
+      rejectedPlacements,
       headerOk: false,
       missingHeaders: REQUIRED_NAMES,
     }
@@ -136,6 +282,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
       ignoredColumns,
       duplicates,
       skipped,
+      rejectedPlacements,
       headerOk: false,
       missingHeaders,
     }
@@ -177,6 +324,18 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
     if (cols.opravkovy !== undefined) {
       account.opravkovy = parseOpravkovy(at(f, cols.opravkovy))
     }
+
+    const vykazRaw = at(f, cols.vykaz)
+    const radaRaw = at(f, cols.rada)
+    if (vykazRaw !== "" || radaRaw !== "") {
+      const reason = placementProblem(ucet, vykazRaw, radaRaw)
+      if (reason !== null) {
+        rejectedPlacements.push(`\u0159\u00E1dek ${i + 1}: ${reason}`)
+      } else {
+        account.vykaz = VYKAZ_BY_LABEL[vykazRaw.toLowerCase()]
+        account.rada = radaRaw
+      }
+    }
     accounts.push(account)
   }
 
@@ -185,6 +344,7 @@ export function parseRozvrhCsv(text: string): RozvrhParseResult {
     ignoredColumns,
     duplicates,
     skipped,
+    rejectedPlacements,
     headerOk: true,
     missingHeaders: [],
   }
@@ -249,4 +409,28 @@ export function buildOpravkovyLookup(
     OSNOVA_EXACT.get(ucet)?.opravkovy ??
     OSNOVA_BY_SYNTETICKY.get(ucet.slice(0, 3))?.opravkovy ??
     false
+}
+
+/**
+ * Resolve an account's placement override: the loaded rozvrh's exact account, or
+ * undefined when the vyhláška's placement of its syntetický účet applies.
+ *
+ * Exact-match only, like `buildNameLookup` and for the same reason — an
+ * analytika's placement describes that one account, and lending it to an
+ * unlisted sibling would file a number on the wrong řádek. An override that no
+ * longer names a leaf (the CSV was hand-edited, or the layout changed) is
+ * dropped here too, so a stale document degrades to the law rather than to a
+ * cell that does not exist.
+ */
+export function buildPlacementLookup(
+  rozvrh?: readonly RozvrhAccount[],
+): (ucet: string) => { vykaz: StatementKey; rada: string } | undefined {
+  const own = new Map<string, { vykaz: StatementKey; rada: string }>()
+  for (const acc of rozvrh ?? []) {
+    if (acc.vykaz === undefined || acc.rada === undefined) continue
+    if (isSynteticky(acc.ucet) || !isLeafRada(acc.vykaz, acc.rada)) continue
+    if (!own.has(acc.ucet))
+      own.set(acc.ucet, { vykaz: acc.vykaz, rada: acc.rada })
+  }
+  return (ucet) => own.get(ucet)
 }

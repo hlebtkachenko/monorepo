@@ -195,4 +195,30 @@ describe("mapPredvahaToValues — rozvaha leaves", () => {
     expect(computed["050"]).toBe(40) // L. Daň z příjmů
     expect(computed["055"]).toBe(160)
   })
+
+  it("lets the účtový rozvrh place an analytika of 395 on the závazek side", () => {
+    // 395 vnitřní zúčtování is the case the override exists for: the vyhláška
+    // maps the synthetic to a pohledávka, but an analytika that carries a
+    // závazek belongs on the pasiva side. Both analytiky post 30 000 MD/Dal so
+    // the two sides of the rozvaha stay equal either way.
+    const rows = [
+      { ucet: "395001", synteticky: "395", ks: 30_000, obratMD: 30_000, obratDal: 0 }, // prettier-ignore
+      { ucet: "395002", synteticky: "395", ks: -30_000, obratMD: 0, obratDal: 30_000 }, // prettier-ignore
+    ]
+
+    const dleVyhlasky = mapPredvahaToValues(rows, "D")
+    const sRozvrhem = mapPredvahaToValues(rows, "D", [
+      { ucet: "395001", nazev: "Vnitřní zúčtování: pohledávky" },
+      { ucet: "395002", nazev: "Vnitřní zúčtování: závazky", vykaz: "rozvaha-pasiva", rada: "062" }, // prettier-ignore
+    ])
+
+    // Without the override both analytiky net to zero on the aktiva side.
+    expect(computeColumn(rozvahaAktiva("D"), "brutto", dleVyhlasky.rozvahaAktiva)["001"]).toBe(0) // prettier-ignore
+    expect(dleVyhlasky.rozvahaPasiva["062"]).toBeUndefined()
+
+    // With it, the závazek analytika reports as C.II.8.7. Jiné závazky (30 tis.)
+    // and the pohledávka stays on the aktiva side at its own 30 tis.
+    expect(sRozvrhem.rozvahaPasiva["062"]).toEqual({ bezne: 30 })
+    expect(computeColumn(rozvahaAktiva("D"), "brutto", sRozvrhem.rozvahaAktiva)["001"]).toBe(30) // prettier-ignore
+  })
 })

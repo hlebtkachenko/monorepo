@@ -7,13 +7,16 @@
 // koruna for DPHDP3, haléře for DPHKH1) and drops zero-value detail lines.
 //
 // The DPHDP3 row→attribute map lives in .context/xml-filing-tier2-grounding.md.
-// The Veta4 (odpočet) column roles are the one part not fully disambiguated by the
-// XSD alone — flagged there and gated by the Advisor review before Hleb signs off.
+// The Veta4 (odpočet) column roles come from the FÚ popis struktury, which carries a
+// form label per attribute; the XSD alone cannot settle them, its documentation being
+// identical for both members of every pair.
 
 import Decimal from "decimal.js-light"
-import { koruna, haler } from "./envelope"
+import { koruna, korunaNahoru, haler } from "./envelope"
+import { splitVatId } from "./vat-id"
 import type { Dphdp3Input } from "../../model/dphdp3"
 import type { Dphkh1Input } from "../../model/dphkh1"
+import type { DphshvInput } from "../../model/dphshv"
 
 /** Identity + period metadata (not part of the accounting figures — supplied by the org). */
 export interface FuFilingMeta {
@@ -125,13 +128,15 @@ export function buildDphdp3FromAccounting(
     pln_vyvoz: figures.r22_base,
     pln_rez_pren: figures.r25_base,
   })
-  // Veta4 — column roles flagged in the grounding doc; full-deduction plátce fills
-  // the "V plné výši" daň column only (no krácení here).
+  // Veta4 — a full-deduction plátce fills the "V plné výši" daň column only. Per
+  // the FÚ popis struktury that column is `odp_tuz23_nar` / `odp_tuz5_nar` on
+  // ř.40/41 (`_nar` = nárok v plné výši), NOT the bare `odp_tuz*`, which is the
+  // krácený column. ř.43/44 use the other naming: `od_` is plná, `odkr_` krácený.
   const veta4 = nonZeroKoruna({
     pln23: figures.r40_base,
-    odp_tuz23: figures.r40_dan,
+    odp_tuz23_nar: figures.r40_dan,
     pln5: figures.r41_base,
-    odp_tuz5: figures.r41_dan,
+    odp_tuz5_nar: figures.r41_dan,
     nar_zdp23: figures.r43_base,
     od_zdp23: figures.r43_dan,
     nar_zdp5: figures.r44_base,
@@ -195,6 +200,12 @@ function emptyToUndef(
 /** Subset of accounting `KhRow` (Decimal = string). */
 export interface KhRowInput {
   tax_id: string | null
+  /**
+   * ISO member state that issued `tax_id`. Only A.2 needs it — that section
+   * splits the VAT id into `k_stat` + `vatid_dod`. Everywhere else the DIČ is a
+   * Czech one and is filed whole.
+   */
+  country_code?: string | null
   doklad: string
   dppd: string
   kod: string | null
@@ -204,10 +215,22 @@ export interface KhRowInput {
   dan12: string
 }
 
-/** Subset of accounting `KhAggregate`. */
+/**
+ * Subset of accounting `KhAggregate` — the A.5 / B.3 souhrnný řádek.
+ *
+ * `base`/`dan` are the rate-blind totals the DB path produces (its SQL has no rate
+ * split on the aggregate). `base21`/`dan21`/`base12`/`dan12` are optional and let a
+ * caller that DOES know the split supply it: without them the whole aggregate has
+ * to be filed in the 21 % bucket, which misstates the sazba on any sub-threshold
+ * 12 % plnění and breaks EPO's vazba between A.5 and ř.2 of the přiznání.
+ */
 export interface KhAggregateInput {
   base: string
   dan: string
+  base21?: string
+  dan21?: string
+  base12?: string
+  dan12?: string
 }
 
 /** Subset of accounting `KontrolniHlaseni` (the row sections). */
@@ -248,12 +271,20 @@ export function buildDphkh1FromAccounting(
     zakl_dane1: haler(addStr(r.base21, r.base12)) ?? "0.00",
     kod_pred_pl: r.kod ?? "",
   }))
-  const a2 = kh.a2.map((r) => ({
-    vatid_dod: r.tax_id ?? undefined,
-    c_evid_dd: r.doklad,
-    dppd: r.dppd,
-    ...buckets(r),
-  }))
+  // A.2's VAT id is split like the souhrnné hlášení's: `vatid_dod` is documented
+  // "ve formátu bez mezer bez kódu členského státu", and the country goes in
+  // `k_stat`. The prefixed form both mismatches VIES and, at 12 characters
+  // (NL …B01, SE, LT, XI), overruns the attribute's maxLength.
+  const a2 = kh.a2.map((r) => {
+    const { k_stat, c_vat } = splitVatId(r.country_code ?? null, r.tax_id)
+    return {
+      k_stat: k_stat || undefined,
+      vatid_dod: c_vat || undefined,
+      c_evid_dd: r.doklad,
+      dppd: r.dppd,
+      ...buckets(r),
+    }
+  })
   const a4 = kh.a4.map((r) => ({
     dic_odb: r.tax_id ?? "",
     c_evid_dd: r.doklad,
@@ -277,16 +308,33 @@ export function buildDphkh1FromAccounting(
     pomer: "N",
     zdph_44: "N",
   }))
-  // A.5 / B.3 aggregate — KhAggregate carries no rate split, so the whole base lands
-  // in bucket 1 (21 %). Flagged limitation (see grounding doc).
+  // A.5 / B.3 aggregate. When the caller supplies a rate split, each sazba goes to
+  // its own bucket (1 = 21 %, 2 = 12 %). Otherwise the source genuinely does not
+  // know the split — the DB path's KhAggregate is rate-blind — and the whole total
+  // has to land in bucket 1; that misstates a sub-threshold 12 % plnění, so a
+  // caller that can split SHOULD.
   const aggregate = (
     a: KhAggregateInput,
   ): Record<string, string> | undefined => {
     const out: Record<string, string> = {}
-    const b = haler(a.base)
-    const d = haler(a.dan)
-    if (b && b !== "0.00") out.zakl_dane1 = b
-    if (d && d !== "0.00") out.dan1 = d
+    const put = (key: string, value: string | undefined) => {
+      const f = haler(value)
+      if (f && f !== "0.00") out[key] = f
+    }
+    const split =
+      a.base21 !== undefined ||
+      a.dan21 !== undefined ||
+      a.base12 !== undefined ||
+      a.dan12 !== undefined
+    if (split) {
+      put("zakl_dane1", a.base21)
+      put("dan1", a.dan21)
+      put("zakl_dane2", a.base12)
+      put("dan2", a.dan12)
+    } else {
+      put("zakl_dane1", a.base)
+      put("dan1", a.dan)
+    }
     return Object.keys(out).length > 0 ? out : undefined
   }
 
@@ -322,4 +370,106 @@ export function buildDphkh1FromAccounting(
 /** Exact sum of two decimal strings (money rule — never native number arithmetic). */
 function addStr(a: string, b: string): string {
   return new Decimal(a || 0).plus(new Decimal(b || 0)).toString()
+}
+
+// ── DPHSHV ──────────────────────────────────────────────────────────────────
+
+/** Subset of accounting `ShRow` (Decimal = string). */
+export interface ShRowInput {
+  /** ISO 3166-1 alpha-2 member state that issued the acquirer's VAT id. */
+  country_code: string | null
+  /** Acquirer's VAT id, with or without the country prefix. */
+  tax_id: string | null
+  /** kód plnění: "0" zboží §13 / "1" přemístění §13/6 / "2" §17 / "3" služba §9/1. */
+  kod_plneni: string
+  /** Počet plnění tomuto pořizovateli. */
+  count: number
+  /** Celková hodnota plnění (CZK, bez daně). */
+  value: string
+}
+
+/** Subset of accounting `SouhrnneHlaseni` (the recap rows). */
+export interface ShData {
+  rows: ShRowInput[]
+}
+
+/**
+ * Build a DPHSHV model from the accounting SH rows + org meta.
+ *
+ * Every row is emitted, including one whose counterparty carries no VAT id: the
+ * hodnota is real tax data and dropping it would understate the hlášení silently.
+ * Such a row fails EPO's mandatory-field check, which is the correct place for it
+ * to surface — the caller should validate before offering the file for upload.
+ *
+ * `forma` defaults to "R" (řádné). DPHSHV uses R/N, NOT the B/O/D/E of DPHDP3 or
+ * the B/O/N of DPHKH1, so a caller passing a DPHDP3-style forma is a bug.
+ */
+export function buildDphshvFromAccounting(
+  sh: ShData,
+  meta: FuFilingMeta,
+): DphshvInput {
+  // Re-aggregate AFTER normalizing the VAT id. The upstream grouping key is the raw
+  // (country_code, tax_id, kód) triple, so "SK 123", "SK123" and a bare "123" with
+  // country SK arrive as three rows that normalize to one identical (k_stat, c_vat,
+  // k_pln_eu) — and the schema forbids exactly that: "Žádné daňové identifikační
+  // číslo nesmí být v hlášení uvedeno více než jednou se stejným kódem plnění."
+  // Summing here also means pln_hodnota is rounded once per filed row rather than
+  // once per input row, so Σ rows stays as close to ř.20+ř.21 as the rule allows.
+  const merged = new Map<
+    string,
+    {
+      k_stat?: string
+      c_vat?: string
+      kod: string
+      count: number
+      value: Decimal
+    }
+  >()
+  for (const r of sh.rows) {
+    const { k_stat, c_vat } = splitVatId(r.country_code, r.tax_id)
+    const key = `${k_stat ?? ""}|${c_vat ?? ""}|${r.kod_plneni}`
+    const entry = merged.get(key)
+    if (entry) {
+      entry.count += r.count
+      entry.value = entry.value.plus(new Decimal(r.value || 0))
+    } else {
+      merged.set(key, {
+        k_stat,
+        c_vat,
+        kod: r.kod_plneni,
+        count: r.count,
+        value: new Decimal(r.value || 0),
+      })
+    }
+  }
+  // No c_rad / por_c_stran: both are documented as pure ordering hints ("Pokud je
+  // uvedeno, budou řádky ... uspořádány v zadaném pořadí") and VetaR's c_rad is
+  // totalDigits=2, so a sequential index makes every hlášení with 100+ counterparties
+  // fail XSD validation on row 100. Document order is already the intended order.
+  const rows = [...merged.values()].map((r) => ({
+    k_stat: r.k_stat,
+    c_vat: r.c_vat,
+    k_pln_eu: r.kod,
+    pln_pocet: String(r.count),
+    pln_hodnota: korunaNahoru(r.value.toString()),
+  }))
+  return {
+    header: {
+      shvies_forma: meta.forma ?? "R",
+      rok: meta.rok,
+      mesic: meta.mesic,
+      ctvrt: meta.ctvrt,
+    },
+    payer: {
+      c_ufo: meta.c_ufo,
+      dic: meta.dic,
+      typ_ds: meta.typ_ds ?? "P",
+      zkrobchjm: meta.name,
+      naz_obce: meta.naz_obce,
+      ulice: meta.ulice,
+      c_pop: meta.c_pop,
+      psc: meta.psc,
+    },
+    rows: rows.length > 0 ? rows : undefined,
+  }
 }

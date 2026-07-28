@@ -9,6 +9,9 @@ export {
 } from "./dphdp3/compute"
 export { generateDphkh1 } from "./dphkh1/write"
 export { readDphkh1 } from "./dphkh1/read"
+export { generateDphshv } from "./dphshv/write"
+export { readDphshv } from "./dphshv/read"
+export { checkDphshv, type DphshvCheck } from "./dphshv/checks"
 export * from "./adapter"
 export { generateDppo } from "./dppo/write"
 export { readDppo } from "./dppo/read"
@@ -24,3 +27,5 @@ export {
   type DppoFilingMeta,
 } from "./dppo/adapter"
 export { checkDppo, type DppoCheck } from "./dppo/checks"
+
+export { splitVatId } from "./vat-id"

@@ -26,7 +26,7 @@ function schema(relPath: string): SchemaFile {
   return { fileName: relPath.split("/").pop() ?? relPath, contents }
 }
 
-export type FilingType = "isdoc" | "dphdp3" | "dphkh1" | "dppo"
+export type FilingType = "isdoc" | "dphdp3" | "dphkh1" | "dphshv" | "dppo"
 
 /** Vendored-schema paths for one (filingType, version): the main XSD + its includes. */
 interface SchemaSpec {
@@ -56,6 +56,11 @@ const REGISTRY = new Map<string, SchemaSpec>([
   [
     "dphkh1@03.01.14",
     { main: "fu/dphkh1/03.01.14/dphkh1_epo2.xsd", preload: [] },
+  ],
+  // DPHSHV — Souhrnné hlášení VIES (§102 ZDPH), účinné od 29. 10. 2024.
+  [
+    "dphshv@02.01.04",
+    { main: "fu/dphshv/02.01.04/dphshv_epo2.xsd", preload: [] },
   ],
   // DPPO — Přiznání k dani z příjmů právnických osob (za období 2021–2026).
   ["dppo@05.01.01", { main: "fu/dppo/05.01.01/dppdp9_epo2.xsd", preload: [] }],

@@ -18,6 +18,7 @@ import { OSNOVA } from "../_data/osnova"
 import { rozvahaAktiva, rozvahaPasiva } from "../_data/rozvaha"
 import { VZZ } from "../_data/vzz"
 import { csvField, detectDelimiter, splitCsvLine } from "./csv"
+import { findHeaderRow, findSheets, headerText, type Cell, type WorkbookSheets } from "./denik" // prettier-ignore
 import type { StatementKey } from "./storage"
 import type { CasoveRozliseni } from "./types"
 
@@ -433,4 +434,59 @@ export function buildPlacementLookup(
       own.set(acc.ucet, { vykaz: acc.vykaz, rada: acc.rada })
   }
   return (ucet) => own.get(ucet)
+}
+
+/** Sheet-tab names accepted for the účtový rozvrh in a multi-sheet workbook. */
+const ROZVRH_SHEET_NAMES = [
+  "rozvrh",
+  "účtový rozvrh",
+  "uctovy rozvrh",
+  "účtová osnova",
+  "uctova osnova",
+] as const
+
+/**
+ * Read the účtový rozvrh from a sheet of the same workbook that carries the
+ * deník, instead of a separate CSV upload.
+ *
+ * The grid is rendered back to CSV text and handed to `parseRozvrhCsv` rather
+ * than re-implementing the column matching: that keeps ONE place where a header
+ * name maps to a field, where duplicates are detected and where the known-unused
+ * columns of a full rozvrh sheet are tolerated. Cells are quoted so a name
+ * containing a semicolon survives the round trip.
+ */
+export function parseRozvrhSheet(
+  sheets: WorkbookSheets,
+): RozvrhParseResult & { found: boolean } {
+  const found = findSheets(sheets, ROZVRH_SHEET_NAMES)[0]
+  if (!found) {
+    return {
+      accounts: [],
+      ignoredColumns: [],
+      duplicates: [],
+      skipped: [],
+      rejectedPlacements: [],
+      headerOk: false,
+      missingHeaders: [],
+      found: false,
+    }
+  }
+  // Same title-band problem as the deník: the header is not row 1. Slice from
+  // it before handing the grid to the CSV parser, which does its own matching.
+  const headerRow = findHeaderRow(found.grid, (row) => {
+    const names = new Set(row.map(headerText))
+    return REQUIRED_NAMES.every((n) => names.has(n))
+  })
+  const csv = found.grid
+    .slice(Math.max(headerRow, 0))
+    .map((row: Cell[]) =>
+      row
+        .map((cell: Cell) =>
+          cell === null || cell === undefined ? "" : String(cell).trim(),
+        )
+        .map((v: string) => csvField(v))
+        .join(";"),
+    )
+    .join("\r\n")
+  return { ...parseRozvrhCsv(csv), found: true }
 }

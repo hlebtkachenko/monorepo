@@ -89,6 +89,17 @@ export default function VykazyPage() {
             XML pro EPO z účetního výsledku a daňových úprav
           </span>
         </Link>
+        <Link
+          href="/vykazy/dph"
+          className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary hover:bg-accent"
+        >
+          <span className="block text-base font-semibold text-foreground">
+            Daň z přidané hodnoty
+          </span>
+          <span className="block text-sm text-muted-foreground">
+            Přiznání, kontrolní hlášení a souhrnné hlášení — XML pro EPO
+          </span>
+        </Link>
       </nav>
     </main>
   )

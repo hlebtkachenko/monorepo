@@ -403,12 +403,8 @@ it is an explicit opt-in, and the wipe button clears both storages.
 - ř.14 (oprava § 42a) and ř.48 (§ 74a korekce) are not in the taxonomy. Neither
   feeds ř.62 or ř.63, so nothing miscomputes, but a filer needing them cannot
   produce a complete return here.
-- Call-off stock (`VetaS`) has no UI. It is modelled and validated, and it is not
-  a kód plnění — it is a separate věta with its own `k_cos` 1/2/3.
 - ř.62 omits the daň podle § 108 odst. 4 písm. g) a h): the schema has no input
-  attribute for it, so it is treated as zero.
-- A pre-2024 oprava needs the KH's third rate bucket (druhá snížená sazba), which
-  is deliberately never emitted.
+  attribute for it, so it is treated as zero. Nothing in the form can supply it.
 ### Correction filings
 
 Each form has its OWN alphabet and they do not overlap, which is exactly why they
@@ -429,6 +425,34 @@ A souhrnné hlášení is corrected differently: a **následné** hlášení car
 (`k_stat`, `c_vat`, `k_pln_eu`). A storno row and its replacement therefore share
 that triple on purpose, so the storno flag is part of the projection's grouping
 key — merging them would cancel the correction against itself.
+
+### Sazby a jejich přihrádky
+
+The kontrolní hlášení keeps THREE rate buckets and two of them are
+period-dependent, which the XSD states outright:
+
+| Bucket | Sazba | Platí pro |
+|---|---|---|
+| `zakl_dane1` / `dan1` | 21 % | základní |
+| `zakl_dane2` / `dan2` | 12 % · **15 %** | první snížená — 15 % "pro plnění s DPPD do 31. 12. 2023" |
+| `zakl_dane3` / `dan3` | **10 %** | druhá snížená, DPPD do 31. 12. 2023 only |
+
+An oprava of a pre-2024 doklad must be filed at the rate that applied then, so
+the evidence accepts 21 / 15 / 12 / 10 / 0 and `sazbaBucket()` routes each to the
+right bucket. A retired rate on a doklad whose DPPD falls in 2024 or later is
+flagged — it is nearly always a typo.
+
+The **přiznání has only two rate columns** (ř.1 základní, ř.2 snížená), so both
+reduced buckets tie to ř.2 in the kontrolní vazby. Comparing bucket 2 alone
+showed a permanent mismatch on any 10 % oprava.
+
+### Call-off stock (§ 18, VetaS)
+
+A separate obligation carried on the same souhrnné hlášení as the recap rows —
+**not** a kód plnění. It has no value: only the intended acquirer's VAT id, a
+`k_cos` (1 přeprava do skladu · 2 vrácení nebo oprava chyby · 3 změna
+předpokládaného pořizovatele) and, on kód 3, the ORIGINAL acquirer's id
+alongside the new one. It never joins the recap merge.
 
 ### Dobropis (opravný daňový doklad)
 

@@ -21,6 +21,27 @@ import { csvField, detectDelimiter, splitCsvLine } from "../../_lib/csv"
 /** Which side of the books a doklad sits on. */
 export type DphSmer = "vystup" | "vstup"
 
+/**
+ * A statutory rate a doklad can carry.
+ *
+ * 21 and 12 are the rates in force from 1.1.2024. 15 and 10 exist only for a
+ * plnění s DPPD do 31.12.2023 — an oprava of an older doklad still has to be
+ * filed at the rate that applied then, and the kontrolní hlášení keeps a third
+ * bucket for exactly that.
+ */
+export type DphSazba = 21 | 15 | 12 | 10 | 0
+
+/** Which KH rate bucket a sazba files into (1 základní, 2 první snížená, 3 druhá). */
+export function sazbaBucket(sazba: DphSazba): 1 | 2 | 3 | 0 {
+  if (sazba === 21) return 1
+  if (sazba === 15 || sazba === 12) return 2
+  if (sazba === 10) return 3
+  return 0
+}
+
+/** Rates retired on 31.12.2023 — valid only on an oprava of an older doklad. */
+export const SAZBY_DO_2023: ReadonlySet<DphSazba> = new Set<DphSazba>([15, 10])
+
 /** Section of the kontrolní hlášení a row belongs to (§ 101c–101i). */
 export type KhSekce = "A1" | "A2" | "A4" | "A5" | "B1" | "B2" | "B3"
 
@@ -45,7 +66,7 @@ export interface DphEvidenceRow {
   nazev?: string
   /** Řádek přiznání this doklad lands on ("1", "40", "20", …). */
   radek: string
-  sazba: 21 | 12 | 0
+  sazba: DphSazba
   /** Základ daně. */
   zaklad: string
   /** Daň. Zero for osvobozená plnění and for the PDP dodavatel side. */
@@ -117,6 +138,29 @@ export interface DphEvidence {
    *  podané v reakci na výzvu správce daně). */
   cJedVyzvy?: string
   vyzvaOdp?: string
+  /** Call-off stock records (§ 18) filed on the souhrnné hlášení as VetaS. */
+  callOff?: DphCallOffRow[]
+}
+
+/**
+ * One call-off stock record (§ 18 ZDPH) — VetaS of the souhrnné hlášení.
+ *
+ * A separate obligation carried on the same hlášení as the recap rows, and NOT
+ * a kód plnění: it has no value, only a counterparty and what happened to the
+ * goods.
+ */
+export interface DphCallOffRow {
+  id: string
+  /** DIČ předpokládaného pořizovatele, incl. country prefix. */
+  dic: string
+  /** "1" přeprava do skladu · "2" vrácení nebo oprava chyby · "3" změna pořizovatele. */
+  kod: string
+  /** DIČ PŮVODNÍHO pořizovatele — required by the schema when kód is "3". */
+  dicPuvodni?: string
+}
+
+export function blankCallOffRow(id: string): DphCallOffRow {
+  return { id, dic: "", kod: "1" }
 }
 
 export function emptyEvidence(rok: string): DphEvidence {
@@ -241,7 +285,7 @@ export const KH_SEKCE_SET: ReadonlySet<string> = new Set<KhSekce>([
  * `ok: false` marks a non-empty cell that is not a rate the law recognises. From
  * 1.1.2024 there are two: 21 % and a single sn\u00ED\u017Een\u00E1 12 %.
  */
-export function parseSazba(v: string): { sazba: 21 | 12 | 0; ok: boolean } {
+export function parseSazba(v: string): { sazba: DphSazba; ok: boolean } {
   const text = v.replace(/[\s\u00A0\u202F%]/g, "").replace(",", ".")
   if (text === "") return { sazba: 0, ok: true }
   const n = Number(text)
@@ -249,7 +293,9 @@ export function parseSazba(v: string): { sazba: 21 | 12 | 0; ok: boolean } {
   const pct = n > 0 && n < 1 ? n * 100 : n
   const rounded = Math.round(pct)
   if (rounded === 21) return { sazba: 21, ok: true }
+  if (rounded === 15) return { sazba: 15, ok: true }
   if (rounded === 12) return { sazba: 12, ok: true }
+  if (rounded === 10) return { sazba: 10, ok: true }
   if (rounded === 0) return { sazba: 0, ok: true }
   return { sazba: 0, ok: false }
 }

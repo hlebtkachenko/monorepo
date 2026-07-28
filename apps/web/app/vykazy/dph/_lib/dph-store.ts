@@ -164,5 +164,8 @@ function normalize(input: unknown, rok: string): DphEvidence {
     dZjist: typeof o.dZjist === "string" ? o.dZjist : undefined,
     cJedVyzvy: typeof o.cJedVyzvy === "string" ? o.cJedVyzvy : undefined,
     vyzvaOdp: typeof o.vyzvaOdp === "string" ? o.vyzvaOdp : undefined,
+    callOff: Array.isArray(o.callOff)
+      ? (o.callOff as DphEvidence["callOff"])
+      : undefined,
   }
 }

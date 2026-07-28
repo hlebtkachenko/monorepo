@@ -19,6 +19,7 @@ import {
 } from "@workspace/filing/dph"
 
 import { DPH_LINE_BY_R, DPH_MANUAL_BY_ATTR } from "../../_data/dph-priznani"
+import { sazbaBucket, SAZBY_DO_2023 } from "./dph-evidence"
 import type { DphEvidence, DphEvidenceRow } from "./dph-evidence"
 
 /** Identity block — mirrors the org config the builder already collects. */
@@ -159,34 +160,36 @@ export function projectPriznani(
 
 // ── Kontrolní hlášení ────────────────────────────────────────────────────────
 
-/** Rate buckets in KH's haléř format (1 = 21 %, 2 = 12 %). */
+/**
+ * Rate buckets in KH's haléř format.
+ *
+ * Bucket 1 is the základní sazba, 2 the první snížená and 3 the druhá snížená.
+ * The XSD is explicit that 2 and 3 are period-dependent: bucket 2 carries 12 %
+ * today and 15 % "pro plnění s DPPD do 31. 12. 2023", bucket 3 exists only for
+ * that older 10 %. An oprava of a pre-2024 doklad has to be filed at the rate
+ * that applied then, so all four rates have to reach the right bucket.
+ */
 function buckets(rows: DphEvidenceRow[]): Record<string, string> {
   const out: Record<string, string> = {}
   const put = (key: string, value: Decimal) => {
     const f = haler(value.toString())
     if (f && f !== "0.00") out[key] = f
   }
-  const at = (rate: number, pick: (r: DphEvidenceRow) => string) =>
+  const at = (bucket: 1 | 2 | 3, pick: (r: DphEvidenceRow) => string) =>
     sum(
-      rows.filter((r) => r.sazba === rate),
+      rows.filter((r) => sazbaBucket(r.sazba) === bucket),
       pick,
     )
-  put(
-    "zakl_dane1",
-    at(21, (r) => r.zaklad),
-  )
-  put(
-    "dan1",
-    at(21, (r) => r.dan),
-  )
-  put(
-    "zakl_dane2",
-    at(12, (r) => r.zaklad),
-  )
-  put(
-    "dan2",
-    at(12, (r) => r.dan),
-  )
+  for (const bucket of [1, 2, 3] as const) {
+    put(
+      `zakl_dane${bucket}`,
+      at(bucket, (r) => r.zaklad),
+    )
+    put(
+      `dan${bucket}`,
+      at(bucket, (r) => r.dan),
+    )
+  }
   return out
 }
 
@@ -413,6 +416,21 @@ export function projectSouhrnneHlaseni(
       psc: meta.psc,
     },
     rows: rows.length > 0 ? rows : undefined,
+    // VetaS — call-off stock (§ 18) is a separate obligation carried on the same
+    // hlášení, not a kód plnění, so it never joins the recap merge above.
+    callOff:
+      evidence.callOff && evidence.callOff.length > 0
+        ? evidence.callOff.map((r) => {
+            const { k_stat, c_vat } = splitDic(r.dic)
+            const puv = splitDic(r.dicPuvodni ?? "")
+            return {
+              k_stat: k_stat || undefined,
+              c_vat: c_vat || undefined,
+              k_cos: r.kod,
+              c_vat_puv: puv.c_vat || undefined,
+            }
+          })
+        : undefined,
   }
 }
 
@@ -457,6 +475,14 @@ export function evidenceIssues(
     ) {
       out.push(`${where(r)}: sekce ${r.khSekce} vyžaduje DIČ protistrany.`)
     }
+    // 15 % and 10 % were retired on 31.12.2023 and survive only on an oprava of
+    // an older doklad, so a current DPPD carrying one is nearly always a typo.
+    if (SAZBY_DO_2023.has(r.sazba)) {
+      const rok = Number(/(\d{4})\s*$/.exec(r.dppd.trim())?.[1] ?? 0)
+      if (rok >= 2024) {
+        out.push(`${where(r)}: sazba ${r.sazba} % platila do 31. 12. 2023, ale DPPD je ${r.dppd}. Ověřte.`) // prettier-ignore
+      }
+    }
     if (r.shKod && splitDic(r.dic).k_stat === "CZ") {
       out.push(`${where(r)}: do souhrnného hlášení nepatří tuzemská protistrana.`) // prettier-ignore
     }
@@ -479,20 +505,23 @@ export interface DphVazba {
  * the plátce gets a výzva.
  */
 export function kontrolniVazby(evidence: DphEvidence): DphVazba[] {
-  const onLines = (lines: string[], sazba?: 21 | 12) =>
+  // The přiznání has only TWO rate columns (ř.1 základní, ř.2 snížená), while the
+  // kontrolní hlášení has three buckets. Both reduced buckets therefore tie to
+  // ř.2 — comparing bucket 2 alone would show a permanent mismatch on any
+  // pre-2024 oprava filed at 10 %.
+  const bucketOf = (r: DphEvidenceRow) => sazbaBucket(r.sazba)
+  const matches = (r: DphEvidenceRow, group?: "zakladni" | "snizena") =>
+    group === undefined ||
+    (group === "zakladni" ? bucketOf(r) === 1 : bucketOf(r) === 2 || bucketOf(r) === 3) // prettier-ignore
+  const onLines = (lines: string[], group?: "zakladni" | "snizena") =>
     sum(
-      evidence.rows.filter(
-        (r) =>
-          lines.includes(r.radek) && (sazba === undefined || r.sazba === sazba),
-      ),
+      evidence.rows.filter((r) => lines.includes(r.radek) && matches(r, group)),
       (r) => r.zaklad,
     )
-  const inSections = (sections: string[], sazba?: 21 | 12) =>
+  const inSections = (sections: string[], group?: "zakladni" | "snizena") =>
     sum(
       evidence.rows.filter(
-        (r) =>
-          sections.includes(r.khSekce ?? "") &&
-          (sazba === undefined || r.sazba === sazba),
+        (r) => sections.includes(r.khSekce ?? "") && matches(r, group),
       ),
       (r) => r.zaklad,
     )
@@ -512,10 +541,10 @@ export function kontrolniVazby(evidence: DphEvidence): DphVazba[] {
   // tolerance: both sides are drawn unrounded from the same rows, so any
   // difference at all is a classification error, not rounding.
   return [
-    mk("KH A.4 + A.5 (21 %) = přiznání ř. 1", inSections(["A4", "A5"], 21), onLines(["1"], 21)), // prettier-ignore
-    mk("KH A.4 + A.5 (12 %) = přiznání ř. 2", inSections(["A4", "A5"], 12), onLines(["2"], 12)), // prettier-ignore
-    mk("KH B.2 + B.3 (21 %) = přiznání ř. 40", inSections(["B2", "B3"], 21), onLines(["40"], 21)), // prettier-ignore
-    mk("KH B.2 + B.3 (12 %) = přiznání ř. 41", inSections(["B2", "B3"], 12), onLines(["41"], 12)), // prettier-ignore
+    mk("KH A.4 + A.5 (základní) = přiznání ř. 1", inSections(["A4", "A5"], "zakladni"), onLines(["1"], "zakladni")), // prettier-ignore
+    mk("KH A.4 + A.5 (snížená) = přiznání ř. 2", inSections(["A4", "A5"], "snizena"), onLines(["2"], "snizena")), // prettier-ignore
+    mk("KH B.2 + B.3 (základní) = přiznání ř. 40", inSections(["B2", "B3"], "zakladni"), onLines(["40"], "zakladni")), // prettier-ignore
+    mk("KH B.2 + B.3 (snížená) = přiznání ř. 41", inSections(["B2", "B3"], "snizena"), onLines(["41"], "snizena")), // prettier-ignore
     mk("KH A.1 = přiznání ř. 25", inSections(["A1"]), onLines(["25"])),
     mk("KH B.1 = přiznání ř. 10 + ř. 11", inSections(["B1"]), onLines(["10", "11"])), // prettier-ignore
     mk("KH A.2 = přiznání ř. 3, 4, 5, 6, 9, 12, 13", inSections(["A2"]), onLines(["3", "4", "5", "6", "9", "12", "13"])), // prettier-ignore

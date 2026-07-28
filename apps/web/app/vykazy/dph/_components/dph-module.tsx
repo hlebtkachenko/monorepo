@@ -31,8 +31,11 @@ import {
   dphEvidenceCsvTemplate,
   dphEvidenceToCsv,
   parseDphEvidenceCsv,
+  blankCallOffRow,
+  type DphCallOffRow,
   type DphEvidence,
   type DphEvidenceRow,
+  type DphSazba,
   type KhSekce,
 } from "../_lib/dph-evidence"
 import {
@@ -180,6 +183,32 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
 
   const removeRow = (id: string) =>
     update({ ...evidence, rows: evidence.rows.filter((r) => r.id !== id) })
+
+  const setCallOff = (id: string, patch: Partial<DphCallOffRow>) => {
+    update({
+      ...evidence,
+      callOff: (evidence.callOff ?? []).map((r) =>
+        r.id === id ? { ...r, ...patch } : r,
+      ),
+    })
+  }
+
+  const addCallOff = () => {
+    nextId.current += 1
+    update({
+      ...evidence,
+      callOff: [
+        ...(evidence.callOff ?? []),
+        blankCallOffRow(`cos${Date.now()}-${nextId.current}`),
+      ],
+    })
+  }
+
+  const removeCallOff = (id: string) =>
+    update({
+      ...evidence,
+      callOff: (evidence.callOff ?? []).filter((r) => r.id !== id),
+    })
 
   const onImport = async (file: File) => {
     nextId.current += 1
@@ -674,16 +703,20 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
                   </TableCell>
                   <TableCell>
                     <select
-                      className="w-16 rounded border border-input bg-background px-1 py-1 text-sm"
+                      className="w-20 rounded border border-input bg-background px-1 py-1 text-sm"
                       value={String(r.sazba)}
                       onChange={(e) =>
                         setRow(r.id, {
-                          sazba: Number(e.target.value) as 21 | 12 | 0,
+                          sazba: Number(e.target.value) as DphSazba,
                         })
                       }
                     >
                       <option value="21">21</option>
                       <option value="12">12</option>
+                      {/* Retired 31.12.2023; kept for an oprava of an older
+                          doklad, which must carry the rate that applied then. */}
+                      <option value="15">15 †</option>
+                      <option value="10">10 †</option>
                       <option value="0">—</option>
                     </select>
                   </TableCell>
@@ -820,6 +853,89 @@ export function DphModule({ kind }: { kind: DphFormKind }) {
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {kind === "sh" ? (
+        <section className="space-y-3 rounded-md border border-border p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="mr-auto text-sm font-semibold">
+              Režim skladu (call-off stock, § 18) — {(evidence.callOff ?? []).length}
+            </h2>
+            <Button size="sm" variant="outline" onClick={addCallOff}>
+              + Záznam
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Samostatná povinnost podávaná na témže souhrnném hlášení. Nenese
+            hodnotu plnění ani kód plnění — jen pořizovatele a to, co se se
+            zbožím stalo.
+          </p>
+          {(evidence.callOff ?? []).length > 0 ? (
+            <div className="overflow-x-auto rounded-md border border-border">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>DIČ pořizovatele</TableHead>
+                    <TableHead>Kód</TableHead>
+                    <TableHead>Původní DIČ (jen u kódu 3)</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(evidence.callOff ?? []).map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell>
+                        <Input
+                          className="w-40"
+                          value={r.dic}
+                          onChange={(e) =>
+                            setCallOff(r.id, {
+                              dic: e.target.value.toUpperCase(),
+                            })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <select
+                          className="w-72 rounded border border-input bg-background px-1 py-1 text-sm"
+                          value={r.kod}
+                          onChange={(e) =>
+                            setCallOff(r.id, { kod: e.target.value })
+                          }
+                        >
+                          <option value="1">1 — přeprava zboží do skladu</option>
+                          <option value="2">2 — vrácení zboží nebo oprava chyby</option>
+                          <option value="3">3 — změna předpokládaného pořizovatele</option>
+                        </select>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          className="w-40"
+                          disabled={r.kod !== "3"}
+                          value={r.dicPuvodni ?? ""}
+                          onChange={(e) =>
+                            setCallOff(r.id, {
+                              dicPuvodni: e.target.value.toUpperCase() || undefined, // prettier-ignore
+                            })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeCallOff(r.id)}
+                        >
+                          ×
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          ) : null}
         </section>
       ) : null}
 

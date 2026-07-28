@@ -263,11 +263,13 @@ describe("parseDphSheet", () => {
     expect(result.rows[0]?.sazba).toBe(21)
   })
 
+  // 19 %, not 15 %: the retired 15 % and 10 % are statutory rates that a pre-2024
+  // oprava still carries, so they must NOT be rejected.
   it("drops a row whose sazba is not a statutory rate, loudly", () => {
     const result = parseDphSheet(
       sheet([
         HEADER,
-        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", "15", "", "A4", ""], // prettier-ignore
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2026", "", "1", "19", "", "A4", ""], // prettier-ignore
       ]),
       issuedInvoice("001", 100000, 21000),
     )
@@ -429,5 +431,19 @@ describe("dobropis", () => {
     )
     expect(result.rows[0]?.zaklad).toBe("-10000")
     expect(result.issues.some((i) => i.message.includes("prohozenými stranami"))).toBe(true) // prettier-ignore
+  })
+})
+
+describe("retired rates on the sheet", () => {
+  it.each([15, 10] as const)("accepts %i %% for a pre-2024 oprava", (rate) => {
+    const result = parseDphSheet(
+      sheet([
+        HEADER,
+        ["Vydané faktury", "001", "CZ99999999", "15.06.2023", "", "2", String(rate), "", "A4", ""], // prettier-ignore
+      ]),
+      issuedInvoice("001", 100000, 21000),
+    )
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0]?.sazba).toBe(rate)
   })
 })

@@ -365,3 +365,89 @@ describe("kontrolní vazby", () => {
     expect(v.every((x) => x.ok)).toBe(false)
   })
 })
+
+describe("sazby do 31.12.2023", () => {
+  // The KH keeps three rate buckets: 1 základní, 2 první snížená, 3 druhá
+  // snížená. Buckets 2 and 3 are period-dependent — 12 % files into 2 today,
+  // 15 % filed into 2 before 2024, and 10 % into 3. An oprava of a pre-2024
+  // doklad has to carry the rate that applied then.
+  it("routes 15 % into the první snížená bucket and 10 % into the druhá", () => {
+    const m = projectKontrolniHlaseni(
+      evidence([
+        row({ id: "a", sazba: 21, zaklad: "1000", dan: "210" }),
+        row({ id: "b", sazba: 15, zaklad: "2000", dan: "300" }),
+        row({ id: "c", sazba: 10, zaklad: "3000", dan: "300" }),
+      ]),
+      meta,
+    )
+    const a4 = m.a4?.[0]
+    expect(a4?.zakl_dane1).toBe("1000.00")
+    expect(a4?.zakl_dane2).toBe("2000.00")
+    expect(a4?.zakl_dane3).toBe("3000.00")
+    expect(a4?.dan3).toBe("300.00")
+  })
+
+  it("puts 12 % and 15 % in the SAME bucket, as the schema says", () => {
+    const m = projectKontrolniHlaseni(
+      evidence([
+        row({ id: "a", sazba: 12, zaklad: "1000", dan: "120" }),
+        row({ id: "b", sazba: 15, zaklad: "1000", dan: "150" }),
+      ]),
+      meta,
+    )
+    expect(m.a4?.[0]?.zakl_dane2).toBe("2000.00")
+    expect(m.a4?.[0]?.zakl_dane3).toBeUndefined()
+  })
+
+  // The přiznání has only TWO rate columns, so both reduced buckets tie to ř.2.
+  it("ties both reduced buckets to ř.2 in the kontrolní vazby", () => {
+    const v = kontrolniVazby(
+      evidence([
+        row({ id: "a", radek: "2", sazba: 15, khSekce: "A4", zaklad: "100" }),
+        row({ id: "b", radek: "2", sazba: 10, khSekce: "A4", zaklad: "200" }),
+      ]),
+    )
+    expect(v.find((x) => x.label.includes("snížená"))?.ok).toBe(true)
+  })
+
+  it("flags a retired rate on a current doklad", () => {
+    const issues = evidenceIssues(
+      evidence([row({ sazba: 15, dppd: "15.6.2026" })]),
+      meta,
+    )
+    expect(issues.some((i) => i.includes("do 31. 12. 2023"))).toBe(true)
+  })
+
+  it("says nothing when the retired rate sits on an old doklad", () => {
+    const issues = evidenceIssues(
+      evidence([row({ sazba: 15, dppd: "15.6.2023" })]),
+      meta,
+    )
+    expect(issues.filter((i) => i.includes("31. 12. 2023"))).toEqual([])
+  })
+})
+
+describe("call-off stock (VetaS)", () => {
+  it("emits one VetaS per record, with the VAT id split", () => {
+    const e = evidence([])
+    e.callOff = [
+      { id: "1", dic: "SK1234567890", kod: "1" },
+      { id: "2", dic: "DE123456789", kod: "3", dicPuvodni: "AT U12345678" },
+    ]
+    const m = projectSouhrnneHlaseni(e, meta)
+    expect(m.callOff).toHaveLength(2)
+    expect(m.callOff?.[0]).toMatchObject({
+      k_stat: "SK",
+      c_vat: "1234567890",
+      k_cos: "1",
+    })
+    // Kód 3 is a change of the intended acquirer, so the ORIGINAL id rides along.
+    expect(m.callOff?.[1]?.c_vat_puv).toBe("U12345678")
+  })
+
+  it("is absent when nothing is recorded, and never joins the recap merge", () => {
+    const m = projectSouhrnneHlaseni(evidence([row({ shKod: "0", dic: "SK1234567890" })]), meta) // prettier-ignore
+    expect(m.callOff).toBeUndefined()
+    expect(m.rows).toHaveLength(1)
+  })
+})

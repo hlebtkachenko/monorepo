@@ -83,6 +83,9 @@ describe("buildZaverkaVety", () => {
       vzz: [{ radek: "001", bezne: 3 }],
     })
     expect(vety.map((v) => v.tag)).toEqual(["VetaUA", "VetaUB", "VetaUD"])
+    // VetaUB is the VZZ and VetaUD is pasiva, not the other way round.
+    expect(vety[1]!.attrs.kc_sled).toBe("3")
+    expect(vety[2]!.attrs.kc_sled).toBe("2")
   })
 
   it("reports korekce without its sign", () => {
@@ -179,7 +182,7 @@ describe("a return carrying the účetní závěrka", () => {
       "VetaUA",
       "VetaUA",
       "VetaUB",
-      "VetaUB",
+      "VetaUD",
       "VetaUD",
     ])
   })
@@ -191,5 +194,46 @@ describe("a return carrying the účetní závěrka", () => {
     expect(model.header.uv_vyhl).toBe("500")
     expect(model.header.uv_mena).toBe("CZK")
     expect(model.header.uv_rozsah).toBe("P")
+  })
+})
+
+describe("the véta each výkaz lands in", () => {
+  // Pinned to a real DPPDP9 the portal accepted. Each row below was matched
+  // against the printed výkaz it came from, and it is the only evidence that
+  // settles VetaUB vs VetaUD: the XSD documents neither by name and gives both
+  // the same two-column shape, so the block order alone had it backwards.
+  it("puts the VZZ in VetaUB, where the real return puts it", () => {
+    const vety = buildZaverkaVety({
+      ...empty,
+      // ř.006 A.3. Služby and ř.049 VH před zdaněním, as filed.
+      vzz: [
+        { radek: "006", bezne: 53418, minule: 146 },
+        { radek: "049", bezne: -4849, minule: -219 },
+      ],
+    })
+    expect(vety.map((v) => v.tag)).toEqual(["VetaUB", "VetaUB"])
+    expect(vety[0]!.attrs).toEqual({
+      c_radku: "6",
+      kc_sled: "53418",
+      kc_min: "146",
+    })
+  })
+
+  it("puts pasiva in VetaUD, remapped onto EPO's numbering", () => {
+    // Ours -> EPO, every pair taken from the filed return: PASIVA CELKEM and
+    // A. Vlastní kapitál sit at the same číslo, then EPO's unused 20 shifts the
+    // rest by one, and D. časové rozlišení comes back by two.
+    const vety = buildZaverkaVety({
+      ...empty,
+      pasiva: [
+        { radek: "001", bezne: 130347 },
+        { radek: "002", bezne: -4127 },
+        { radek: "023", bezne: 134474 },
+        { radek: "029", bezne: 134474 },
+        { radek: "066", bezne: 0 },
+      ],
+    })
+    expect(vety.every((v) => v.tag === "VetaUD")).toBe(true)
+    expect(vety.map((v) => v.attrs.c_radku)).toEqual(["1", "2", "24", "30", "64"]) // prettier-ignore
   })
 })

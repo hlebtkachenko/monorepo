@@ -205,10 +205,22 @@ export interface KhRowInput {
   dan12: string
 }
 
-/** Subset of accounting `KhAggregate`. */
+/**
+ * Subset of accounting `KhAggregate` — the A.5 / B.3 souhrnný řádek.
+ *
+ * `base`/`dan` are the rate-blind totals the DB path produces (its SQL has no rate
+ * split on the aggregate). `base21`/`dan21`/`base12`/`dan12` are optional and let a
+ * caller that DOES know the split supply it: without them the whole aggregate has
+ * to be filed in the 21 % bucket, which misstates the sazba on any sub-threshold
+ * 12 % plnění and breaks EPO's vazba between A.5 and ř.2 of the přiznání.
+ */
 export interface KhAggregateInput {
   base: string
   dan: string
+  base21?: string
+  dan21?: string
+  base12?: string
+  dan12?: string
 }
 
 /** Subset of accounting `KontrolniHlaseni` (the row sections). */
@@ -278,16 +290,33 @@ export function buildDphkh1FromAccounting(
     pomer: "N",
     zdph_44: "N",
   }))
-  // A.5 / B.3 aggregate — KhAggregate carries no rate split, so the whole base lands
-  // in bucket 1 (21 %). Flagged limitation (see grounding doc).
+  // A.5 / B.3 aggregate. When the caller supplies a rate split, each sazba goes to
+  // its own bucket (1 = 21 %, 2 = 12 %). Otherwise the source genuinely does not
+  // know the split — the DB path's KhAggregate is rate-blind — and the whole total
+  // has to land in bucket 1; that misstates a sub-threshold 12 % plnění, so a
+  // caller that can split SHOULD.
   const aggregate = (
     a: KhAggregateInput,
   ): Record<string, string> | undefined => {
     const out: Record<string, string> = {}
-    const b = haler(a.base)
-    const d = haler(a.dan)
-    if (b && b !== "0.00") out.zakl_dane1 = b
-    if (d && d !== "0.00") out.dan1 = d
+    const put = (key: string, value: string | undefined) => {
+      const f = haler(value)
+      if (f && f !== "0.00") out[key] = f
+    }
+    const split =
+      a.base21 !== undefined ||
+      a.dan21 !== undefined ||
+      a.base12 !== undefined ||
+      a.dan12 !== undefined
+    if (split) {
+      put("zakl_dane1", a.base21)
+      put("dan1", a.dan21)
+      put("zakl_dane2", a.base12)
+      put("dan2", a.dan12)
+    } else {
+      put("zakl_dane1", a.base)
+      put("dan1", a.dan)
+    }
     return Object.keys(out).length > 0 ? out : undefined
   }
 
@@ -347,23 +376,43 @@ export interface ShData {
 }
 
 /**
+ * VAT-registration prefixes VIES accepts. This is NOT the ISO 3166-1 list: Greece
+ * registers under **EL** while its ISO code is GR, and Northern Ireland uses **XI**
+ * (GB survives only as a legacy value on pre-Brexit documents). Splitting on "any
+ * two leading letters" instead of this set corrupts ids that legitimately begin
+ * with two letters of their own — FR issues `XX123456789`, NL `…B01`, XI `GD123`.
+ */
+const VAT_PREFIXES = new Set([
+  "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "EL", "ES", "FI", "FR", "GB",
+  "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL", "PT", "RO", "SE",
+  "SI", "SK", "XI",
+]) // prettier-ignore
+
+/** ISO 3166-1 alpha-2 → the prefix VIES actually registers under. */
+const ISO_TO_VAT_PREFIX: Record<string, string> = { GR: "EL" }
+
+/**
  * Split a VAT id into the EPO pair (`k_stat`, `c_vat`). The schema wants the id
- * "bez kódu státu ... bez mezer, čárek a teček", so separators go and a leading
- * two-letter country prefix moves to `k_stat`.
+ * "bez kódu státu ... bez mezer, čárek a teček", so separators go and a recognised
+ * member-state prefix moves to `k_stat`.
  *
- * The documentation calls the remainder the "číselná část", but that phrasing
- * cannot be taken literally: IE (1234567FA), NL (…B01) and ES (X1234567L) VAT ids
- * legitimately carry letters after the prefix, and stripping them would corrupt a
- * valid id into one VIES rejects. Only the country prefix is removed.
+ * Two traps this avoids. First, the documentation calls the remainder the "číselná
+ * část", but that cannot be taken literally: IE (`1234567FA`), NL (`…B01`) and ES
+ * (`X1234567L`) ids legitimately carry letters, and stripping them would turn a
+ * valid id into one VIES rejects — only the prefix is removed. Second, the prefix
+ * on the id itself wins over the counterparty's ISO country code, because the two
+ * disagree for Greece (ISO GR / VAT EL) and Northern Ireland (XI).
  */
 function splitVatId(
   countryCode: string | null,
   taxId: string | null,
 ): { k_stat?: string; c_vat?: string } {
   const clean = (taxId ?? "").replace(/[\s.,-]/g, "").toUpperCase()
-  const prefix = /^([A-Z]{2})(.+)$/.exec(clean)
-  const country = (countryCode ?? prefix?.[1] ?? "").toUpperCase()
-  const number = prefix ? prefix[2] : clean
+  const head = clean.slice(0, 2)
+  const hasPrefix = VAT_PREFIXES.has(head)
+  const iso = (countryCode ?? "").toUpperCase()
+  const country = hasPrefix ? head : (ISO_TO_VAT_PREFIX[iso] ?? iso)
+  const number = hasPrefix ? clean.slice(2) : clean
   return {
     k_stat: country === "" ? undefined : country,
     c_vat: number === "" ? undefined : number,
@@ -385,12 +434,50 @@ export function buildDphshvFromAccounting(
   sh: ShData,
   meta: FuFilingMeta,
 ): DphshvInput {
-  const rows = sh.rows.map((r, i) => ({
-    c_rad: String(i + 1),
-    ...splitVatId(r.country_code, r.tax_id),
-    k_pln_eu: r.kod_plneni,
+  // Re-aggregate AFTER normalizing the VAT id. The upstream grouping key is the raw
+  // (country_code, tax_id, kód) triple, so "SK 123", "SK123" and a bare "123" with
+  // country SK arrive as three rows that normalize to one identical (k_stat, c_vat,
+  // k_pln_eu) — and the schema forbids exactly that: "Žádné daňové identifikační
+  // číslo nesmí být v hlášení uvedeno více než jednou se stejným kódem plnění."
+  // Summing here also means pln_hodnota is rounded once per filed row rather than
+  // once per input row, so Σ rows stays as close to ř.20+ř.21 as the rule allows.
+  const merged = new Map<
+    string,
+    {
+      k_stat?: string
+      c_vat?: string
+      kod: string
+      count: number
+      value: Decimal
+    }
+  >()
+  for (const r of sh.rows) {
+    const { k_stat, c_vat } = splitVatId(r.country_code, r.tax_id)
+    const key = `${k_stat ?? ""}|${c_vat ?? ""}|${r.kod_plneni}`
+    const entry = merged.get(key)
+    if (entry) {
+      entry.count += r.count
+      entry.value = entry.value.plus(new Decimal(r.value || 0))
+    } else {
+      merged.set(key, {
+        k_stat,
+        c_vat,
+        kod: r.kod_plneni,
+        count: r.count,
+        value: new Decimal(r.value || 0),
+      })
+    }
+  }
+  // No c_rad / por_c_stran: both are documented as pure ordering hints ("Pokud je
+  // uvedeno, budou řádky ... uspořádány v zadaném pořadí") and VetaR's c_rad is
+  // totalDigits=2, so a sequential index makes every hlášení with 100+ counterparties
+  // fail XSD validation on row 100. Document order is already the intended order.
+  const rows = [...merged.values()].map((r) => ({
+    k_stat: r.k_stat,
+    c_vat: r.c_vat,
+    k_pln_eu: r.kod,
     pln_pocet: String(r.count),
-    pln_hodnota: korunaNahoru(r.value),
+    pln_hodnota: korunaNahoru(r.value.toString()),
   }))
   return {
     header: {

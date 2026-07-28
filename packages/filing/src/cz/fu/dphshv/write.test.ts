@@ -62,6 +62,86 @@ describe("generateDphshv", () => {
     expect(result.valid).toBe(true)
   })
 
+  // VetaR's c_rad is totalDigits=2, so numbering rows 1..N made the 100th row emit
+  // "100" and fail XSD validation for the whole document. 100+ EU counterparties is
+  // an ordinary month for a wholesaler, so this is the regression that matters most.
+  it("stays XSD-valid past 99 rows", async () => {
+    const rows = Array.from({ length: 120 }, (_, i) => ({
+      country_code: "DE",
+      tax_id: `DE1000${String(i).padStart(5, "0")}`,
+      kod_plneni: "0",
+      count: 1,
+      value: "1000",
+    }))
+    const xml = generateDphshv(buildDphshvFromAccounting({ rows }, meta))
+    expect(xml).not.toContain("c_rad=")
+    const result = await validateFiling(xml, "dphshv", "02.01.04")
+    expect(result.errors).toEqual([])
+    expect(result.valid).toBe(true)
+  })
+
+  it("registers Greece under EL, not its ISO code GR", () => {
+    const xml = generateDphshv(
+      buildDphshvFromAccounting(
+        {
+          rows: [
+            {
+              country_code: "GR",
+              tax_id: "EL123456789",
+              kod_plneni: "0",
+              count: 1,
+              value: "1000",
+            },
+          ],
+        },
+        meta,
+      ),
+    )
+    expect(xml).toContain('k_stat="EL"')
+    expect(xml).toContain('c_vat="123456789"')
+  })
+
+  it("does not mistake the first two characters of a bare id for a country prefix", () => {
+    // FR issues ids whose first two characters are letters of their own; stripping
+    // them as a prefix would file a corrupted DIČ that VIES rejects.
+    const xml = generateDphshv(
+      buildDphshvFromAccounting(
+        {
+          rows: [
+            {
+              country_code: "FR",
+              tax_id: "XX123456789",
+              kod_plneni: "0",
+              count: 1,
+              value: "1000",
+            },
+          ],
+        },
+        meta,
+      ),
+    )
+    expect(xml).toContain('k_stat="FR"')
+    expect(xml).toContain('c_vat="XX123456789"')
+  })
+
+  it("merges rows that normalize to the same DIČ and kód plnění", () => {
+    // "Žádné DIČ nesmí být v hlášení uvedeno více než jednou se stejným kódem plnění."
+    const xml = generateDphshv(
+      buildDphshvFromAccounting(
+        {
+          rows: [
+            { country_code: "SK", tax_id: "SK 2020123456", kod_plneni: "0", count: 2, value: "1000" }, // prettier-ignore
+            { country_code: "SK", tax_id: "2020123456", kod_plneni: "0", count: 3, value: "500.50" }, // prettier-ignore
+          ],
+        },
+        meta,
+      ),
+    )
+    expect(xml.match(/<VetaR/g)).toHaveLength(1)
+    expect(xml).toContain('pln_pocet="5"')
+    expect(xml).toContain('pln_hodnota="1501"')
+  })
+
   it("rounds hodnota plnění UP to whole koruna, not half-up", () => {
     const xml = generateDphshv(
       buildDphshvFromAccounting(

@@ -26,6 +26,11 @@ function vetaD(h: Dphdp3Header): XmlNode {
     zdobd_od: epoDate(h.zdobd_od),
     zdobd_do: epoDate(h.zdobd_do),
     c_okec: h.c_okec,
+    d_poddp: epoDate(h.d_poddp),
+    d_zjist: epoDate(h.d_zjist),
+    kod_zo: h.kod_zo,
+    trans: h.trans,
+    d_por_dod: epoDate(h.d_por_dod),
   })
 }
 

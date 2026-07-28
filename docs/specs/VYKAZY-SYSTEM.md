@@ -88,15 +88,35 @@ the import with the list of what is missing.
 
 ### Účtový rozvrh, CSV
 
-Required columns: `Účet`, `Název`. Optional: `Oprávkový` (`Ano`/`Ne`). A
-superset is accepted so the full sheet imports as-is. Diacritic-free aliases
-(`Ucet`, `Nazev`, `Opravkovy`) are accepted. Template: `rozvrhCsvTemplate()`,
-UTF-8 with BOM.
+Required columns: `Účet`, `Název`. Optional: `Oprávkový` (`Ano`/`Ne`), `Výkaz`
+(`Aktiva` / `Pasiva` / `VZZ`, empty = the vyhláška's placement), `Řádek` (a leaf
+řádek inside that výkaz, e.g. `062`). A superset is accepted so the full sheet
+imports as-is. Diacritic-free aliases (`Ucet`, `Nazev`, `Opravkovy`, `Vykaz`,
+`Radek`) are accepted. Template: `rozvrhCsvTemplate()`, UTF-8 with BOM.
 
-The rozvrh only supplies **names** and the oprávkový flag. It never affects a
-figure. Name resolution order: rozvrh exact → osnova exact → osnova syntetický.
-There is no "rozvrh by synthetic" tier on purpose: an analytický název describes
-one account and lending it to a sibling would state something false.
+Name resolution order: rozvrh exact → osnova exact → osnova syntetický. There is
+no "rozvrh by synthetic" tier on purpose: an analytický název describes one
+account and lending it to a sibling would state something false.
+
+**Placement override** (`buildPlacementLookup`, consumed by
+`mapPredvahaToValues` before its own law table). § 14 zákona o účetnictví splits
+the ownership: a syntetický účet's řádek is the vyhláška's, an analytický účet's
+is the účetní jednotka's. The case it exists for is 395 vnitřní zúčtování, where
+one analytika is a pohledávka and another a závazek, and mapping the whole
+synthetic to one side nets them against each other.
+
+Resolution is exact-account-only, for the same reason names are. Three overrides
+are refused rather than corrected, and land in `rejectedPlacements`:
+
+| Refused                                  | Why                                               |
+| ---------------------------------------- | ------------------------------------------------- |
+| a syntetický účet (`311`, `311000`)      | its řádek is the vyhláška's (§ 14)                |
+| `Výkaz` without `Řádek`, or the reverse  | half a placement says nothing                     |
+| a calculated řádek (`001` AKTIVA CELKEM) | it sums its children, so the account counts twice |
+
+An override that stops naming a leaf is dropped again at read time, so a
+document written against an older layout degrades to the vyhláška rather than to
+a cell that no longer exists.
 
 A cp1250 file mangles the accented headers and the import fails with a hint to
 save as UTF-8. Every dropped row (no account number, no name, duplicate) is
@@ -181,7 +201,14 @@ way and must agree.
 **DPPO ř.10 excludes the daň accounts.** `deriveUcetniVysledek` sums třída 6
 minus třída 5 but skips exactly `590`, `591`, `592`, `595`, `596`, `599`
 (`BELOW_VYSLEDEK_PRED_ZDANENIM`), since daň z příjmů sits below výsledek
-hospodaření před zdaněním. It is not the whole 59x range.
+hospodaření před zdaněním. It is not the whole 59x range: 597/598 (převod
+provozních / finančních nákladů) stay in, because their 697/698 counterparts are
+třída 6 and counted as výnos, so dropping one side inflates ř.10 by the transfer.
+
+The DB path (`buildDppo` in `packages/accounting/src/output/dppo.ts`) matches the
+same six on the generated `synthetic_code` column, so an analytical `591.001` is
+caught like its parent. The two paths must stay in sync; they disagreed until
+#948.
 
 **Formulas are evaluated before export.** The store holds only leaves, so the
 závěrka věty run `computeAll` first or every aggregate ships as 0.

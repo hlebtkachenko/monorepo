@@ -2,7 +2,23 @@
 // Statutory forms per vyhláška č. 500/2002 Sb. This file holds NO org or
 // personal data — only the form taxonomy shape and engine value types.
 
-export type Rozsah = "plny" | "zkraceny"
+/**
+ * Rozsah účetní závěrky per § 3a vyhlášky:
+ *   plny  — every položka (velká / střední ÚJ, or malá / mikro s auditem)
+ *   mala  — zkrácený rozsah of a malá ÚJ bez auditu (§ 3a odst. 2 písm. a))
+ *   mikro — zkrácený rozsah of a mikro ÚJ bez auditu (§ 3a odst. 2 písm. b))
+ * Membership of a single line is derived from its `ozn` — see ./rozsah.ts.
+ */
+export type Rozsah = "plny" | "mala" | "mikro"
+
+/**
+ * Which of the two mutually exclusive časové-rozlišení layouts the rozvaha uses
+ * (§ 3 odst. 3 a 4 vyhlášky):
+ *   "C" — časové rozlišení inside "C.II.3." (aktiva) / "C.III." (pasiva);
+ *         the rozvaha then has NO "D." položka.
+ *   "D" — časové rozlišení in "D."; the rozvaha then has no "C.II.3." / "C.III.".
+ */
+export type CasoveRozliseni = "C" | "D"
 
 // Value columns.
 //   Rozvaha aktiva:  brutto, korekce, netto (derived), minule
@@ -34,8 +50,21 @@ export interface VykazLine {
   indent?: number
   /** Rozvaha aktiva only: korekce cell shows "x" (not applicable) and adds 0. */
   korekceNA?: boolean
-  /** True when this line is present in the zkrácený rozsah of the form. */
-  inZkraceny: boolean
+  /**
+   * Rozvaha only: the line belongs to ONE of the two časové-rozlišení layouts
+   * and is rendered only when that layout is selected. Absent = always shown.
+   */
+  crVariant?: CasoveRozliseni
+  /**
+   * calc line whose computed value may be typed over by the user (the engine
+   * already honours an explicit value on a calc line). Used for ř. 56 Čistý
+   * obrat, which § 35 vyhlášky derives from the business model, not from the
+   * výkaz položky.
+   */
+  overridable?: boolean
+  /** Tooltip for an `overridable` cell, explaining what the formula assumes and
+   *  why the user may need to type over it. Per line — the rule differs. */
+  overridableHint?: string
 }
 
 export interface VykazStatement {

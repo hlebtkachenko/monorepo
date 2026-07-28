@@ -13,10 +13,14 @@ const base: Dppo = {
     c_ufo_cil: "451",
     zdobd_od: "1.1.2025",
     zdobd_do: "31.12.2025",
+    kat_uj: "M",
+    uc_zav: "A",
   },
   payer: { dic: "25596641" },
   vetaO: { kc_ii10_10: "1000000", kc_ii270_280: "21" },
-  extraVety: [],
+  // Tabulka K is required of every poplatník, so a return without it is not the
+  // clean baseline — ř.40 and ř.150 are zero here, so no other table applies.
+  extraVety: [{ tag: "VetaS", attrs: { kc_dpp_i1: "1000000", poc_zam: "0" } }],
 }
 
 const codeSet = (m: Dppo) => new Set(checkDppo(m).map((c) => c.code))

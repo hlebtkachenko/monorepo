@@ -10,6 +10,7 @@ import { useState } from "react"
 
 import Link from "next/link"
 
+import { DenikPrint } from "../_components/denik-print"
 import { DenikTable, type IndexedDenikRow } from "../_components/denik-table"
 import {
   PredvahaSummary,
@@ -75,7 +76,7 @@ export default function DenikPage() {
   return (
     <main className="vykaz-page mx-auto max-w-5xl space-y-4 p-6">
       <div className="no-print">
-        <Link href="/vykazy" className="text-sm text-blue-600 hover:underline">
+        <Link href="/vykazy" className="text-sm text-primary hover:underline">
           ← Zpět na přehled
         </Link>
       </div>
@@ -83,15 +84,15 @@ export default function DenikPage() {
       <Toolbar />
 
       <div className="no-print">
-        <h1 className="text-xl font-bold text-black">Účetní deník</h1>
-        <p className="text-sm text-neutral-600">
+        <h1 className="text-xl font-bold text-foreground">Účetní deník</h1>
+        <p className="text-sm text-muted-foreground">
           Obratová předvaha nahoře slouží jako filtr deníku. Úpravy deníku se
           ihned promítnou do výkazů.
         </p>
       </div>
 
       {!denikLoaded ? (
-        <div className="no-print rounded-lg border border-dashed border-neutral-300 bg-white p-8 text-center text-sm text-neutral-600">
+        <div className="no-print rounded-lg border border-dashed border-border bg-card p-8 text-center text-sm text-muted-foreground">
           Zatím není načten žádný deník. Naimportujte účetní deník z POHODY
           (XLSX) tlačítkem{" "}
           <span className="font-semibold">„Import deník (XLSX)“</span> v liště
@@ -102,9 +103,9 @@ export default function DenikPage() {
           <PredvahaSummary filter={filter} onSelect={toggleFilter} />
 
           <div className="no-print flex flex-wrap items-center gap-3">
-            <h2 className="text-base font-semibold text-black">
+            <h2 className="text-base font-semibold text-foreground">
               Účetní deník{" "}
-              <span className="text-sm font-normal text-neutral-500">
+              <span className="text-sm font-normal text-muted-foreground">
                 ({visibleRows.length}
                 {filter ? ` z ${denik.length}` : ""} řádků)
               </span>
@@ -125,7 +126,11 @@ export default function DenikPage() {
 
           <DenikTable rows={visibleRows} onAddRow={handleAddRow} />
 
-          <p className="no-print text-[11px] text-neutral-500">
+          {/* Tisk / PDF prints the whole book, never the current filter: the
+              deník is an účetní kniha, and a filtered extract is not one. */}
+          <DenikPrint rows={denik} />
+
+          <p className="no-print text-[11px] text-muted-foreground">
             Úpravy deníku se ihned promítnou do výkazů (Rozvaha i Výkaz zisku a
             ztráty).
           </p>

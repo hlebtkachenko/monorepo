@@ -15,6 +15,8 @@
 import Decimal from "decimal.js-light"
 import { koruna } from "../envelope"
 import { applyDppoTotals } from "./compute"
+import { buildPrilohaVety, type DppoPriloha } from "./priloha"
+import { buildZaverkaVety, type DppoZaverka } from "./zaverka"
 import { DppoSchema, type DppoInput } from "../../../model/dppo"
 
 /** Identity + period metadata (supplied by the org, not part of the tax figures). */
@@ -35,6 +37,31 @@ export interface DppoFilingMeta {
   psc?: string
   /** Převažující ekonomická činnost (CZ-NACE), numeric. */
   c_nace?: string
+  /**
+   * I. oddíl položka 07 — kategorie účetní jednotky podle § 1b ZoÚ:
+   * M mikro / L malá / S střední / V velká. Povinné pro každého, kdo vede
+   * (podvojné) účetnictví; jen jednoduché účetnictví je z něj vyňato.
+   */
+  kat_uj?: string
+  /**
+   * I. oddíl položka 11 — účetní závěrka je přiložena ("A"/"N"), podle § 18 ZoÚ.
+   * Rozvahu a Výkaz zisku a ztráty nese `zaverka` níže jako vyplněné výkazy
+   * přímo v tomto XML; Příloha účetní závěrky je text, ne tabulka, takže ta
+   * zůstává E-přílohou, kterou filer vkládá v EPO.
+   */
+  uc_zav?: string
+  /**
+   * Účetní výkazy carried in the return (VetaD): číslo vyhlášky ("500" for
+   * podnikatele), měna účetnictví, and the rozsah the výkazy are reported in —
+   * `uv_rozsah` when the rozvaha and the VZZ share one (P/Z/M), otherwise the
+   * split pair, which EPO requires to be filled together when they differ (a
+   * mikro ÚJ files the rozvaha as M but the VZZ only has P and Z).
+   */
+  uv_vyhl?: string
+  uv_mena?: string
+  uv_rozsah?: string
+  uv_rozsah_rozv?: string
+  uv_rozsah_vzz?: string
   /** Typ daňového přiznání (default "A" — za zdaňovací období). */
   typ_dapdpp?: string
   /** Typ zdaňovacího období (§21a; default "A" — kalendářní rok). */
@@ -55,8 +82,19 @@ export interface DppoFigures {
   ucetni_vysledek: string
   /** ř.40 — daňově neuznatelné náklady (§24/25), add-back. */
   nedanove_naklady: string
+  /**
+   * ř.50 — rozdíl, o který účetní odpisy převyšují daňové (§26–33), add-back.
+   * The XSD ř.40 definition explicitly excludes this, so it is its own line.
+   * Optional; omit when zero.
+   */
+  odpisy_ucetni_nad_danove?: string
   /** ř.110 — osvobozené / nezahrnované výnosy (§19), reduction. */
   osvobozene_vynosy: string
+  /**
+   * ř.150 — rozdíl, o který daňové odpisy převyšují účetní, reduction (opak
+   * ř.50). Optional; omit when zero.
+   */
+  odpisy_danove_nad_ucetni?: string
   /**
    * ř.62 — §18a/1 removal of a loss-making hlavní činnost for a veřejně prospěšný
    * poplatník (increases the base toward 0). Optional; only VPP orgs set it.
@@ -82,17 +120,34 @@ function nonZeroKoruna(
   return out
 }
 
-/** Build a DPPO model from the accounting worksheet figures + org meta. */
+/**
+ * Build a DPPO model from the accounting worksheet figures + org meta.
+ *
+ * `priloha` carries Příloha č. 1 II. oddílu (tabulky A a B) and tabulka K. It is
+ * optional only because a partial return is still worth generating; a filable
+ * one needs tabulka A whenever ř.40 is non-zero, tabulka B whenever ř.150 is,
+ * and tabulka K always (Pokyny: "Údaj vyplňují všichni poplatníci").
+ *
+ * `zaverka` carries the účetní závěrka itself — Rozvaha + Výkaz zisku a ztráty
+ * as EPO's own structured tables, so the poplatník does not retype them into the
+ * portal. Also optional: a return generated before the výkazy are closed is
+ * still worth having, and § 18 ZoÚ is satisfied either by these tables or by
+ * e-přílohy (which `meta.uc_zav` declares).
+ */
 export function buildDppoFromAccounting(
   figures: DppoFigures,
   meta: DppoFilingMeta,
+  priloha?: DppoPriloha,
+  zaverka?: DppoZaverka,
 ): DppoInput {
   // VetaO detail lines the worksheet produces (attribute map in the grounding doc).
   const vetaO = nonZeroKoruna({
     kc_ii10_10: figures.ucetni_vysledek, // ř.10 výsledek hospodaření
     kc_ii50_40: figures.nedanove_naklady, // ř.40 §24/25 add-back
+    kc_ii60_50: figures.odpisy_ucetni_nad_danove, // ř.50 účetní > daňové odpisy
     kc_ii72_62: figures.exclude_loss, // ř.62 §18a VPP removal (ostatní zvýšení)
     kc_ii120_110: figures.osvobozene_vynosy, // ř.110 §19 osvobozené
+    kc_ii170_150: figures.odpisy_danove_nad_ucetni, // ř.150 daňové > účetní odpisy
     kc_ii210_230: figures.odpocet_ztraty, // ř.230 odečet daňové ztráty §34/1
     // ř.280 sazba as a whole percent (0.21 → "21").
     kc_ii270_280: new Decimal(figures.sazba || 0).times(100).toFixed(0),
@@ -109,6 +164,13 @@ export function buildDppoFromAccounting(
       zdobd_od: meta.zdobd_od,
       zdobd_do: meta.zdobd_do,
       ...(meta.c_nace ? { c_nace: meta.c_nace } : {}),
+      ...(meta.kat_uj ? { kat_uj: meta.kat_uj } : {}),
+      ...(meta.uc_zav ? { uc_zav: meta.uc_zav } : {}),
+      ...(meta.uv_vyhl ? { uv_vyhl: meta.uv_vyhl } : {}),
+      ...(meta.uv_mena ? { uv_mena: meta.uv_mena } : {}),
+      ...(meta.uv_rozsah ? { uv_rozsah: meta.uv_rozsah } : {}),
+      ...(meta.uv_rozsah_rozv ? { uv_rozsah_rozv: meta.uv_rozsah_rozv } : {}),
+      ...(meta.uv_rozsah_vzz ? { uv_rozsah_vzz: meta.uv_rozsah_vzz } : {}),
     },
     payer: nonEmpty({
       dic: meta.dic,
@@ -119,6 +181,12 @@ export function buildDppoFromAccounting(
       psc: meta.psc,
     }),
     vetaO,
+    // Daňové přílohy first, then the účetní závěrka — DPPO_EXTRA_VETA_TAGS puts
+    // the U-block after them, and the writer emits extraVety in array order.
+    extraVety: [
+      ...(priloha ? buildPrilohaVety(priloha) : []),
+      ...(zaverka ? buildZaverkaVety(zaverka) : []),
+    ],
   }
 
   // Fill the mezisoučty + tax chain (ř.70/170/200/250/270/290/310/340/360) so the

@@ -26,6 +26,17 @@ function FieldCell({ value, label }: { value: string; label: string }) {
   )
 }
 
+/** A cell that is signed or written on by hand: blank room first, muted label
+ *  underneath, so the label sits below the mark rather than filling the box. */
+function BlankCell({ label }: { label: string }) {
+  return (
+    <td className="w-1/3 border border-neutral-500 px-2 py-1 align-top">
+      <div className="min-h-[3.6em]" />
+      <div className="mt-1 text-neutral-500">{label}</div>
+    </td>
+  )
+}
+
 export function StatementFooter() {
   const { org } = useOrg()
 
@@ -42,9 +53,7 @@ export function StatementFooter() {
               value={org.predmetPodnikani}
               label="Předmět podnikání:"
             />
-            <td className="w-1/3 border border-neutral-500 px-2 py-1 align-top text-neutral-500">
-              Pozn.:
-            </td>
+            <BlankCell label="Pozn.:" />
           </tr>
           <tr>
             <FieldCell value={org.sestavenoDne} label="Sestaveno dne:" />
@@ -52,10 +61,7 @@ export function StatementFooter() {
               value={org.schvalenoDne}
               label="Schváleno valnou hromadou dne:"
             />
-            <td className="w-1/3 border border-neutral-500 px-2 py-1 align-top text-neutral-500">
-              Podpisový záznam statutárního orgánu účetní jednotky nebo
-              podpisový záznam fyzické osoby, která je účetní jednotkou
-            </td>
+            <BlankCell label="Podpisový záznam statutárního orgánu účetní jednotky nebo podpisový záznam fyzické osoby, která je účetní jednotkou" />
           </tr>
         </tbody>
       </table>

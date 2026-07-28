@@ -43,9 +43,9 @@ export function DenikTable({
 
   return (
     <div className="no-print">
-      <div className="overflow-auto rounded border border-neutral-200">
+      <div className="overflow-auto rounded border border-border">
         <table className="w-full border-collapse text-[13px] tabular-nums">
-          <thead className="sticky top-0 z-10 bg-neutral-100 text-neutral-700">
+          <thead className="sticky top-0 z-10 bg-muted text-foreground">
             <tr>
               <th className="px-2 py-2 text-left font-semibold">Datum</th>
               <th className="px-2 py-2 text-left font-semibold">Číslo</th>
@@ -64,7 +64,7 @@ export function DenikTable({
           </thead>
           <tbody>
             {rows.map(({ row, index }) => (
-              <tr key={index} className="border-t border-neutral-100">
+              <tr key={index} className="border-t border-border">
                 <td className="p-0">
                   <input
                     className={INPUT_CLASS}
@@ -158,7 +158,7 @@ export function DenikTable({
                     onClick={() => deleteDenikRow(index)}
                     title="Smazat řádek"
                     aria-label={`Smazat řádek ${index + 1}`}
-                    className="cursor-pointer rounded px-1 text-neutral-400 hover:bg-red-50 hover:text-red-600"
+                    className="cursor-pointer rounded px-1 text-muted-foreground hover:bg-red-50 hover:text-destructive"
                   >
                     ×
                   </button>
@@ -169,7 +169,7 @@ export function DenikTable({
               <tr>
                 <td
                   colSpan={10}
-                  className="px-2 py-2 text-center text-neutral-500"
+                  className="px-2 py-2 text-center text-muted-foreground"
                 >
                   Žádné řádky pro zvolený filtr.
                 </td>
@@ -182,7 +182,7 @@ export function DenikTable({
         <button
           type="button"
           onClick={() => (onAddRow ?? addDenikRow)()}
-          className="cursor-pointer rounded border border-neutral-300 px-3 py-1 text-[11px] font-medium text-neutral-700 hover:bg-neutral-50"
+          className="cursor-pointer rounded border border-border px-3 py-1 text-[11px] font-medium text-foreground hover:bg-muted/40"
         >
           + Přidat řádek
         </button>

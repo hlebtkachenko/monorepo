@@ -362,6 +362,12 @@ it is an explicit opt-in, and the wipe button clears both storages.
 - **Kontrolní hlášení is monthly for every právnická osoba** (§ 101e odst. 1),
   even for a quarterly DPH plátce. It carries its own `khMesic`, and deriving the
   KH period from the přiznání period is the classic way to file a wrong hlášení.
+  A **fyzická osoba** on a quarterly zdaňovací období files it quarterly instead
+  (§ 101e odst. 2), so the KH cadence is its own choice, not always monthly.
+- **Exactly one of měsíc / čtvrtletí** is emitted on every form. Both are
+  `use="optional"` in all three XSDs, so a document carrying both validates
+  cleanly and is rejected on upload. The cadence is an explicit control
+  (`obdobi` / `khObdobi` / `shObdobi`), never a fallback chain.
 - **Souhrnné hlášení** may be quarterly only when the filer supplies nothing but
   § 9 odst. 1 services; any goods force monthly (§ 102 odst. 6). `checkDphshv`
   rejects a quarterly hlášení carrying kód 0/1/2.
@@ -371,13 +377,39 @@ it is an explicit opt-in, and the wipe button clears both storages.
 
 - ř.40–47 file the "V plné výši" column from the evidence; the "Krácený odpočet"
   column is entered by hand under its exact XML attribute name
-  (`DPH_MANUAL_FIELDS`). The XSD carries two parallel attribute families for
-  those řádky whose column roles its own documentation does not settle, and
-  guessing would file a wrong return.
+  (`DPH_MANUAL_FIELDS`), because no doklad determines it — it is the plátce's own
+  § 76 apportionment.
+
+  Which attribute carries which column is **settled by the FÚ popis struktury**
+  (`popis_struktury_detail.faces?zkratka=DPHDP3`), which lists a form label per
+  attribute. The XSD cannot settle it: its `xs:documentation` is byte-identical
+  for both members of every pair. The two families are named inconsistently and
+  the difference matters — `_nar` is *nárok v plné výši*:
+
+  | ř. | V plné výši | Krácený odpočet |
+  |---|---|---|
+  | 40 | `odp_tuz23_nar` | `odp_tuz23` |
+  | 41 | `odp_tuz5_nar` | `odp_tuz5` |
+  | 42 | `odp_cu_nar` | `odp_cu` |
+  | 43 | `od_zdp23` | `odkr_zdp23` |
+  | 44 | `od_zdp5` | `odkr_zdp5` |
+  | 45 | `odp_rez_nar` | `odp_rezim` |
+  | 46 | `odp_sum_nar` | `odp_sum_kr` |
+  | 47 | `od_maj` | `odkr_maj` |
+
+  Reading `_nar` as "krácený" put every odpočet in the wrong column. Since
+  ř.63 = ř.46 V plné výši + ř.52 + ř.53 + ř.60, the whole deduction fell out of
+  the return and the plátce owed the entire daň na výstupu.
+- ř.14 (oprava § 42a) and ř.48 (§ 74a korekce) are not in the taxonomy. Neither
+  feeds ř.62 or ř.63, so nothing miscomputes, but a filer needing them cannot
+  produce a complete return here.
 - Opravné / dodatečné forms are not exposed in the UI. `d_zjist` and
   `c_jed_vyzvy` exist on the header models, so the engine supports them.
 - Call-off stock (`VetaS`) and SH storno rows are modelled and validated but have
   no UI.
+- `c_vat` is not checked against the per-member-state format table the DPHSHV XSD
+  embeds (SK 10 digits, DE 9, AT `U` + 8, NL 9 + `B01`–`B99`, …). That table is
+  the most common cause of an SH rejection.
 ### The workbook join
 
 The evidence can also live as a `DPH` sheet in the SAME workbook as the deník
@@ -395,7 +427,24 @@ The sheet carries only what the deník cannot: DIČ, DPPD, the supplier's eviden
 `indexDenikByDoklad` reads the base from the side OPPOSITE the 343 leg. An issued
 invoice books 311 MD / 602 DAL / 343 DAL, so counting every non-343 leg would add
 the receivable to the revenue and double the base. A leg that is 343 on both sides
-(samovyměření, the monthly zápočet) contributes nothing.
+(samovyměření, the monthly zápočet) contributes nothing, and a leg with only one
+side filled contributes nothing either.
+
+A doklad with **no 343 leg at all** — osvobozené plnění § 64/§ 66, the PDP
+dodavatel side, ř.20/21/22/25 — has no side to read the base from. Those rows
+must carry an explicit `Základ`; the join raises an error rather than inheriting
+a zero, which would file a materially understated return that every kontrolní
+vazba passes. A doklad listed twice (one doklad across two sazby) likewise does
+not inherit: the second row would otherwise take the full total again.
+
+The join key folds case, diacritics and repeated whitespace, and falls back to a
+leading-zero-stripped číslo — Excel coerces a `001` typed on one sheet into the
+number 1 while the other keeps it as text. The relaxed match is always reported.
+
+The reader honours `workbookPr date1904` (a Mac-authored workbook is otherwise
+four years and a day early, and XSD-valid), skips hidden sheets when matching by
+tab name, and reads a `Sazba` cell formatted as a percentage (Excel stores it as
+the fraction `0.21`).
 
 Two reconciliation checks fall out of the join and run on import:
 

@@ -324,11 +324,11 @@ export function DppoForm() {
             placeholder="STATUTÁRNÍ ORGÁN"
             hint="Např. STATUTÁRNÍ ORGÁN nebo ZMOCNĚNEC."
           />
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">
               Lhůta pro podání
             </span>
-            <span className="flex items-center gap-2 py-1.5">
+            <label className="flex items-center gap-2 py-1.5">
               <input
                 type="checkbox"
                 checked={form.audit}
@@ -338,8 +338,8 @@ export function DppoForm() {
               <span className="text-sm text-foreground">
                 Závěrka ověřena auditorem
               </span>
-            </span>
-            <span className="flex items-center gap-2">
+            </label>
+            <label className="flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={form.danPor}
@@ -349,12 +349,12 @@ export function DppoForm() {
               <span className="text-sm text-foreground">
                 Zpracoval daňový poradce
               </span>
-            </span>
+            </label>
             <span className="text-xs text-muted-foreground">
               Každá z těchto možností prodlužuje lhůtu podle § 136 daňového řádu
               na 6 měsíců po skončení zdaňovacího období.
             </span>
-          </label>
+          </div>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">
               Sbírka listin (příloha č. 11)

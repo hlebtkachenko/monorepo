@@ -326,8 +326,8 @@ export function toMeta(
     // "A" only declares that the E-přílohy will be there; attaching Rozvahu,
     // VZZ and Přílohu účetní závěrky is a step the filer does in EPO.
     uc_zav: form.ucZav ? "A" : "N",
-    // Řádná závěrka: this builder only produces one drawn up to the rozvahový
-    // den of the zdaňovací období, never a mimořádná or mezitímní one.
+    // Jednotka výkazů, not the kind of závěrka: the grid renders and stores
+    // whole thousands (`formatTisiceCell`), so the výkazy are always "T".
     uz_rad: "T",
     audit: form.audit ? "A" : "N",
     dan_por: form.danPor ? "A" : "N",

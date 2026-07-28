@@ -13,7 +13,7 @@
 // the Advisor review before Hleb signs off.
 
 import Decimal from "decimal.js-light"
-import { koruna } from "../envelope"
+import { epoDate, koruna } from "../envelope"
 import { applyDppoTotals } from "./compute"
 import { buildPrilohaVety, type DppoPriloha } from "./priloha"
 import { buildZaverkaVety, type DppoZaverka } from "./zaverka"
@@ -97,7 +97,10 @@ export interface DppoFilingMeta {
   audit?: string
   /** Přiznání zpracoval a předkládá daňový poradce ("A"/"N"). */
   dan_por?: string
-  /** Účetní závěrka řádná ("T") vs mimořádná/mezitímní ("N"). */
+  /**
+   * Jednotka účetních výkazů: "T" celé tisíce, "M" miliony (XSD `uz_rad`). NOT
+   * the kind of závěrka. Kritická kontrola: must be filled once any výkaz is.
+   */
   uz_rad?: string
 }
 
@@ -186,9 +189,12 @@ export function buildDppoFromAccounting(
 
   // ř.10 carries the day the výsledek hospodaření is struck to. `dateInMultiFormat`
   // in the XSD, so it is set beside the amounts rather than through
-  // `nonZeroKoruna`, which would treat it as a částka. Same rozvahový den as the
+  // `nonZeroKoruna`, which would treat it as a částka — and normalized here,
+  // because the writer only runs `epoDate` over the VetaD attrs in
+  // DPPO_HEADER_DATE_ATTRS and emits VetaO verbatim. Same rozvahový den as the
   // závěrka: the VH on ř.10 IS the one the výkazy foot to.
-  if (meta.d_uv) vetaO.d_hospvysl = meta.d_uv
+  const rozvahovyDen = epoDate(meta.d_uv)
+  if (rozvahovyDen) vetaO.d_hospvysl = rozvahovyDen
 
   const model: DppoInput = {
     header: {

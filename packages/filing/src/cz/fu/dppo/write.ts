@@ -13,6 +13,7 @@ import {
   DppoSchema,
   DPPO_VERSION,
   DPPO_HEADER_DATE_ATTRS,
+  DPPO_EXTRA_VETA_TAGS,
   type Dppo,
 } from "../../../model/dppo"
 
@@ -41,8 +42,22 @@ export function generateDppo(input: unknown): string {
   if (m.payer && Object.keys(m.payer).length > 0) vety.push(vetaP(m.payer))
   // VetaO is required (1..1); always emit it, even empty (<VetaO/>).
   vety.push(veta("VetaO", m.vetaO ?? {}))
-  // Přílohy — verbatim, already in XSD sequence order (see DPPO_EXTRA_VETA_TAGS).
-  for (const extra of m.extraVety) vety.push(veta(extra.tag, extra.attrs))
+  // Přílohy — verbatim, but re-ordered onto the XSD <xs:sequence> here rather
+  // than trusting every caller to push in the right order. The builders each
+  // emit one block and the adapter concatenates them, so the invariant used to
+  // live in three places and hold only by comment; a wrong order is invalid XML
+  // that no test outside this function would catch. Sort is stable, so rows
+  // sharing a tag keep the c_radku order their builder produced, and a tag from
+  // an uploaded return that this version does not know falls to the end.
+  const order = new Map(
+    DPPO_EXTRA_VETA_TAGS.map((tag, i) => [tag as string, i]),
+  )
+  const ordered = [...m.extraVety].sort(
+    (a, b) =>
+      (order.get(a.tag) ?? Number.MAX_SAFE_INTEGER) -
+      (order.get(b.tag) ?? Number.MAX_SAFE_INTEGER),
+  )
+  for (const extra of ordered) vety.push(veta(extra.tag, extra.attrs))
   return serializePisemnost({
     documentTag: "DPPDP9",
     verzePis: m.verze || DPPO_VERSION,

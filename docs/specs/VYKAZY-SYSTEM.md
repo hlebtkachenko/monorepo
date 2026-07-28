@@ -289,7 +289,7 @@ pnpm --filter web exec tsx scripts/build-vykazy-reference.ts
   zero daňových.
 - Tabulka A is user-entered. Which náklady are nedaňové is a judgement, so the
   figures do not move when the deník moves. Re-check them after a deník reimport.
-- VZZ účelové členění (příloha č. 3) is not implemented. Only `VetaUD`, the
-  druhové členění, is produced.
+- VZZ účelové členění (příloha č. 3) is not implemented. Only `VetaUB`, the
+  druhové členění, is produced; the účelové variant is `VetaUE`.
 - The DPPO form is component state. It is not part of `VykazyDoc` and does not
   survive a reload.

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import { buildZadostVety } from "./zadost"
 import { buildDppoFromAccounting } from "./adapter"
+import { checkDppo } from "./checks"
 import { generateDppo } from "./write"
 import { DppoSchema } from "../../../model/dppo"
 import { validateFiling } from "../../../validate/validate"
@@ -116,5 +117,61 @@ describe("the žádost inside a whole return", () => {
     )
     expect(model.vetaO?.d_hospvysl).toBe("31.12.2025")
     expect(model.header.d_uv).toBe("31.12.2025")
+  })
+})
+
+describe("the checks a green XSD badge would otherwise hide", () => {
+  const figures = {
+    ucetni_vysledek: "-1",
+    nedanove_naklady: "0",
+    osvobozene_vynosy: "0",
+    odpocet_ztraty: "0",
+    sazba: "0.21",
+    slevy: "0",
+  }
+  const meta = {
+    zdobd_od: "1.1.2025",
+    zdobd_do: "31.12.2025",
+    c_ufo_cil: "451",
+    dic: "CZ00000019",
+  }
+
+  it("warns when a výkaz is attached with no rozvahový den", async () => {
+    // `d_uv` is use="optional" in the XSD but has a kritická kontrola, so the
+    // document validates and EPO still refuses it on load.
+    const model = DppoSchema.parse(
+      buildDppoFromAccounting(figures, meta, undefined, undefined, {
+        rozvaha: true,
+      }),
+    )
+    const xsd = await validateFiling(generateDppo(model), "dppo", "05.01.01")
+    expect(xsd.valid).toBe(true)
+    const codes = checkDppo(model).map((c) => c.code)
+    expect(codes).toContain("d_uv.required")
+    expect(codes).toContain("uz_rad.required")
+  })
+
+  it("stays quiet once the rozvahový den and the unit are set", () => {
+    const model = DppoSchema.parse(
+      buildDppoFromAccounting(
+        figures,
+        { ...meta, d_uv: "31.12.2025", uz_rad: "T" },
+        undefined,
+        undefined,
+        { rozvaha: true },
+      ),
+    )
+    const codes = checkDppo(model).map((c) => c.code)
+    expect(codes).not.toContain("d_uv.required")
+    expect(codes).not.toContain("uz_rad.required")
+  })
+
+  it("normalizes the rozvahový den in both places it lands", () => {
+    // "Ke dni" is a free-text field; an ISO entry must not reach the XML raw.
+    const model = DppoSchema.parse(
+      buildDppoFromAccounting(figures, { ...meta, d_uv: "2025-12-31" }),
+    )
+    expect(model.vetaO?.d_hospvysl).toBe("31.12.2025")
+    expect(generateDppo(model)).toContain('d_uv="31.12.2025"')
   })
 })

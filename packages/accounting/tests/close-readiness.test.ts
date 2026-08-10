@@ -4,9 +4,12 @@ import { withOrganization } from "@workspace/db"
 import {
   assessPeriodCloseReadiness,
   captureDocument,
+  closePeriod,
   createAccount,
   createEvent,
+  createNumberSeries,
   createPeriod,
+  PeriodCloseBlockedError,
   postDoubleEntry,
   type PeriodCloseCheckCode,
 } from "../src/index"
@@ -91,6 +94,151 @@ async function postInternal(
       ],
     })
   })
+}
+
+let supportingSeriesSeq = 0
+
+/**
+ * A fully isolated DOUBLE_ENTRY org for the completeness scenarios. Assets and
+ * inventory counts persist across tests and a depreciable asset with no plan is
+ * legitimately in scope for every later period, so each scenario runs against its
+ * own fresh organization rather than the shared orgA. A single-DOCUMENT-series org
+ * also keeps closePeriod's series resolution aligned with the seeded postings.
+ */
+async function freshDoubleEntrySeed(opts: {
+  periodStart: string
+  periodEnd: string
+}): Promise<DoubleEntrySeed> {
+  supportingSeriesSeq += 1
+  const slug = `close-completeness-${Date.now()}-${supportingSeriesSeq}`
+  const [organization] = await admin<Array<{ id: string }>>`
+    INSERT INTO organization
+      (organization_id, workspace_id, slug, legal_name, person_kind, legal_subject_kind)
+    VALUES
+      (uuidv7(), ${workspaceId}::uuid, ${slug}, 'Completeness Fixture Organization',
+       'legal_entity', 'for_profit')
+    RETURNING id
+  `
+  if (!organization) throw new Error("completeness organization seed failed")
+  await admin`
+    UPDATE organization SET organization_id = id WHERE id = ${organization.id}::uuid
+  `
+  return await seedDoubleEntryOrg(organization.id, workspaceId, userId, opts)
+}
+
+/** An ASSET Označení series for the seed's organization. */
+async function createAssetSeries(seed: DoubleEntrySeed): Promise<string> {
+  supportingSeriesSeq += 1
+  return await withOrganization(seed.ctx.organizationId, seed.userId, (db) =>
+    createNumberSeries(db, seed.ctx, {
+      entityType: "ASSET",
+      code: `AS${supportingSeriesSeq}`,
+      pattern: "DHM{NNNN}",
+    }),
+  )
+}
+
+/** An INVENTORY_COUNT Označení series for the seed's organization. */
+async function createInventorySeries(seed: DoubleEntrySeed): Promise<string> {
+  supportingSeriesSeq += 1
+  return await withOrganization(seed.ctx.organizationId, seed.userId, (db) =>
+    createNumberSeries(db, seed.ctx, {
+      entityType: "INVENTORY_COUNT",
+      code: `IN${supportingSeriesSeq}`,
+      pattern: "INV{NNNN}",
+    }),
+  )
+}
+
+/** Seed a register asset directly; optionally give it an active depreciation plan. */
+async function insertAsset(
+  seed: DoubleEntrySeed,
+  seriesId: string,
+  opts: {
+    category: "INTANGIBLE" | "TANGIBLE_DEPRECIABLE" | "TANGIBLE_NON_DEPRECIABLE"
+    designation: string
+    commissioningDate: string
+    disposalDate?: string
+    withPlan?: boolean
+  },
+): Promise<string> {
+  const orgId = seed.ctx.organizationId
+  const [asset] = await admin<Array<{ id: string }>>`
+    INSERT INTO asset (
+      organization_id, number_series_id, sequence_number, designation, name,
+      category, account_number, commissioning_date, disposal_date, disposal_method,
+      acquisition_cost
+    )
+    VALUES (
+      ${orgId}::uuid, ${seriesId}::uuid, 1, ${opts.designation},
+      'Fixture asset', ${opts.category}::asset_category, '022',
+      ${opts.commissioningDate}::date, ${opts.disposalDate ?? null}::date,
+      ${opts.disposalDate ? "SALE" : null}::asset_disposal_method, '120000.0000'
+    )
+    RETURNING id
+  `
+  if (!asset) throw new Error("asset fixture insert failed")
+  if (opts.withPlan) {
+    await admin`
+      INSERT INTO depreciation_plan (
+        organization_id, asset_id, method, start_date, useful_life_months,
+        monthly_amount, expense_account_number, accumulated_account_number, status
+      )
+      VALUES (
+        ${orgId}::uuid, ${asset.id}::uuid, 'STRAIGHT_LINE',
+        ${opts.commissioningDate}::date, 60, '2000.0000', '551', '082', 'ACTIVE'
+      )
+    `
+  }
+  return asset.id
+}
+
+/** Seed an inventory count with one line of the requested difference kind. */
+async function insertInventoryCount(
+  seed: DoubleEntrySeed,
+  seriesId: string,
+  opts: {
+    designation: string
+    countDate: string
+    difference: "MATCH" | "SHORTAGE" | "SURPLUS"
+  },
+): Promise<string> {
+  const orgId = seed.ctx.organizationId
+  const [count] = await admin<Array<{ id: string }>>`
+    INSERT INTO inventory_count (
+      organization_id, number_series_id, sequence_number, designation, count_date
+    )
+    VALUES (
+      ${orgId}::uuid, ${seriesId}::uuid, 1, ${opts.designation},
+      ${opts.countDate}::date
+    )
+    RETURNING id
+  `
+  if (!count) throw new Error("inventory count fixture insert failed")
+  const actualValue =
+    opts.difference === "MATCH"
+      ? "1000.0000"
+      : opts.difference === "SHORTAGE"
+        ? "600.0000"
+        : "1400.0000"
+  await admin`
+    INSERT INTO inventory_count_line (
+      organization_id, inventory_count_id, description, book_value, actual_value,
+      difference_kind
+    )
+    VALUES (
+      ${orgId}::uuid, ${count.id}::uuid, 'Fixture line', '1000.0000',
+      ${actualValue}, ${opts.difference}::inventory_difference
+    )
+  `
+  return count.id
+}
+
+/** Assess readiness for a completeness seed under its own organization. */
+async function assessCompleteness(seed: DoubleEntrySeed) {
+  return await withOrganization(seed.ctx.organizationId, seed.userId, (db) =>
+    assessPeriodCloseReadiness(db, seed.ctx, seed.periodId),
+  )
 }
 
 describe("period close readiness", () => {
@@ -509,5 +657,214 @@ describe("period close readiness", () => {
     expect(blocker(readiness, "REQUIRED_NUMBER_SERIES_AVAILABLE")?.count).toBe(
       2,
     )
+  })
+})
+
+describe("asset and inventory completeness", () => {
+  it("passes for an empty register and stays ready", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2062-01-01",
+      periodEnd: "2062-12-31",
+    })
+
+    const readiness = await assessCompleteness(seed)
+    const check = blocker(readiness, "ASSET_AND_INVENTORY_COMPLETENESS")
+
+    expect(check?.severity).toBe("BLOCKER")
+    expect(check?.status).toBe("PASS")
+    expect(check?.count).toBe(0)
+    expect(readiness.ready).toBe(true)
+  })
+
+  it("passes when depreciable assets carry a plan and inventory counts match", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2063-01-01",
+      periodEnd: "2063-12-31",
+    })
+    const assetSeries = await createAssetSeries(seed)
+    const inventorySeries = await createInventorySeries(seed)
+    await insertAsset(seed, assetSeries, {
+      category: "TANGIBLE_DEPRECIABLE",
+      designation: "DHM2063-01",
+      commissioningDate: "2063-02-01",
+      withPlan: true,
+    })
+    await insertInventoryCount(seed, inventorySeries, {
+      designation: "INV2063-01",
+      countDate: "2063-12-31",
+      difference: "MATCH",
+    })
+
+    const readiness = await assessCompleteness(seed)
+    const check = blocker(readiness, "ASSET_AND_INVENTORY_COMPLETENESS")
+
+    expect(check?.status).toBe("PASS")
+    expect(check?.count).toBe(0)
+    expect(readiness.ready).toBe(true)
+  })
+
+  it("ignores a non-depreciable asset without a plan and an asset disposed before the period", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2064-01-01",
+      periodEnd: "2064-12-31",
+    })
+    const assetSeries = await createAssetSeries(seed)
+    const disposedSeries = await createAssetSeries(seed)
+    // Land (non-depreciable) never needs a depreciation plan.
+    await insertAsset(seed, assetSeries, {
+      category: "TANGIBLE_NON_DEPRECIABLE",
+      designation: "POZEMEK-2064",
+      commissioningDate: "2064-03-01",
+    })
+    // A depreciable asset disposed before the period is out of scope for it.
+    await insertAsset(seed, disposedSeries, {
+      category: "TANGIBLE_DEPRECIABLE",
+      designation: "DHM2064-OLD",
+      commissioningDate: "2060-01-01",
+      disposalDate: "2062-06-30",
+    })
+
+    const readiness = await assessCompleteness(seed)
+    const check = blocker(readiness, "ASSET_AND_INVENTORY_COMPLETENESS")
+
+    expect(check?.status).toBe("PASS")
+    expect(check?.count).toBe(0)
+    expect(readiness.ready).toBe(true)
+  })
+
+  it("blocks a depreciable asset with no depreciation plan", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2065-01-01",
+      periodEnd: "2065-12-31",
+    })
+    const assetSeries = await createAssetSeries(seed)
+    await insertAsset(seed, assetSeries, {
+      category: "TANGIBLE_DEPRECIABLE",
+      designation: "DHM2065-01",
+      commissioningDate: "2065-04-01",
+    })
+
+    const readiness = await assessCompleteness(seed)
+    const check = blocker(readiness, "ASSET_AND_INVENTORY_COMPLETENESS")
+
+    expect(readiness.ready).toBe(false)
+    expect(check?.severity).toBe("BLOCKER")
+    expect(check?.status).toBe("FAIL")
+    expect(check?.count).toBe(1)
+    expect(check?.references?.[0]?.designation).toContain("DHM2065-01")
+  })
+
+  it("blocks an inventory count with an unrecorded difference", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2066-01-01",
+      periodEnd: "2066-12-31",
+    })
+    const inventorySeries = await createInventorySeries(seed)
+    await insertInventoryCount(seed, inventorySeries, {
+      designation: "INV2066-01",
+      countDate: "2066-12-31",
+      difference: "SHORTAGE",
+    })
+
+    const readiness = await assessCompleteness(seed)
+    const check = blocker(readiness, "ASSET_AND_INVENTORY_COMPLETENESS")
+
+    expect(readiness.ready).toBe(false)
+    expect(check?.status).toBe("FAIL")
+    expect(check?.count).toBe(1)
+    expect(check?.references?.[0]?.designation).toContain("INV2066-01")
+  })
+
+  it("refuses closePeriod when a depreciable asset has no depreciation plan", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2067-01-01",
+      periodEnd: "2067-12-31",
+    })
+    const assetSeries = await createAssetSeries(seed)
+    await insertAsset(seed, assetSeries, {
+      category: "TANGIBLE_DEPRECIABLE",
+      designation: "DHM2067-01",
+      commissioningDate: "2067-05-01",
+    })
+
+    await expect(
+      withOrganization(seed.ctx.organizationId, seed.userId, (db) =>
+        closePeriod(db, seed.ctx, {
+          priorPeriodId: seed.periodId,
+          responsibleUserId: seed.userId,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(PeriodCloseBlockedError)
+
+    const [prior] = await admin<Array<{ status: string }>>`
+      SELECT status FROM accounting_period WHERE id = ${seed.periodId}::uuid`
+    expect(prior?.status).toBe("OPEN")
+  })
+
+  it("closes a period whose assets and inventory are complete", async () => {
+    const seed = await freshDoubleEntrySeed({
+      periodStart: "2068-01-01",
+      periodEnd: "2068-12-31",
+    })
+    const assetSeries = await createAssetSeries(seed)
+    const inventorySeries = await createInventorySeries(seed)
+    await insertAsset(seed, assetSeries, {
+      category: "TANGIBLE_DEPRECIABLE",
+      designation: "DHM2068-01",
+      commissioningDate: "2068-02-01",
+      withPlan: true,
+    })
+    await insertInventoryCount(seed, inventorySeries, {
+      designation: "INV2068-01",
+      countDate: "2068-12-31",
+      difference: "MATCH",
+    })
+    // Real balance-sheet activity so the close has balances to carry forward.
+    await withOrganization(seed.ctx.organizationId, seed.userId, async (db) => {
+      const event = await createEvent(db, seed.ctx, {
+        periodId: seed.periodId,
+        seriesId: seed.eventSeriesId,
+        description: "Complete-book close fixture",
+        occurredAt: "2068-06-01",
+        responsibleUserId: seed.userId,
+      })
+      const document = await captureDocument(db, seed.ctx, {
+        periodId: seed.periodId,
+        seriesId: seed.documentSeriesId,
+        type: "INTERNAL",
+        issuedAt: "2068-06-01",
+        lines: [],
+      })
+      await postDoubleEntry(db, seed.ctx, {
+        periodId: seed.periodId,
+        summaryRecordId: document.summaryRecordId,
+        accountingEventId: event.eventId,
+        postingDate: "2068-06-01",
+        responsibleUserId: seed.userId,
+        lines: [
+          { accountId: seed.accounts["221"]!, side: "DEBIT", amount: "500.00" },
+          {
+            accountId: seed.accounts["321"]!,
+            side: "CREDIT",
+            amount: "500.00",
+          },
+        ],
+      })
+    })
+
+    const result = await withOrganization(
+      seed.ctx.organizationId,
+      seed.userId,
+      (db) =>
+        closePeriod(db, seed.ctx, {
+          priorPeriodId: seed.periodId,
+          responsibleUserId: seed.userId,
+        }),
+    )
+
+    expect(result.newPeriodId).not.toBe("")
+    const [prior] = await admin<Array<{ status: string }>>`
+      SELECT status FROM accounting_period WHERE id = ${seed.periodId}::uuid`
+    expect(prior?.status).toBe("CLOSED")
   })
 })

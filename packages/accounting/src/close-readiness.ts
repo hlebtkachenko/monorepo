@@ -98,14 +98,6 @@ export interface PeriodCloseAssessmentContext {
 
 const unavailableChecks: PeriodCloseCheck[] = [
   {
-    code: "ASSET_AND_INVENTORY_COMPLETENESS",
-    severity: "WARNING",
-    status: "UNAVAILABLE",
-    label: "Assets and inventory",
-    message:
-      "Asset commissioning, depreciation, register completeness, and inventory approval are not verified.",
-  },
-  {
     code: "FILING_COMPLETENESS",
     severity: "WARNING",
     status: "UNAVAILABLE",
@@ -255,6 +247,143 @@ function pendingBrainProposalCheck(
   }
 }
 
+interface AssetInventoryIncompleteRow {
+  kind: "ASSET_DEPRECIATION" | "INVENTORY_RECONCILIATION"
+  id: string
+  designation: string
+  total_count: number
+  asset_count: number
+  inventory_count: number
+}
+
+interface AssetInventoryCompletenessSummary {
+  totalCount: number
+  assetCount: number
+  inventoryCount: number
+  references: PeriodCloseReference[]
+}
+
+/**
+ * §26–33 / ČÚS 013 + §29–30 inventarizace completeness for a period. Conservative
+ * by construction: an empty register (no assets, no inventory counts) yields zero
+ * findings, so a book with no assets and no uncounted inventory always passes. The
+ * check fires ONLY on provable incompleteness:
+ *
+ *   asset depreciation — a depreciable asset (INTANGIBLE / TANGIBLE_DEPRECIABLE;
+ *     land is TANGIBLE_NON_DEPRECIABLE and excluded) that was in use during the
+ *     period (commissioned on or before period end, not disposed before period
+ *     start) but carries no odpisový plán at all. A fully-depreciated or disposed
+ *     asset keeps its plan row (status FULLY_DEPRECIATED / DISPOSED), so it is not
+ *     flagged.
+ *
+ *   inventory reconciliation — an inventurní soupis dated inside the period whose
+ *     lines record a real difference (SHORTAGE / SURPLUS, i.e. manko / přebytek)
+ *     with no posting linked to that count. A matched count (all lines MATCH) or a
+ *     count whose differences are already booked is not flagged.
+ *
+ * Org isolation is enforced by FORCE RLS on the org-bound executor; the explicit
+ * organization_id predicate mirrors the surrounding close-readiness queries.
+ */
+async function assetInventoryCompleteness(
+  db: RowExecutor,
+  organizationId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<AssetInventoryCompletenessSummary> {
+  const findings = await rows<AssetInventoryIncompleteRow>(
+    db,
+    sql`WITH incomplete AS (
+          SELECT 'ASSET_DEPRECIATION'::text AS kind,
+                 a.id,
+                 a.designation,
+                 a.commissioning_date AS ordinal
+            FROM asset a
+           WHERE a.organization_id = ${organizationId}::uuid
+             AND a.category IN ('INTANGIBLE', 'TANGIBLE_DEPRECIABLE')
+             AND a.commissioning_date <= ${periodEnd}::date
+             AND (a.disposal_date IS NULL OR a.disposal_date >= ${periodStart}::date)
+             AND NOT EXISTS (
+               SELECT 1 FROM depreciation_plan dp
+                WHERE dp.asset_id = a.id
+                  AND dp.organization_id = a.organization_id)
+          UNION ALL
+          SELECT 'INVENTORY_RECONCILIATION'::text AS kind,
+                 ic.id,
+                 ic.designation,
+                 ic.count_date AS ordinal
+            FROM inventory_count ic
+           WHERE ic.organization_id = ${organizationId}::uuid
+             AND ic.count_date BETWEEN ${periodStart}::date AND ${periodEnd}::date
+             AND EXISTS (
+               SELECT 1 FROM inventory_count_line icl
+                WHERE icl.inventory_count_id = ic.id
+                  AND icl.organization_id = ic.organization_id
+                  AND icl.difference_kind IN ('SHORTAGE', 'SURPLUS'))
+             AND NOT EXISTS (
+               SELECT 1 FROM posting p
+                WHERE p.inventory_count_id = ic.id
+                  AND p.organization_id = ic.organization_id)
+        )
+        SELECT kind,
+               id,
+               designation,
+               (count(*) OVER ())::int AS total_count,
+               (count(*) FILTER (WHERE kind = 'ASSET_DEPRECIATION') OVER ())::int
+                 AS asset_count,
+               (count(*) FILTER (WHERE kind = 'INVENTORY_RECONCILIATION') OVER ())::int
+                 AS inventory_count
+          FROM incomplete
+         ORDER BY kind, ordinal, id
+         LIMIT ${MAX_EXPOSED_REFERENCES}`,
+  )
+  const first = findings[0]
+  return {
+    totalCount: first?.total_count ?? 0,
+    assetCount: first?.asset_count ?? 0,
+    inventoryCount: first?.inventory_count ?? 0,
+    references: findings.map((finding) => ({
+      id: finding.id,
+      designation:
+        finding.kind === "ASSET_DEPRECIATION"
+          ? `Asset ${finding.designation} (no depreciation plan)`
+          : `Inventory count ${finding.designation} (unrecorded difference)`,
+    })),
+  }
+}
+
+function assetInventoryCompletenessCheck(
+  summary: AssetInventoryCompletenessSummary,
+): PeriodCloseCheck {
+  const { totalCount, assetCount, inventoryCount, references } = summary
+  const parts: string[] = []
+  if (assetCount > 0) {
+    parts.push(
+      assetCount === 1
+        ? "1 depreciable asset has no depreciation plan"
+        : `${assetCount} depreciable assets have no depreciation plan`,
+    )
+  }
+  if (inventoryCount > 0) {
+    parts.push(
+      inventoryCount === 1
+        ? "1 inventory count has an unrecorded difference"
+        : `${inventoryCount} inventory counts have unrecorded differences`,
+    )
+  }
+  return {
+    code: "ASSET_AND_INVENTORY_COMPLETENESS",
+    severity: "BLOCKER",
+    status: totalCount === 0 ? "PASS" : "FAIL",
+    label: "Assets and inventory",
+    message:
+      totalCount === 0
+        ? "Depreciable assets carry a depreciation plan and inventory differences are recorded."
+        : `${parts.join("; ")}.`,
+    count: totalCount,
+    references,
+  }
+}
+
 export async function assessPeriodCloseReadinessWithContext(
   db: RowExecutor,
   ctx: OrgCtx,
@@ -386,6 +515,17 @@ export async function assessPeriodCloseReadinessWithContext(
     checks.push(
       pendingBrainProposalCheck(await pendingBrainProposals(db, periodId)),
     )
+
+    checks.push(
+      assetInventoryCompletenessCheck(
+        await assetInventoryCompleteness(
+          db,
+          ctx.organizationId,
+          period.period_start,
+          period.period_end,
+        ),
+      ),
+    )
   } else {
     checks.push(
       dependentUnavailable("NO_UNPOSTED_CASES", "All cases posted"),
@@ -402,6 +542,10 @@ export async function assessPeriodCloseReadinessWithContext(
       dependentUnavailable(
         "PENDING_BRAIN_PROPOSALS",
         "Pending Brain proposals",
+      ),
+      dependentUnavailable(
+        "ASSET_AND_INVENTORY_COMPLETENESS",
+        "Assets and inventory",
       ),
     )
   }

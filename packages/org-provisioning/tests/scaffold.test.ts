@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import postgres from "postgres"
 import { withOrganization } from "@workspace/db"
 import { adminClient, truncateAll } from "@workspace/db/tests/fixtures"
+import { DEFAULT_NUMBER_SERIES } from "@workspace/accounting"
 import {
   resolveOrgAccountingProfile,
   scaffoldAccountingPeriod,
@@ -131,7 +132,7 @@ describe("scaffoldOrganization — double-entry (s.r.o.)", () => {
 
     const [series] = await adminSql<Array<{ n: number }>>`
       SELECT count(*)::int AS n FROM number_series WHERE organization_id = ${orgId}::uuid`
-    expect(series!.n).toBe(8)
+    expect(series!.n).toBe(DEFAULT_NUMBER_SERIES.length)
 
     const [self] = await adminSql<Array<{ tax_id: string | null }>>`
       SELECT tax_id FROM counterparty WHERE self_of_organization_id = ${orgId}::uuid`
@@ -308,7 +309,7 @@ describe("scaffoldAccountingPeriod — coupled scaffold (#579)", () => {
     expect(charts!.n).toBe(2)
     const [series] = await adminSql<Array<{ n: number }>>`
       SELECT count(*)::int AS n FROM number_series WHERE organization_id = ${orgId}::uuid`
-    expect(series!.n).toBe(8)
+    expect(series!.n).toBe(DEFAULT_NUMBER_SERIES.length)
   })
 
   it("rejects a period overlapping an existing one — no second period/chart minted (F1)", async () => {

@@ -37,6 +37,8 @@ export {
   upsertDocumentSeries,
   upsertNumberSeriesPeriod,
   deleteNumberSeriesPeriod,
+  DEFAULT_DOCUMENT_TYPES,
+  backfillDefaultDocumentTypes,
   type DocumentTypeRow,
   type DocumentSeriesRow,
   type NumberSeriesPeriodRow,

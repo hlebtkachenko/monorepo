@@ -106,12 +106,12 @@ jobs:
       go: ${{ steps.flag.outputs.go }}
       reason: ${{ steps.flag.outputs.reason }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
       - if: inputs.auto_release_id != ''
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -172,7 +172,7 @@ jobs:
       # independent of deploys. (M6 — AFF-245.)
       EMAIL_FORWARD_TO: ${{ secrets.EMAIL_FORWARD_TO }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
       - name: Assert required vars + secrets are present
@@ -227,10 +227,10 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Brand placeholder check
@@ -284,11 +284,11 @@ jobs:
       # Defaults to true on first/unknown/failed-last-deploy (safe).
       migrations_changed: ${{ steps.decide.outputs.migrations_changed }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Need history back to the last-deploy SHA for `git diff`.
           fetch-depth: 0
@@ -318,7 +318,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -543,10 +543,10 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
       ENV_NAME: ${{ inputs.environment }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -572,7 +572,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -748,11 +748,11 @@ jobs:
       IMAGE_TAG: sha-${{ github.sha }}
       SERVICE: ${{ matrix.service }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           # Needed by the "Compute BUILD_VERSION" step below — `git describe
@@ -819,7 +819,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -829,7 +829,7 @@ jobs:
 
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - id: ecr
         uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
@@ -1067,11 +1067,11 @@ jobs:
       # them is stack=infra-only.
       SKIP_IMAGE_BUILD: ${{ inputs.stack == 'infra-only' && 'true' || 'false' }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -1117,7 +1117,7 @@ jobs:
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
 
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1128,11 +1128,11 @@ jobs:
           # MaxSessionDuration on the role if your deploy regularly nears it.
           role-duration-seconds: 3600
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.9.0
 
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "24"
           cache: pnpm
@@ -1155,7 +1155,7 @@ jobs:
 
       - name: Docker Buildx (enables gha cache + multi-arch)
         if: env.STACK_SCOPE != 'infra-only'
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       # NOTE: ECR login + the 3 image builds + the CVE gate moved to the
       # parallel `build-images` matrix job above. This deploy job only runs
@@ -1629,10 +1629,10 @@ jobs:
       ECS_WAS_PAUSED: ${{ needs.deploy-prep.outputs.ecs_was_paused }}
       RDS_WAS_PAUSED: ${{ needs.deploy-prep.outputs.rds_was_paused }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Mask account-bearing inputs in logs
@@ -1655,7 +1655,7 @@ jobs:
             production) echo "role=$PRODUCTION_ROLE" >> "$GITHUB_OUTPUT" ;;
             *) echo "Unknown environment: $ENV_NAME"; exit 1 ;;
           esac
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1743,7 +1743,7 @@ jobs:
       IMAGE_TAG_API: ${{ needs.detect-changes.outputs.image_tag_api || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
       IMAGE_TAG_ADMIN: ${{ needs.detect-changes.outputs.image_tag_admin || needs.detect-changes.outputs.image_tag || format('sha-{0}', github.sha) }}
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
       - id: env
@@ -1769,7 +1769,7 @@ jobs:
       # Both the success record + failure rollback need AWS now; doing it
       # once keeps the step graph simpler and avoids re-assuming the role
       # twice on the rollback path.
-      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+      - uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ steps.env.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
@@ -1929,10 +1929,10 @@ jobs:
       actions: read
       contents: read
     steps:
-      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+      - uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Notify Telegram of deployment outcome

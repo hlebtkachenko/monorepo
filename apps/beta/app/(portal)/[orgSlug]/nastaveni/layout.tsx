@@ -36,10 +36,13 @@ export default async function NastaveniLayout({
 
   return (
     <div className="flex flex-col">
-      <NastaveniNavTabs orgSlug={orgSlug} items={nastaveniNavFor({
+      <NastaveniNavTabs
+        orgSlug={orgSlug}
+        items={nastaveniNavFor({
           role: scope.role,
           employeeSeat: isEmployeeSeat(scope),
-        })} />
+        })}
+      />
       <div className="grid gap-6 p-6">{children}</div>
     </div>
   )

@@ -7,11 +7,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { useBetaTranslations } from "@/i18n/translations"
 
-import {
-  isActiveMzdyNav,
-  mzdyHref,
-  type MzdyNavItem,
-} from "../_nav/mzdy-nav"
+import { isActiveMzdyNav, mzdyHref, type MzdyNavItem } from "../_nav/mzdy-nav"
 
 /**
  * The Mzdy module's own navigation (spec §2.6), rendered as a tab row for the

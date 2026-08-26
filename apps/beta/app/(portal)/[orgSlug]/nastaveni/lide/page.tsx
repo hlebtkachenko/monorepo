@@ -1,4 +1,3 @@
-import { Badge } from "@workspace/ui/components/badge"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -23,8 +22,9 @@ import {
   inviteMemberAction,
   setMemberActiveAction,
 } from "../_actions/people"
-import { orgRoleLabelKey, ROLE_LABEL_KEY } from "../_components/labels"
+import { ROLE_LABEL_KEY } from "../_components/labels"
 
+import { MemberStateBadges } from "./_components/member-state-badges"
 import { PeopleActionForm } from "./_components/people-action-form"
 
 /**
@@ -101,20 +101,11 @@ export default async function LidePage({
                 </TableCell>
 
                 <TableCell className="space-x-1">
-                  {member.active ? (
-                    <Badge variant="secondary">
-                      {t("nastaveni.stateActive")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      {t("nastaveni.stateInactive")}
-                    </Badge>
-                  )}
-                  {member.lastOwner ? (
-                    <Badge variant="outline">
-                      {t("nastaveni.stateLastOwner")}
-                    </Badge>
-                  ) : null}
+                  <MemberStateBadges
+                    active={member.active}
+                    lastOwner={member.lastOwner}
+                    employeeSeat={member.employeeSeat}
+                  />
                 </TableCell>
 
                 <TableCell>
@@ -123,7 +114,7 @@ export default async function LidePage({
                       the current label is the whole truth for that row. */}
                   {member.assignableRoles.length === 0 ? (
                     <span className="text-sm">
-                      {t(orgRoleLabelKey(member))}
+                      {t(ROLE_LABEL_KEY[member.role])}
                     </span>
                   ) : (
                     <PeopleActionForm

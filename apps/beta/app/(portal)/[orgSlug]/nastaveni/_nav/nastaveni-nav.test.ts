@@ -54,12 +54,14 @@ describe("NASTAVENI_NAV", () => {
 describe("nastaveniNavFor — spec §5 visibility", () => {
   it("shows Lidé to the roles that administer people, and only those", () => {
     for (const role of ["owner", "admin"] as const) {
-      expect(nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug)).toContain("lide")
+      expect(
+        nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug),
+      ).toContain("lide")
     }
     for (const role of ["member", "guest"] as const) {
-      expect(nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug)).not.toContain(
-        "lide",
-      )
+      expect(
+        nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug),
+      ).not.toContain("lide")
     }
   })
 
@@ -67,7 +69,9 @@ describe("nastaveniNavFor — spec §5 visibility", () => {
     // The tab is derived from `managesPeople`, so a change to the matrix moves
     // the tab with it. This asserts the two cannot part company.
     for (const role of ["owner", "admin", "member", "guest"] as const) {
-      const visible = nastaveniNavFor({ role, employeeSeat: false }).some((item) => item.slug === "lide")
+      const visible = nastaveniNavFor({ role, employeeSeat: false }).some(
+        (item) => item.slug === "lide",
+      )
       expect(visible).toBe(managesPeople({ kind: "organization", role }))
     }
   })

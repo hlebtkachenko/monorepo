@@ -34,7 +34,7 @@ import { CompanyForm } from "../_components/company-form"
  * only the statements. The tab is filtered out of the row above
  * (`nastaveniNavFor`); this is the enforcement.
  *
- * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ * `employee-seat-fence.boundary.test.ts` fails if this call is ever removed.
  */
 export default async function SpolecnostPage({
   params,

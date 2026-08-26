@@ -209,14 +209,23 @@ describe("issuing a pre-bound seat invite", () => {
     })
   })
 
-  it("revokes every earlier live invite naming the same employee", async () => {
+  it("revokes an earlier live invite for the same employee on re-issue", async () => {
     // The office typo'd the address, then re-sent. The mistyped link must be
-    // dead the moment the corrected one exists — not merely lose a race to it.
+    // dead once the corrected one exists — not merely lose a race to it.
+    //
+    // SEQUENTIAL, which is the case the revoke exists for and the only one it
+    // closes: under READ COMMITTED two OVERLAPPING issuances can both survive.
+    // `issueSetupToken`'s own comment argues why that is safe (the consume-side
+    // atomic bind is the invariant) and why buying more would cost a deadlock.
     const b = await book()
     const employeeId = await employee(b.orgId)
 
-    const wrong = await issue(b, employeeId, { email: `${unique("typo")}@example.com` })
-    const right = await issue(b, employeeId, { email: `${unique("jan")}@example.com` })
+    const wrong = await issue(b, employeeId, {
+      email: `${unique("typo")}@example.com`,
+    })
+    const right = await issue(b, employeeId, {
+      email: `${unique("jan")}@example.com`,
+    })
     expect(wrong.ok && right.ok).toBe(true)
     if (!wrong.ok || !right.ok) return
 
@@ -293,7 +302,9 @@ describe("consuming a pre-bound seat invite", () => {
     const b = await book()
     const employeeId = await employee(b.orgId)
 
-    const first = await issue(b, employeeId, { email: `${unique("prvni")}@example.com` })
+    const first = await issue(b, employeeId, {
+      email: `${unique("prvni")}@example.com`,
+    })
     expect(first.ok).toBe(true)
     if (!first.ok) return
 
@@ -301,7 +312,9 @@ describe("consuming a pre-bound seat invite", () => {
     expect(winner.ok).toBe(true)
     if (!winner.ok) return
 
-    const second = await issue(b, employeeId, { email: `${unique("druhy")}@example.com` })
+    const second = await issue(b, employeeId, {
+      email: `${unique("druhy")}@example.com`,
+    })
     expect(second.ok).toBe(true)
     if (!second.ok) return
 
@@ -317,11 +330,15 @@ describe("consuming a pre-bound seat invite", () => {
     const b = await book()
     const employeeId = await employee(b.orgId)
 
-    const first = await issue(b, employeeId, { email: `${unique("a")}@example.com` })
+    const first = await issue(b, employeeId, {
+      email: `${unique("a")}@example.com`,
+    })
     if (!first.ok) throw new Error("fixture")
     await consume(first.link.token)
 
-    const second = await issue(b, employeeId, { email: `${unique("bb")}@example.com` })
+    const second = await issue(b, employeeId, {
+      email: `${unique("bb")}@example.com`,
+    })
     if (!second.ok) throw new Error("fixture")
     await consume(second.link.token)
 
@@ -337,7 +354,9 @@ describe("consuming a pre-bound seat invite", () => {
   it("creates NO account when the link is refused", async () => {
     const b = await book()
     const employeeId = await employee(b.orgId)
-    const first = await issue(b, employeeId, { email: `${unique("one")}@example.com` })
+    const first = await issue(b, employeeId, {
+      email: `${unique("one")}@example.com`,
+    })
     if (!first.ok) throw new Error("fixture")
     await consume(first.link.token)
 

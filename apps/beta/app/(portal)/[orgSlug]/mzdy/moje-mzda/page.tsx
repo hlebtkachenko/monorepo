@@ -166,7 +166,9 @@ export default async function MojeMzdaPage({
             <TableBody>
               {lines.map((line) => (
                 <TableRow key={line.id}>
-                  <TableCell>{formatReportingPeriodLabel(line.period)}</TableCell>
+                  <TableCell>
+                    {formatReportingPeriodLabel(line.period)}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {money(line.gross)}
                   </TableCell>

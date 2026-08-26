@@ -18,11 +18,24 @@ import type { IdentityField } from "@/lib/ares/suggestions"
  *
  * "ZAMĚSTNANEC" IS THE FIFTH LABEL §2.6.1 NAMES, AND IT IS NOT IN THIS MAP —
  * because it is not a role (PR 33). The employee seat is `guest` +
- * `payroll_employee.app_user_id`, so the label is chosen by
- * `orgRoleLabelKey` below, which takes the seat fact alongside the role. Keeping
- * the map keyed purely on `BetaOrgRole` is what lets `satisfies Record<...>`
- * keep proving that every enum value has a label; a fifth key would break that
- * proof to encode something the enum does not contain.
+ * `payroll_employee.app_user_id`, so it is rendered as a separate BADGE beside
+ * "Neaktivní" and "Poslední účetní" in Lidé's state cell, never as an entry
+ * here.
+ *
+ * THAT SPLIT IS NOT AESTHETIC. This map feeds two things: the label shown when a
+ * row has no role select, and the OPTIONS of the select itself. A "Zaměstnanec"
+ * entry would therefore have to be either a role somebody can be assigned — which
+ * it is not, since the seat is created by consuming a pre-bound link and by
+ * nothing else — or a value that renders in one branch and is filtered out of the
+ * other. The first version of this PR took the first road and put the seat label
+ * behind `assignableRoles.length === 0`; that branch is UNREACHABLE for a guest
+ * row (an owner or admin may always re-role a guest, so the select always
+ * renders), so the label never appeared for the rows it existed to mark. The
+ * badge has no such branch.
+ *
+ * Keeping the map keyed purely on `BetaOrgRole` also preserves what `satisfies
+ * Record<...>` is for: proof that every enum value has a label. A fifth key would
+ * break that proof to encode something the enum does not contain.
  */
 export const ROLE_LABEL_KEY = {
   owner: "nastaveni.roleOwner",
@@ -30,31 +43,6 @@ export const ROLE_LABEL_KEY = {
   member: "nastaveni.roleMember",
   guest: "nastaveni.roleGuest",
 } as const satisfies Record<BetaOrgRole, BetaMessageKey>
-
-/**
- * The label ONE SEAT reads, given its role and whether it is an employee seat
- * (spec §2.6.1: "member displays as 'Pracovník firmy (vedení)', employee seat
- * displays as 'Zaměstnanec'").
- *
- * WHY THE DISTINCTION IS WORTH RENDERING AT ALL. Spec §2.6.1's own argument is
- * mis-assignment: a Lidé page that shows two rows both reading "Host", one of
- * which silently reads a person's payslips, gives the company admin no way to
- * see who has what. Deactivating the wrong one, or leaving a leaver's seat live,
- * both start with not being able to tell them apart.
- *
- * IT IS A DISPLAY FACT, NOT A PERMISSION. Nothing branches on this string; the
- * seat's actual narrowing is `payrollScope` and `isEmployeeSeat`, several layers
- * below. A guest with no link still reads "Host", which remains true of them.
- */
-export function orgRoleLabelKey(member: {
-  readonly role: BetaOrgRole
-  readonly employeeSeat: boolean
-}): BetaMessageKey {
-  if (member.role === "guest" && member.employeeSeat) {
-    return "nastaveni.roleEmployee"
-  }
-  return ROLE_LABEL_KEY[member.role]
-}
 
 /**
  * The Czech label for every editable identity-card field, keyed by the SAME

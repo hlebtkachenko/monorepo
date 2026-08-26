@@ -467,24 +467,49 @@ export async function issueSetupToken(
 
   try {
     const [row] = await betaDb().transaction(async (tx) => {
-      // ONE LIVE SEAT INVITE PER EMPLOYEE. The consume-time sibling sweep only
-      // revokes links for the SAME address, which is the wrong key here: the
-      // hazard a seat invite adds is the office typing the wrong address, then
-      // issuing a corrected one — leaving two live links, either of which binds
-      // an account to the SAME person's payroll. Whoever clicks first wins, and
-      // the loser is refused, so the mistyped address would keep a working
-      // credential for somebody else's payslips until it expired.
+      // RE-ISSUING A SEAT INVITE KILLS THE EARLIER ONE FOR THAT EMPLOYEE.
       //
-      // Revoking by EMPLOYEE closes that: re-inviting a person invalidates every
-      // earlier outstanding invitation naming them, which is what "I sent it to
-      // the wrong address, let me redo it" has to mean. `revoked_at` is
+      // The consume-time sibling sweep is keyed on the ADDRESS, which is the
+      // wrong key for the hazard a seat invite adds: the office types the wrong
+      // address, notices, and sends a corrected one. Two live links then name
+      // the same person's payroll, and the mistyped one keeps working — for
+      // somebody else — until it expires. Revoking by EMPLOYEE is what makes
+      // "let me redo that" mean what the office thinks it means. `revoked_at` is
       // write-once by the migration-0001 trigger (NULL → value), so this can
       // never un-revoke or re-stamp anything.
       //
-      // It is INSIDE the transaction with the INSERT so there is no window in
-      // which the office has revoked the old link and not yet minted the new one
-      // — and so a failed INSERT (a DB guard refusing it) leaves the previous
-      // invitation alive rather than silently killing it for nothing.
+      // It is INSIDE the transaction with the INSERT so the office is never left
+      // having revoked the old link without minting the new one, and so an
+      // INSERT a DB guard refuses leaves the previous invitation alive rather
+      // than killing it for nothing.
+      //
+      // WHAT THIS IS NOT: A GLOBAL "ONE LIVE INVITE PER EMPLOYEE" INVARIANT.
+      // Under READ COMMITTED — the only isolation level this application runs at
+      // — two issuances for the same employee that overlap in time each revoke
+      // what their own snapshot could see and then insert, so both new rows can
+      // end up live. The SEQUENTIAL case is fully closed (one admin clicking
+      // twice sees the first row and revokes it), and that is the case this
+      // exists for; the concurrent one is not, and the comment says so rather
+      // than claiming an invariant the statement does not enforce.
+      //
+      // AND IT DOES NOT NEED TO BE ONE, because the invariant that matters is
+      // enforced at CONSUME, atomically: `UPDATE payroll_employee SET
+      // app_user_id = $me WHERE id = $employee AND (app_user_id IS NULL OR
+      // app_user_id = $me)`. Whichever link is claimed first binds; every other
+      // link naming that employee — live, raced, or simply older — matches zero
+      // rows and is refused without being burnt. So the worst outcome of the race
+      // is a second link that still cannot bind anyone, never a mis-binding.
+      //
+      // WHY NOT `SELECT ... FOR UPDATE` ON THE EMPLOYEE ROW FIRST, which would
+      // make the invariant genuinely hold: it inverts the lock order against the consume
+      // path. Consume locks the token row (the atomic claim) and only then
+      // touches `payroll_employee`; issuance would lock `payroll_employee` and
+      // then the token rows. A concurrent issue and consume for the same person
+      // would deadlock — and `consumeSetupToken` has a `retry` arm for exactly
+      // that (40P01), while `issueSetupToken` has none, so the cost of buying the
+      // stronger invariant is a 500 on the office's screen in the same race the
+      // weaker one already handles safely. Not worth it for a property nothing
+      // depends on.
       if (payrollEmployeeId !== null) {
         await tx
           .update(user_setup_token)

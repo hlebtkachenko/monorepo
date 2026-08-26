@@ -12,7 +12,7 @@ import { resolveOrgScope } from "../_lib/org-scope"
  * and every asset detail page beneath it refuse the employee seat without each
  * one having to remember to (spec §2.6.1, "Everything else 404").
  *
- * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ * `employee-seat-fence.boundary.test.ts` fails if this call is ever removed.
  */
 export default async function MajetekLayout({
   children,

@@ -23,7 +23,7 @@ import { resolveVisibleFilingFamilies } from "./_lib/dane-scope"
  * inherits the refusal — a Next layout renders for every nested route, which is
  * exactly the property a whitelist wants.
  *
- * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ * `employee-seat-fence.boundary.test.ts` fails if this call is ever removed.
  */
 export default async function DaneLayout({
   children,

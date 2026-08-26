@@ -28,8 +28,13 @@ export default async function NastaveniIndexPage({
   // Per viewer (PR 33): the employee seat lands on Účet, everyone else on
   // Společnost. Redirecting a seat to a page it would 404 on is the dead end
   // this function exists to avoid.
-  redirect(nastaveniHref(orgSlug, nastaveniDefaultSlug({
-      role: scope.role,
-      employeeSeat: isEmployeeSeat(scope),
-    })))
+  redirect(
+    nastaveniHref(
+      orgSlug,
+      nastaveniDefaultSlug({
+        role: scope.role,
+        employeeSeat: isEmployeeSeat(scope),
+      }),
+    ),
+  )
 }

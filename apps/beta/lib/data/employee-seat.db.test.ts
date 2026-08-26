@@ -57,6 +57,7 @@ const {
   publishedPayrollPeriods,
 } = await import("./payroll")
 const { openPayslipFile, payslipDocumentsForScope } = await import("./payslips")
+const { changeMemberRole } = await import("./people")
 const { canUploadDocuments, listDocuments, openDocumentFile, uploadDocument } =
   await import("./documents")
 
@@ -460,5 +461,165 @@ describe("the scope never serialises the link", () => {
     const scope = await scopeFor(world.org, world.jan.account)
     expect(scope.payrollEmployeeId).toBe(world.jan.employeeId)
     expect(unique("x")).toBeTruthy()
+  })
+})
+
+/**
+ * THE SEAT IS A CONJUNCTION (`role === "guest" && payrollEmployeeId !== null`),
+ * so a ROLE CHANGE moves an account in and out of it while the LINK stays put.
+ *
+ * That is the intended lifecycle — spec §5 says management seats "always see
+ * everything incl. all payslips", so promoting an employee to `member` must
+ * widen them — but it is the kind of behaviour that is only obviously intended
+ * while somebody remembers writing it. These two cases pin both directions, so
+ * a future change to `payrollScope`'s ordering or to `changeMemberRole` cannot
+ * silently invert them.
+ *
+ * `changeMemberRole` is driven rather than the column being poked, because the
+ * ceiling it applies is part of what makes the transition legitimate.
+ */
+describe("role changes move an account into and out of the seat", () => {
+  it("promoting a seat to `member` widens it to all payroll", async () => {
+    const org = await seedOrganization()
+    const account = await createAccount()
+    await addGuest(org, account)
+    const employeeId = await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Jan Povýšený",
+      appUserId: account.userId,
+    })
+
+    const before = await scopeFor(org, account)
+    expect(payrollScope(before)).toEqual({ kind: "employee", employeeId })
+
+    const ownerScope = await scopeFor(org, org.members.owner)
+    const result = await changeMemberRole(ownerScope, {
+      targetUserId: account.userId,
+      nextRole: "member",
+    })
+    expect(result.ok).toBe(true)
+
+    const after = await scopeFor(org, account)
+    expect(payrollScope(after)).toEqual({ kind: "all" })
+    expect(isEmployeeSeat(after)).toBe(false)
+    // THE LINK SURVIVES the role change — it is an identity, not a grant, and
+    // nothing in the role path may write `payroll_employee.app_user_id`.
+    expect(after.payrollEmployeeId).toBe(employeeId)
+  })
+
+  it("demoting a linked `member` to `guest` narrows it to the seat", async () => {
+    const org = await seedOrganization()
+    const account = await createAccount()
+    const { addMembership } = await import("../../tests/fixtures")
+    await addMembership(org.organizationId, account.userId, "member")
+    const employeeId = await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Petra Sesazená",
+      appUserId: account.userId,
+    })
+
+    const before = await scopeFor(org, account)
+    expect(payrollScope(before)).toEqual({ kind: "all" })
+
+    const ownerScope = await scopeFor(org, org.members.owner)
+    const result = await changeMemberRole(ownerScope, {
+      targetUserId: account.userId,
+      nextRole: "guest",
+    })
+    expect(result.ok).toBe(true)
+
+    const after = await scopeFor(org, account)
+    expect(payrollScope(after)).toEqual({ kind: "employee", employeeId })
+    expect(isEmployeeSeat(after)).toBe(true)
+  })
+})
+
+/**
+ * THE DUPLICATE ORACLE (`duplicateTwinVisibleTo`, filter 5's mirror).
+ *
+ * The upload path cannot put filter 5 in its WHERE clause — the org+sha256
+ * unique index is unconditional over live rows, so a lookup that could not SEE a
+ * hidden twin would let the INSERT behind it raise 23505. The filter is applied
+ * to the ANSWER instead, and this is the case that proves it: an employee who
+ * obtains a colleague's document (forwarded, printed, found on a shared drive)
+ * and uploads it must be told "already uploaded" WITHOUT being told whose row it
+ * matched or when it arrived. Possession of the bytes is not permission to read
+ * the row that shares them.
+ */
+describe("the duplicate answer discloses nothing to a seat", () => {
+  it("names no row when the twin is a colleague's upload", async () => {
+    const org = await seedOrganization()
+    const account = await createAccount()
+    await addGuest(org, account)
+    await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Jan Zvědavý",
+      appUserId: account.userId,
+    })
+
+    const bytes = `%PDF-1.7\n${unique("shared")}`
+    const source = () =>
+      (async function* () {
+        yield new Uint8Array(Buffer.from(bytes))
+      })()
+
+    // A colleague (management seat) uploads it first.
+    const colleagueScope = await scopeFor(org, org.members.member)
+    const first = await uploadDocument(colleagueScope, {
+      filename: "mzdovy-list-kolegy.pdf",
+      docType: "other",
+      source: source(),
+    })
+    expect(first.ok && first.status).toBe("stored")
+
+    // The seat uploads the same bytes.
+    const seatScope = await scopeFor(org, account)
+    const second = await uploadDocument(seatScope, {
+      filename: "cokoliv.pdf",
+      docType: "other",
+      source: source(),
+    })
+
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.status).toBe("duplicate")
+    // THE WHOLE ASSERTION: the upload is correctly refused as a duplicate, and
+    // the caller learns nothing about the row — no filename, no upload date, no
+    // office message, no amount.
+    expect(second.document).toBeNull()
+  })
+
+  it("DOES name the row when the twin is the seat's own earlier upload", async () => {
+    // Non-vacuity for the case above: `document: null` there is the filter
+    // working, not this arm never returning a row.
+    const org = await seedOrganization()
+    const account = await createAccount()
+    await addGuest(org, account)
+    await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Jan Opakující",
+      appUserId: account.userId,
+    })
+    const scope = await scopeFor(org, account)
+
+    const bytes = `%PDF-1.7\n${unique("mine")}`
+    const source = () =>
+      (async function* () {
+        yield new Uint8Array(Buffer.from(bytes))
+      })()
+
+    const filename = `${unique("moje")}.pdf`
+    const first = await uploadDocument(scope, {
+      filename,
+      docType: "attendance",
+      source: source(),
+    })
+    expect(first.ok && first.status).toBe("stored")
+
+    const second = await uploadDocument(scope, {
+      filename: "znovu.pdf",
+      docType: "attendance",
+      source: source(),
+    })
+    expect(second.ok).toBe(true)
+    if (!second.ok) return
+    expect(second.status).toBe("duplicate")
+    expect(second.document?.filename).toBe(filename)
   })
 })

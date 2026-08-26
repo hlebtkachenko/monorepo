@@ -26,7 +26,7 @@ import { VykazyNavTabs } from "./_components/vykazy-nav-tabs"
  * inherits the refusal — a Next layout renders for every nested route, which is
  * exactly the property a whitelist wants.
  *
- * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ * `employee-seat-fence.boundary.test.ts` fails if this call is ever removed.
  */
 export default async function VykazyLayout({
   children,

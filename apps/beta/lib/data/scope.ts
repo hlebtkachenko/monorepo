@@ -188,7 +188,7 @@ export function isEmployeeSeat(scope: OrgScope): boolean {
  * the module they add next month, and the thing forgotten would be a client's
  * whole book handed to their bricklayer.
  *
- * `payroll-seat-fence.boundary.test.ts` is what makes forgetting it fail loudly:
+ * `employee-seat-fence.boundary.test.ts` is what makes forgetting it fail loudly:
  * it enumerates every module directory under `app/(portal)/[orgSlug]` and
  * requires each one's layout (or its only page) to either call this, or be on an
  * explicit, commented allowlist of the three surfaces the seat is entitled to.

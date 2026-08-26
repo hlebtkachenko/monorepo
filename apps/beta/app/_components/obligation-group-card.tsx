@@ -46,6 +46,11 @@ import {
  * `total` / `amount` are `numeric(14,2)` STRINGS all the way from Postgres;
  * `formatAmount` is the last step before display and the only place this
  * application turns one into a JavaScript number — see its own header.
+ *
+ * PROMOTED HERE FROM `finance/dluhy-a-platby/_components/` (PR 31): Mzdy ›
+ * Platby a termíny renders the SAME `cssz_zp` group card `obligationsForScope`
+ * already produces, and a second consumer is this repo's own rule for moving
+ * a component up to `app/_components/` rather than forking it.
  */
 export function ObligationGroupCard({
   group,

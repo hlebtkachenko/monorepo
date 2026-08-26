@@ -12,9 +12,10 @@ import { FILING_FAMILY_LABEL_KEY } from "@/lib/filing-labels"
 import { currentBetaYear, formatBetaDate } from "@/lib/format/date"
 import { formatBetaMoney } from "@/lib/format/money"
 
+import { FilingTable } from "@/app/_components/filing-table"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
-import { FilingTable } from "./_components/filing-table"
 import { resolveVisibleFilingFamilies } from "./_lib/dane-scope"
 
 /**

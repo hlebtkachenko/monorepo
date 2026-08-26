@@ -45,6 +45,7 @@ export function BetaShell({
   accountMenu,
   isOwner = false,
   showAssistant = false,
+  isManagement = false,
 }: {
   children: React.ReactNode
   orgSlug: string
@@ -68,17 +69,21 @@ export function BetaShell({
    * read for itself.
    */
   showAssistant?: boolean
+  /** Gates the "Mzdy" rail entry (spec §2.6.1, PR 31) — see `beta-nav.ts`. */
+  isManagement?: boolean
 }) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      betaRailNav(orgSlug, { isOwner, showAssistant }).map((entry) => {
-        if (entry === "separator") return entry
-        const { labelKey, ...rest } = entry
-        return { ...rest, label: t(`nav.${labelKey}`) }
-      }),
-    [orgSlug, isOwner, showAssistant, t],
+      betaRailNav(orgSlug, { isOwner, showAssistant, isManagement }).map(
+        (entry) => {
+          if (entry === "separator") return entry
+          const { labelKey, ...rest } = entry
+          return { ...rest, label: t(`nav.${labelKey}`) }
+        },
+      ),
+    [orgSlug, isOwner, showAssistant, isManagement, t],
   )
 
   return (

@@ -24,6 +24,15 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * is the honest reflection of that, not the enforcement of it). It is the
  * one entry gated on the caller's OWN role rather than on which routes exist,
  * which is why it takes a parameter instead of joining the static list above.
+ *
+ * `isManagement` (PR 31): Mzdy is the SECOND entry gated on the caller's own
+ * role rather than on which routes exist, for the reason `mzdy/layout.tsx`
+ * states in full — `payrollScope()` already answers `none` for a guest, so
+ * the rail entry hiding for one is the honest reflection of that read, not the
+ * enforcement of it (the 404 the layout answers is). `owner`/`admin`/`member`
+ * are the management seats spec §5 names; a guest never gets this entry, linked
+ * to a `payroll_employee` row or not, until the employee seat's own narrower
+ * rail lands (§2.6.1) and replaces this whole list for that viewer.
  */
 type BetaNavLabelKey =
   | "prehled"
@@ -31,6 +40,7 @@ type BetaNavLabelKey =
   | "dane"
   | "finance"
   | "vykazy"
+  | "mzdy"
   | "majetek"
   | "asistent"
   | "ucetni"
@@ -40,7 +50,11 @@ export type BetaRailItem =
 
 export function betaRailNav(
   orgSlug: string,
-  options: { isOwner?: boolean; showAssistant?: boolean } = {},
+  options: {
+    isOwner?: boolean
+    showAssistant?: boolean
+    isManagement?: boolean
+  } = {},
 ): BetaRailItem[] {
   const items: BetaRailItem[] = [
     // The structure spec names LayoutDashboard for Přehled; `IconName` is a
@@ -63,7 +77,7 @@ export function betaRailNav(
     // sidebar leaves land (PRs 26-28); `finance/page.tsx` redirects to Dluhy a
     // platby, so it is a live route, not a landing stub.
     { labelKey: "finance", icon: "CreditCard", href: `/${orgSlug}/finance` },
-    // Výkazy (spec §2.5), between Finance and Majetek exactly as §1's rail
+    // Výkazy (spec §2.5), between Finance and Mzdy exactly as §1's rail
     // orders them. The first entry whose spec-named icon EXISTS in `IconName`
     // — BarChart3 is in every pack already, so unlike Přehled / Daně /
     // Finance / Majetek above there is no substitute to explain here. The href
@@ -71,11 +85,22 @@ export function betaRailNav(
     // (`vykazy/_nav/vykazy-nav.ts`), so `AppRail`'s longest-prefix match keeps
     // the entry active across all three statements with no redirect hop.
     { labelKey: "vykazy", icon: "BarChart3", href: `/${orgSlug}/vykazy` },
-    // The structure spec names Package for Majetek. `Box` is the closest
-    // existing `IconName` (present in all three packs already), so this entry
-    // does not need an icon-pack-parity PR of its own.
-    { labelKey: "majetek", icon: "Box", href: `/${orgSlug}/majetek` },
   ]
+
+  if (options.isManagement) {
+    // Mzdy (spec §2.6, PR 31), between Výkazy and Majetek exactly as §1's rail
+    // orders the nine modules. `Users` is the spec-named icon and already
+    // exists in `IconName`, unlike several entries above. The href is the
+    // module root (`mzdy/_nav/mzdy-nav.ts`'s Přehled mezd), so `AppRail`'s
+    // longest-prefix match keeps the entry active as Zaměstnanci and
+    // Výplatnice land under it in the next payroll UI PR.
+    items.push({ labelKey: "mzdy", icon: "Users", href: `/${orgSlug}/mzdy` })
+  }
+
+  // The structure spec names Package for Majetek. `Box` is the closest
+  // existing `IconName` (present in all three packs already), so this entry
+  // does not need an icon-pack-parity PR of its own.
+  items.push({ labelKey: "majetek", icon: "Box", href: `/${orgSlug}/majetek` })
 
   // Asistent (spec §2.8, §1 rail position 8), and the first entry gated on
   // something other than the caller's role: `showAssistant` folds TWO facts the

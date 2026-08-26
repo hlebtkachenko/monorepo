@@ -69,6 +69,7 @@ export default async function OrgLayout({
       // and `BetaShell` is a Client Component. It gates the rail ENTRY only;
       // `assertAssistantAvailable` answers 404 on the routes themselves.
       showAssistant={assistantVisibleTo(scope)}
+      isManagement={scope.role !== "guest"}
     >
       {children}
     </BetaShell>

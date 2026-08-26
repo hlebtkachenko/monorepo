@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import { app_user } from "@/db/schema"
+import { viewerProfile, type ViewerProfile } from "@/lib/data/projections"
 
 import { betaAuth } from "./server"
 
@@ -24,11 +25,12 @@ import { betaAuth } from "./server"
  * noise.
  */
 
-export type BetaSession = {
-  userId: string
-  email: string
-  name: string
-}
+/**
+ * The session IS the viewer projection (`lib/data/projections.ts`): the identity
+ * a page holds is already column-allowlisted, so there is no unprojected user
+ * row anywhere above the data layer to leak by accident.
+ */
+export type BetaSession = ViewerProfile
 
 export async function getBetaSession(): Promise<BetaSession | null> {
   // Read the request headers FIRST. Every caller is a page or layout, and this
@@ -44,19 +46,24 @@ export async function getBetaSession(): Promise<BetaSession | null> {
   // the existing cookie would otherwise keep working until it expires. The
   // session-create hook in `server.ts` blocks NEW sessions; this blocks live
   // ones. One extra read per request, on an indexed primary key.
+  //
+  // The same read supplies the identity itself. Better Auth's session object
+  // carries its own copy of the user, but it is a copy: the row is the source
+  // of truth for a rename, and we are reading it anyway.
   const [user] = await betaDb()
-    .select({ disabled_at: app_user.disabled_at })
+    .select({
+      id: app_user.id,
+      email: app_user.email,
+      name: app_user.name,
+      disabled_at: app_user.disabled_at,
+    })
     .from(app_user)
     .where(eq(app_user.id, session.user.id))
     .limit(1)
 
   if (!user || user.disabled_at !== null) return null
 
-  return {
-    userId: session.user.id,
-    email: session.user.email,
-    name: session.user.name,
-  }
+  return viewerProfile(user)
 }
 
 /** Portal guard. Unauthenticated visitors never reach a portal page body. */

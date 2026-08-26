@@ -25,7 +25,14 @@ export default defineConfig({
         test: {
           name: "pure",
           environment: "node",
-          include: ["app/**/*.test.ts", "i18n/**/*.test.ts"],
+          // `*.boundary.test.ts` are the source-tree fences (import fence,
+          // app_user write allowlist): they parse files with the TypeScript AST
+          // and must not pay for a Postgres boot.
+          include: [
+            "app/**/*.test.ts",
+            "i18n/**/*.test.ts",
+            "lib/**/*.boundary.test.ts",
+          ],
         },
       },
       {
@@ -33,10 +40,11 @@ export default defineConfig({
         test: {
           name: "db",
           environment: "node",
-          // `lib/auth` joins this project rather than `pure`: the consume flow,
-          // the trigger guards and Better Auth's own storage only mean anything
-          // against a real Postgres.
+          // `lib/auth` and `lib/data` join this project rather than `pure`: the
+          // consume flow, the trigger guards, the tenancy seam and Better
+          // Auth's own storage only mean anything against a real Postgres.
           include: ["db/**/*.test.ts", "lib/**/*.test.ts"],
+          exclude: ["lib/**/*.boundary.test.ts", "**/node_modules/**"],
           globalSetup: ["./tests/global-setup.ts"],
           testTimeout: 60_000,
           hookTimeout: 120_000,

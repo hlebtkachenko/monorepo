@@ -28,6 +28,11 @@ import type { ConsumeFormState } from "./state"
  * Every failure returns the same key. Expired, revoked, already used, never
  * existed, wrong purpose for this route, account already set up — one message,
  * so nothing here answers "does this address have an account?".
+ *
+ * `allowedPurposes` is passed DOWN into the consume rather than checked on its
+ * result: the gate has to run inside the claim transaction, before any side
+ * effect, or a password_reset link POSTed here would complete the reset and
+ * only then be rejected. See `setup-token.ts`, property 5.
  */
 
 const INVALID: ConsumeFormState = {
@@ -85,6 +90,7 @@ async function consume(
 
   const result = await consumeSetupToken({
     rawToken,
+    allowedPurposes,
     password: password.length > 0 ? password : undefined,
     name: name.length > 0 ? name : undefined,
     ip: clientIp(requestHeaders),
@@ -97,11 +103,6 @@ async function consume(
       ? { status: "error", error: "auth.signInRequired" }
       : INVALID
   }
-
-  // Purpose is checked AFTER the consume so a token cannot be probed for its
-  // purpose by trying both routes: the wrong route burns the link and reports
-  // the same uniform failure as a bad token.
-  if (!allowedPurposes.includes(result.purpose)) return INVALID
 
   return {
     status: "consumed",

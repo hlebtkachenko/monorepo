@@ -87,6 +87,7 @@ describe("beta migration runner", () => {
           "0004_documents.sql",
           "0005_filings.sql",
           "0006_liabilities.sql",
+          "0007_import_spine.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
@@ -103,10 +104,13 @@ describe("beta migration runner", () => {
           "auth_verification",
           "document",
           "filing",
+          "import_batch",
           "liability",
           "organization",
           "organization_membership",
           "reporting_period",
+          "statement_line",
+          "trial_balance_line",
           "two_factor",
           "user_setup_token",
         ])

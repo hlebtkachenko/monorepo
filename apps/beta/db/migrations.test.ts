@@ -99,6 +99,7 @@ describe("beta migration runner", () => {
           "0016_payroll.sql",
           "0017_loans.sql",
           "0018_assistant.sql",
+          "0019_employee_seat.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 

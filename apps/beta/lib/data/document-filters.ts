@@ -51,6 +51,25 @@ export const DOCUMENT_TYPE_VALUES = [
   "other",
 ] as const satisfies readonly BetaClientDocumentType[]
 
+/**
+ * Spec §2.2 "Doklady firmy": smlouva / zápis-výpis / plná moc / ostatní.
+ *
+ * The `doc_type` enum has no value for "zápis-výpis" (an extract from the
+ * obchodní/živnostenský rejstřík) or "plná moc" (power of attorney) — adding
+ * one is a migration, and PR 13 is query-level only (campaign rule). `contract`
+ * covers "smlouva" literally; the other three spec-named kinds are all
+ * variants of "a company legal document that is not itself a contract", which
+ * is exactly what `other` already means. So Doklady firmy is defined as
+ * `doc_type IN ('contract', 'other')` — the two existing enum values wide
+ * enough to cover the four named kinds without inventing a value the database
+ * cannot yet hold. `lib/data/documents.ts`'s `listCompanyDocuments` is the one
+ * reader of this constant.
+ */
+export const COMPANY_DOCUMENT_TYPES = [
+  "contract",
+  "other",
+] as const satisfies readonly BetaClientDocumentType[]
+
 /** Rows per page. Beta books hold hundreds of documents, not millions. */
 export const DOCUMENT_LIST_PAGE_SIZE = 25
 

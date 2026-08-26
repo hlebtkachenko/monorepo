@@ -38,7 +38,8 @@ import { DocumentsTable } from "./_components/documents-table"
  *     downscale, the HEIC derivative and the duplicate dialog behind it. A
  *     disabled "Nahrát" button here would be a placeholder for a feature that is
  *     one PR away, which the campaign forbids;
- *   - the Vše / Doklady firmy / Stavby sidebar (PR 13);
+ *   - a title header or the Vše / Doklady firmy / Stavby tab row — both moved
+ *     to `../layout.tsx` (PR 13), which every sibling tab shares;
  *   - any write. Every client surface is read-only (spec §3.3).
  *
  * `dynamic` is not set: every read below already depends on `headers()` through
@@ -78,14 +79,7 @@ export default async function DokumentyPage({
   const filtered = hasActiveFilters(query.filters)
 
   return (
-    <div className="grid gap-6 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("dokumenty.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("dokumenty.intro")}</p>
-      </header>
-
+    <>
       {/* The filter bar is worth rendering on an empty book only when it is
           what emptied it — otherwise it is six controls above nothing. */}
       {page.total > 0 || filtered ? (
@@ -127,6 +121,6 @@ export default async function DokumentyPage({
         pageCount={page.pageCount}
         total={page.total}
       />
-    </div>
+    </>
   )
 }

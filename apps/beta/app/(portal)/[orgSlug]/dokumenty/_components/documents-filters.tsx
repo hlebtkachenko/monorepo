@@ -38,19 +38,32 @@ import { DOCUMENT_STATUS_LABEL_KEY, DOCUMENT_TYPE_LABEL_KEY } from "./labels"
  * DD.MM.YYYY with the week starting on Monday, and submits `YYYY-MM-DD` — which
  * is exactly what `parseDocumentListQuery` accepts. The format rules of plan
  * Part 3 are satisfied by the platform rather than by a component we maintain.
+ *
+ * `basePath` AND `showTypeFilter` (PR 13). "Doklady firmy" reuses this exact
+ * form rather than writing its own: same fields, same GET-and-URL idiom, just
+ * posting back to `/dokumenty/firma` instead of `/dokumenty` and with the type
+ * dropdown removed, because that page's `doc_type` is FIXED to
+ * `COMPANY_DOCUMENT_TYPES` (`lib/data/document-filters.ts`) — a dropdown that
+ * could only ever narrow further within two values, one of which ("Ostatní")
+ * is already the widest bucket, would be a control with nothing useful to do.
  */
 export async function DocumentsFilters({
   orgSlug,
   filters,
   sites,
+  basePath,
+  showTypeFilter = true,
 }: {
   orgSlug: string
   filters: DocumentListFilters
   /** The `stavba` values that actually occur on this book. */
   sites: string[]
+  /** Defaults to Vše's own route; "Doklady firmy" passes its own. */
+  basePath?: string
+  showTypeFilter?: boolean
 }) {
   const t = await getBetaTranslations()
-  const path = `/${orgSlug}/dokumenty`
+  const path = basePath ?? `/${orgSlug}/dokumenty`
 
   return (
     <form
@@ -81,26 +94,28 @@ export async function DocumentsFilters({
           </NativeSelect>
         </div>
 
-        <div className="grid gap-1.5">
-          <Label htmlFor="documents-filter-type">
-            {t("dokumenty.filterType")}
-          </Label>
-          <NativeSelect
-            id="documents-filter-type"
-            name="type"
-            defaultValue={filters.docType ?? ""}
-            className="w-full"
-          >
-            <NativeSelectOption value="">
-              {t("dokumenty.filterAny")}
-            </NativeSelectOption>
-            {DOCUMENT_TYPE_VALUES.map((value) => (
-              <NativeSelectOption key={value} value={value}>
-                {t(DOCUMENT_TYPE_LABEL_KEY[value])}
+        {showTypeFilter ? (
+          <div className="grid gap-1.5">
+            <Label htmlFor="documents-filter-type">
+              {t("dokumenty.filterType")}
+            </Label>
+            <NativeSelect
+              id="documents-filter-type"
+              name="type"
+              defaultValue={filters.docType ?? ""}
+              className="w-full"
+            >
+              <NativeSelectOption value="">
+                {t("dokumenty.filterAny")}
               </NativeSelectOption>
-            ))}
-          </NativeSelect>
-        </div>
+              {DOCUMENT_TYPE_VALUES.map((value) => (
+                <NativeSelectOption key={value} value={value}>
+                  {t(DOCUMENT_TYPE_LABEL_KEY[value])}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+        ) : null}
 
         {/* Rendered only when the book actually has sites on it. An empty
             <select> would be a control that cannot do anything. */}

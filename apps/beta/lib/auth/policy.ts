@@ -107,3 +107,55 @@ export const BETA_RATE_LIMIT_RULES = {
  * once, and the value being guessed is a 256-bit token.
  */
 export const BETA_CONSUME_RATE_LIMIT = { window: 600, max: 10 } as const
+
+/**
+ * Setup-link GET limit (Advisor carry-in from the PR 06 gate).
+ *
+ * `peekSetupToken` runs on a GET, which is neither a Server Action nor a Better
+ * Auth endpoint, so NEITHER of the two limiters above sees it. Without a budget
+ * of its own the token-shaped URL space is the one unmetered oracle in the app:
+ * a hit renders the invited address and the organization's legal name, a miss
+ * renders the invalid-link card, and the difference is free to grind.
+ *
+ * Looser than the consume limit because a peek is idempotent and a real visitor
+ * legitimately reloads the page; tight enough that guessing 256 bits stays the
+ * absurdity it already is.
+ */
+export const BETA_PEEK_RATE_LIMIT = { window: 600, max: 30 } as const
+
+/**
+ * The floor under Better Auth's own limiter (Advisor carry-in from the PR 06
+ * gate).
+ *
+ * Better Auth resolves its rate-limit key from the client IP and, when it
+ * cannot determine one, SKIPS the limit entirely — verified in 1.6.13,
+ * `dist/api/rate-limiter/index.mjs`: `resolveRateLimitConfig` logs a warning and
+ * returns `null`, and both `onRequestRateLimit` and `onResponseRateLimit` return
+ * early on a null config. Beta configures exactly one header
+ * (`cf-connecting-ip`, `server.ts`), so any request that reaches the app without
+ * it is unlimited — fail-OPEN on the sign-in endpoint.
+ *
+ * That should be unreachable (the Fargate task has no public ingress; every
+ * request arrives through the tunnel and Cloudflare always sets the header) —
+ * but "should be unreachable" is not a rate limit. This budget applies in
+ * exactly the case Better Auth drops: no usable client IP. It is a SHARED
+ * bucket per auth path, consistent with `rateLimitKey`'s shared-bucket
+ * fallback, because with no IP there is nothing to key on and one shared bucket
+ * is strictly safer than none.
+ */
+export const BETA_AUTH_NO_IP_RATE_LIMIT = { window: 60, max: 20 } as const
+
+/**
+ * Office issuance limit. /admin is staff-only and behind a session, so this is
+ * not an anti-guessing budget: it is a blast-radius cap on a stolen office
+ * session, which could otherwise mint invites into every organization at
+ * machine speed.
+ */
+export const BETA_OFFICE_ISSUE_RATE_LIMIT = { window: 60, max: 20 } as const
+
+/**
+ * Setup-link lifetime. Plan Part 4 asks for 48-72h; the DB CHECK
+ * `user_setup_token_ttl_max_72h` is the ceiling, this is the value actually
+ * used. Not a caller parameter — see `issueSetupToken`.
+ */
+export const BETA_SETUP_LINK_TTL_HOURS = 48

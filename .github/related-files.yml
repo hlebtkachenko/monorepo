@@ -20,3 +20,21 @@ pairs:
     require_one_of: "packages/db/migrations/**"
     severity: block
     reason: "Drizzle schema changes must ship with a SQL migration (ADR-0009). The handwritten SQL files in packages/db/migrations/ are the schema source of truth; the TypeScript schema in packages/db/src/schema/ only provides runtime types and must track those migrations."
+
+  - id: beta-agent-wire-schemas
+    when_changed: "apps/beta/lib/agent/schemas.ts"
+    require_one_of: "apps/beta-agent/src/vendor/**"
+    severity: block
+    reason: "apps/beta-agent/src/vendor/schemas.ts is a byte-identical copy of this file (the office agent validates against the server's own schemas before sending). Re-copy it in the same PR; apps/beta-agent/src/vendor/vendor.test.ts compares bytes, but only runs when this package is affected."
+
+  - id: beta-agent-csv-reader
+    when_changed: "apps/beta/lib/import/csv.ts"
+    require_one_of: "apps/beta-agent/src/vendor/**"
+    severity: block
+    reason: "apps/beta-agent/src/vendor/csv.ts is a byte-identical copy of this file, so the office agent and the portal's manual uzávěrka fallback accept exactly the same CSV files. Re-copy it in the same PR."
+
+  - id: beta-agent-csv-contract
+    when_changed: "apps/beta/lib/import/datasets.ts"
+    require_one_of: "apps/beta-agent/src/**"
+    severity: warn
+    reason: "The predvaha/rozvaha/vzz column aliases in apps/beta-agent/src/datasets.ts are copied from this file so both import paths accept the same headers. Check whether the office agent needs the same change."

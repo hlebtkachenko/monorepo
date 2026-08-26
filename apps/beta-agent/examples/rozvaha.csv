@@ -1,0 +1,5 @@
+Část;Ozn;Řádek;Text;Brutto;Korekce;Netto;Běžné;Minulé;Úroveň;Tučné
+aktiva;;001;AKTIVA CELKEM;3 480 220,00;-420 118,00;3 060 102,00;;2 918 440,00;0;ano
+aktiva;B.II.;014;Dlouhodobý hmotný majetek;1 980 000,00;-420 118,00;1 559 882,00;;1 640 000,00;2;
+pasiva;;078;PASIVA CELKEM;;;;3 060 102,00;2 918 440,00;0;ano
+pasiva;A.;079;Vlastní kapitál;;;;1 812 440,00;1 705 220,00;1;

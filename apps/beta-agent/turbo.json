@@ -1,0 +1,14 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    // The two variables the office sets before running the CLI. Read lazily in
+    // `src/config.ts` at command time, never at import time — declared here so
+    // the turbo lint rule and the cache key both know about them. BETA_AGENT_KEY
+    // never reaches a log line or a cached artefact; it is listed because the
+    // process reads it, not because anything records it.
+    "typecheck": { "env": ["BETA_AGENT_URL", "BETA_AGENT_KEY"] },
+    "lint": { "env": ["BETA_AGENT_URL", "BETA_AGENT_KEY"] },
+    "test": { "env": ["BETA_AGENT_URL", "BETA_AGENT_KEY"] },
+    "dev": { "env": ["BETA_AGENT_URL", "BETA_AGENT_KEY"] }
+  }
+}

@@ -209,6 +209,103 @@ export function organizationSummary(
   }
 }
 
+/**
+ * The identity card of spec §2.1 item 5 — "název, IČO, DIČ / 'Neplátce DPH'
+ * badge, sídlo, účet, datová schránka, spisová značka" — and the same fields
+ * Nastavení › Společnost (§2.10, PR 21) edits.
+ *
+ * A WIDER PROJECTION THAN `OrganizationSummary`, NOT A REPLACEMENT FOR IT. The
+ * summary is read by the header, the switcher and every org page's chrome, on
+ * every request; the card is read by the two surfaces that actually print an
+ * address. Keeping them apart keeps the wide read off the hot path — and keeps
+ * this file's own rule visible, which is that a projection is an allowlist for
+ * ONE surface's needs rather than "the row, mostly".
+ *
+ * `aresFetchedAt` is here because §2.10's 24-hour ARES cache is a fact ABOUT the
+ * identity fields — the card can say where the values came from and when. Every
+ * OTHER column of `organization` stays out: `archived_at` (an archived book
+ * never resolves a scope at all), `is_demo` (already on the summary),
+ * `contact_email` / `contact_phone` (office contact routing, not the statutory
+ * identity §2.1 lists), and the timestamps.
+ *
+ * The bank account arrives as its THREE PARTS plus IBAN/BIC, not as a display
+ * string. A Czech account number is prefix / number / bank code and cannot be
+ * validated once it has been joined up (see `db/schema/organization.ts`);
+ * `formatBetaBankAccount` in `lib/format/identity.ts` is where the parts become
+ * the printed `předčíslí-číslo/kód banky`, at the last step before display.
+ */
+export type OrganizationCard = OrganizationSummary & {
+  ico: string | null
+  dic: string | null
+  registeredStreet: string | null
+  registeredHouseNumber: string | null
+  registeredOrientationNumber: string | null
+  registeredCity: string | null
+  registeredPostalCode: string | null
+  registeredCountryCode: string
+  dataBoxId: string | null
+  courtFileNumber: string | null
+  taxOfficeCode: string | null
+  bankAccountPrefix: string | null
+  bankAccountNumber: string | null
+  bankCode: string | null
+  iban: string | null
+  bic: string | null
+  /** ISO instant of the last ARES refresh, or null (§2.10's 24h cache stamp). */
+  aresFetchedAt: string | null
+}
+
+export function organizationCard(
+  row: Pick<
+    OrganizationRow,
+    | "id"
+    | "slug"
+    | "legal_name"
+    | "vat_regime"
+    | "vat_registered_from"
+    | "is_demo"
+    | "ico"
+    | "dic"
+    | "registered_street"
+    | "registered_house_number"
+    | "registered_orientation_number"
+    | "registered_city"
+    | "registered_postal_code"
+    | "registered_country_code"
+    | "data_box_id"
+    | "court_file_number"
+    | "tax_office_code"
+    | "bank_account_prefix"
+    | "bank_account_number"
+    | "bank_code"
+    | "iban"
+    | "bic"
+    | "ares_fetched_at"
+  >,
+): OrganizationCard {
+  return {
+    ...organizationSummary(row),
+    ico: row.ico,
+    dic: row.dic,
+    registeredStreet: row.registered_street,
+    registeredHouseNumber: row.registered_house_number,
+    registeredOrientationNumber: row.registered_orientation_number,
+    registeredCity: row.registered_city,
+    registeredPostalCode: row.registered_postal_code,
+    registeredCountryCode: row.registered_country_code,
+    dataBoxId: row.data_box_id,
+    courtFileNumber: row.court_file_number,
+    taxOfficeCode: row.tax_office_code,
+    bankAccountPrefix: row.bank_account_prefix,
+    bankAccountNumber: row.bank_account_number,
+    bankCode: row.bank_code,
+    iban: row.iban,
+    bic: row.bic,
+    aresFetchedAt:
+      row.ares_fetched_at === null ? null : row.ares_fetched_at.toISOString(),
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Membership summary — the viewer's OWN membership list (root picker + switcher)
 // ---------------------------------------------------------------------------

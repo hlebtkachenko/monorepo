@@ -38,6 +38,7 @@ const {
   assetsForScope,
   assetForScope,
   assetEventsForScope,
+  assetResidualSummaryForScope,
   createAsset,
   updateAsset,
   disposeAsset,
@@ -532,5 +533,128 @@ describe("office writes — owner-only", () => {
         /asset_minor_has_no_depreciation/,
       )
     })
+  })
+})
+
+/**
+ * The Přehled tile's own read (PR 20).
+ *
+ * `assetsForScope`'s footer SUM answers "what do these rows add up to"; this one
+ * answers a harder question — "is that number the whole story?" — because a
+ * dashboard tile has no rows under it to give the reader that context.
+ */
+describe("assetResidualSummaryForScope — the §2.1 KPI tile's read", () => {
+  it("is empty on a book with no assets", async () => {
+    const org = await seedOrganization()
+    const summary = await assetResidualSummaryForScope(
+      await orgScopeFor(org, "admin"),
+    )
+
+    expect(summary).toEqual({
+      inUseCount: 0,
+      depreciatedCount: 0,
+      // Not "0.00" — an absent sum is not a zero one (§0.4).
+      residualTotal: null,
+      depreciationAsOf: null,
+    })
+  })
+
+  it("sums cost − oprávky in SQL and stamps it with the newest as-of", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    await createAsset(owner, {
+      name: "Míchačka",
+      category: "machine",
+      acquisitionCost: "250000.00",
+      accumulatedDepreciation: "100000.00",
+      depreciationAsOf: "2026-06-30",
+    })
+    await createAsset(owner, {
+      name: "Dodávka",
+      category: "vehicle",
+      acquisitionCost: "600000.00",
+      accumulatedDepreciation: "150000.00",
+      depreciationAsOf: "2026-07-31",
+    })
+
+    const summary = await assetResidualSummaryForScope(
+      await orgScopeFor(org, "admin"),
+    )
+
+    expect(summary.inUseCount).toBe(2)
+    expect(summary.depreciatedCount).toBe(2)
+    expect(Number(summary.residualTotal)).toBe(600000)
+    // Spec §2.7 / F15: the figure is stated AS OF a date and never
+    // interpolated to today.
+    expect(summary.depreciationAsOf).toBe("2026-07-31")
+  })
+
+  it("reports a PARTIAL book as partial, so the tile can refuse to render", async () => {
+    // The whole reason the two counts exist: this sum is true of one asset and
+    // would read as true of two.
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    await createAsset(owner, {
+      name: "Míchačka",
+      category: "machine",
+      acquisitionCost: "250000.00",
+      accumulatedDepreciation: "100000.00",
+      depreciationAsOf: "2026-06-30",
+    })
+    await createAsset(owner, {
+      name: "Lešení",
+      category: "tool",
+      acquisitionCost: "80000.00",
+    })
+
+    const summary = await assetResidualSummaryForScope(
+      await orgScopeFor(org, "admin"),
+    )
+
+    expect(summary.inUseCount).toBe(2)
+    expect(summary.depreciatedCount).toBe(1)
+  })
+
+  it("leaves a vyřazený asset out of the count and the sum", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const { id } = await createAsset(owner, {
+      name: "Stará dodávka",
+      category: "vehicle",
+      acquisitionCost: "600000.00",
+      accumulatedDepreciation: "150000.00",
+      depreciationAsOf: "2026-07-31",
+    })
+    await disposeAsset(owner, id, "2026-08-01")
+
+    const summary = await assetResidualSummaryForScope(
+      await orgScopeFor(org, "admin"),
+    )
+
+    // Property the client no longer owns has no residual value TO THEM.
+    expect(summary).toMatchObject({
+      inUseCount: 0,
+      depreciatedCount: 0,
+      residualTotal: null,
+    })
+  })
+
+  it("counts only the scope's own assets", async () => {
+    const owner = await ownerScopeFor(orgB)
+    await createAsset(owner, {
+      name: "Cizí stroj",
+      category: "machine",
+      acquisitionCost: "999999.00",
+      accumulatedDepreciation: "1.00",
+      depreciationAsOf: "2026-07-31",
+    })
+
+    const foreign = await seedOrganization()
+    const summary = await assetResidualSummaryForScope(
+      await orgScopeFor(foreign, "admin"),
+    )
+
+    expect(summary.inUseCount).toBe(0)
+    expect(summary.residualTotal).toBeNull()
   })
 })

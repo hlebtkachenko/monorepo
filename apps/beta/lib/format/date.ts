@@ -39,3 +39,29 @@ export function currentBetaYear(): number {
     }).format(new Date()),
   )
 }
+
+const isoDateParts = new Intl.DateTimeFormat(BETA_LOCALE, {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  timeZone: BETA_TIME_ZONE,
+})
+
+/**
+ * Today, in Prague, as `YYYY-MM-DD` — the same shape a `date` column arrives
+ * in, so the two can be compared without either one being parsed.
+ *
+ * `currentBetaYear`'s reasoning one field wider: `new Date().toISOString()`
+ * would answer in UTC, which is the wrong calendar day for the first hour or
+ * two of every Prague day and would make a freshness band flip a day early.
+ * Assembled from `formatToParts` rather than from a locale that happens to
+ * print ISO — cs-CZ prints `26. 8. 2026`, and depending on a second locale
+ * here purely for its punctuation is the kind of thing that breaks silently
+ * when an ICU version changes its spacing.
+ */
+export function betaTodayIso(now: Date = new Date()): string {
+  const parts = isoDateParts.formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value ?? ""
+  return `${value("year")}-${value("month")}-${value("day")}`
+}

@@ -11,6 +11,12 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * Labels are data-defined as i18n KEYS (`nav.*` in `messages/cs.json`), never
  * literal strings; `beta-shell.tsx` resolves them before handing the entries to
  * the `@workspace/ui` rail (which expects already-resolved `label` strings).
+ *
+ * A FUNCTION OF `orgSlug`, not a static list (PR 09): every route below `/`
+ * now lives under `/[orgSlug]/...` (the org layout is the only place the rail
+ * mounts — there is no rail on the pre-org root picker, which has no
+ * organization to link into). Hrefs are built here rather than left relative
+ * so `AppRail`'s longest-prefix active-match keeps working unchanged.
  */
 type BetaNavLabelKey = "prehled"
 
@@ -18,9 +24,11 @@ export type BetaRailItem = Omit<RailMenuItem, "label"> & {
   labelKey: BetaNavLabelKey
 }
 
-export const betaRailNav: BetaRailItem[] = [
-  // The structure spec names LayoutDashboard for Přehled; `IconName` is a
-  // closed union and does not carry it yet, so the root uses Home until the
-  // real Přehled module lands and extends the icon packs (all packs, parity).
-  { labelKey: "prehled", icon: "Home", href: "/" },
-]
+export function betaRailNav(orgSlug: string): BetaRailItem[] {
+  return [
+    // The structure spec names LayoutDashboard for Přehled; `IconName` is a
+    // closed union and does not carry it yet, so the root uses Home until the
+    // real Přehled module lands and extends the icon packs (all packs, parity).
+    { labelKey: "prehled", icon: "Home", href: `/${orgSlug}` },
+  ]
+}

@@ -145,6 +145,39 @@ export function organizationSummary(
 }
 
 // ---------------------------------------------------------------------------
+// Membership summary — the viewer's OWN membership list (root picker + switcher)
+// ---------------------------------------------------------------------------
+
+/**
+ * One organization the SIGNED-IN VIEWER holds an active membership in, as the
+ * pre-scope root picker (`app/(portal)/page.tsx`) and the header org switcher
+ * need it (`lib/data/memberships.ts`). `OrganizationSummary` plus the one
+ * fact neither the picker nor the switcher can do without: which role this
+ * particular viewer holds THERE — not `organization_membership`'s role for
+ * some other user, always the caller's own.
+ */
+export type MembershipSummary = OrganizationSummary & {
+  role: MembershipRow["role"]
+}
+
+export function membershipSummary(
+  row: Pick<
+    OrganizationRow,
+    | "id"
+    | "slug"
+    | "legal_name"
+    | "vat_regime"
+    | "vat_registered_from"
+    | "is_demo"
+  > & { role: MembershipRow["role"] },
+): MembershipSummary {
+  return {
+    ...organizationSummary(row),
+    role: row.role,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Membership — a person in an organization's people list
 // ---------------------------------------------------------------------------
 

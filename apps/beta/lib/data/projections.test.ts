@@ -18,6 +18,7 @@ import { sharedDatabaseUrl, unique } from "../../tests/scratch-db"
 import {
   CLIENT_FORBIDDEN_COLUMNS,
   forbiddenClientKeys,
+  membershipSummary,
   organizationSummary,
   orgMemberSummary,
   setupInviteView,
@@ -114,6 +115,27 @@ describe("organizationSummary", () => {
     // page holding this object has no archived state to reason about.
     expect(summary).not.toHaveProperty("archived_at")
     expect(summary).not.toHaveProperty("archivedAt")
+    expect(forbiddenClientKeys(summary)).toEqual([])
+  })
+})
+
+describe("membershipSummary", () => {
+  it("carries the summary allowlist plus the viewer's own role, nothing else", () => {
+    const summary = membershipSummary({
+      ...hostileOrganizationRow,
+      role: "admin" as const,
+    })
+
+    expect(Object.keys(summary).sort()).toEqual([
+      "id",
+      "isDemo",
+      "legalName",
+      "role",
+      "slug",
+      "vatRegime",
+      "vatRegisteredFrom",
+    ])
+    expect(summary.role).toBe("admin")
     expect(forbiddenClientKeys(summary)).toEqual([])
   })
 })

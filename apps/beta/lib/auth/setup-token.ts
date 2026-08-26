@@ -135,6 +135,20 @@ export type ConsumeResult =
       email: string
       userId: string
       organizationId: string | null
+      /**
+       * The granted organization's slug, alongside the id — PR 09's first-
+       * login routing (`lib/auth/first-login.ts`) needs a URL segment, not a
+       * uuid, and the id alone would force the caller to re-look it up. Null
+       * exactly when `organizationId` is (an org-less `account_setup` grant,
+       * or `password_reset`, which is never org-scoped).
+       */
+      organizationSlug: string | null
+      /**
+       * The role this consume granted — null exactly when `organizationId`
+       * is (the `user_setup_token_scope_pairing` CHECK keeps the two in
+       * lockstep). Also PR 09: `firstLoginPath` branches on it.
+       */
+      grantedRole: BetaOrgRole | null
       /** False when the flow only granted membership to an existing account. */
       passwordSet: boolean
     }
@@ -517,6 +531,17 @@ export async function consumeSetupToken(
           issuerIsStaff: sql<
             boolean | null
           >`(SELECT u.is_staff FROM app_user u WHERE u.id = user_setup_token.issued_by_user_id)`,
+          /**
+           * The granted organization's slug (PR 09: `firstLoginPath` needs a
+           * URL segment). Same reasoning as `issuerIsStaff` above: a scalar
+           * subquery on the table-qualified, literal `organization_id`
+           * rather than a join, because `organization_id` is nullable and an
+           * inner join would drop every org-less grant from the RETURNING
+           * set entirely instead of returning it with a null slug.
+           */
+          organizationSlug: sql<
+            string | null
+          >`(SELECT o.slug FROM organization o WHERE o.id = user_setup_token.organization_id)`,
         })
 
       if (!claimed) throw new ConsumeRejected({ ok: false, reason: "invalid" })
@@ -681,6 +706,8 @@ export async function consumeSetupToken(
         email: claimed.email,
         userId,
         organizationId: claimed.organizationId,
+        organizationSlug: claimed.organizationSlug,
+        grantedRole: claimed.grantedRole,
         passwordSet,
       }
     })

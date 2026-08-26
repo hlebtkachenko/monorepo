@@ -60,7 +60,10 @@ const FORBIDDEN_COLUMNS = [
  * `setupUserPayload` builds the identity a consumed setup link creates
  * (`lib/auth/setup-token.ts`); the other three are /admin's privileged writes
  * (`lib/data/office/payloads.ts`), which are the only writers of `is_staff` and
- * `disabled_at` in the app.
+ * `disabled_at` in the app. Kept as the full set for anything that still needs
+ * "is this name audited at all" (e.g. the Drizzle non-literal-payload check
+ * below); WHICH of these a given writer may use is the allowlists further
+ * down, not this one.
  */
 const ALLOWED_PAYLOAD_BUILDERS = [
   "setupUserPayload",
@@ -70,6 +73,19 @@ const ALLOWED_PAYLOAD_BUILDERS = [
 ]
 
 /**
+ * PR 09 carry-in from the PR 08 gate: the allowlist is now PER WRITER, not one
+ * flat set every writer may draw from. Before this, `isAuditedBuilderCall`
+ * accepted ANY of the four names at ANY call site — so
+ * `ctx.internalAdapter.createUser(officeUserPayload(...))` or
+ * `db.insert(app_user).values(staffFlagPayload(...))` passed the fence even
+ * though neither pairing exists in the real app and neither should: `setup-
+ * token.ts`'s `createUser` is the only path that may mint a brand-new identity
+ * with no privileged column at all, and the two office writers in
+ * `lib/data/office/users.ts` are keyed to the ONE operation each performs
+ * (`.values()` on insert creates the row, `.set()` on update flips a flag).
+ * A builder used on the wrong writer is exactly the shape that would let a
+ * refactor quietly widen what a writer may set.
+ *
  * Better Auth's identity writers, and WHICH ARGUMENT carries the payload.
  * `createUser(data)` but `updateUser(userId, data)` — reading argument 0 for
  * the latter inspects an id and lets the payload through unread (PR 07 gate).
@@ -78,6 +94,36 @@ const IDENTITY_WRITERS: Record<string, number> = {
   createUser: 0,
   updateUser: 1,
   updateUserByEmail: 1,
+}
+
+/**
+ * Per-writer allowlists for Better Auth's identity writers. `createUser` is
+ * the brand-new-identity path the setup-link consume uses and may take
+ * nothing else. `updateUser` / `updateUserByEmail` have no legitimate caller
+ * in this app today — nothing writes `app_user` through them — so their
+ * allowlist is empty ON PURPOSE: a later PR that starts calling one has to
+ * add a dedicated, audited builder AND name it here, rather than inheriting
+ * whatever the flat set happened to allow.
+ */
+const IDENTITY_WRITER_BUILDERS: Record<string, readonly string[]> = {
+  createUser: ["setupUserPayload"],
+  updateUser: [],
+  updateUserByEmail: [],
+}
+
+/**
+ * Per-operation allowlists for the direct Drizzle writes on `app_user`.
+ * `.values()` (an INSERT) is `createOfficeUser`'s row creation; `.set()` (an
+ * UPDATE) is `setUserStaff` / `setUserDisabled` flipping one flag each.
+ * `setupUserPayload` is deliberately absent from both: the one path that may
+ * use it is Better Auth's `internalAdapter.createUser`, because that adapter
+ * call ALSO creates the linked credential in the same step — a raw Drizzle
+ * insert with the same payload would create an identity with no way to sign
+ * in as it and no record of how it got there.
+ */
+const DRIZZLE_OP_BUILDERS: Record<"values" | "set", readonly string[]> = {
+  values: ["officeUserPayload"],
+  set: ["staffFlagPayload", "accountDisabledPayload"],
 }
 
 const SKIP_DIRS = new Set([
@@ -195,9 +241,17 @@ function drizzleWriteFindings(sf: ts.SourceFile, file: string): Finding[] {
     if (
       ts.isCallExpression(node) &&
       ts.isPropertyAccessExpression(node.expression) &&
-      ["set", "values"].includes(node.expression.name.text) &&
+      (node.expression.name.text === "set" ||
+        node.expression.name.text === "values") &&
       tableOfChain(node.expression.expression) === "app_user"
     ) {
+      // PER OPERATION, not one shared set: `.values()` is the INSERT
+      // `createOfficeUser` performs, `.set()` is the UPDATE the two
+      // is_staff/disabled_at flippers perform, and neither may reach for the
+      // other's builder — see the carry-in note on `DRIZZLE_OP_BUILDERS`.
+      const opName = node.expression.name.text as "set" | "values"
+      const allowedForOp = DRIZZLE_OP_BUILDERS[opName]
+
       const [payload] = node.arguments
       if (payload && ts.isObjectLiteralExpression(payload)) {
         for (const property of payload.properties) {
@@ -210,14 +264,14 @@ function drizzleWriteFindings(sf: ts.SourceFile, file: string): Finding[] {
             findings.push({ file, detail: `app_user write sets ${name}` })
           }
         }
-      } else if (payload && !isAuditedBuilderCall(payload)) {
+      } else if (payload && !isAuditedBuilderCall(payload, allowedForOp)) {
         // A call to an audited builder is the OTHER legal shape: /admin has to
         // write `is_staff` and `disabled_at`, and a literal naming them here
         // would be the exact thing this test forbids. Routing those two through
         // a named, unit-tested builder keeps the "no unpicked object reaches a
         // privileged column" property while letting the one legitimate writer
-        // exist. Anything else — a variable, a spread, a ternary — stays a
-        // finding, because the next one might not be audited.
+        // exist. Anything else — a variable, a spread, a ternary, or a builder
+        // this OPERATION does not own — stays a finding.
         findings.push({
           file,
           detail: `app_user write payload is not a literal: ${payload.getText(sf).slice(0, 60)}`,
@@ -231,12 +285,20 @@ function drizzleWriteFindings(sf: ts.SourceFile, file: string): Finding[] {
   return findings
 }
 
-/** Is this expression a call to one of the audited payload builders? */
-function isAuditedBuilderCall(node: ts.Expression): boolean {
+/**
+ * Is this expression a call to one of the given audited payload builders?
+ * Defaults to the FULL set — used where "is this name audited at all" is the
+ * only question — but every call site that knows WHICH writer it is checking
+ * passes that writer's own narrower allowlist instead.
+ */
+function isAuditedBuilderCall(
+  node: ts.Expression,
+  allowed: readonly string[] = ALLOWED_PAYLOAD_BUILDERS,
+): boolean {
   return (
     ts.isCallExpression(node) &&
     ts.isIdentifier(node.expression) &&
-    ALLOWED_PAYLOAD_BUILDERS.includes(node.expression.text)
+    allowed.includes(node.expression.text)
   )
 }
 
@@ -414,7 +476,7 @@ describe("SF-3 — app_user write paths", () => {
     ).toEqual([])
   })
 
-  it("builds every identity write through an audited payload builder", () => {
+  it("builds every identity write through ITS OWN audited payload builder", () => {
     const calls = parsed.flatMap((entry) =>
       identityWriterArguments(parse(entry.source, entry.file)).map((call) => ({
         ...call,
@@ -427,11 +489,60 @@ describe("SF-3 — app_user write paths", () => {
 
     for (const call of calls) {
       const argument = call.argument
+      const allowedForWriter = IDENTITY_WRITER_BUILDERS[call.name] ?? []
       expect(
-        argument !== undefined && isAuditedBuilderCall(argument),
-        `${call.file}: internalAdapter.${call.name} must take a payload from ${ALLOWED_PAYLOAD_BUILDERS.join(" / ")}`,
+        argument !== undefined &&
+          isAuditedBuilderCall(argument, allowedForWriter),
+        allowedForWriter.length > 0
+          ? `${call.file}: internalAdapter.${call.name} must take a payload from ${allowedForWriter.join(" / ")}`
+          : `${call.file}: internalAdapter.${call.name} has no audited builder yet — add one and list it in IDENTITY_WRITER_BUILDERS`,
       ).toBe(true)
     }
+  })
+
+  it("refuses a builder audited for a DIFFERENT writer (non-vacuous)", () => {
+    // Every one of these is a name in ALLOWED_PAYLOAD_BUILDERS, so the old flat
+    // check passed all three. Only `createUser` may take `setupUserPayload`;
+    // the office builders belong to neither Better Auth writer at all.
+    const hostile = `
+      export async function f(ctx, userId, data) {
+        await ctx.internalAdapter.createUser(officeUserPayload(data))
+        await ctx.internalAdapter.updateUser(userId, staffFlagPayload(true))
+        await ctx.internalAdapter.updateUserByEmail(email, accountDisabledPayload(true))
+      }
+    `
+    const calls = identityWriterArguments(parse(hostile, "wrong-writer.ts"))
+    expect(calls).toHaveLength(3)
+
+    for (const call of calls) {
+      const allowedForWriter = IDENTITY_WRITER_BUILDERS[call.name] ?? []
+      expect(
+        call.argument !== undefined &&
+          isAuditedBuilderCall(call.argument, allowedForWriter),
+        `${call.name} must not accept a builder audited for a different writer`,
+      ).toBe(false)
+    }
+  })
+
+  it("refuses the office builders swapped between insert and update (non-vacuous)", () => {
+    // Both names are in ALLOWED_PAYLOAD_BUILDERS, so the old flat check passed
+    // both. `officeUserPayload` creates a row; `staffFlagPayload` only
+    // updates one, and neither operation may use the other's builder.
+    const hostile = `
+      import { app_user } from "@/db/schema"
+      export async function f(db, id, isStaff) {
+        await db.insert(app_user).values(staffFlagPayload(isStaff))
+        await db.update(app_user).set(officeUserPayload({ email, name, isStaff })).where(eq(app_user.id, id))
+      }
+    `
+    const findings = drizzleWriteFindings(
+      parse(hostile, "wrong-op.ts"),
+      "wrong-op.ts",
+    )
+    expect(findings.map((f) => f.detail)).toEqual([
+      "app_user write payload is not a literal: staffFlagPayload(isStaff)",
+      "app_user write payload is not a literal: officeUserPayload({ email, name, isStaff })",
+    ])
   })
 
   /**
@@ -461,11 +572,17 @@ describe("SF-3 — app_user write paths", () => {
       "staffFlagPayload(true)",
       "{ is_staff: true }",
     ])
-    // And the third one — a raw literal in the payload position — is the shape
-    // the suite refuses.
+    // The first is `createUser`'s own audited builder. The second is a raw
+    // literal position occupied by a builder that IS audited overall but not
+    // for `updateUser` — nothing is on `updateUser`'s allowlist (PR 09 carry-
+    // in: no legitimate caller exists yet). The third is a raw literal.
     expect(
-      calls.map((c) => c.argument && isAuditedBuilderCall(c.argument)),
-    ).toEqual([true, true, false])
+      calls.map(
+        (c) =>
+          c.argument &&
+          isAuditedBuilderCall(c.argument, IDENTITY_WRITER_BUILDERS[c.name]),
+      ),
+    ).toEqual([true, false, false])
   })
 
   /**

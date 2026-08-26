@@ -136,6 +136,15 @@ export interface AppStackProps extends StackProps {
  */
 
 /**
+ * Pinned cloudflared connector image, shared by this stack and
+ * `BetaAppStack`. It lives HERE because
+ * `.github/workflows/openfga-version-check.yml` greps this file for the
+ * `cloudflare/cloudflared:<version>` literal — one pin, one update, every
+ * environment's tunnel covered.
+ */
+export const CLOUDFLARED_IMAGE = "cloudflare/cloudflared:2026.7.2"
+
+/**
  * Derive the leading-dot cookie domain that scopes the Better Auth
  * session across every subdomain of the apex (afframe.com — web, admin,
  * api). Strips the left-most label and prepends a `.` per RFC 6265.
@@ -1297,7 +1306,7 @@ export class AppStack extends Stack {
 
     const tunnelContainer = taskDef.addContainer("cloudflared", {
       containerName: "cloudflared",
-      image: ContainerImage.fromRegistry("cloudflare/cloudflared:2026.7.2"),
+      image: ContainerImage.fromRegistry(CLOUDFLARED_IMAGE),
       // Non-essential: a flapping tunnel connector must not cycle the whole
       // task. ECS still restarts it; its exit will not kill web/api/db.
       essential: false,

@@ -13,8 +13,19 @@ Application-layer infrastructure. Deployed per environment.
 | `AppStack`           | ECS Fargate (arm64), 3-container task (web + api + cloudflared sidecar). Hardened (capDrop ALL + readonlyRootFilesystem on api/cloudflared + shared /tmp). |
 | `SecurityStack`      | Kill-switch Lambda + 6 budgets + CloudTrail + RDS restart watcher (ADR-0016).                                                                              |
 | `ObservabilityStack` | CloudWatch alarms (6 attack-vector + 2 critical Fargate) wired to email + kill-switch SNS.                                                                 |
+| `BetaDataStack`      | `beta` env only. RDS Postgres t4g.micro, one ECR repo, one private CMK-encrypted documents bucket.                                                         |
+| `BetaAppStack`       | `beta` env only. ECS Fargate (arm64, 256/512), 2-container task (beta portal + its own cloudflared tunnel).                                                |
 
-Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`}.
+Stacks named `<Stack>-<env>` where `env` ∈ {`staging`, `production`, `beta`}.
+
+`beta` is a deliberately slim, fully isolated environment for the
+beta.afframe.com client portal: `Network-beta` + `BetaData-beta` +
+`BetaApp-beta`, and nothing else. It shares no database, bucket, tunnel or auth
+store with staging/production, and it does not get the Security /
+Observability / Backup stacks or the account-wide `SecretsBootstrap` / `Audit`
+stacks. Its migrations run in the app container's entrypoint (the RDS is in
+isolated subnets and no runner can reach it). Design SoT:
+`.context/beta-afframe/30-plan-v3-beta-env.md`.
 
 The CDK app deploys only the stacks registered in `bin/app.ts`. `infra/openstatus/` (the
 `status.afframe.com` status page) is **not** a CDK stack — it is OVH-VPS-hosted and never

@@ -2,11 +2,16 @@
  * The sections of Pro účetní (spec §3: "Zpracování · Měsíční uzávěrka ·
  * Zadávání dat · Úkoly klientovi").
  *
- * THREE OF THE FOUR ARE HERE, because three of the four exist. Zpracování
- * landed with PR 14, Zadávání dat with PR 18, Úkoly klientovi with PR 19;
- * Měsíční uzávěrka (PR 25) adds its own entry in the PR that adds its route —
- * the same "an entry is added only together with its route" rule `app/_nav/
- * beta-nav.ts` states for the rail. Nothing here is a stub.
+ * ALL FOUR ARE HERE, because all four now exist: Zpracování landed with PR 14,
+ * Zadávání dat with PR 18, Úkoly klientovi with PR 19 and Měsíční uzávěrka with
+ * PR 26 — each entry added in the PR that added its route, the same "an entry
+ * is added only together with its route" rule `app/_nav/beta-nav.ts` states for
+ * the rail. Nothing here is a stub.
+ *
+ * THE ORDER IS SPEC §3'S ("Zpracování · Měsíční uzávěrka · Zadávání dat ·
+ * Úkoly klientovi"), not the order the routes were built in — the sidebar is
+ * the office's month, and the month runs documents, then close, then the
+ * manual residue.
  *
  * A FUNCTION OF `orgSlug` for the same reason the rail is: every route lives
  * under `/[orgSlug]/pro-ucetni/...`, and the hrefs are absolute so the active
@@ -27,6 +32,10 @@ export function proUcetniNav(orgSlug: string): readonly ProUcetniNavItem[] {
     {
       labelKey: "ucetni.queueTitle",
       href: `/${orgSlug}/pro-ucetni/zpracovani`,
+    },
+    {
+      labelKey: "uzaverka.title",
+      href: `/${orgSlug}/pro-ucetni/uzaverka`,
     },
     {
       labelKey: "zadavani.title",

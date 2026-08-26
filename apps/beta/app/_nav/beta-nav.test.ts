@@ -46,6 +46,25 @@ describe("beta rail nav", () => {
     ).toBe(true)
   })
 
+  it("shows Výkazy to every role, between Finance and Majetek", () => {
+    const labels = items(entries).map((item) => item.labelKey)
+    expect(labels.indexOf("vykazy")).toBe(labels.indexOf("finance") + 1)
+    expect(labels.indexOf("majetek")).toBe(labels.indexOf("vykazy") + 1)
+
+    const vykazy = items(entries).find((item) => item.labelKey === "vykazy")
+    // Rozvaha is the module ROOT, so the rail links at the module and lands on
+    // a real statement rather than on a redirect.
+    expect(vykazy?.href).toBe("/acme-sro/vykazy")
+    expect(vykazy?.icon).toBe("BarChart3")
+
+    // A published statement is client-visible data (§5), so a guest sees it.
+    expect(
+      items(betaRailNav("acme-sro", { isOwner: false })).some(
+        (item) => item.labelKey === "vykazy",
+      ),
+    ).toBe(true)
+  })
+
   it("hides Pro účetní from every non-owner viewer", () => {
     expect(entries).toEqual(betaRailNav("acme-sro", { isOwner: false }))
     expect(items(entries).some((item) => item.labelKey === "ucetni")).toBe(

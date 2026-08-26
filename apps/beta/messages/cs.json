@@ -14,7 +14,8 @@
     "dane": "Daně a podání",
     "finance": "Finance",
     "majetek": "Majetek",
-    "ucetni": "Pro účetní"
+    "ucetni": "Pro účetní",
+    "vykazy": "Výkazy"
   },
   "landing": {
     "heading": "Klientský portál",
@@ -108,7 +109,6 @@
   "dokumenty": {
     "title": "Dokumenty",
     "intro": "Doklady, které jste poslali účetní kanceláři, i s tím, jak jsou zpracované.",
-
     "columnFile": "Soubor",
     "columnUploaded": "Nahráno",
     "columnType": "Typ",
@@ -117,7 +117,6 @@
     "columnStatus": "Stav",
     "columnOfficeMessage": "Zpráva od účetní",
     "tableCaption": "Seznam dokladů této organizace",
-
     "filtersTitle": "Filtry",
     "filterStatus": "Stav",
     "filterType": "Typ",
@@ -129,12 +128,10 @@
     "filterAny": "Vše",
     "filterApply": "Použít",
     "filterReset": "Zrušit filtry",
-
     "statusReceived": "Přijato",
     "statusInProcessing": "Zpracovává se",
     "statusProcessed": "Zpracováno",
     "statusReturned": "Vráceno",
-
     "typeInvoiceIn": "Přijatá faktura",
     "typeInvoiceOut": "Vydaná faktura",
     "typeReceipt": "Účtenka",
@@ -145,19 +142,16 @@
     "typeHr": "Personalistika",
     "typePayslip": "Výplatní páska",
     "typeOther": "Ostatní",
-
     "emptyTitle": "Zatím tu nejsou žádné doklady.",
     "emptyBody": "Jakmile nahrajete první doklad, objeví se tady i se stavem zpracování.",
     "emptyBodyReadOnly": "Jakmile účetní kancelář nahraje první doklad, objeví se tady.",
     "emptyFilteredTitle": "Žádný doklad neodpovídá filtru.",
     "emptyFilteredBody": "Zkuste filtr rozvolnit nebo ho zrušte.",
-
     "pagerTotal": "Celkem",
     "pagerPage": "Strana",
     "pagerOf": "z",
     "pagerPrevious": "Předchozí",
     "pagerNext": "Další",
-
     "openDetail": "Otevřít detail dokladu",
     "detailReadOnly": "Údaje k dokladu vyplňuje účetní kancelář.",
     "detailUploaded": "Nahráno",
@@ -189,7 +183,6 @@
     "stavbyUngrouped": "Bez přiřazené stavby",
     "stavbyEmptyTitle": "Zatím tu nejsou žádné doklady.",
     "stavbyEmptyBody": "Jakmile se na dokladech objeví stavba, seskupíme je tady i se součtem částek.",
-
     "uploadTitle": "Nahrát doklady",
     "uploadIntro": "Vyfoťte doklad telefonem nebo přetáhněte soubory z počítače. Účetní kancelář je zpracuje a doplní údaje.",
     "uploadDropHint": "Přetáhněte soubory sem",
@@ -265,13 +258,11 @@
     "navUsers": "Uživatelé",
     "navSetupLinks": "Setup odkazy",
     "navOperations": "Provoz",
-
     "pending": "Ukládám…",
     "save": "Uložit",
     "copy": "Kopírovat",
     "copied": "Zkopírováno",
     "noRows": "Zatím tu nic není.",
-
     "createOrganizationTitle": "Nová organizace",
     "createOrganizationHint": "Zakladatel se stane účetním této organizace. Slug nelze později změnit. Rezervované slugy:",
     "createOrganizationSubmit": "Založit organizaci",
@@ -281,14 +272,12 @@
     "archive": "Archivovat",
     "unarchive": "Vrátit z archivu",
     "archiveHint": "Archivovaná organizace zmizí všem členům. Data zůstávají.",
-
     "inviteTitle": "Pozvat do organizace",
     "inviteHint": "Vytvoří jednorázový odkaz. Zobrazí se jen jednou.",
     "inviteSubmit": "Vytvořit pozvánku",
     "membersTitle": "Lidé v organizaci",
     "activate": "Aktivovat",
     "deactivate": "Deaktivovat",
-
     "createUserTitle": "Nový uživatel",
     "createUserHint": "Vznikne účet bez hesla. Heslo si nastaví držitel odkazu, který se zobrazí po založení.",
     "createUserSubmit": "Založit účet a vydat odkaz",
@@ -300,14 +289,12 @@
     "ownerEverywhere": "Účetní ve všech",
     "issueSetupLink": "Vydat odkaz k dokončení",
     "issueResetLink": "Vydat odkaz na nové heslo",
-
     "setupLinksTitle": "Setup odkazy",
     "setupLinksHint": "Odkaz se zobrazuje jen jednou při vydání. Zpětně ho nelze zjistit, jen vydat nový.",
     "revokeLink": "Zneplatnit",
     "linkIssuedTitle": "Odkaz vytvořen",
     "linkIssuedOnce": "Zkopírujte ho teď. Podruhé se už nezobrazí.",
     "linkExpiresAt": "platí do",
-
     "fieldLegalName": "Název",
     "fieldSlug": "Slug (adresa)",
     "fieldIco": "IČO",
@@ -318,24 +305,19 @@
     "fieldName": "Jméno a příjmení",
     "fieldIsStaff": "Účet kanceláře",
     "fieldRole": "Role",
-
     "vatPlatce": "Plátce DPH",
     "vatNeplatce": "Neplátce DPH",
-
     "roleOwner": "Účetní",
     "roleAdmin": "Majitel společnosti",
     "roleMember": "Pracovník firmy (vedení)",
     "roleGuest": "Host",
-
     "purposeAccountSetup": "Založení účtu",
     "purposeOrgInvite": "Pozvánka do organizace",
     "purposePasswordReset": "Nové heslo",
-
     "linkStatusLive": "Platný",
     "linkStatusConsumed": "Použitý",
     "linkStatusRevoked": "Zneplatněný",
     "linkStatusExpired": "Vypršel",
-
     "columnOrganization": "Organizace",
     "columnSlug": "Slug",
     "columnVatRegime": "DPH",
@@ -350,7 +332,6 @@
     "columnPurpose": "Účel",
     "columnExpires": "Platí do",
     "columnIssuedBy": "Vydal",
-
     "stateLive": "Aktivní",
     "stateArchived": "Archivovaná",
     "stateDemo": "Demo",
@@ -359,7 +340,6 @@
     "stateStaff": "Kancelář",
     "stateDisabled": "Deaktivovaný",
     "stateNotActivated": "Nedokončený",
-
     "operationsTitle": "Provoz",
     "operationsHint": "Jen pro čtení. Seed demo dat přijde s demo prostředím.",
     "countsTitle": "Počty",
@@ -377,7 +357,6 @@
     "envSet": "Nastaveno",
     "envMissing": "Chybí",
     "openHealthz": "Otevřít /healthz",
-
     "okSaved": "Uloženo.",
     "okOrganizationCreated": "Organizace založena.",
     "okArchived": "Organizace archivována.",
@@ -391,7 +370,6 @@
     "okUserDisabled": "Účet deaktivován. Všechny nevyužité odkazy byly zneplatněny.",
     "okUserEnabled": "Účet obnoven.",
     "okLinkRevoked": "Odkaz zneplatněn.",
-
     "errorInvalidInput": "Neplatný vstup.",
     "errorInvalidEmail": "Neplatný e-mail.",
     "errorNameRequired": "Vyplňte název organizace.",
@@ -412,16 +390,13 @@
     "errorTooManyRequests": "Příliš mnoho požadavků. Zkuste to prosím za chvíli.",
     "errorRejected": "Operaci odmítla databáze."
   },
-
   "ucetni": {
     "title": "Pro účetní",
     "queueTitle": "Zpracování",
     "queueHint": "Fronta dokladů čekajících na zpracování — nejstarší nahoře.",
-
     "filterLabel": "Zobrazit",
     "filterQueue": "Fronta (přijato + zpracovává se)",
     "filterAll": "Vše",
-
     "columnFile": "Soubor",
     "columnType": "Typ",
     "columnStatus": "Stav",
@@ -429,15 +404,12 @@
     "columnAmount": "Částka",
     "columnSite": "Stavba",
     "columnMessage": "Zpráva klientovi",
-
     "empty": "Ve frontě nic není.",
     "open": "Otevřít",
-
     "statusReceived": "Přijato",
     "statusInProcessing": "Zpracovává se",
     "statusProcessed": "Zpracováno",
     "statusReturned": "Vráceno",
-
     "docTypeInvoiceIn": "Přijatá faktura",
     "docTypeInvoiceOut": "Vydaná faktura",
     "docTypeReceipt": "Účtenka",
@@ -448,10 +420,8 @@
     "docTypeHr": "Personální",
     "docTypePayslip": "Výplatnice",
     "docTypeOther": "Ostatní",
-
     "sheetTitle": "Zpracování dokladu",
     "sheetDescription": "Jediné místo, kde se pole dokladu upravují.",
-
     "fieldStatus": "Stav",
     "fieldDocType": "Typ dokladu",
     "fieldDocumentDate": "Datum dokladu",
@@ -463,11 +433,9 @@
     "fieldInternalNoteHint": "Vidí jen kancelář. Klient ji nikdy neuvidí.",
     "fieldClientVisible": "Viditelné klientovi",
     "fieldUploadedAt": "Nahráno",
-
     "save": "Uložit",
     "pending": "Ukládám…",
     "close": "Zavřít",
-
     "okSaved": "Uloženo.",
     "errorInvalidInput": "Neplatný vstup.",
     "errorNotFound": "Doklad nenalezen.",
@@ -477,7 +445,6 @@
     "errorInvalidAmount": "Neplatná částka.",
     "errorConflict": "Doklad mezitím změnil někdo jiný. Zkuste to prosím znovu."
   },
-
   "dane": {
     "navLabel": "Agendy daní a podání",
     "navSouhrn": "Souhrn",
@@ -485,7 +452,6 @@
     "navDanZPrijmu": "Daň z příjmů",
     "navMzdoveOdvody": "Mzdové odvody a hlášení",
     "navOstatni": "Ostatní",
-
     "souhrnUnpaidTitle": "Neuhrazeno",
     "souhrnUnpaidOverdue": "z toho po splatnosti",
     "souhrnFreshnessTitle": "Údaje k",
@@ -496,9 +462,7 @@
     "souhrnYtdEmpty": "Zatím nic uhrazeno nebylo.",
     "souhrnTimelineTitle": "Podání v tomto roce",
     "souhrnTimelineEmpty": "Pro letošní rok zatím nejsou evidovaná žádná podání.",
-
     "familyEmpty": "Zatím nebylo nahráno.",
-
     "columnFiling": "Podání",
     "columnFamily": "Agenda",
     "columnPeriod": "Období",
@@ -507,23 +471,19 @@
     "columnAmount": "Částka",
     "columnStatus": "Stav",
     "columnAttachment": "Příloha",
-
     "attachmentOpen": "Otevřít přílohu",
     "attachmentNone": "—",
     "notFiledYet": "—",
     "amountNotStated": "Neuvedeno",
-
     "statusPlanned": "Plánováno",
     "statusFiled": "Podáno",
     "statusConfirmed": "Potvrzeno",
     "statusCorrective": "Opravné",
     "overdueBadge": "Po splatnosti",
-
     "familyDph": "DPH",
     "familyDanZPrijmu": "Daň z příjmů",
     "familyMzdoveOdvody": "Mzdové odvody a hlášení",
     "familyOstatni": "Ostatní",
-
     "kindDphPriznani": "Přiznání k DPH",
     "kindDphKontrolniHlaseni": "Kontrolní hlášení",
     "kindDphSouhrnneHlaseni": "Souhrnné hlášení",
@@ -537,33 +497,26 @@
     "kindSilnicniDan": "Silniční daň",
     "kindOstatni": "Ostatní"
   },
-
   "finance": {
     "dluhyTitle": "Dluhy a platby",
     "dluhyIntro": "Nezaplacené závazky ze všech evidencí, seřazené podle splatnosti.",
-
     "groupFu": "Finanční úřad",
     "groupCsszZp": "ČSSZ a zdravotní pojišťovny",
     "groupDodavatele": "Dodavatelé",
     "groupOstatni": "Ostatní",
-
     "columnTitle": "Titul",
     "columnDueOn": "Splatnost",
     "columnVariableSymbol": "VS",
     "columnAmount": "Částka",
     "columnState": "Stav",
-
     "stateOverdue": "Po splatnosti",
     "stateOpen": "K úhradě",
-
     "totalAll": "Celkem k úhradě",
     "totalOverdue": "Z toho po splatnosti",
     "groupTotal": "Celkem",
     "asOf": "Údaje k",
-
     "emptyHeading": "Neevidujeme žádné nezaplacené závazky.",
     "emptyBody": "Jakmile účetní zadá podání s částkou nebo další závazek, objeví se tady.",
-
     "sourcesTitle": "Odkud údaje pocházejí",
     "sourcesHint": "Každá evidence má vlastní datum poslední změny. Chybí-li, zatím do ní nic nepřibylo.",
     "sourceFiling": "Daňová podání",
@@ -573,11 +526,9 @@
     "sourceNoData": "Zatím nebylo nahráno",
     "sourceOpenCount": "otevřených položek"
   },
-
   "zadavani": {
     "title": "Zadávání dat",
     "intro": "Jediné místo, kde se údaje mimo doklady zadávají. Klientské stránky jsou jen ke čtení.",
-
     "pending": "Ukládám…",
     "save": "Uložit",
     "create": "Přidat",
@@ -585,16 +536,13 @@
     "markPaid": "Označit jako zaplacené",
     "markUnpaid": "Vrátit mezi nezaplacené",
     "noRows": "Zatím tu nic není.",
-
     "filingsTitle": "Daňová podání",
     "filingsHint": "Částka a datum zaplacení řídí, co se objeví v Dluzích a platbách.",
     "filingCreateTitle": "Nové podání",
     "filingCreateHint": "Období se založí automaticky, pokud ještě neexistuje.",
-
     "liabilitiesTitle": "Ostatní závazky",
     "liabilitiesHint": "Jen to, co není daňové podání ani faktura od dodavatele — penále, úrok z prodlení, splátkový kalendář, nájem.",
     "liabilityCreateTitle": "Nový závazek",
-
     "fieldKind": "Typ podání",
     "fieldPeriodKind": "Období",
     "fieldYear": "Rok",
@@ -609,28 +557,23 @@
     "fieldLabel": "Titul",
     "fieldNoteClient": "Poznámka pro klienta",
     "fieldNoteInternal": "Interní poznámka",
-
     "periodMonth": "Měsíc",
     "periodQuarter": "Čtvrtletí",
     "periodYear": "Rok",
-
     "columnPeriod": "Období",
     "columnKind": "Typ",
     "columnTitle": "Titul",
     "columnState": "Stav",
     "columnActions": "Akce",
-
     "statePaid": "Zaplaceno",
     "stateOpen": "Nezaplaceno",
     "stateOverdue": "Po splatnosti",
     "stateNoAmount": "Bez částky",
-
     "okSaved": "Uloženo.",
     "okCreated": "Záznam přidán.",
     "okDeleted": "Záznam smazán.",
     "okMarkedPaid": "Označeno jako zaplacené.",
     "okMarkedUnpaid": "Vráceno mezi nezaplacené.",
-
     "errorInvalidInput": "Neplatný vstup.",
     "errorAmountInvalid": "Částka musí být kladné číslo nejvýš se dvěma desetinnými místy.",
     "errorLabelRequired": "Vyplňte titul závazku.",
@@ -639,12 +582,10 @@
     "errorNotFound": "Záznam nenalezen.",
     "errorRejected": "Operaci odmítla databáze."
   },
-
   "majetek": {
     "overviewTitle": "Přehled majetku",
     "detailTitle": "Karta majetku",
     "backToOverview": "Zpět na přehled",
-
     "columnName": "Název",
     "columnCategory": "Kategorie",
     "columnAcquisitionCost": "Pořizovací cena",
@@ -653,31 +594,25 @@
     "columnSite": "Stavba",
     "columnStatus": "Stav",
     "footerTotal": "Celkem",
-
     "emptyHeading": "Zatím žádný majetek.",
     "emptyBody": "Jakmile účetní kancelář přidá první položku, uvidíte ji zde.",
     "noEvents": "Zatím žádné události.",
-
     "filterAll": "Vše",
     "filterInUse": "V používání",
     "filterDisposed": "Vyřazené",
-
     "statusInUse": "V používání",
     "statusDisposed": "Vyřazeno",
-
     "categoryMachine": "Stroj",
     "categoryVehicle": "Vozidlo",
     "categoryTool": "Nářadí",
     "categoryRealEstate": "Nemovitost",
     "categoryOther": "Ostatní",
-
     "isMinorBadge": "Drobný majetek",
     "residualNotProvided": "Zatím nebylo nahráno",
     "residualNotApplicable": "Nevztahuje se",
     "depreciationAsOfPrefix": "oprávky k",
     "taxResidualLabel": "Daňová zůstatková cena",
     "disposedOnLabel": "Vyřazeno dne",
-
     "newAssetTitle": "Nový majetek",
     "newAssetSubmit": "Přidat majetek",
     "editTitle": "Upravit majetek",
@@ -686,7 +621,6 @@
     "disposeSubmit": "Vyřadit",
     "eventsTitle": "Historie událostí",
     "addEventSubmit": "Přidat",
-
     "fieldName": "Název",
     "fieldCategory": "Kategorie",
     "fieldIsMinor": "Drobný majetek",
@@ -703,11 +637,9 @@
     "fieldEventDate": "Datum",
     "fieldEventAmount": "Částka",
     "fieldEventNote": "Poznámka",
-
     "eventKindPutIntoService": "Zařazení",
     "eventKindImprovement": "Technické zhodnocení",
     "eventKindDisposal": "Vyřazení",
-
     "pending": "Ukládám…",
     "okCreated": "Majetek přidán.",
     "okUpdated": "Uloženo.",
@@ -716,47 +648,38 @@
     "errorInvalidInput": "Neplatný vstup.",
     "errorNotFound": "Záznam nenalezen."
   },
-
   "ukoly": {
     "title": "Úkoly klientovi",
     "intro": "Co od klienta potřebujete — úkoly, šablony a měsíční sada. Klient vidí jen otevřené úkoly, na Přehledu.",
-
     "create": "Přidat",
     "save": "Uložit",
     "delete": "Smazat",
     "markDone": "Dokončit",
     "reopen": "Otevřít znovu",
     "noRows": "Zatím tu nic není.",
-
     "tasksTitle": "Úkoly",
     "taskCreateTitle": "Nový úkol",
     "tasksHint": "Klient uvidí název, popis, termín a odkaz — jen dokud je úkol otevřený.",
-
     "templatesTitle": "Šablony",
     "templateCreateTitle": "Nová šablona",
     "templatesHint": "Šablona nemá vlastní termín, jen den v měsíci — \"Založit měsíční sadu úkolů\" z ní vytvoří datované úkoly.",
     "generatedBadge": "ze šablony",
-
     "fieldTitle": "Název",
     "fieldDescription": "Popis",
     "fieldDueDate": "Termín",
     "fieldTemplateDueDay": "Den v měsíci (1-31)",
     "fieldLinkKind": "Odkaz",
-
     "columnTitle": "Název",
     "columnDueDate": "Termín",
     "columnTemplateDueDay": "Den v měsíci",
     "columnLinkKind": "Odkaz",
     "columnStatus": "Stav",
     "columnActions": "Akce",
-
     "linkNone": "Bez odkazu",
     "linkDokumenty": "Dokumenty",
     "linkDane": "Daně a podání",
-
     "statusOpen": "Otevřeno",
     "statusDone": "Hotovo",
-
     "monthlySetButton": "Založit měsíční sadu",
     "monthlySetTitle": "Vytvořit měsíční sadu úkolů",
     "monthlySetDescription": "Vytvoří úkol pro každou aktivní šablonu, s termínem podle zvoleného měsíce. Opakované spuštění pro stejný měsíc nic nezdvojí.",
@@ -765,13 +688,11 @@
     "monthlySetSubmit": "Vytvořit",
     "monthlySetResultCreated": "Vytvořeno:",
     "monthlySetResultExisting": "Již existovalo:",
-
     "okSaved": "Uloženo.",
     "okCreated": "Úkol přidán.",
     "okDeleted": "Záznam smazán.",
     "okMarkedDone": "Úkol označen jako hotový.",
     "okMarkedOpen": "Úkol znovu otevřen.",
-
     "errorInvalidInput": "Neplatný vstup.",
     "errorTitleRequired": "Zadejte název.",
     "errorInvalidDate": "Neplatné datum.",
@@ -779,5 +700,145 @@
     "errorInvalidPeriod": "Neplatné období.",
     "errorNotFound": "Záznam nenalezen.",
     "errorRejected": "Operaci odmítla databáze."
+  },
+  "vykazy": {
+    "title": "Výkazy",
+    "navRozvaha": "Rozvaha",
+    "navVysledovka": "Výsledovka (VZZ)",
+    "navPredvaha": "Obratová předvaha",
+    "rozvahaTitle": "Rozvaha",
+    "vzzTitle": "Výkaz zisku a ztráty",
+    "predvahaTitle": "Obratová předvaha",
+    "periodPickerLabel": "Období",
+    "publishedAt": "Zveřejněno",
+    "sourceAgent": "z účetního programu",
+    "sourceManual": "z ručně nahraného souboru",
+    "staleBandPrefix": "Poslední zveřejněné údaje jsou za období",
+    "staleBandSuffix": ". Novější zatím nebyly nahrány.",
+    "unitCzk": "Údaje v Kč",
+    "highlightBilancniSuma": "Bilanční suma",
+    "highlightVlastniKapital": "Vlastní kapitál",
+    "highlightCiziZdroje": "Cizí zdroje",
+    "highlightVysledekHospodareni": "Výsledek hospodaření",
+    "columnOzn": "Ozn.",
+    "columnRowCode": "Řádek",
+    "columnText": "Text",
+    "columnBrutto": "Brutto",
+    "columnKorekce": "Korekce",
+    "columnNetto": "Netto",
+    "columnBezne": "Běžné období",
+    "columnMinule": "Minulé období",
+    "captionAktiva": "AKTIVA",
+    "captionPasiva": "PASIVA",
+    "captionVzz": "VÝKAZ ZISKU A ZTRÁTY",
+    "captionPredvaha": "Obratová předvaha",
+    "columnAccountCode": "Účet",
+    "columnAccountName": "Název účtu",
+    "columnOpeningBalance": "Počáteční stav",
+    "columnTurnoverDebit": "Obrat MD",
+    "columnTurnoverCredit": "Obrat Dal",
+    "columnClosingBalance": "Konečný zůstatek",
+    "searchLabel": "Hledat účet",
+    "searchPlaceholder": "číslo nebo název účtu",
+    "searchSubmit": "Hledat",
+    "searchNoMatch": "Žádný účet neodpovídá hledání.",
+    "emptyHeading": "Zatím nebylo nahráno",
+    "emptyRozvaha": "Rozvaha se zobrazí po měsíční uzávěrce.",
+    "emptyVzz": "Výsledovka se zobrazí po měsíční uzávěrce.",
+    "emptyPredvaha": "Obratová předvaha se zobrazí po měsíční uzávěrce."
+  },
+  "uzaverka": {
+    "title": "Měsíční uzávěrka",
+    "intro": "Kontrola dat za vybrané období: co je zveřejněné, co se ještě čeká a historie importů.",
+    "periodPickerLabel": "Období",
+    "noPeriodsYet": "Pro tuto firmu zatím nemáme žádné období. Vznikne prvním podáním nebo prvním importem.",
+    "matrixTitle": "Úplnost dat za",
+    "historyTitle": "Historie importů",
+    "historyEmpty": "Za toto období zatím nebyl nahrán žádný import.",
+    "datasetPredvaha": "Obratová předvaha",
+    "datasetRozvaha": "Rozvaha",
+    "datasetVzz": "Výsledovka (VZZ)",
+    "datasetSaldokonto": "Saldokonto",
+    "datasetPayroll": "Mzdy",
+    "statusDraft": "Rozpracováno",
+    "statusPublished": "Zveřejněno",
+    "statusSuperseded": "Nahrazeno",
+    "sourceAgent": "Z účetního programu",
+    "sourceManual": "Ručně nahraný soubor",
+    "stateNotWired": "Zatím nenapojeno",
+    "statePublished": "Zveřejněno",
+    "stateDraft": "Rozpracováno",
+    "stateMissing": "Zatím nenahráno",
+    "columnDataset": "Sada dat",
+    "columnState": "Stav",
+    "columnPublishedAt": "Zveřejněno",
+    "columnImportedAt": "Nahráno",
+    "columnSource": "Zdroj",
+    "columnRowCount": "Řádků",
+    "columnActions": "Akce",
+    "columnChain": "Nahrazeno",
+    "supersededByPrefix": "Nahrazeno importem",
+    "supersededByLink": "otevřít",
+    "openDraft": "Zobrazit rozpracovaný import",
+    "backToMatrix": "Zpět na měsíční uzávěrku",
+    "importedAt": "Nahráno",
+    "publishedAt": "Zveřejněno",
+    "rowCount": "Řádků:",
+    "pending": "Pracuji…",
+    "cancel": "Zrušit",
+    "publishTrigger": "Zveřejnit",
+    "publishTitle": "Zveřejnit import?",
+    "publishDescription": "Zveřejněná data uvidí klient okamžitě ve Výkazech. Zkontrolujte řádky před potvrzením.",
+    "publishOverDescription": "Zveřejněná data uvidí klient okamžitě ve Výkazech. Nahradí dosud zveřejněný import za toto období.",
+    "publishConfirm": "Zveřejnit",
+    "rollbackTrigger": "Vrátit poslední import",
+    "rollbackTitle": "Vrátit poslední import?",
+    "rollbackDescription": "Zveřejněný import se vrátí mezi rozpracované. Pokud předchozí import neexistuje, uvidí klient u této sady dat „Zatím nebylo nahráno“.",
+    "rollbackConfirm": "Vrátit import",
+    "discardTrigger": "Zahodit",
+    "discardTitle": "Zahodit rozpracovaný import?",
+    "discardDescription": "Rozpracovaný import se smaže i s načtenými řádky. Zveřejněná data to nijak nezmění.",
+    "discardConfirm": "Zahodit",
+    "uploadTitle": "Ruční nahrání CSV",
+    "uploadIntro": "Náhradní cesta pro případ, že účetní agent není dostupný. Soubor se načte jako rozpracovaný import — zveřejňuje se až po kontrole řádků.",
+    "uploadSubmit": "Nahrát jako rozpracovaný import",
+    "fieldDataset": "Sada dat",
+    "fieldMonth": "Měsíc",
+    "fieldYear": "Rok",
+    "fieldFile": "Soubor CSV",
+    "fileHint": "UTF-8, oddělovač ; nebo , nebo tabulátor, první řádek jsou názvy sloupců. Předvaha: Účet; Název; Počáteční stav; Obrat MD; Obrat Dal; Konečný zůstatek. Rozvaha: Část (aktiva/pasiva); Ozn; Řádek; Text; Brutto; Korekce; Netto; Běžné; Minulé. Výsledovka: Ozn; Řádek; Text; Běžné; Minulé.",
+    "okPublished": "Import byl zveřejněn.",
+    "okPublishedOver": "Import byl zveřejněn a nahradil předchozí.",
+    "okAlreadyPublished": "Tento import už byl zveřejněný, nic se nezměnilo.",
+    "okRolledBack": "Poslední import byl vrácen, platí opět předchozí.",
+    "okRolledBackToEmpty": "Poslední import byl vrácen. Za toto období teď není zveřejněná žádná sada dat.",
+    "okDiscarded": "Rozpracovaný import byl zahozen.",
+    "okDraftCreated": "Soubor byl načten jako rozpracovaný import.",
+    "errorInvalidInput": "Formulář obsahuje neplatné údaje.",
+    "errorRejected": "Databáze zápis odmítla. Zkontrolujte zadané údaje.",
+    "errorPeriodInvalid": "Zadané období není platné.",
+    "errorUnknownBatch": "Takový import neexistuje.",
+    "errorAlreadySuperseded": "Tento import už byl nahrazen novějším. Použijte „Vrátit poslední import“.",
+    "errorConflict": "Import právě mění někdo jiný. Zkuste to prosím znovu.",
+    "errorNothingPublished": "Za toto období není co vracet.",
+    "errorNoFile": "Vyberte prosím soubor CSV.",
+    "errorFileTooLarge": "Soubor je příliš velký. Maximum jsou 2 MB.",
+    "errorNotUtf8": "Soubor není v kódování UTF-8. Uložte export jako UTF-8 CSV.",
+    "csvErrorEmptyFile": "Soubor je prázdný.",
+    "csvErrorNoDataRows": "Soubor obsahuje jen hlavičku, žádná data.",
+    "csvErrorUnterminatedQuote": "Soubor obsahuje neuzavřenou uvozovku — část souboru nelze přečíst.",
+    "csvErrorTooManyRows": "Soubor má víc než 5 000 řádků. Zkontrolujte, jestli jde o správný export.",
+    "csvErrorMissingColumns": "V souboru chybí povinné sloupce.",
+    "csvErrorRowIssues": "Soubor nebyl načten — opravte prosím tyto řádky:",
+    "csvMissingColumnsPrefix": "Chybí sloupce:",
+    "csvMoreIssuesPrefix": "Další chybné řádky:",
+    "csvIssueLinePrefix": "Řádek",
+    "csvIssueMissingValue": "povinná hodnota chybí",
+    "csvIssueInvalidAmount": "částku nelze přečíst",
+    "csvIssueInvalidInteger": "úroveň odsazení musí být číslo 0 až 8",
+    "csvIssueUnknownSection": "část musí být „aktiva“ nebo „pasiva“",
+    "csvIssueColumnShape": "řádek má sloupce z druhé strany výkazu",
+    "csvIssueDuplicateRow": "stejný řádek je v souboru dvakrát",
+    "csvIssueRaggedRow": "řádek má víc hodnot než sloupců v hlavičce"
   }
 }

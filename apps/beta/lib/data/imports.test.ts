@@ -45,8 +45,11 @@ const {
   createDraftBatch,
   datasetFreshnessForScope,
   deleteDraftBatch,
+  officeBatchFor,
+  officeBatchHistoryFor,
   publishBatch,
   publishedBatchFor,
+  publishedPeriodsForDataset,
   rollbackDataset,
   statementLinesForBatch,
   trialBalanceLinesForBatch,
@@ -1067,5 +1070,222 @@ describe("datasetFreshnessForScope — the §0.4 contract", () => {
         (row) => row.dataset === "vzz",
       )?.publishedAt,
     ).toBeNull()
+  })
+})
+
+describe("publishedPeriodsForDataset — the Výkazy period picker", () => {
+  it("lists only periods with a PUBLISHED batch of that dataset, newest first", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const may = await createReportingPeriod(org.organizationId, {
+      kind: "month",
+      year: 2026,
+      month: 5,
+    })
+    const june = await createReportingPeriod(org.organizationId, {
+      kind: "month",
+      year: 2026,
+      month: 6,
+    })
+    const july = await createReportingPeriod(org.organizationId, {
+      kind: "month",
+      year: 2026,
+      month: 7,
+    })
+
+    for (const periodId of [may, july]) {
+      const batch = await createDraftBatch(scope, {
+        periodId,
+        dataset: "vzz",
+        source: "agent",
+        statementLines: VZZ_LINES,
+      })
+      await publishBatch(scope, batch.id)
+    }
+    // June exists and has a DRAFT — a draft must not put a period into a
+    // client's picker, or the picker offers a month that renders nothing.
+    await createDraftBatch(scope, {
+      periodId: june,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+
+    const periods = await publishedPeriodsForDataset(scope, "vzz")
+    expect(periods.map((period) => period.month)).toEqual([7, 5])
+  })
+
+  it("is per DATASET — a published rozvaha does not put a period in VZZ's picker", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "rozvaha",
+      source: "agent",
+      statementLines: ROZVAHA_LINES,
+    })
+    await publishBatch(scope, batch.id)
+
+    expect(await publishedPeriodsForDataset(scope, "rozvaha")).toHaveLength(1)
+    expect(await publishedPeriodsForDataset(scope, "vzz")).toEqual([])
+  })
+
+  it("drops a period again when its only publication is rolled back", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "predvaha",
+      source: "agent",
+      trialBalanceLines: PREDVAHA_LINES,
+    })
+    await publishBatch(scope, batch.id)
+    expect(await publishedPeriodsForDataset(scope, "predvaha")).toHaveLength(1)
+
+    await rollbackDataset(scope, { periodId, dataset: "predvaha" })
+    expect(await publishedPeriodsForDataset(scope, "predvaha")).toEqual([])
+  })
+
+  it("never crosses the tenant wall", async () => {
+    const scopeA = await ownerScope(orgA)
+    const periodId = await createMonthPeriod(orgA.organizationId)
+    const batch = await createDraftBatch(scopeA, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+    await publishBatch(scopeA, batch.id)
+
+    const scopeB = await ownerScope(orgB)
+    const idsB = (await publishedPeriodsForDataset(scopeB, "vzz")).map(
+      (period) => period.id,
+    )
+    expect(idsB).not.toContain(periodId)
+  })
+})
+
+describe("officeBatchFor / officeBatchHistoryFor — the review surface", () => {
+  it("carries WHO imported and WHO published, and still no user id", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const draft = await createDraftBatch(scope, {
+      periodId,
+      dataset: "rozvaha",
+      source: "manual",
+      filename: "rozvaha-07-2026.csv",
+      statementLines: ROZVAHA_LINES,
+    })
+    await publishBatch(scope, draft.id)
+
+    const batch = await officeBatchFor(scope, draft.id)
+    expect(batch?.importedByName).toBe("Testovací uživatel")
+    expect(batch?.publishedByName).toBe("Testovací uživatel")
+    expect(batch?.filename).toBe("rozvaha-07-2026.csv")
+    // A NAME, never an id — the office's user ids stay off every payload.
+    expect(JSON.stringify(batch)).not.toContain(org.members.owner.userId)
+    expect(forbiddenClientKeys(batch)).toEqual([])
+  })
+
+  it("reports an agent-fed batch with no name at all, rather than a wrong one", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    // PR 24's agent posts under an office key, not a session: `imported_by_
+    // user_id` is genuinely null and the surface renders the SOURCE instead.
+    const batchId = await createImportBatchRow(org.organizationId, periodId, {
+      dataset: "vzz",
+      status: "published",
+      source: "agent",
+    })
+
+    const batch = await officeBatchFor(scope, batchId)
+    expect(batch?.importedByName).toBeNull()
+    expect(batch?.source).toBe("agent")
+  })
+
+  it("shows the owner a DRAFT that no client-tier read would serve", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    const draft = await createDraftBatch(scope, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+
+    expect((await officeBatchFor(scope, draft.id))?.status).toBe("draft")
+    expect(
+      await publishedBatchFor(scope, { periodId, dataset: "vzz" }),
+    ).toBeNull()
+  })
+
+  it("answers null for another organization's batch", async () => {
+    const scopeA = await ownerScope(orgA)
+    const periodId = await createMonthPeriod(orgA.organizationId)
+    const draft = await createDraftBatch(scopeA, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+
+    const scopeB = await ownerScope(orgB)
+    expect(await officeBatchFor(scopeB, draft.id)).toBeNull()
+  })
+
+  it("draws the supersession chain across a re-publish, newest first", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const first = await createDraftBatch(scope, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+    await publishBatch(scope, first.id)
+    const second = await createDraftBatch(scope, {
+      periodId,
+      dataset: "vzz",
+      source: "manual",
+      filename: "oprava.csv",
+      statementLines: VZZ_LINES,
+    })
+    await publishBatch(scope, second.id)
+
+    const history = await officeBatchHistoryFor(scope, { periodId })
+    expect(history.map((batch) => batch.status)).toEqual([
+      "published",
+      "superseded",
+    ])
+    expect(history[0]?.id).toBe(second.id)
+    expect(history[1]?.supersededByBatchId).toBe(second.id)
+  })
+
+  it("includes DRAFTS, which the client-tier history never does", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    await createDraftBatch(scope, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+
+    expect(await officeBatchHistoryFor(scope, { periodId })).toHaveLength(1)
+
+    as(org.members.admin.headers)
+    const memberScope = await requireScope(org.slug)
+    expect(await batchHistoryForScope(memberScope, { periodId })).toEqual([])
   })
 })

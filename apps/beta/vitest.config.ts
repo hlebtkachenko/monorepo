@@ -68,6 +68,13 @@ export default defineConfig({
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            // `lib/import/**` (PR 26): the manual-fallback CSV reader is a pure
+            // function over a string — a tokenizer, a header matcher and a
+            // decimal normalizer. It is also the piece most worth testing
+            // adversarially (BOM, quoted `;`, Czech decimal comma, ragged
+            // rows), and a suite that needed Docker to assert "a row with two
+            // commas in one amount is refused" is a suite that gets skipped.
+            "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
             // Same rule as `lib/obligation-labels.test.ts` above, for PR 20's
             // two pure helpers: `lib/freshness.ts` is calendar-index
@@ -129,6 +136,7 @@ export default defineConfig({
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",

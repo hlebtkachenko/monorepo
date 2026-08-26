@@ -6,7 +6,6 @@ import { IconButton } from "@workspace/ui/components/icon-button"
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@workspace/ui/components/tooltip"
 import { InspectorSheet } from "@workspace/ui/blocks/inspector-sheet"
@@ -193,37 +192,37 @@ function InspectorAside() {
   return (
     <>
       {/* Zero-width handle keeps layout stable. Hover reveals a thicker neutral
-          divider without competing with record actions for accent colour. */}
-      <TooltipProvider>
-        <Tooltip open={hoverY !== null && !isDragging}>
-          <ResizeHandle
-            handlers={{
-              onPointerDown: onHandlePointerDown,
-              onPointerMove: onHandlePointerMove,
-              onPointerUp: onHandlePointerUp,
-              onPointerCancel: onHandlePointerCancel,
-            }}
-            className="group z-20 w-0"
-            onPointerEnter={onHandlePointerEnter}
-            onPointerLeave={onHandlePointerLeave}
-          >
-            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-subtle transition-all duration-150 group-hover:w-[3px] group-hover:bg-muted-foreground/50" />
-            <TooltipTrigger asChild>
-              <span
-                aria-hidden
-                className="pointer-events-none absolute left-0 size-px"
-                style={{ top: hoverY ?? 0 }}
-              />
-            </TooltipTrigger>
-          </ResizeHandle>
-          <TooltipContent side="right" sideOffset={8}>
-            <div className="flex flex-col gap-0.5">
-              <span>Drag to resize</span>
-              <span>Click to collapse</span>
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          divider without competing with record actions for accent colour.
+          Relies on the ambient TooltipProvider AppShell wraps its whole tree
+          in — no local provider here (nesting a second one is redundant). */}
+      <Tooltip open={hoverY !== null && !isDragging}>
+        <ResizeHandle
+          handlers={{
+            onPointerDown: onHandlePointerDown,
+            onPointerMove: onHandlePointerMove,
+            onPointerUp: onHandlePointerUp,
+            onPointerCancel: onHandlePointerCancel,
+          }}
+          className="group z-20 w-0"
+          onPointerEnter={onHandlePointerEnter}
+          onPointerLeave={onHandlePointerLeave}
+        >
+          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border-subtle transition-all duration-150 group-hover:w-[3px] group-hover:bg-muted-foreground/50" />
+          <TooltipTrigger asChild>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute left-0 size-px"
+              style={{ top: hoverY ?? 0 }}
+            />
+          </TooltipTrigger>
+        </ResizeHandle>
+        <TooltipContent side="right" sideOffset={8}>
+          <div className="flex flex-col gap-0.5">
+            <span>Drag to resize</span>
+            <span>Click to collapse</span>
+          </div>
+        </TooltipContent>
+      </Tooltip>
       <aside
         data-slot="app-shell-inspector"
         style={{ width }}

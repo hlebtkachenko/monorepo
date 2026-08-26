@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 
+import { assertNotEmployeeSeat } from "@/lib/data/scope"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { VykazyNavTabs } from "./_components/vykazy-nav-tabs"
@@ -17,6 +19,15 @@ import { VykazyNavTabs } from "./_components/vykazy-nav-tabs"
  * drafts out in SQL rather than by caller convention). The owner-only surface
  * is Pro účetní › Měsíční uzávěrka, which is where publishing lives.
  */
+/**
+ * THE EMPLOYEE SEAT DOES NOT HAVE THIS MODULE (spec §2.6.1: its rail is Přehled ·
+ * Dokumenty · Moje mzda, and "Everything else 404"). `assertNotEmployeeSeat` is
+ * that sentence, applied once at the module root so every leaf beneath it
+ * inherits the refusal — a Next layout renders for every nested route, which is
+ * exactly the property a whitelist wants.
+ *
+ * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ */
 export default async function VykazyLayout({
   children,
   params,
@@ -25,7 +36,7 @@ export default async function VykazyLayout({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  await resolveOrgScope(orgSlug)
+  assertNotEmployeeSeat(await resolveOrgScope(orgSlug))
 
   return (
     <div className="flex flex-col">

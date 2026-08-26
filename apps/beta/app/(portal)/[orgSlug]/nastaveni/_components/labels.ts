@@ -16,12 +16,13 @@ import type { IdentityField } from "@/lib/ares/suggestions"
  * kept apart on purpose, so a wording change for the office cannot silently
  * restate a client's own role to them.
  *
- * "ZAMĚSTNANEC" IS ABSENT, and it is the fifth label §2.6.1 names. It is not a
- * role: the employee seat is `guest` + a `payroll_employee.app_user_id` link, so
- * distinguishing it from an ordinary Host needs a table that does not exist in
- * this database yet (spec §4 puts `payroll_employee` in the Mzdy PRs). It
- * arrives with the seat itself in PR 33; until then every `guest` reads "Host",
- * which is true of every guest that exists today.
+ * "ZAMĚSTNANEC" IS THE FIFTH LABEL §2.6.1 NAMES, AND IT IS NOT IN THIS MAP —
+ * because it is not a role (PR 33). The employee seat is `guest` +
+ * `payroll_employee.app_user_id`, so the label is chosen by
+ * `orgRoleLabelKey` below, which takes the seat fact alongside the role. Keeping
+ * the map keyed purely on `BetaOrgRole` is what lets `satisfies Record<...>`
+ * keep proving that every enum value has a label; a fifth key would break that
+ * proof to encode something the enum does not contain.
  */
 export const ROLE_LABEL_KEY = {
   owner: "nastaveni.roleOwner",
@@ -29,6 +30,31 @@ export const ROLE_LABEL_KEY = {
   member: "nastaveni.roleMember",
   guest: "nastaveni.roleGuest",
 } as const satisfies Record<BetaOrgRole, BetaMessageKey>
+
+/**
+ * The label ONE SEAT reads, given its role and whether it is an employee seat
+ * (spec §2.6.1: "member displays as 'Pracovník firmy (vedení)', employee seat
+ * displays as 'Zaměstnanec'").
+ *
+ * WHY THE DISTINCTION IS WORTH RENDERING AT ALL. Spec §2.6.1's own argument is
+ * mis-assignment: a Lidé page that shows two rows both reading "Host", one of
+ * which silently reads a person's payslips, gives the company admin no way to
+ * see who has what. Deactivating the wrong one, or leaving a leaver's seat live,
+ * both start with not being able to tell them apart.
+ *
+ * IT IS A DISPLAY FACT, NOT A PERMISSION. Nothing branches on this string; the
+ * seat's actual narrowing is `payrollScope` and `isEmployeeSeat`, several layers
+ * below. A guest with no link still reads "Host", which remains true of them.
+ */
+export function orgRoleLabelKey(member: {
+  readonly role: BetaOrgRole
+  readonly employeeSeat: boolean
+}): BetaMessageKey {
+  if (member.role === "guest" && member.employeeSeat) {
+    return "nastaveni.roleEmployee"
+  }
+  return ROLE_LABEL_KEY[member.role]
+}
 
 /**
  * The Czech label for every editable identity-card field, keyed by the SAME

@@ -1,6 +1,7 @@
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { requireBetaSession } from "@/lib/auth/session"
 import { formatBetaMoney } from "@/lib/format/money"
+import { isEmployeeSeat } from "@/lib/data/scope"
 import { ORG_ROLE_LABEL_KEY } from "@/lib/role-labels"
 
 import { ClientTaskList } from "./_components/client-task-list"
@@ -9,6 +10,7 @@ import { DataPresence } from "./_components/data-presence"
 import { FirstMonthNotice } from "./_components/first-month-notice"
 import { KpiTiles, type KpiTile } from "./_components/kpi-tiles"
 import { RecentDocuments } from "./_components/recent-documents"
+import { SeatPrehled } from "./_components/seat-prehled"
 import { TurnoverWatch } from "./_components/turnover-watch"
 import { UpcomingDeadlines } from "./_components/upcoming-deadlines"
 import {
@@ -30,9 +32,11 @@ import { resolveOrgScope } from "./_lib/org-scope"
  *   5. Karta společnosti          — `CompanyCard`
  *   6. Poslední dokumenty         — `RecentDocuments`
  *
- * EVERY ROLE SEES ALL OF IT (§5: guest is an external VIEWER of client-visible
- * data, not a blinded one). The only role-dependent thing on the page is the
- * greeting's own label — and the page is READ-ONLY for every role including
+ * EVERY ROLE SEES ALL OF IT EXCEPT THE EMPLOYEE SEAT (§5: guest is an external
+ * VIEWER of client-visible data, not a blinded one; §2.6.1 gives the seat a
+ * personal Přehled with no company financials, which is `SeatPrehled` and is
+ * branched to before this page reads anything). The only other role-dependent
+ * thing here is the greeting's own label — and the page is READ-ONLY for every role including
  * owner, per §3.3: completing a task, editing a filing or correcting an amount
  * all happen in Pro účetní › Zadávání dat, and there is no affordance here for
  * any of them.
@@ -58,6 +62,14 @@ export default async function OrgHomePage({
     getBetaTranslations(),
     requireBetaSession(),
   ])
+
+  // THE EMPLOYEE SEAT NEVER REACHES `loadPrehled` (spec §2.6.1: "Přehled
+  // personal … no company financials"). The branch is here, above the loader,
+  // rather than inside it — `seat-prehled.tsx` explains why that placement is
+  // the security property rather than a rendering preference.
+  if (isEmployeeSeat(scope)) {
+    return <SeatPrehled scope={scope} orgSlug={orgSlug} />
+  }
 
   const data = await loadPrehled(scope)
 

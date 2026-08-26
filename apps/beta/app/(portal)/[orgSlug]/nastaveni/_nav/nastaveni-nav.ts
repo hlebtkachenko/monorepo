@@ -29,10 +29,17 @@ export type NastaveniNavItem = {
   readonly slug: string
   /** `true` when the tab is only for roles that administer people (§5). */
   readonly peopleManagement?: true
+  /**
+   * `true` when the tab shows the COMPANY rather than the viewer (PR 33). Spec
+   * §2.6.1 keeps company data away from the employee seat, and the identity card
+   * — IČO, sídlo, bank account, datová schránka, spisová značka — is company
+   * data even though it is not a financial statement.
+   */
+  readonly company?: true
 }
 
 export const NASTAVENI_NAV: readonly NastaveniNavItem[] = [
-  { labelKey: "nastaveni.navSpolecnost", slug: "spolecnost" },
+  { labelKey: "nastaveni.navSpolecnost", slug: "spolecnost", company: true },
   { labelKey: "nastaveni.navLide", slug: "lide", peopleManagement: true },
   { labelKey: "nastaveni.navUcet", slug: "ucet" },
 ]
@@ -45,11 +52,32 @@ export const NASTAVENI_NAV: readonly NastaveniNavItem[] = [
  * to the browser and the filter never runs there — a client-side filter would
  * be a hint, and this is a visibility rule.
  */
+/**
+ * The viewer's facts, as the caller's resolved scope already carries them.
+ *
+ * PLAIN FACTS, NOT AN `OrgScope`, and that is load-bearing rather than a style
+ * choice: this module is imported by `NastaveniNavTabs`, a CLIENT component, so
+ * anything it imports is bundled for the browser. `lib/data/scope.ts` is
+ * `server-only` and pulls in the database client — taking a scope here would
+ * either break the build or, worse, ship the data layer to the browser. It also
+ * keeps the module PURE, so `nastaveni-nav.test.ts` can assert the matrix
+ * without minting a branded handle it deliberately cannot construct.
+ */
+export type NastaveniViewer = {
+  readonly role: BetaOrgRole
+  /** `isEmployeeSeat(scope)`, resolved by the caller (spec §2.6.1). */
+  readonly employeeSeat: boolean
+}
+
 export function nastaveniNavFor(
-  role: BetaOrgRole,
+  viewer: NastaveniViewer,
 ): readonly NastaveniNavItem[] {
-  const manages = managesPeople({ kind: "organization", role })
-  return NASTAVENI_NAV.filter((item) => !item.peopleManagement || manages)
+  const manages = managesPeople({ kind: "organization", role: viewer.role })
+  return NASTAVENI_NAV.filter(
+    (item) =>
+      (!item.peopleManagement || manages) &&
+      (!item.company || !viewer.employeeSeat),
+  )
 }
 
 /**
@@ -60,6 +88,26 @@ export function nastaveniNavFor(
  * account menu and the redirect separately.
  */
 export const NASTAVENI_DEFAULT_SLUG = "spolecnost"
+
+/** Where the employee seat lands instead: their own account (PR 33). */
+export const NASTAVENI_SEAT_DEFAULT_SLUG = "ucet"
+
+/**
+ * The landing target for THIS viewer.
+ *
+ * THE SEAT KEEPS NASTAVENÍ, and that is a deliberate, narrow departure from
+ * §2.6.1's "Everything else 404". Účet is the page where an account changes its
+ * own password and enrols a second factor; an account with no way to reach it is
+ * an account its holder cannot secure, and it contains no company data at all —
+ * it is about the viewer. Společnost, which IS company data, is filtered out of
+ * the tab row above and refused by its own page. Lidé already 404s for any guest
+ * through `peopleForScope`.
+ */
+export function nastaveniDefaultSlug(viewer: NastaveniViewer): string {
+  return viewer.employeeSeat
+    ? NASTAVENI_SEAT_DEFAULT_SLUG
+    : NASTAVENI_DEFAULT_SLUG
+}
 
 export function nastaveniHref(orgSlug: string, slug: string): string {
   return `/${orgSlug}/nastaveni/${slug}`

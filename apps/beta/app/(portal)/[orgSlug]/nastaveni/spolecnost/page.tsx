@@ -6,6 +6,8 @@ import { formatBetaAddress, formatBetaBankAccount } from "@/lib/format/identity"
 import { organizationIdentity } from "@/lib/data/organization-identity"
 import { financniUradName } from "@/lib/tax-office"
 
+import { assertNotEmployeeSeat } from "@/lib/data/scope"
+
 import { SectionTitle } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
@@ -25,6 +27,14 @@ import { CompanyForm } from "../_components/company-form"
  * The read view is deliberately NOT a disabled copy of the form. A greyed-out
  * input row invites "why can't I edit this?"; a plain definition list says what
  * the company is, which is what a non-owner came for.
+ *
+ * THE EMPLOYEE SEAT IS THE ONE ROLE THAT SEES NOTHING HERE (spec §2.6.1, PR 33).
+ * The identity card is the company — IČO, sídlo, bank account, datová schránka,
+ * spisová značka — and "no company financials" is not satisfied by withholding
+ * only the statements. The tab is filtered out of the row above
+ * (`nastaveniNavFor`); this is the enforcement.
+ *
+ * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
  */
 export default async function SpolecnostPage({
   params,
@@ -33,6 +43,7 @@ export default async function SpolecnostPage({
 }) {
   const { orgSlug } = await params
   const scope = await resolveOrgScope(orgSlug)
+  assertNotEmployeeSeat(scope)
   const identity = await organizationIdentity(scope)
   if (!identity) notFound()
 

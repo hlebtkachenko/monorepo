@@ -23,7 +23,7 @@ import {
   inviteMemberAction,
   setMemberActiveAction,
 } from "../_actions/people"
-import { ROLE_LABEL_KEY } from "../_components/labels"
+import { orgRoleLabelKey, ROLE_LABEL_KEY } from "../_components/labels"
 
 import { PeopleActionForm } from "./_components/people-action-form"
 
@@ -123,7 +123,7 @@ export default async function LidePage({
                       the current label is the whole truth for that row. */}
                   {member.assignableRoles.length === 0 ? (
                     <span className="text-sm">
-                      {t(ROLE_LABEL_KEY[member.role])}
+                      {t(orgRoleLabelKey(member))}
                     </span>
                   ) : (
                     <PeopleActionForm

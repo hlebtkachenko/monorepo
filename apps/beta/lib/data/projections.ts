@@ -173,6 +173,19 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   // `visible_to_client` is the hidden-class flag itself. A row that reached a
   // client tier has already been filtered on it; echoing it would tell that
   // client the mechanism exists and invite a UI to branch on it.
+  // payroll_employee / user_setup_token — the employee seat's binding (PR 33).
+  //
+  // `app_user_id` is which portal account a named person's payroll belongs to;
+  // `payroll_employee_id` is the same fact on an unconsumed invite. Neither is a
+  // secret in the "if leaked, game over" sense — but shipping either would
+  // invite the next feature to accept one BACK from a browser, and "here is an
+  // employee row id, give me its payslips" is the one shape of this API that
+  // cannot be made safe. `PayrollEmployeeView` already derives the boolean the
+  // register actually renders (`hasPortalAccount`) rather than carrying the id,
+  // and `PeopleRow.employeeSeat` does the same on the membership side; these
+  // entries are what stops a projection added later from starting.
+  "app_user_id",
+  "payroll_employee_id",
   "internal_note",
   "storage_key",
   // The derivative's key (PR 11). Listed separately because the normalizer

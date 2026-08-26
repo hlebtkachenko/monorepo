@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
 
+import { assertNotEmployeeSeat } from "@/lib/data/scope"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { DaneNavTabs } from "./_components/dane-nav-tabs"
@@ -14,6 +16,15 @@ import { resolveVisibleFilingFamilies } from "./_lib/dane-scope"
  * thing this layout needs it for; `resolveVisibleFilingFamilies` (itself
  * `cache()`-wrapped) does the one real extra read.
  */
+/**
+ * THE EMPLOYEE SEAT DOES NOT HAVE THIS MODULE (spec §2.6.1: its rail is Přehled ·
+ * Dokumenty · Moje mzda, and "Everything else 404"). `assertNotEmployeeSeat` is
+ * that sentence, applied once at the module root so every leaf beneath it
+ * inherits the refusal — a Next layout renders for every nested route, which is
+ * exactly the property a whitelist wants.
+ *
+ * `payroll-seat-fence.boundary.test.ts` fails if this call is ever removed.
+ */
 export default async function DaneLayout({
   children,
   params,
@@ -22,7 +33,7 @@ export default async function DaneLayout({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  await resolveOrgScope(orgSlug)
+  assertNotEmployeeSeat(await resolveOrgScope(orgSlug))
   const visibleFamilies = await resolveVisibleFilingFamilies(orgSlug)
 
   return (

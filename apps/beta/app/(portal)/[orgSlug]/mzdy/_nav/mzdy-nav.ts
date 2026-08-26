@@ -30,6 +30,24 @@ export const MZDY_NAV: readonly MzdyNavItem[] = [
   { labelKey: "mzdy.navVyplatnice", slug: "vyplatnice" },
 ]
 
+/**
+ * The EMPLOYEE SEAT's Mzdy nav (spec §2.6.1) — one entry, and not one of the
+ * five above.
+ *
+ * A SEPARATE LIST RATHER THAN A FILTER over `MZDY_NAV`. The seat's page is not a
+ * management page it is allowed a subset of; it is a different page
+ * (`moje-mzda`) that only the seat has, showing only that person's rows. A
+ * filtered list would imply the two navs are the same list seen from two angles,
+ * and the next tab added to `MZDY_NAV` would silently have to be considered for
+ * the seat. Two lists means adding a management tab is a management-only act.
+ *
+ * IT IS STILL NOT THE GATE. `mzdy/layout.tsx` and `moje-mzda/page.tsx` both
+ * answer 404 on their own; this decides what is advertised.
+ */
+export const MZDY_SEAT_NAV: readonly MzdyNavItem[] = [
+  { labelKey: "mzdy.mojeMzdaTitle", slug: "moje-mzda" },
+]
+
 export function mzdyHref(orgSlug: string, slug: string): string {
   return slug === "" ? `/${orgSlug}/mzdy` : `/${orgSlug}/mzdy/${slug}`
 }

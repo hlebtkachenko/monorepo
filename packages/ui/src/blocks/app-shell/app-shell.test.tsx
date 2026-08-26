@@ -4,6 +4,11 @@ import { afterEach, describe, it, expect, vi } from "vitest"
 
 import { NextIntlClientProvider } from "@workspace/i18n/client"
 import messages from "@workspace/i18n/messages/en.json"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@workspace/ui/components/tooltip"
 import { IconProvider } from "@workspace/ui/icon-packs"
 
 import { AppShell } from "./app-shell"
@@ -65,6 +70,31 @@ describe("AppShell", () => {
     expect(
       container.querySelector("[data-slot='app-shell-assistant']"),
     ).toBeNull()
+  })
+
+  it("renders Tooltip-based header and rail children without a local TooltipProvider (regression: header/rail must share the shell's tooltip scope)", () => {
+    const tooltipChild = (testId: string) => (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" data-testid={testId}>
+            Trigger
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>Tip</TooltipContent>
+      </Tooltip>
+    )
+    expect(() =>
+      render(
+        <AppShell
+          header={tooltipChild("header-tooltip-trigger")}
+          rail={tooltipChild("rail-tooltip-trigger")}
+        >
+          <div />
+        </AppShell>,
+      ),
+    ).not.toThrow()
+    expect(screen.getByTestId("header-tooltip-trigger")).toBeInTheDocument()
+    expect(screen.getByTestId("rail-tooltip-trigger")).toBeInTheDocument()
   })
 
   it("exposes a skip-to-content link and a named main landmark", () => {

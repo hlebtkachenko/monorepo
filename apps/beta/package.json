@@ -20,6 +20,7 @@
     "@aws-sdk/lib-storage": "^3.1085.0",
     "@workspace/email": "workspace:*",
     "@workspace/i18n": "workspace:*",
+    "@workspace/registries": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",
     "better-auth": "1.6.13",

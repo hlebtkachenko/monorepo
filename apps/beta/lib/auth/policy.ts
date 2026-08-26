@@ -55,6 +55,28 @@ export const BETA_COOKIE_NAMES = {
   session_data: hostCookie("session_data"),
   dont_remember: hostCookie("dont_remember"),
   account_data: hostCookie("account_data"),
+  /**
+   * The twoFactor() plugin's own two cookies (PR 21).
+   *
+   * `two_factor` is the short-lived challenge ticket minted when a sign-in with
+   * 2FA enabled succeeds on the password but has not yet produced a session —
+   * possession of it is what lets `/two-factor/verify-totp` finish the sign-in,
+   * so it is a credential in flight and belongs in the same `__Host-` namespace
+   * as the session token. `trust_device` is the "skip 2FA on this device"
+   * marker, which beta never asks for (the UI passes no `trustDevice`), named
+   * here so a future flip of that switch cannot silently emit a
+   * differently-scoped cookie.
+   *
+   * Better Auth composes plugin cookie names as `<prefix>.<key>` and honours an
+   * override for ANY key in `advanced.cookies`, not just the four core ones
+   * (verified in 1.6.13, `dist/cookies/index.mjs` `createCookieGetter`) — so
+   * without these entries both would ship as `beta-auth.two_factor` /
+   * `beta-auth.trust_device`: still beta's own prefix, still `Secure` +
+   * host-only via `defaultCookieAttributes`, but without the prefix the BROWSER
+   * enforces. Naming them makes that enforcement structural.
+   */
+  two_factor: hostCookie("two_factor"),
+  trust_device: hostCookie("trust_device"),
 } as const
 
 /**
@@ -97,7 +119,49 @@ export const BETA_RATE_LIMIT_MAX = 60
 export const BETA_RATE_LIMIT_RULES = {
   "/sign-in/email": { window: 60, max: 5 },
   "/sign-out": { window: 60, max: 10 },
+  /**
+   * The second factor (PR 21). `/two-factor/verify-totp` and
+   * `/two-factor/verify-backup-code` are the two endpoints where a SECRET is
+   * being guessed rather than a session being used: a TOTP code is six digits
+   * (10^6, and roughly 3 valid windows at any moment) and a backup code is
+   * consumed once. They get the same 5/minute budget as `/sign-in/email` for
+   * exactly the reason that one has it — un-budgeted, the whole second factor is
+   * worth about as much as the digits it is made of.
+   *
+   * The management endpoints (`enable`, `disable`, `generate-backup-codes`) are
+   * password-gated and sit behind a live session, so their budget is a
+   * blast-radius cap on a stolen session rather than an anti-guessing one: it
+   * bounds how fast such a session can churn a victim's enrolment.
+   *
+   * `/change-password` verifies the CURRENT password, which makes it a second
+   * credential-guessing oracle for anyone holding a session — tightened to the
+   * sign-in budget for the same reason. `/update-user` carries no secret at all
+   * (beta posts only `name` through it), so it gets the looser session cap.
+   */
+  "/two-factor/verify-totp": { window: 60, max: 5 },
+  "/two-factor/verify-backup-code": { window: 60, max: 5 },
+  "/two-factor/enable": { window: 60, max: 5 },
+  "/two-factor/disable": { window: 60, max: 5 },
+  "/two-factor/generate-backup-codes": { window: 60, max: 5 },
+  "/change-password": { window: 60, max: 5 },
+  "/update-user": { window: 60, max: 20 },
 } as const
+
+/**
+ * TOTP policy (PR 21).
+ *
+ * The issuer is what an authenticator app shows next to the code, so it has to
+ * name the ENVIRONMENT and not just the product: an office user will hold beta
+ * and (later) production entries side by side, and two rows both saying
+ * "Afframe" is how someone types the wrong six digits for a week. It is not
+ * derived from `appName`, which is an internal identifier.
+ *
+ * The challenge window is 5 minutes rather than Better Auth's 10: the ticket is
+ * a credential in flight (see `BETA_COOKIE_NAMES.two_factor`) and beta's own
+ * enrolment flow never needs more than one code entry.
+ */
+export const BETA_TOTP_ISSUER = "Afframe beta"
+export const BETA_TWO_FACTOR_COOKIE_MAX_AGE_SECONDS = 300
 
 /**
  * Setup-link consume limit. The consume path is a Server Action, which never

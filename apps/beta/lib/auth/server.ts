@@ -5,6 +5,7 @@ import { betterAuth } from "better-auth"
 import { APIError } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
 import { nextCookies } from "better-auth/next-js"
+import { twoFactor } from "better-auth/plugins/two-factor"
 import { eq } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
@@ -13,6 +14,7 @@ import {
   auth_account,
   auth_session,
   auth_verification,
+  two_factor,
 } from "@/db/schema"
 
 import {
@@ -24,6 +26,8 @@ import {
   BETA_RATE_LIMIT_WINDOW_SECONDS,
   BETA_SESSION_EXPIRES_IN_SECONDS,
   BETA_SESSION_UPDATE_AGE_SECONDS,
+  BETA_TOTP_ISSUER,
+  BETA_TWO_FACTOR_COOKIE_MAX_AGE_SECONDS,
 } from "./policy"
 
 /**
@@ -53,9 +57,6 @@ import {
  *     `requireEmailVerification`. Beta sends no mail yet: setup links are handed
  *     out by the office through /admin (PR 08). A verification hook here would
  *     be a hook with nothing behind it.
- *   - The `twoFactor()` plugin. The `two_factor` table exists, but enrolment UI
- *     lands with Nastavení › Účet (PR 21). Turning the plugin on before the
- *     enrolment screen exists would gate owners on a flow they cannot complete.
  *   - `crossSubDomainCookies`. Setting it would hand beta's session to every
  *     `*.afframe.com` host. See `policy.ts` for the full cookie rationale.
  *   - Any middleware cookie peek. The portal gate is a server-side
@@ -155,10 +156,15 @@ function createBetaAuth() {
         auth_session,
         auth_account,
         auth_verification,
+        two_factor,
         user: app_user,
         session: auth_session,
         account: auth_account,
         verification: auth_verification,
+        // Both spellings again: the plugin addresses the model as `twoFactor`,
+        // the adapter resolves it by the `modelName` given in the plugin's
+        // `schema` option below.
+        twoFactor: two_factor,
       },
     }),
     secret: readSecret(),
@@ -283,6 +289,12 @@ function createBetaAuth() {
         session_data: { name: BETA_COOKIE_NAMES.session_data },
         dont_remember: { name: BETA_COOKIE_NAMES.dont_remember },
         account_data: { name: BETA_COOKIE_NAMES.account_data },
+        // The twoFactor() plugin's own cookies. Better Auth composes plugin
+        // cookie names through the same `createAuthCookie` getter, which honours
+        // an override for any key — so these land in the `__Host-` namespace
+        // like the core four, instead of the bare `beta-auth.` prefix.
+        two_factor: { name: BETA_COOKIE_NAMES.two_factor },
+        trust_device: { name: BETA_COOKIE_NAMES.trust_device },
       },
       defaultCookieAttributes: { ...BETA_COOKIE_ATTRIBUTES },
       database: {
@@ -295,10 +307,52 @@ function createBetaAuth() {
       // for why this is `cf-connecting-ip` alone.
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
     },
-    // MUST stay last in the chain: it forwards Better Auth's Set-Cookie into
-    // Next's cookie store so Server Actions that sign a user in actually
-    // establish the session.
-    plugins: [nextCookies()],
+    plugins: [
+      /**
+       * TOTP, and TOTP only (PR 21, spec §2.10 "Účet: 2FA (forced for owner)").
+       *
+       * The plugin ships three second factors and beta enables one. `otp` needs
+       * a `sendOTP` transport and beta sends no mail (see WHAT IS DELIBERATELY
+       * ABSENT above), so leaving it unconfigured is what keeps it off — it is
+       * only advertised when `otpOptions.sendOTP` exists. Backup codes come
+       * along with the plugin and are the answer to a lost phone, which an
+       * office of this size otherwise resolves by an operator resetting the
+       * factor out of band.
+       *
+       * `skipVerificationOnEnable` is NOT set. The default two-step enrolment
+       * (generate, then prove a code before the factor counts) is the whole
+       * point: skipping it enrolls a user against a secret they may have failed
+       * to store, and the next sign-in is the first time anyone finds out.
+       *
+       * The `schema` block is the plugin's half of the snake_case contract in
+       * `db/schema/auth.ts`. `secret` and `verified` need no entry — the field
+       * name and the column name already agree.
+       *
+       * `user.fields.twoFactorEnabled` HAS to be repeated here even though the
+       * top-level `user` block above already maps it. A plugin's fields are
+       * merged through `mergeSchema(pluginSchema, pluginOptions.schema)`
+       * (better-auth 1.6.13, `dist/db/schema.mjs`), which reads the PLUGIN's own
+       * `schema` option and never the root `user.fields` — so without this entry
+       * the column resolves as `twoFactorEnabled` and the Drizzle adapter throws
+       * `The field "twoFactorEnabled" does not exist in the "app_user" Drizzle
+       * schema` on the first enrolment. Verified by the lifecycle test.
+       */
+      twoFactor({
+        issuer: BETA_TOTP_ISSUER,
+        twoFactorCookieMaxAge: BETA_TWO_FACTOR_COOKIE_MAX_AGE_SECONDS,
+        schema: {
+          user: { fields: { twoFactorEnabled: "two_factor_enabled" } },
+          twoFactor: {
+            modelName: "two_factor",
+            fields: { userId: "user_id", backupCodes: "backup_codes" },
+          },
+        },
+      }),
+      // MUST stay last in the chain: it forwards Better Auth's Set-Cookie into
+      // Next's cookie store so Server Actions that sign a user in actually
+      // establish the session.
+      nextCookies(),
+    ],
   })
 }
 

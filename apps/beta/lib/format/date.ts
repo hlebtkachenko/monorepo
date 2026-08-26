@@ -26,6 +26,22 @@ export function formatBetaDate(value: string): string {
   return dateFormatter.format(new Date(value))
 }
 
+const dateTimeFormatter = new Intl.DateTimeFormat(BETA_LOCALE, {
+  ...betaFormats.dateTime.dateTime,
+  timeZone: BETA_TIME_ZONE,
+})
+
+/**
+ * An ISO instant → `DD.MM.YYYY HH:MM`, Europe/Prague.
+ *
+ * For the stamps where the DAY is not precise enough to be useful: the §2.10
+ * ARES cache stamp is a 24h window, so "naposledy načteno 26.08.2026" cannot
+ * tell the office whether a re-lookup will hit the cache or the registry.
+ */
+export function formatBetaDateTime(value: string): string {
+  return dateTimeFormatter.format(new Date(value))
+}
+
 /**
  * The current calendar year, in Prague local time — Souhrn's "current-year
  * timeline" (spec §2.3) filters on THIS, not on `new Date().getFullYear()`

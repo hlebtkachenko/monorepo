@@ -306,6 +306,9 @@ importers:
       '@workspace/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@workspace/registries':
+        specifier: workspace:*
+        version: link:../../packages/registries
       '@workspace/shared':
         specifier: workspace:*
         version: link:../../packages/shared

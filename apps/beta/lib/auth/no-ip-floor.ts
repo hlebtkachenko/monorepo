@@ -38,14 +38,25 @@ import { authRateLimitKey } from "./request-ip"
  */
 
 /**
- * The paths worth their own budget. Deliberately the two that
+ * The paths worth their own budget. Deliberately the ones that
  * `BETA_RATE_LIMIT_RULES` singles out for Better Auth's own limiter — the ones
- * with a credential or a session behind them. Everything else on beta's tiny
- * auth surface is a read.
+ * with a credential behind them. Everything else on beta's tiny auth surface is
+ * a read or a session-gated write and shares `other`.
+ *
+ * The three second-factor / password paths joined in PR 21. They are the whole
+ * point of this floor: `/sign-in/email` is protected by a password, but
+ * `/two-factor/verify-totp` is protected by six digits, and an unmetered
+ * six-digit endpoint is not a second factor. The management endpoints
+ * (`enable` / `disable` / `generate-backup-codes`) stay in `other` — they need
+ * a live session AND the account password, so they are not an oracle anyone can
+ * grind from outside.
  */
 const BUDGETED_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/sign-in/email",
   "/api/auth/sign-out",
+  "/api/auth/two-factor/verify-totp",
+  "/api/auth/two-factor/verify-backup-code",
+  "/api/auth/change-password",
 ])
 
 const OTHER_BUCKET = "other"

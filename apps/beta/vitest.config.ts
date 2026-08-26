@@ -99,6 +99,16 @@ export default defineConfig({
             // adversarially, and a suite that needs Docker to assert "a body
             // naming an organization is refused" is a suite that gets skipped.
             "lib/agent/**/*.test.ts",
+            // PR 21, same rule: the ARES reconciliation rules are a pure diff
+            // over two plain objects and a fetch behind an injected `fetchImpl`,
+            // the ÚFO číselník is a Map, and the forced-TOTP predicate is three
+            // booleans. None of them has a database underneath, and the ARES
+            // rules in particular are the ones most worth testing adversarially
+            // — a suite that needs Docker to assert "a null DIČ never touches
+            // vat_regime" is a suite that gets skipped.
+            "lib/ares/**/*.test.ts",
+            "lib/tax-office.test.ts",
+            "lib/auth/totp-enforcement.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -161,6 +171,9 @@ export default defineConfig({
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
             "lib/notifications/**/*.test.ts",
+            "lib/ares/**/*.test.ts",
+            "lib/tax-office.test.ts",
+            "lib/auth/totp-enforcement.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

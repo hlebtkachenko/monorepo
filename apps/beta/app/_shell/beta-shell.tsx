@@ -11,7 +11,6 @@ import { Badge } from "@workspace/ui/components/badge"
 
 import { useBetaTranslations } from "@/i18n/translations"
 
-import { SignOutButton } from "../_components/sign-out-button"
 import { betaRailNav } from "../_nav/beta-nav"
 
 /**
@@ -41,6 +40,7 @@ export function BetaShell({
   orgSlug,
   orgLegalName,
   switcher,
+  accountMenu,
   isOwner = false,
 }: {
   children: React.ReactNode
@@ -48,6 +48,14 @@ export function BetaShell({
   orgLegalName: string
   /** The header org-switcher, or omitted for a viewer with only one org. */
   switcher?: React.ReactNode
+  /**
+   * The header account menu (PR 21) — Nastavení's entry point, since Nastavení
+   * deliberately does NOT sit in the rail (spec §1). Passed in already built by
+   * the layout, which is the one place that knows the viewer's name, e-mail and
+   * staff-ness; this component stays a dumb data-in composition, exactly as it
+   * does for `switcher`.
+   */
+  accountMenu?: React.ReactNode
   /** Gates the "Pro účetní" rail entry (spec §5) — see `beta-nav.ts`. */
   isOwner?: boolean
 }) {
@@ -78,9 +86,10 @@ export function BetaShell({
               </Badge>
             </>
           }
-          // Sign-out lives here until the header account menu lands with
-          // Nastavení › Účet (PR 21) — see the note on SignOutButton.
-          actions={<SignOutButton />}
+          // The account menu carries Nastavení AND sign-out (PR 21). The bare
+          // SignOutButton it replaced still exists for /admin and the pre-org
+          // root picker, which draw their own chrome and have no menu.
+          actions={accountMenu}
         />
       }
       rail={

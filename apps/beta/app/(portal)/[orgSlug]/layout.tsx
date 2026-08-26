@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { activeMembershipsForViewer } from "@/lib/data/memberships"
 import { organizationForScope } from "@/lib/data/organizations"
 
+import { AccountMenu } from "../../_components/account-menu"
 import { OrgSwitcher } from "../../_components/org-switcher"
 import { BetaShell } from "../../_shell/beta-shell"
 
@@ -29,7 +30,7 @@ export default async function OrgLayout({
   const { orgSlug } = await params
   const scope = await resolveOrgScope(orgSlug)
 
-  const [org, { memberships }] = await Promise.all([
+  const [org, { memberships, viewer, isStaff }] = await Promise.all([
     organizationForScope(scope),
     activeMembershipsForViewer(),
   ])
@@ -50,6 +51,17 @@ export default async function OrgLayout({
       orgSlug={scope.organizationSlug}
       orgLegalName={org.legalName}
       switcher={switcher}
+      accountMenu={
+        <AccountMenu
+          orgSlug={scope.organizationSlug}
+          name={viewer.name}
+          email={viewer.email}
+          // `is_staff` decides here, on the server, and only a boolean crosses:
+          // an /admin entry rendered for someone `requireOffice()` will 404 is a
+          // dead link.
+          staffLink={isStaff}
+        />
+      }
       isOwner={scope.role === "owner"}
     >
       {children}

@@ -1,4 +1,5 @@
 import { requireBetaSession } from "@/lib/auth/session"
+import { requireTotpEnrolment } from "@/lib/data/account"
 
 /**
  * Every route inside the portal requires a session; none of them renders
@@ -19,6 +20,15 @@ import { requireBetaSession } from "@/lib/auth/session"
  * now mounts one level down, in `[orgSlug]/layout.tsx`, which is the first
  * point in the tree that has resolved one. The root picker
  * (`app/(portal)/page.tsx`) draws its own minimal chrome instead.
+ *
+ * FORCED TOTP (PR 21, spec §2.0.1 / §2.10). An office account — one holding an
+ * active owner membership, or `is_staff` — that has not enrolled a second factor
+ * is redirected to `/zabezpeceni` from HERE, which is the parent of every
+ * authenticated client surface: the root picker, every `[orgSlug]` page, and
+ * everything under them. /admin has the same gate in its own layout, since it
+ * lives outside this group. The mandate is deliberately NOT a database
+ * constraint — a constraint would lock the account out of the enrolment page
+ * too.
  */
 export default async function PortalLayout({
   children,
@@ -26,5 +36,6 @@ export default async function PortalLayout({
   children: React.ReactNode
 }>) {
   await requireBetaSession()
+  await requireTotpEnrolment()
   return <>{children}</>
 }

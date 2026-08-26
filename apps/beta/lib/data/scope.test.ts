@@ -19,11 +19,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
+import { hashAgentKey } from "@/lib/agent/key"
+
 import {
   addMembership,
   anonymousHeaders,
   archiveOrganization,
   createAccount,
+  createAgentKeyRow,
   createOrganization,
   disableAccount,
   endFixtures,
@@ -32,6 +35,7 @@ import {
   sessionTokenOf,
   setMembershipActive,
   setStaff,
+  setTwoFactorEnabled,
   type TestOrganization,
 } from "../../tests/fixtures"
 import type { OrgScope, OwnerScope } from "./scope"
@@ -46,8 +50,15 @@ vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
 }))
 
-const { requireScope, requireOffice, assertOwner, requireOwner } =
-  await import("./scope")
+const {
+  requireScope,
+  requireOffice,
+  assertOwner,
+  requireOwner,
+  resolveOrgScope,
+  resolveAgentScope,
+  resolveAgentOwnerScope,
+} = await import("./scope")
 const { organizationForScope } = await import("./organizations")
 const { forbiddenClientKeys } = await import("./projections")
 
@@ -409,6 +420,10 @@ describe("the handle itself", () => {
       userId: orgA.members.member.userId,
       role: "member",
       isStaff: false,
+      // A resolved VERDICT, not `two_factor_enabled` (PR 22). It is always
+      // true on a scope that exists — an unenrolled office account never gets
+      // one — and it is here so `requireOwner` can assert it synchronously.
+      totpSatisfied: true,
     })
     expect(Object.getOwnPropertySymbols(scope)).toHaveLength(1)
   })
@@ -421,5 +436,165 @@ describe("the handle itself", () => {
     // object: the projections are what pages hand to components.
     expect(scope.isStaff).toBe(true)
     expect(forbiddenClientKeys(await organizationForScope(scope))).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The second factor, folded into the seam (PR 22 — Advisor carry-in from 21)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT THIS CLOSES. The forced-TOTP mandate used to live in two LAYOUTS, which
+ * covers page renders and nothing else. A Server Action is a POST to a
+ * generated endpoint that runs its own `requireScope` and never re-enters the
+ * layout above it, so an unenrolled office account with a tab still open could
+ * invoke any write in the application. `requireScope` / `requireOffice` /
+ * `requireOwner` now refuse it themselves.
+ *
+ * `redirect()` rather than `notFound()`, and that is deliberate: the caller
+ * genuinely holds the membership, so the 404 doctrine (never confirm what you
+ * are not entitled to ask about) does not apply, and sending them to the
+ * enrolment screen is the only outcome that is not a dead end.
+ */
+describe("the second-factor mandate in the seam", () => {
+  const REDIRECT_PREFIX = "NEXT_REDIRECT"
+
+  async function expectEnrolmentRedirect(
+    run: () => Promise<unknown> | unknown,
+    because: string,
+  ): Promise<void> {
+    let digest = "<no throw>"
+    try {
+      await run()
+    } catch (error) {
+      digest = String((error as { digest?: unknown }).digest ?? error)
+    }
+    expect(digest, because).toContain(REDIRECT_PREFIX)
+    expect(digest, because).toContain("/zabezpeceni")
+  }
+
+  it("refuses an unenrolled owner an organization scope", async () => {
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+
+    as(org.members.owner.headers)
+    await expectEnrolmentRedirect(
+      () => requireScope(org.slug),
+      "an office account must hold a second factor",
+    )
+  })
+
+  it("lets the same owner through once enrolled", async () => {
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+    await setTwoFactorEnabled(org.members.owner.userId, true)
+
+    as(org.members.owner.headers)
+    const scope = await requireScope(org.slug)
+    expect(scope.role).toBe("owner")
+    expect(scope.totpSatisfied).toBe(true)
+  })
+
+  it("leaves admin, member and guest entirely alone", async () => {
+    const org = await seedOrganization()
+
+    // They are not under the mandate at all (`totp-enforcement.ts`): forcing an
+    // authenticator app on a site foreman is how a shared login gets created.
+    for (const role of ["admin", "member", "guest"] as const) {
+      as(org.members[role].headers)
+      const scope = await requireScope(org.slug)
+      expect(scope.role, role).toBe(role)
+      expect(scope.totpSatisfied, role).toBe(true)
+    }
+  })
+
+  it("refuses an unenrolled STAFF account holding a non-owner membership", async () => {
+    // `is_staff` is the other half of the mandate's disjunction, and it is the
+    // one that matters: a staff account opens /admin, which mints memberships
+    // into every book. A staff member seated as an org `admin` is still office
+    // staff.
+    const org = await seedOrganization()
+    const staff = await createAccount({ staff: true, twoFactorEnabled: false })
+    await addMembership(org.organizationId, staff.userId, "admin")
+
+    as(staff.headers)
+    await expectEnrolmentRedirect(
+      () => requireScope(org.slug),
+      "staff-ness carries the mandate on its own",
+    )
+  })
+
+  it("refuses an unenrolled office account /admin as well", async () => {
+    const staff = await createAccount({ staff: true, twoFactorEnabled: false })
+    as(staff.headers)
+    await expectEnrolmentRedirect(
+      () => requireOffice(),
+      "the cross-org door has the same mandate",
+    )
+  })
+
+  it("lets an enrolled office account into /admin", async () => {
+    const staff = await createAccount({ staff: true })
+    as(staff.headers)
+    const office = await requireOffice()
+    expect(office.isStaff).toBe(true)
+  })
+
+  it("answers 404, not a redirect, when the caller is not staff at all", async () => {
+    // The mandate must not become an oracle: a non-staff account probing
+    // /admin has to see the same 404 it always did, never "enrol first".
+    const outsider = await createAccount()
+    as(outsider.headers)
+    await expect404(() => requireOffice(), "not staff, and not told why")
+  })
+
+  it("keeps the route-handler arm on 404 — `resolveOrgScope` answers null", async () => {
+    // A 307 to an HTML enrolment page is not a useful answer to a fetch for a
+    // file, so the null-returning door collapses the mandate back into the
+    // ordinary refusal every route handler already renders as a 404.
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+
+    as(org.members.owner.headers)
+    expect(await resolveOrgScope(org.slug)).toBeNull()
+  })
+
+  it("leaves the agent door untouched — a key is not an interactive session", async () => {
+    // The acting accountant's authenticator has nothing to do with an
+    // unattended ingestion key: the key IS a second factor, it is revocable on
+    // its own, and it already dies when that human loses `is_staff`. Gating it
+    // on enrolment would stop the office's own agent the first time somebody
+    // replaced their phone.
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+
+    const key = await createAgentKeyRow({
+      actingUserId: org.members.owner.userId,
+      organizationId: org.organizationId,
+    })
+    const agent = await resolveAgentScope(hashAgentKey(key.secret))
+    expect(agent).not.toBeNull()
+
+    const owner = await resolveAgentOwnerScope(agent!, org.slug)
+    expect(owner?.role).toBe("owner")
+    expect(owner?.totpSatisfied).toBe(true)
+  })
+
+  it("requireOwner asserts it too, as a floor under every accounting write", async () => {
+    const org = await seedOrganization()
+    as(org.members.owner.headers)
+    const scope = await requireScope(org.slug)
+
+    // The scope came from the human door, so it is already satisfied; the
+    // assertion exists for a scope minted some other way later. Proving the
+    // check is REACHED needs a handle that fails it, and the only way to build
+    // one without forging a brand is to take a real one and strip the verdict.
+    const unenrolled = { ...scope, totpSatisfied: false } as typeof scope
+    await expectEnrolmentRedirect(
+      () => requireOwner(unenrolled),
+      "requireOwner re-asserts the mandate",
+    )
+    // ...and the genuine one still passes.
+    expect(requireOwner(scope).role).toBe("owner")
   })
 })

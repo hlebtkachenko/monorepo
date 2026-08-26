@@ -76,7 +76,24 @@ export function resetAresCache(): void {
 }
 
 export type AresLookupResult =
-  | { ok: true; profile: AresProfile; cached: boolean }
+  | {
+      ok: true
+      profile: AresProfile
+      cached: boolean
+      /**
+       * When the REGISTRY actually answered — the moment behind this profile,
+       * not the moment it was handed out. On a cache hit the two differ by up to
+       * 24h, and the caller stamps `organization.ares_fetched_at` from it.
+       *
+       * WHY IT IS RETURNED RATHER THAN RE-DERIVED BY THE CALLER. A caller
+       * holding only `cached: boolean` has no honest value to write, so it
+       * writes `now()` — which slides the stamp forward on every click without
+       * anybody having asked ARES anything. The card then reads "naposledy
+       * načteno: před minutou" about a 23-hour-old answer, and the cache window
+       * it is supposed to describe never closes.
+       */
+      fetchedAtMs: number
+    }
   | { ok: false; reason: "not_found" | "unavailable" }
 
 /**
@@ -102,7 +119,12 @@ export async function lookupOrganizationAres(
 
   const hit = cache.get(ico)
   if (hit && now - hit.fetchedAtMs < ARES_CACHE_TTL_MS) {
-    return { ok: true, profile: hit.profile, cached: true }
+    return {
+      ok: true,
+      profile: hit.profile,
+      cached: true,
+      fetchedAtMs: hit.fetchedAtMs,
+    }
   }
 
   // `AbortSignal.timeout` rather than a hand-rolled controller + setTimeout: it
@@ -148,5 +170,5 @@ export async function lookupOrganizationAres(
   }
   cache.set(ico, { profile, fetchedAtMs: now })
 
-  return { ok: true, profile, cached: false }
+  return { ok: true, profile, cached: false, fetchedAtMs: now }
 }

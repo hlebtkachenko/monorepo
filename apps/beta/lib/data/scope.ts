@@ -1,6 +1,6 @@
 import "server-only"
 
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { and, eq, isNull } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
@@ -12,6 +12,10 @@ import {
   type BetaOrgRole,
 } from "@/db/schema"
 import { getBetaSession } from "@/lib/auth/session"
+import {
+  requiresTotpEnrolment,
+  TOTP_ENROLMENT_PATH,
+} from "@/lib/auth/totp-enforcement"
 
 import { isValidOrgSlugFormat } from "./org-slug"
 
@@ -62,6 +66,30 @@ import { isValidOrgSlugFormat } from "./org-slug"
  * mode differs from the second's, and the difference is observable in timing
  * and in code paths. Here there is one row or no row.
  *
+ * THE SECOND FACTOR IS PART OF THE SEAM (PR 22, Advisor carry-in from PR 21).
+ * The forced-TOTP mandate used to live in two LAYOUTS — `(portal)/layout.tsx`
+ * and `app/admin/layout.tsx` — which covers every page render and nothing else.
+ * A Server Action is not a page render: it is a POST to the same route that
+ * runs its own `requireScope` / `requireOffice` and never re-enters the layout
+ * above it, so an unenrolled office account whose browser still held the tab
+ * open could invoke any write in this application. Route handlers are the same
+ * gap by the same mechanism. So the mandate is asserted HERE, where every
+ * authority in the app is minted, and the layouts keep their own call purely
+ * for the friendly redirect on a first navigation.
+ *
+ * IT COSTS NO EXTRA QUERY. `resolveOrgScope` already joins `app_user`, so
+ * `two_factor_enabled` comes back in the row that is already being read, and
+ * the predicate itself (`lib/auth/totp-enforcement.ts`) is pure. The `isStaff`
+ * disjunct is what makes the org-scoped answer complete: an owner membership is
+ * only ever held by office staff (DB trigger), so anybody under the mandate
+ * anywhere in the database carries `is_staff` on the very row this join reads.
+ *
+ * WHO IS UNAFFECTED. `admin`, `member` and `guest` — the client's own people —
+ * are not under the mandate at all, and the agent door is exempt by
+ * construction: an API key is not an interactive session, it carries no browser
+ * to enrol from, and the authority it acts as is already floored by `is_staff`
+ * and `disabled_at` on every request.
+ *
  * NARROWING LATER (spec §2.6.1, PR 32). The employee seat is a `guest`
  * membership linked to a `payroll_employee` row, and it sees only its own
  * payroll. That is a NARROWING of this handle, not a new one: it arrives as one
@@ -94,6 +122,15 @@ export type OrgScope = {
    * organization key off it — never serialized to a client (`projections.ts`).
    */
   readonly isStaff: boolean
+  /**
+   * Whether this holder satisfies the forced-TOTP mandate — `true` for every
+   * client-side role (they are not under it) and for an office account that has
+   * enrolled. It is a RESOLVED VERDICT, not `two_factor_enabled`: the raw column
+   * is on `CLIENT_FORBIDDEN_COLUMNS` and never leaves the server, and carrying
+   * the answer rather than the input means `requireOwner` can assert it without
+   * becoming async.
+   */
+  readonly totpSatisfied: boolean
 }
 
 /**
@@ -113,11 +150,21 @@ export type OfficeScope = {
  *
  * Refuses identically for: no session, malformed slug, unknown organization,
  * archived organization, no membership, inactive membership, deactivated user.
+ *
+ * THE ONE NON-404 REFUSAL is the second-factor mandate, which redirects to the
+ * enrolment screen instead. It is not a tenancy answer — the caller genuinely
+ * holds this membership and the 404 doctrine exists to avoid confirming that
+ * they do not — so sending them somewhere they can fix it is both safe (they
+ * already know the organization exists) and the only outcome that is not a dead
+ * end. `resolveOrgScope`, the arm route handlers use, collapses it back into
+ * `null`: a 307 to an HTML enrolment page is not a useful answer to a fetch for
+ * a file.
  */
 export async function requireScope(orgSlug: string): Promise<OrgScope> {
-  const scope = await resolveOrgScope(orgSlug)
-  if (!scope) notFound()
-  return scope
+  const resolution = await resolveScopeOutcome(orgSlug)
+  if (resolution.outcome === "totp_required") redirect(TOTP_ENROLMENT_PATH)
+  if (resolution.outcome !== "ok") notFound()
+  return resolution.scope
 }
 
 /**
@@ -140,15 +187,36 @@ export async function requireScope(orgSlug: string): Promise<OrgScope> {
 export async function resolveOrgScope(
   orgSlug: string,
 ): Promise<OrgScope | null> {
+  const resolution = await resolveScopeOutcome(orgSlug)
+  return resolution.outcome === "ok" ? resolution.scope : null
+}
+
+/**
+ * The single resolution both public doors project, and the only place an
+ * `OrgScope` for a human is minted.
+ *
+ * It exists so the two doors can tell the mandate apart from a tenancy refusal
+ * WITHOUT either of them running its own query: `requireScope` redirects to the
+ * enrolment screen, `resolveOrgScope` answers `null` like every other failure,
+ * and neither can drift from the other about what a resolved membership is.
+ */
+type ScopeResolution =
+  | { readonly outcome: "ok"; readonly scope: OrgScope }
+  /** Any of the six tenancy conditions. Indistinguishable, on purpose. */
+  | { readonly outcome: "denied" }
+  /** A real membership held by an office account that has not enrolled. */
+  | { readonly outcome: "totp_required" }
+
+async function resolveScopeOutcome(orgSlug: string): Promise<ScopeResolution> {
   const session = await getBetaSession()
-  if (!session) return null
+  if (!session) return { outcome: "denied" }
 
   // A slug that cannot exist is answered without a round trip. The DB CHECK
   // means a non-matching string can never be stored, so this is a shortcut and
   // not a second, weaker validation. The rule itself lives in `org-slug.ts`,
   // shared with the /admin create form so the two cannot disagree about what a
   // slug is.
-  if (!isValidOrgSlugFormat(orgSlug)) return null
+  if (!isValidOrgSlugFormat(orgSlug)) return { outcome: "denied" }
 
   const [row] = await betaDb()
     .select({
@@ -156,6 +224,7 @@ export async function resolveOrgScope(
       organizationSlug: organization.slug,
       role: organization_membership.role,
       isStaff: app_user.is_staff,
+      twoFactorEnabled: app_user.two_factor_enabled,
     })
     .from(organization_membership)
     .innerJoin(
@@ -183,7 +252,22 @@ export async function resolveOrgScope(
     )
     .limit(1)
 
-  if (!row) return null
+  if (!row) return { outcome: "denied" }
+
+  // `hasOwnerMembership` is answered from THIS organization's role rather than
+  // from a second cross-org query, and that is complete rather than a shortcut:
+  // an owner membership implies `is_staff` (DB trigger
+  // `organization_membership_owner_requires_staff`), so anybody holding one
+  // anywhere is already caught by the `isStaff` disjunct on the row above.
+  if (
+    requiresTotpEnrolment({
+      isStaff: row.isStaff,
+      hasOwnerMembership: row.role === "owner",
+      twoFactorEnabled: row.twoFactorEnabled,
+    })
+  ) {
+    return { outcome: "totp_required" }
+  }
 
   const scope: OrgScope = {
     [orgScopeBrand]: true,
@@ -192,22 +276,35 @@ export async function resolveOrgScope(
     userId: session.userId,
     role: row.role,
     isStaff: row.isStaff,
+    totpSatisfied: true,
   }
-  return Object.freeze(scope)
+  return { outcome: "ok", scope: Object.freeze(scope) }
 }
 
-/** Resolve the signed-in user as office staff, or answer 404. */
+/**
+ * Resolve the signed-in user as office staff, or answer 404.
+ *
+ * THE MANDATE IS UNCONDITIONAL HERE. `requireOffice` has already established
+ * `is_staff`, which is one half of `requiresTotpEnrolment`'s disjunction on its
+ * own — so every caller that gets past the 404 is under the mandate, and the
+ * only remaining question is whether they have enrolled. Like `requireScope`,
+ * this reads the flag from the row it was already fetching.
+ */
 export async function requireOffice(): Promise<OfficeScope> {
   const session = await getBetaSession()
   if (!session) notFound()
 
   const [row] = await betaDb()
-    .select({ isStaff: app_user.is_staff })
+    .select({
+      isStaff: app_user.is_staff,
+      twoFactorEnabled: app_user.two_factor_enabled,
+    })
     .from(app_user)
     .where(and(eq(app_user.id, session.userId), isNull(app_user.disabled_at)))
     .limit(1)
 
   if (!row?.isStaff) notFound()
+  if (!row.twoFactorEnabled) redirect(TOTP_ENROLMENT_PATH)
 
   const office: OfficeScope = {
     [officeScopeBrand]: true,
@@ -265,6 +362,14 @@ export type OwnerScope = OrgScope & {
 
 export function requireOwner(scope: OrgScope): OwnerScope {
   if (scope.role !== "owner") notFound()
+  // A floor, not the enforcement: `requireScope` already refused an unenrolled
+  // office account, so a scope reaching here with `totpSatisfied: false` cannot
+  // come from the human door. It is asserted anyway because this function is the
+  // gate on every accounting WRITE in the application, and the cost of it being
+  // wrong once (a second minter added later, a test constructing a scope) is not
+  // symmetric with the cost of one boolean comparison. Synchronous, because the
+  // verdict is carried on the handle — 73 call sites do not become async for it.
+  if (!scope.totpSatisfied) redirect(TOTP_ENROLMENT_PATH)
 
   const owner: OwnerScope = {
     ...scope,
@@ -421,6 +526,17 @@ export async function resolveAgentOwnerScope(
     userId: agent.actingUserId,
     role: "owner",
     isStaff: row.isStaff,
+    // EXEMPT, DELIBERATELY. The forced-TOTP mandate is about interactive
+    // sign-in: it exists so that stealing an office account's PASSWORD is not
+    // enough to open a client's book, and it is discharged by a browser the
+    // person enrols from. An API key is already a second factor by construction
+    // — a high-entropy secret that is not a password, cannot be phished from the
+    // acting human, is revocable on its own, and dies the moment that human
+    // loses `is_staff` or is deactivated (`resolveAgentScope`). Gating ingestion
+    // on the acting accountant's authenticator would stop the office's own
+    // unattended agent the first time somebody re-enrolled, and would buy
+    // nothing an attacker holding the key does not already have.
+    totpSatisfied: true,
   }
   return Object.freeze(owner)
 }

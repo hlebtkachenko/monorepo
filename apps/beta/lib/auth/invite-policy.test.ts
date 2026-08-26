@@ -15,9 +15,12 @@ import {
   ADMIN_INVITABLE_ROLES,
   OFFICE_INVITABLE_ROLES,
   invitableRoles,
+  managesPeople,
   mayChangeRole,
+  mayDeactivate,
   mayGrantRole,
   mayIssuePurpose,
+  resolveReactivationRole,
   type InviteIssuer,
 } from "./invite-policy"
 
@@ -168,6 +171,121 @@ describe("role changes", () => {
     for (const other of ROLES) {
       expect(change(orgIssuer("admin"), other, "owner"), other).toBe(false)
       expect(change(orgIssuer("admin"), "owner", other), other).toBe(false)
+    }
+  })
+})
+
+describe("who administers people at all — spec §5", () => {
+  it("is exactly the roles with a non-empty invite ceiling", () => {
+    expect(managesPeople(office)).toBe(true)
+    expect(managesPeople(orgIssuer("owner"))).toBe(true)
+    expect(managesPeople(orgIssuer("admin"))).toBe(true)
+    expect(managesPeople(orgIssuer("member"))).toBe(false)
+    expect(managesPeople(orgIssuer("guest"))).toBe(false)
+  })
+
+  it("derives from the ceiling rather than restating it", () => {
+    for (const role of ROLES) {
+      const issuer = orgIssuer(role)
+      expect(managesPeople(issuer)).toBe(invitableRoles(issuer).length > 0)
+    }
+  })
+})
+
+describe("deactivation ceiling — PR 22 carry-in", () => {
+  const deactivate = (
+    issuer: InviteIssuer,
+    targetRole: BetaOrgRole,
+    self = false,
+  ) =>
+    mayDeactivate(issuer, {
+      issuerUserId: "u-issuer",
+      targetUserId: self ? "u-issuer" : "u-target",
+      targetRole,
+    })
+
+  it("refuses a company admin the owner seat — the whole point", () => {
+    // The gap this closes: the invite matrix stopped an admin GRANTING owner
+    // and demoting one, but `setMembershipActive` had no ceiling at all, so
+    // "deactivate the accountant" was reachable from the lower privilege level.
+    expect(deactivate(orgIssuer("admin"), "owner")).toBe(false)
+  })
+
+  it("lets a company admin deactivate the roles they could have invited", () => {
+    for (const role of ADMIN_INVITABLE_ROLES) {
+      expect(deactivate(orgIssuer("admin"), role), role).toBe(true)
+    }
+  })
+
+  it("gives member and guest nothing", () => {
+    for (const role of ROLES) {
+      expect(deactivate(orgIssuer("member"), role), role).toBe(false)
+      expect(deactivate(orgIssuer("guest"), role), role).toBe(false)
+    }
+  })
+
+  it("lets an org owner and the office deactivate anyone", () => {
+    for (const role of ROLES) {
+      expect(deactivate(orgIssuer("owner"), role), role).toBe(true)
+      expect(deactivate(office, role), role).toBe(true)
+    }
+  })
+
+  it("refuses self-deactivation on the organization door only", () => {
+    // A client-side admin who switches off their own seat is instantly outside
+    // the organization, and the one person who could undo it no longer can.
+    // /admin keeps it: it is the break-glass, and an accountant tidying up
+    // their own membership in a book they no longer keep is the ordinary case.
+    expect(deactivate(orgIssuer("admin"), "admin", true)).toBe(false)
+    expect(deactivate(orgIssuer("owner"), "owner", true)).toBe(false)
+    expect(deactivate(office, "owner", true)).toBe(true)
+  })
+
+  it("mirrors the invite ceiling exactly, role for role", () => {
+    for (const issuerRole of ROLES) {
+      for (const targetRole of ROLES) {
+        const issuer = orgIssuer(issuerRole)
+        expect(
+          deactivate(issuer, targetRole),
+          `${issuerRole} → ${targetRole}`,
+        ).toBe(mayGrantRole(issuer, targetRole))
+      }
+    }
+  })
+})
+
+describe("reactivation role — PR 06/08 carry-in", () => {
+  it("never lowers the stored role", () => {
+    // The live bug: an admin may issue `guest` invites, and re-inviting a
+    // DEACTIVATED owner used to write the link's role onto the reactivated row
+    // — a demotion primitive reachable by deactivating first, which the
+    // last-owner trigger cannot see because the row was never an active owner.
+    expect(resolveReactivationRole("owner", "guest")).toBe("owner")
+    expect(resolveReactivationRole("admin", "member")).toBe("admin")
+    expect(resolveReactivationRole("member", "guest")).toBe("member")
+  })
+
+  it("still lets a link raise one — that is what an invite is for", () => {
+    expect(resolveReactivationRole("guest", "member")).toBe("member")
+    expect(resolveReactivationRole("member", "owner")).toBe("owner")
+  })
+
+  it("is a no-op when they agree", () => {
+    for (const role of ROLES) {
+      expect(resolveReactivationRole(role, role)).toBe(role)
+    }
+  })
+
+  it("is monotone: the result is never below either input", () => {
+    const rank = { owner: 3, admin: 2, member: 1, guest: 0 } as const
+    for (const stored of ROLES) {
+      for (const granted of ROLES) {
+        const result = resolveReactivationRole(stored, granted)
+        expect(rank[result], `${stored}+${granted}`).toBeGreaterThanOrEqual(
+          rank[stored],
+        )
+        expect(rank[result]).toBe(Math.max(rank[stored], rank[granted]))
+      }
     }
   })
 })

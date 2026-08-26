@@ -8,7 +8,15 @@
  * ACTIVE owner membership in a LIVE organization.
  */
 import postgres from "postgres"
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import {
   addMembership,
@@ -99,10 +107,23 @@ async function passesGate(): Promise<boolean> {
 
 let org: TestOrganization
 
+/**
+ * THE MANDATE IS SWITCHED OFF BY DEFAULT (`BETA_TOTP_REQUIRED`, unset in every
+ * environment today), so every case below that asserts a redirect has to switch
+ * it on first. The suite says so once, here, rather than per test — and the
+ * `describe("with the mandate switched off")` block at the bottom is the other
+ * half: it asserts the same fixtures pass straight through with the switch back
+ * where the deployment leaves it.
+ */
 beforeEach(async () => {
+  vi.stubEnv("BETA_TOTP_REQUIRED", "true")
   org = await seedOrganization()
   await markUnenrolled(org.members.owner.userId)
   navigation.redirectedTo = []
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
 })
 
 describe("requireTotpEnrolment — the routing matrix", () => {
@@ -214,5 +235,60 @@ describe("viewerAccount — Nastavení › Účet", () => {
     expect(account.totpEnabled).toBe(true)
     expect(account.totpMandatory).toBe(true)
     expect(totpEnrolmentRequired).toBe(false)
+  })
+})
+
+/**
+ * The deployed state (2026-08-27): `BETA_TOTP_REQUIRED` unset, so nobody is
+ * forced to enrol. Same fixtures, same accounts, opposite verdict — which is the
+ * only way to be sure the switch reaches the DB-fed path and not just the pure
+ * predicate.
+ */
+describe("with the mandate switched off", () => {
+  beforeEach(() => {
+    vi.stubEnv("BETA_TOTP_REQUIRED", "")
+  })
+
+  it("lets an unenrolled owner straight through, with no redirect", async () => {
+    as(org.members.owner)
+    expect(await passesGate()).toBe(true)
+    expect(navigation.redirectedTo).toEqual([])
+  })
+
+  it("lets an unenrolled staff account through too", async () => {
+    const staff = await createAccount({ staff: true, twoFactorEnabled: false })
+    as(staff)
+    expect(await passesGate()).toBe(true)
+    expect(navigation.redirectedTo).toEqual([])
+  })
+
+  it("stops claiming the obligation in Nastavení › Účet", async () => {
+    as(org.members.owner)
+    const { account, totpEnrolmentRequired } = await viewerAccount()
+
+    expect(account.totpMandatory).toBe(false)
+    expect(totpEnrolmentRequired).toBe(false)
+    // The FEATURE is untouched: the flag still reports the account's real
+    // state, so the enrolment UI keeps working for anyone who wants it.
+    expect(account.totpEnabled).toBe(false)
+  })
+
+  it("still reports an enrolled owner as enrolled", async () => {
+    await markEnrolled(org.members.owner.userId)
+    as(org.members.owner)
+    const { account } = await viewerAccount()
+
+    expect(account.totpEnabled).toBe(true)
+    expect(account.totpMandatory).toBe(false)
+  })
+
+  it("is off for every spelling but the exact string `true`", async () => {
+    // A fuzzy check is how a gate ends up open on "false" — asserted against
+    // the real gate rather than only the pure predicate.
+    for (const value of ["1", "yes", "TRUE", "false"]) {
+      vi.stubEnv("BETA_TOTP_REQUIRED", value)
+      as(org.members.owner)
+      expect(await passesGate(), value).toBe(true)
+    }
   })
 })

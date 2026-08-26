@@ -284,11 +284,13 @@ async function resolveScopeOutcome(orgSlug: string): Promise<ScopeResolution> {
 /**
  * Resolve the signed-in user as office staff, or answer 404.
  *
- * THE MANDATE IS UNCONDITIONAL HERE. `requireOffice` has already established
- * `is_staff`, which is one half of `requiresTotpEnrolment`'s disjunction on its
- * own — so every caller that gets past the 404 is under the mandate, and the
- * only remaining question is whether they have enrolled. Like `requireScope`,
- * this reads the flag from the row it was already fetching.
+ * EVERY CALLER HERE IS UNDER THE MANDATE. `requireOffice` has already
+ * established `is_staff`, which is one half of `requiresTotpEnrolment`'s
+ * disjunction on its own — so the only remaining question is whether they have
+ * enrolled. Like `requireScope`, this reads the flag from the row it was already
+ * fetching, and it asks the shared predicate rather than the raw column so the
+ * `BETA_TOTP_REQUIRED` switch reaches this door too. Testing the column directly
+ * here is exactly how one of three enforcement points gets left switched on.
  */
 export async function requireOffice(): Promise<OfficeScope> {
   const session = await getBetaSession()
@@ -304,7 +306,15 @@ export async function requireOffice(): Promise<OfficeScope> {
     .limit(1)
 
   if (!row?.isStaff) notFound()
-  if (!row.twoFactorEnabled) redirect(TOTP_ENROLMENT_PATH)
+  if (
+    requiresTotpEnrolment({
+      isStaff: row.isStaff,
+      hasOwnerMembership: false,
+      twoFactorEnabled: row.twoFactorEnabled,
+    })
+  ) {
+    redirect(TOTP_ENROLMENT_PATH)
+  }
 
   const office: OfficeScope = {
     [officeScopeBrand]: true,

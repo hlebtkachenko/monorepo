@@ -90,6 +90,31 @@ the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
 | `NEXT_PUBLIC_GITHUB_REPOSITORY`  | no       | Browser-exposed `owner/repo` slug used by admin client navigation links. Baked into the image from `${{ github.repository }}` during deploy.                                                                                                                                                                                                                                                                                                         |
 | `NEXT_PUBLIC_GITHUB_PROJECT_URL` | no       | Optional browser-exposed GitHub Project URL for the command palette. Baked from repo variable `ADMIN_GITHUB_PROJECT_URL`; omit when there is no stable active Project link.                                                                                                                                                                                                                                                                          |
 
+## Beta portal — forced TOTP (apps/beta)
+
+The beta portal's second factor is a **feature that is always available** and an
+**obligation that is switched off**. Enrolment lives in Nastavení › Účet, Better
+Auth stores the factor, and an account that has enrolled is still challenged for
+a code at sign-in — none of that is gated. What `BETA_TOTP_REQUIRED` controls is
+the one extra rule on top: whether an office account (`is_staff`, or an active
+`owner` membership) that has _not_ enrolled is redirected to `/zabezpeceni`
+before it may use the portal.
+
+It is **unset everywhere today** (2026-08-27, Hleb's call for the beta), so no
+one is forced to enrol. Pre-launch the install has no real users, the only
+population under the mandate is the office itself, and a forced enrolment
+outlives its `BETTER_AUTH_SECRET`: the stored TOTP secret is encrypted under that
+secret, so a redeploy with a fresh one rejects every correct code and locks the
+office out of its own portal. Turning the mandate back on is one variable, no
+code change.
+
+| Var                  | Required | Notes                                                                                                                                                                                                                                                                                                                              |
+| -------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETA_TOTP_REQUIRED` | no       | Exactly `true` switches forced enrolment on, at all three enforcement points at once (`(portal)` + `/admin` layouts, and the tenancy seam `requireScope` / `requireOffice`). Unset (the deployed state) → no redirect, no "your account must keep 2FA on" notice. Compared as a string; `1` / `yes` / `TRUE` do **not** enable it. |
+
+The rule itself is one pure module, `apps/beta/lib/auth/totp-enforcement.ts` — the
+switch is read there and nowhere else, so the three doors cannot drift apart.
+
 ## Beta portal — Asistent (apps/beta)
 
 The Asistent module (`apps/beta/lib/assistant/`, spec `.context/beta-afframe/40-beta-structure.md` §2.8) ships **dark**: none of the variables below is set anywhere — not in `infra/cdk/lib/beta-app-stack.ts`, not in any GitHub environment — and with all of them absent the module is unreachable. Two independent switches, and both default off:

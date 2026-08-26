@@ -557,6 +557,30 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     sendEmail.mockClear()
   })
 
+  /**
+   * The addresses THIS test's organization would be mailed at, in arrival order.
+   *
+   * WHY NOT A BARE `toHaveBeenCalledTimes` (the flake this replaces).
+   * `publishBatch` fires the notification with `void dispatch…` on purpose — the
+   * send is post-commit and must never hold the write open — so a test that
+   * publishes and does not await the dispatch leaves sends in flight after it
+   * has finished. The concurrent-publish cases above publish three batches and
+   * assert nothing about email, so their sends were still landing when this
+   * block's `mockClear()` ran and `toHaveBeenCalledTimes(3)` intermittently
+   * observed four.
+   *
+   * Filtering by recipient fixes it at the root rather than by draining one
+   * known offender: every `seedOrganization()` mints fresh addresses, so a count
+   * scoped to the org under test cannot be moved by any other test's leak —
+   * including tests written after this one.
+   */
+  function sentTo(org: TestOrganization): string[] {
+    const mine = new Set(Object.values(org.members).map((m) => m.email))
+    return sendEmail.mock.calls
+      .map(([message]) => (message as { to: string }).to)
+      .filter((to) => mine.has(to))
+  }
+
   it("fires on a genuine publish, to every notifiable recipient — never the owner", async () => {
     const org = await seedOrganization()
     const periodId = await createMonthPeriod(org.organizationId)
@@ -572,10 +596,8 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     const outcome = await publishBatch(scope, batch.id)
     expect(outcome.ok && !outcome.alreadyPublished).toBe(true)
 
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
-    const recipients = sendEmail.mock.calls
-      .map(([m]) => (m as { to: string }).to)
-      .sort()
+    await vi.waitFor(() => expect(sentTo(org)).toHaveLength(3))
+    const recipients = sentTo(org).sort()
     expect(recipients).toEqual(
       [
         org.members.admin.email,
@@ -598,14 +620,14 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
       statementLines: VZZ_LINES,
     })
     await publishBatch(scope, batch.id)
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(sentTo(org)).toHaveLength(3))
     sendEmail.mockClear()
 
     const second = await publishBatch(scope, batch.id)
     expect(second).toMatchObject({ ok: true, alreadyPublished: true })
 
     await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sentTo(org)).toEqual([])
   })
 
   it("fires again on a supersession replace — new numbers, a second event", async () => {
@@ -620,7 +642,7 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
       statementLines: ROZVAHA_LINES,
     })
     await publishBatch(scope, first.id)
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(sentTo(org)).toHaveLength(3))
     sendEmail.mockClear()
 
     const second = await createDraftBatch(scope, {
@@ -635,7 +657,7 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     const outcome = await publishBatch(scope, second.id)
     expect(outcome.ok && !outcome.alreadyPublished).toBe(true)
 
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    await vi.waitFor(() => expect(sentTo(org)).toHaveLength(3))
   })
 
   it("does NOT fire on a refused publish (unknown batch)", async () => {
@@ -649,7 +671,7 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     })
 
     await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(sendEmail).not.toHaveBeenCalled()
+    expect(sentTo(org)).toEqual([])
   })
 
   it("respects the per-user toggle and excludes a disabled account", async () => {
@@ -672,11 +694,8 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     })
     await publishBatch(scope, batch.id)
 
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(2))
-    const recipients = sendEmail.mock.calls.map(
-      ([m]) => (m as { to: string }).to,
-    )
-    expect(recipients).not.toContain(org.members.member.email)
+    await vi.waitFor(() => expect(sentTo(org)).toHaveLength(2))
+    expect(sentTo(org)).not.toContain(org.members.member.email)
   })
 
   it("sends after the row is already committed — a fresh read sees it published", async () => {
@@ -698,7 +717,7 @@ describe("spec §2.11 event 3 — the period-published notification", () => {
     })
 
     await publishBatch(scope, batch.id)
-    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalled())
+    await vi.waitFor(() => expect(sentTo(org).length).toBeGreaterThan(0))
   })
 })
 

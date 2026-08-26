@@ -60,6 +60,26 @@ import { betaAuth } from "./server"
  * why `account_setup` treats "user exists but has no credential account" as
  * resumable instead of as a conflict: it is the exact debris this seam can
  * leave, and it is not a usable account until the link is consumed for real.
+ *
+ * CLAIMING ONTO AN IDENTITY THAT ALREADY EXISTS is the sharp edge of that
+ * resumability, and it is fenced twice.
+ *
+ * A credential-less `app_user` row is an identity nobody can sign in as — but
+ * it can already be `is_staff`, provisioned by /admin and not yet activated.
+ * Whoever sets its first password BECOMES it. Meanwhile the issuance guards in
+ * the migrations stop a non-staff issuer from granting `owner`, from issuing a
+ * `password_reset`, and from issuing an org-less `account_setup` — but they do
+ * NOT stop a company admin from issuing an ORG-SCOPED link for any address they
+ * like, including an office staff address. So:
+ *
+ *   - `org_invite` never touches a credential at all when the address already
+ *     exists. Credential or not, it demands a session that already belongs to
+ *     that identity, and refuses without consuming the link.
+ *   - `account_setup` may claim onto an existing credential-less identity only
+ *     when the ISSUER is office staff (or the link is the NULL-issuer bootstrap
+ *     seed). The issuer's `is_staff` is read in the claim statement itself, and
+ *     `issued_by_user_id` is frozen by the migration-0001 immutability trigger,
+ *     so the value cannot be rewritten after issuance.
  */
 
 export type SetupTokenView = {
@@ -210,6 +230,19 @@ export async function consumeSetupToken(
           email: user_setup_token.email,
           organizationId: user_setup_token.organization_id,
           grantedRole: user_setup_token.granted_role,
+          /**
+           * Was this link issued by office staff? Read in the claim statement
+           * itself, as a scalar subquery rather than a join, because
+           * `issued_by_user_id` is nullable and an inner join would silently
+           * stop the bootstrap seed (issuer NULL) from ever being claimable.
+           *
+           *   true  → office staff
+           *   false → a company admin issuing inside their own organization
+           *   null  → no issuer: the bootstrap seed
+           */
+          issuerIsStaff: sql<
+            boolean | null
+          >`(SELECT u.is_staff FROM app_user u WHERE u.id = ${user_setup_token.issued_by_user_id})`,
         })
 
       if (!claimed) throw new ConsumeRejected({ ok: false, reason: "invalid" })
@@ -271,15 +304,22 @@ export async function consumeSetupToken(
         // Revoke everything. The whole point of a reset is that someone else
         // may know the old password; leaving their sessions alive defeats it.
         await tx.delete(auth_session).where(eq(auth_session.user_id, userId))
-      } else if (existing && hasCredential) {
-        // The account is already usable. `account_setup` has nothing left to
-        // do, and an `org_invite` must NOT be allowed to set a password on an
-        // existing account — that would be an account takeover by anyone
-        // holding an invite for a known address (Advisor blocker B4-4). Prove
-        // the session belongs to that account first.
-        if (claimed.purpose === "account_setup") {
-          throw new ConsumeRejected({ ok: false, reason: "invalid" })
-        }
+      } else if (claimed.purpose === "org_invite" && existing) {
+        // An invite for an address that already has an identity grants
+        // MEMBERSHIP and nothing else — it never sets a credential, whether or
+        // not one exists yet.
+        //
+        // With a credential, setting one would be an account takeover by anyone
+        // holding an invite for a known address (Advisor blocker B4-4). WITHOUT
+        // one it is worse: a credential-less row can be a provisioned-but-
+        // unactivated `is_staff` identity, and the issuance guards do not stop a
+        // company admin from issuing an org-scoped invite for an arbitrary
+        // address — so that path would hand /admin to whoever clicked. Both
+        // cases demand a session that already belongs to this identity.
+        //
+        // Refusing does NOT consume the link: the invitee signs in and opens it
+        // again. (A credential-less identity has no way to sign in, so this is
+        // simply a wall for it — which is the point.)
         if (input.sessionUserId !== existing.id) {
           throw new ConsumeRejected({
             ok: false,
@@ -288,27 +328,44 @@ export async function consumeSetupToken(
           })
         }
         userId = existing.id
+      } else if (existing) {
+        // `account_setup` onto an identity that already exists.
+        //
+        // A usable account has nothing left to set up. A credential-less one is
+        // the resumable debris of an interrupted earlier attempt — but claiming
+        // it means becoming it, so only office staff (or the NULL-issuer
+        // bootstrap seed) may hand out a link that does so. A company admin's
+        // link is refused, and refusing does not burn it.
+        if (hasCredential || claimed.issuerIsStaff === false) {
+          throw new ConsumeRejected({ ok: false, reason: "invalid" })
+        }
+        if (!input.password) {
+          throw new ConsumeRejected({ ok: false, reason: "invalid" })
+        }
+        userId = existing.id
+        await ctx.internalAdapter.linkAccount({
+          userId,
+          providerId: "credential",
+          accountId: userId,
+          password: await ctx.password.hash(input.password),
+        })
+        passwordSet = true
       } else {
-        // New account — or the debris of an interrupted earlier attempt (a user
-        // row with no credential, which cannot be signed into).
+        // A brand-new identity: nothing exists to be claimed.
         if (!input.password) {
           throw new ConsumeRejected({ ok: false, reason: "invalid" })
         }
         const passwordHash = await ctx.password.hash(input.password)
 
-        if (existing) {
-          userId = existing.id
-        } else {
-          const created = await ctx.internalAdapter.createUser(
-            setupUserPayload({
-              email: claimed.email,
-              name: input.name?.trim() || claimed.email,
-            }),
-          )
-          if (!created)
-            throw new ConsumeRejected({ ok: false, reason: "invalid" })
-          userId = created.id
-        }
+        const created = await ctx.internalAdapter.createUser(
+          setupUserPayload({
+            email: claimed.email,
+            name: input.name?.trim() || claimed.email,
+          }),
+        )
+        if (!created)
+          throw new ConsumeRejected({ ok: false, reason: "invalid" })
+        userId = created.id
 
         await ctx.internalAdapter.linkAccount({
           userId,

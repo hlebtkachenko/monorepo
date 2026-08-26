@@ -466,6 +466,117 @@ describe("org_invite", () => {
   })
 })
 
+describe("claiming an identity that already exists", () => {
+  /**
+   * The sharp edge of `account_setup` resumability.
+   *
+   * A credential-less `app_user` row is an identity nobody can sign in as — and
+   * it may already be `is_staff`, provisioned through /admin and not yet
+   * activated. Whoever sets its first password becomes it, with /admin and
+   * cross-org reach. The migration guards do NOT close this: they stop a
+   * non-staff issuer from granting `owner`, from issuing a `password_reset` and
+   * from issuing an org-less `account_setup`, but a company admin may still
+   * issue an ORG-SCOPED link for any address at all.
+   */
+  async function unactivatedStaffIdentity(): Promise<{
+    email: string
+    id: string
+  }> {
+    const email = `${unique("unactivated")}@example.com`
+    const id = await createUser(true, email)
+    return { email, id }
+  }
+
+  /** A Majitel: non-staff, but an active admin of their own organization. */
+  async function companyAdmin(orgId: string): Promise<string> {
+    const id = await createUser(false)
+    await sql`
+      INSERT INTO organization_membership (organization_id, user_id, role)
+      VALUES (${orgId}, ${id}, 'admin')
+    `
+    return id
+  }
+
+  it("refuses a non-staff-issued account_setup aimed at an existing identity, and does not burn the link", async () => {
+    const { orgId } = await orgWithOwner()
+    const adminId = await companyAdmin(orgId)
+    const target = await unactivatedStaffIdentity()
+
+    const { raw, id } = await issue({
+      purpose: "account_setup",
+      email: target.email,
+      issuedBy: adminId,
+      organizationId: orgId,
+      grantedRole: "member",
+    })
+
+    expect(await consume(raw)).toEqual({ ok: false, reason: "invalid" })
+
+    // No credential was minted for the staff identity...
+    expect(await credentialHash(target.id)).toBeNull()
+    // ...it gained no membership in the admin's organization...
+    const [membership] = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM organization_membership
+       WHERE organization_id = ${orgId} AND user_id = ${target.id}
+    `
+    expect(membership!.count).toBe(0)
+    // ...it is still office staff, and still cannot be signed in as...
+    const [row] = await sql<{ is_staff: boolean }[]>`
+      SELECT is_staff FROM app_user WHERE id = ${target.id}
+    `
+    expect(row!.is_staff).toBe(true)
+    // ...and a refused attempt does not spend the link.
+    expect((await tokenRow(id)).consumed_at).toBeNull()
+  })
+
+  it("still lets an office-staff issuer finish an interrupted setup", async () => {
+    // The resumable case the refusal above must not take away: the identity
+    // exists with no credential because an earlier consume died mid-flight.
+    const { orgId, staffId } = await orgWithOwner()
+    const target = await unactivatedStaffIdentity()
+
+    const { raw } = await issue({
+      purpose: "account_setup",
+      email: target.email,
+      issuedBy: staffId,
+      organizationId: orgId,
+      grantedRole: "member",
+    })
+
+    expect(await consume(raw)).toMatchObject({ ok: true, passwordSet: true })
+    expect(await credentialHash(target.id)).not.toBeNull()
+    const session = await betaAuth().api.signInEmail({
+      body: { email: target.email, password: PASSWORD },
+    })
+    expect(session.user.id).toBe(target.id)
+  })
+
+  it("refuses an org_invite aimed at an existing credential-less identity", async () => {
+    // Same attack through the other purpose: an invite must never mint the
+    // first credential for an identity, so this needs a session it can never
+    // have (a credential-less identity cannot sign in).
+    const { orgId } = await orgWithOwner()
+    const adminId = await companyAdmin(orgId)
+    const target = await unactivatedStaffIdentity()
+
+    const { raw, id } = await issue({
+      purpose: "org_invite",
+      email: target.email,
+      issuedBy: adminId,
+      organizationId: orgId,
+      grantedRole: "member",
+    })
+
+    expect(await consume(raw)).toEqual({
+      ok: false,
+      reason: "signin_required",
+      email: target.email,
+    })
+    expect(await credentialHash(target.id)).toBeNull()
+    expect((await tokenRow(id)).consumed_at).toBeNull()
+  })
+})
+
 describe("password_reset", () => {
   it("replaces the password and drops every existing session", async () => {
     const { staffId } = await orgWithOwner()

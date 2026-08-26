@@ -3,6 +3,12 @@
   "tasks": {
     "build": {
       "outputs": [".next/**", "!.next/cache/**"]
+    },
+    "test": {
+      // DATABASE_URL is set by tests/global-setup.ts after the Postgres 18
+      // testcontainer boots (and read by db/client.ts); SKIP_TESTCONTAINER is
+      // the escape hatch that reuses an externally-provided database instead.
+      "env": ["DATABASE_URL", "SKIP_TESTCONTAINER"]
     }
   }
 }

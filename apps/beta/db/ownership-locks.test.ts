@@ -131,6 +131,16 @@ describe("SF-1 — last-owner protection is a lock, not a count", () => {
         await b`UPDATE organization_membership SET role = 'admin' WHERE id = ${secondMembership}`
         await b`COMMIT`
       })()
+      // Attached at creation, not at the `await expect(...)` below: `waitForLockWait`
+      // and `a COMMIT` both await in between, and B can reject during that window.
+      // A promise with no handler attached by the end of a microtask turn fires
+      // Node's `unhandledRejection` — which crashes the whole test run under
+      // vitest's `dangerouslyIgnoreUnhandledErrors: false` default, flakily,
+      // depending on how the two connections happen to interleave. This no-op
+      // catch is a SECOND handler; it does not consume the rejection `.rejects`
+      // still asserts on below (a promise can have any number of `.then`/`.catch`
+      // listeners, all of which observe the same outcome).
+      bDone.catch(() => undefined)
 
       await waitForLockWait()
       await a`COMMIT`
@@ -169,6 +179,8 @@ describe("SF-1 — last-owner protection is a lock, not a count", () => {
         await b`UPDATE app_user SET disabled_at = now() WHERE id = ${second.id}`
         await b`COMMIT`
       })()
+      // See the note on the first `bDone.catch` above — same flake, same fix.
+      bDone.catch(() => undefined)
 
       await waitForLockWait()
       await a`COMMIT`
@@ -212,6 +224,8 @@ describe("SF-1 — last-owner protection is a lock, not a count", () => {
         `
         await b`COMMIT`
       })()
+      // See the note on the first `bDone.catch` above — same flake, same fix.
+      bDone.catch(() => undefined)
 
       await waitForLockWait()
       await a`COMMIT`

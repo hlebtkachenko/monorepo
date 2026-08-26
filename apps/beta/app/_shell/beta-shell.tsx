@@ -41,22 +41,26 @@ export function BetaShell({
   orgSlug,
   orgLegalName,
   switcher,
+  isOwner = false,
 }: {
   children: React.ReactNode
   orgSlug: string
   orgLegalName: string
   /** The header org-switcher, or omitted for a viewer with only one org. */
   switcher?: React.ReactNode
+  /** Gates the "Pro účetní" rail entry (spec §5) — see `beta-nav.ts`. */
+  isOwner?: boolean
 }) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      betaRailNav(orgSlug).map(({ labelKey, ...rest }) => ({
-        ...rest,
-        label: t(`nav.${labelKey}`),
-      })),
-    [orgSlug, t],
+      betaRailNav(orgSlug, { isOwner }).map((entry) => {
+        if (entry === "separator") return entry
+        const { labelKey, ...rest } = entry
+        return { ...rest, label: t(`nav.${labelKey}`) }
+      }),
+    [orgSlug, isOwner, t],
   )
 
   return (

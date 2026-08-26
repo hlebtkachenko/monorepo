@@ -17,10 +17,12 @@ import { sharedDatabaseUrl, unique } from "../../tests/scratch-db"
 
 import {
   CLIENT_FORBIDDEN_COLUMNS,
+  documentSummary,
   filingView,
   forbiddenClientKeys,
   membershipSummary,
   organizationSummary,
+  ownerDocumentDetail,
   orgMemberSummary,
   reportingPeriodView,
   setupInviteView,
@@ -300,6 +302,76 @@ describe("filingView", () => {
     expect(view.amountDue).toBeNull()
     expect(view.paidAt).toBeNull()
     expect(view.hasAttachment).toBe(false)
+  })
+})
+
+/** Everything `SELECT *` on `document` would hand you (PR 14). */
+const hostileDocumentRow = {
+  id: "0199a0b1-0000-7000-8000-000000000003",
+  organization_id: "0199a0b1-0000-7000-8000-000000000004",
+  doc_type: "invoice_in" as const,
+  status: "returned" as const,
+  original_filename: "Faktura Nováková 03-2026.pdf",
+  storage_key:
+    "org/0199a0b1-0000-7000-8000-000000000004/0199a0b1-0000-7000-8000-000000000005.pdf",
+  content_type: "application/pdf",
+  extension: "pdf",
+  byte_size: 12345,
+  sha256: "a".repeat(64),
+  document_date: "2026-03-01",
+  amount: "1234.56",
+  site_ref: "Vinohrady",
+  office_message: "Chybí druhá strana",
+  internal_note: "Klient dluží ještě jeden doklad.",
+  visible_to_client: true,
+  payslip_employee_id: null,
+  payslip_period_id: null,
+  uploaded_by_user_id: "0199a0b1-0000-7000-8000-000000000006",
+  deleted_at: null,
+  created_at: now,
+  updated_at: now,
+}
+
+describe("documentSummary — the CLIENT projection", () => {
+  it("never carries the office-internal layer, whatever the row holds", () => {
+    const summary = documentSummary(hostileDocumentRow)
+
+    expect(Object.keys(summary).sort()).toEqual([
+      "amount",
+      "byteSize",
+      "contentType",
+      "docType",
+      "documentDate",
+      "filename",
+      "id",
+      "officeMessage",
+      "siteRef",
+      "status",
+      "uploadedAt",
+    ])
+    expect(summary).not.toHaveProperty("internal_note")
+    expect(summary).not.toHaveProperty("internalNote")
+    expect(summary).not.toHaveProperty("storage_key")
+    expect(summary).not.toHaveProperty("sha256")
+    expect(summary).not.toHaveProperty("visible_to_client")
+    expect(forbiddenClientKeys(summary)).toEqual([])
+  })
+})
+
+describe("ownerDocumentDetail — the OWNER-ONLY projection (PR 14)", () => {
+  it("exposes the office layer under renamed keys, and still passes the client fence", () => {
+    const detail = ownerDocumentDetail(hostileDocumentRow)
+
+    expect(detail.note).toBe(hostileDocumentRow.internal_note)
+    expect(detail.clientVisible).toBe(hostileDocumentRow.visible_to_client)
+    // Still a pick, not a spread: storage identity never leaves this layer
+    // either — the owner sees the office's own notes, not S3's.
+    expect(detail).not.toHaveProperty("storage_key")
+    expect(detail).not.toHaveProperty("sha256")
+    // The renamed keys are what let this projection carry data that WOULD
+    // fail `forbiddenClientKeys` under the raw column names — see the type's
+    // own header comment in `projections.ts`.
+    expect(forbiddenClientKeys(detail)).toEqual([])
   })
 })
 

@@ -9,7 +9,8 @@
     "primaryNav": "Hlavní navigace"
   },
   "nav": {
-    "prehled": "Přehled"
+    "prehled": "Přehled",
+    "ucetni": "Pro účetní"
   },
   "landing": {
     "heading": "Klientský portál",
@@ -225,5 +226,70 @@
     "errorNothingToRevoke": "Odkaz už platný není.",
     "errorTooManyRequests": "Příliš mnoho požadavků. Zkuste to prosím za chvíli.",
     "errorRejected": "Operaci odmítla databáze."
+  },
+
+  "ucetni": {
+    "title": "Pro účetní",
+    "queueTitle": "Zpracování",
+    "queueHint": "Fronta dokladů čekajících na zpracování — nejstarší nahoře.",
+
+    "filterLabel": "Zobrazit",
+    "filterQueue": "Fronta (přijato + zpracovává se)",
+    "filterAll": "Vše",
+
+    "columnFile": "Soubor",
+    "columnType": "Typ",
+    "columnStatus": "Stav",
+    "columnUploaded": "Nahráno",
+    "columnAmount": "Částka",
+    "columnSite": "Stavba",
+    "columnMessage": "Zpráva klientovi",
+
+    "empty": "Ve frontě nic není.",
+    "open": "Otevřít",
+
+    "statusReceived": "Přijato",
+    "statusInProcessing": "Zpracovává se",
+    "statusProcessed": "Zpracováno",
+    "statusReturned": "Vráceno",
+
+    "docTypeInvoiceIn": "Přijatá faktura",
+    "docTypeInvoiceOut": "Vydaná faktura",
+    "docTypeReceipt": "Účtenka",
+    "docTypeBankStatement": "Bankovní výpis",
+    "docTypeContract": "Smlouva",
+    "docTypePayroll": "Mzdy",
+    "docTypeAttendance": "Docházka",
+    "docTypeHr": "Personální",
+    "docTypePayslip": "Výplatnice",
+    "docTypeOther": "Ostatní",
+
+    "sheetTitle": "Zpracování dokladu",
+    "sheetDescription": "Jediné místo, kde se pole dokladu upravují.",
+
+    "fieldStatus": "Stav",
+    "fieldDocType": "Typ dokladu",
+    "fieldDocumentDate": "Datum dokladu",
+    "fieldAmount": "Částka",
+    "fieldSiteRef": "Stavba",
+    "fieldOfficeMessage": "Zpráva klientovi",
+    "fieldOfficeMessageHint": "Vidí klient. Povinná při stavu „Vráceno“.",
+    "fieldInternalNote": "Interní poznámka",
+    "fieldInternalNoteHint": "Vidí jen kancelář. Klient ji nikdy neuvidí.",
+    "fieldClientVisible": "Viditelné klientovi",
+    "fieldUploadedAt": "Nahráno",
+
+    "save": "Uložit",
+    "pending": "Ukládám…",
+    "close": "Zavřít",
+
+    "okSaved": "Uloženo.",
+    "errorInvalidInput": "Neplatný vstup.",
+    "errorNotFound": "Doklad nenalezen.",
+    "errorIllegalTransition": "Tento přechod stavu není povolený.",
+    "errorMessageRequired": "Stav „Vráceno“ vyžaduje zprávu klientovi.",
+    "errorInvalidDate": "Neplatné datum.",
+    "errorInvalidAmount": "Neplatná částka.",
+    "errorConflict": "Doklad mezitím změnil někdo jiný. Zkuste to prosím znovu."
   }
 }

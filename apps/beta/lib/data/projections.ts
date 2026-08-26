@@ -469,6 +469,84 @@ export function filingView(
 }
 
 // ---------------------------------------------------------------------------
+// Owner document detail — Pro účetní › Zpracování (PR 14)
+// ---------------------------------------------------------------------------
+
+/**
+ * A document as the office's OWN Zpracování queue sees it — the twin of
+ * `DocumentSummary` above, deliberately kept a SEPARATE type rather than
+ * `DocumentSummary & { internalNote: string }`. This projection is reached
+ * only through an `OwnerScope` (`lib/data/documents-office.ts`), never a bare
+ * `OrgScope`, so widening the client type instead would put the office layer
+ * one accidental import away from a page every other role can reach.
+ *
+ * TWO FIELDS ARE DELIBERATELY RENAMED, NOT JUST INCLUDED: `internal_note`
+ * becomes `note`, `visible_to_client` becomes `clientVisible`. Both names are
+ * in `CLIENT_FORBIDDEN_COLUMNS` — the office is SUPPOSED to see them here, so
+ * spreading the raw row instead of picking would be caught by
+ * `forbiddenClientKeys`, and it stays caught: `documentSummary` above still
+ * builds the client projection from the SAME `document` table and must never
+ * carry either. Renaming (not just re-casing, the same discipline
+ * `officeMemberRow` uses for `is_staff` → `staff`) is what keeps the two
+ * projections from drifting into each other by a careless `{ ...row }`.
+ */
+export type OwnerDocumentDetail = {
+  id: string
+  filename: string
+  docType: DocumentRow["doc_type"]
+  status: DocumentRow["status"]
+  contentType: string
+  byteSize: number
+  uploadedAt: string
+  uploadedByUserId: string | null
+  documentDate: string | null
+  amount: string | null
+  siteRef: string | null
+  officeMessage: string | null
+  /** `internal_note`, renamed — see the type's own header. */
+  note: string | null
+  /** `visible_to_client`, renamed — see the type's own header. */
+  clientVisible: boolean
+}
+
+export function ownerDocumentDetail(
+  row: Pick<
+    DocumentRow,
+    | "id"
+    | "original_filename"
+    | "doc_type"
+    | "status"
+    | "content_type"
+    | "byte_size"
+    | "created_at"
+    | "uploaded_by_user_id"
+    | "document_date"
+    | "amount"
+    | "site_ref"
+    | "office_message"
+    | "internal_note"
+    | "visible_to_client"
+  >,
+): OwnerDocumentDetail {
+  return {
+    id: row.id,
+    filename: row.original_filename,
+    docType: row.doc_type,
+    status: row.status,
+    contentType: row.content_type,
+    byteSize: row.byte_size,
+    uploadedAt: row.created_at.toISOString(),
+    uploadedByUserId: row.uploaded_by_user_id,
+    documentDate: row.document_date,
+    amount: row.amount,
+    siteRef: row.site_ref,
+    officeMessage: row.office_message,
+    note: row.internal_note,
+    clientVisible: row.visible_to_client,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Setup link — the one-time-link screens
 // ---------------------------------------------------------------------------
 

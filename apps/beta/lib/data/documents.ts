@@ -347,7 +347,14 @@ function normalizeFilename(raw: string): string | null {
   return name
 }
 
-function normalizeSiteRef(raw: string | null | undefined): string | null {
+/**
+ * Exported for `documents-office.ts` (PR 14): the office's field-edit form
+ * writes the same `site_ref` column through the same rule, so the cap and the
+ * empty-string-means-null behaviour live in exactly one place.
+ */
+export function normalizeSiteRef(
+  raw: string | null | undefined,
+): string | null {
   if (raw === null || raw === undefined) return null
   const trimmed = raw.trim()
   if (trimmed.length === 0) return null

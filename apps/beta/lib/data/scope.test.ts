@@ -34,7 +34,7 @@ import {
   setStaff,
   type TestOrganization,
 } from "../../tests/fixtures"
-import type { OrgScope } from "./scope"
+import type { OrgScope, OwnerScope } from "./scope"
 
 /**
  * The request headers the seam reads. `vi.hoisted` because `vi.mock` factories
@@ -46,7 +46,8 @@ vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
 }))
 
-const { requireScope, requireOffice, assertOwner } = await import("./scope")
+const { requireScope, requireOffice, assertOwner, requireOwner } =
+  await import("./scope")
 const { organizationForScope } = await import("./organizations")
 const { forbiddenClientKeys } = await import("./projections")
 
@@ -281,6 +282,51 @@ describe("assertOwner — the owner-only surfaces", () => {
       const scope = await requireScope(orgA.slug)
       await expect404(() => assertOwner(scope), `${role} on an owner surface`)
     }
+  })
+})
+
+describe("requireOwner — the owner-only write handle (PR 14)", () => {
+  it("mints a handle for the owner, and 404s everyone else", async () => {
+    as(orgA.members.owner.headers)
+    const ownerScope = requireOwner(await requireScope(orgA.slug))
+
+    expect(ownerScope.role).toBe("owner")
+    expect(ownerScope.organizationId).toBe(orgA.organizationId)
+    expect(ownerScope.userId).toBe(orgA.members.owner.userId)
+    expect(Object.isFrozen(ownerScope)).toBe(true)
+
+    for (const role of ["admin", "member", "guest"] as const) {
+      as(orgA.members[role].headers)
+      const scope = await requireScope(orgA.slug)
+      await expect404(
+        () => requireOwner(scope),
+        `${role} may not mint an OwnerScope`,
+      )
+    }
+  })
+
+  it("carries every field of the OrgScope it was minted from", async () => {
+    as(orgA.members.owner.headers)
+    const scope = await requireScope(orgA.slug)
+    const ownerScope = requireOwner(scope)
+
+    expect(ownerScope.organizationSlug).toBe(scope.organizationSlug)
+    expect(ownerScope.isStaff).toBe(scope.isStaff)
+  })
+
+  it("cannot be forged outside scope.ts — checked by tsc, not by this assertion", () => {
+    // @ts-expect-error The owner brand symbol is module-private, exactly like
+    // OrgScope's. If this ever stops being an error, `pnpm --filter beta
+    // typecheck` fails on the unused directive — the assertion is that this
+    // line CANNOT type-check, not that it throws at runtime.
+    const forged: OwnerScope = {
+      organizationId: orgA.organizationId,
+      organizationSlug: orgA.slug,
+      userId: orgA.members.member.userId,
+      role: "owner",
+      isStaff: true,
+    }
+    expect(forged.organizationId).toBe(orgA.organizationId)
   })
 })
 

@@ -11,12 +11,22 @@ import { Badge } from "@workspace/ui/components/badge"
 
 import { useBetaTranslations } from "@/i18n/translations"
 
+import { SignOutButton } from "../_components/sign-out-button"
 import { betaRailNav } from "../_nav/beta-nav"
 
 /**
- * The persistent shell for the beta portal — mounted once by `layout.tsx` so
- * the rail and chrome stay put while page bodies swap underneath. Composes the
- * same `@workspace/ui` app-shell primitives as the org shell in apps/web.
+ * The persistent shell for the beta portal — mounted by
+ * `app/(portal)/[orgSlug]/layout.tsx` so the rail and chrome stay put while
+ * org page bodies swap underneath. Composes the same `@workspace/ui`
+ * app-shell primitives as the org shell in apps/web.
+ *
+ * ORG-SCOPED SINCE PR 09, ON PURPOSE. There is no rail without an
+ * organization to point it at, so this shell only ever mounts inside
+ * `[orgSlug]` — the pre-org root picker (`app/(portal)/page.tsx`) renders its
+ * own minimal chrome instead. `switcher` is the header org-switcher dropdown,
+ * passed in already built (or omitted) by the layout, which is the one place
+ * that knows the viewer's full membership list; this component stays a dumb
+ * data-in composition.
  *
  * Two deliberate differences from the org shell:
  *   - NO assistant panel and NO assistant toggle. The AppShell renders the
@@ -26,16 +36,27 @@ import { betaRailNav } from "../_nav/beta-nav"
  *   - NO sidebar. No module has subpages yet, so the sidebar panel (and its
  *     toggle) stay off until the first one does.
  */
-export function BetaShell({ children }: { children: React.ReactNode }) {
+export function BetaShell({
+  children,
+  orgSlug,
+  orgLegalName,
+  switcher,
+}: {
+  children: React.ReactNode
+  orgSlug: string
+  orgLegalName: string
+  /** The header org-switcher, or omitted for a viewer with only one org. */
+  switcher?: React.ReactNode
+}) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      betaRailNav.map(({ labelKey, ...rest }) => ({
+      betaRailNav(orgSlug).map(({ labelKey, ...rest }) => ({
         ...rest,
         label: t(`nav.${labelKey}`),
       })),
-    [t],
+    [orgSlug, t],
   )
 
   return (
@@ -46,10 +67,16 @@ export function BetaShell({ children }: { children: React.ReactNode }) {
         <AppHeader
           search={false}
           leftContent={
-            <Badge variant="secondary" className="ml-2">
-              {t("app.badge")}
-            </Badge>
+            <>
+              {switcher}
+              <Badge variant="secondary" className="ml-2">
+                {t("app.badge")}
+              </Badge>
+            </>
           }
+          // Sign-out lives here until the header account menu lands with
+          // Nastavení › Účet (PR 21) — see the note on SignOutButton.
+          actions={<SignOutButton />}
         />
       }
       rail={
@@ -60,8 +87,8 @@ export function BetaShell({ children }: { children: React.ReactNode }) {
           storageKey="beta-rail-mode"
         />
       }
-      contentHeader={<ContentHeader title={t("app.title")} />}
-      logoHref="/"
+      contentHeader={<ContentHeader title={orgLegalName} />}
+      logoHref={`/${orgSlug}`}
     >
       {children}
     </AppShell>

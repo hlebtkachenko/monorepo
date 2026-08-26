@@ -124,6 +124,50 @@ const isAllowed = (file: string): boolean =>
   ALLOWED_FILES.includes(file) ||
   ALLOWED_PREFIXES.some((prefix) => file.startsWith(prefix))
 
+/**
+ * True if `sf` re-exports `betaDb` — under any alias, or via `export *` — from
+ * `db/client`, in any form.
+ *
+ * PR 09 carry-in from the PR 07 gate. The primary fence above only asks "does
+ * this file's own code hold the raw handle", which is the wrong question for a
+ * file INSIDE the allowlist: `lib/data/organizations.ts` doing
+ * `export { betaDb } from "@/db/client"` is itself an allowed importer, so the
+ * primary check passes it — and then `app/some-page.tsx` can
+ * `import { betaDb } from "@/lib/data/organizations"`, which never mentions
+ * `db/client` at all and is invisible to both this test and the ESLint rule
+ * (`no-restricted-imports` only matches the literal specifier). The re-export
+ * IS the bypass: it turns one allowed file into a second, unfenced door onto
+ * the unscoped client.
+ */
+function reExportsDbClient(sf: ts.SourceFile, fromFile: string): boolean {
+  let found = false
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      resolveLocal(node.moduleSpecifier.text, fromFile) === DB_CLIENT
+    ) {
+      if (!node.exportClause) {
+        // `export * from "@/db/client"` — re-exports everything, betaDb
+        // included, under no alias at all.
+        found = true
+      } else if (ts.isNamedExports(node.exportClause)) {
+        for (const element of node.exportClause.elements) {
+          // `export { betaDb as db } from "..."` re-exports the ORIGINAL name
+          // `betaDb` under the local alias `db` — the alias is irrelevant to
+          // what leaves the module, only the source name is.
+          const original = (element.propertyName ?? element.name).text
+          if (original === "betaDb") found = true
+        }
+      }
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return found
+}
+
 describe("db/client import fence", () => {
   it("is imported only from the data layer and the three auth modules", () => {
     expect(importers.filter((file) => !isAllowed(file))).toEqual([])
@@ -156,5 +200,68 @@ describe("db/client import fence", () => {
     for (const entry of [...ALLOWED_FILES, ...ALLOWED_PREFIXES]) {
       expect(config, `${entry} missing from eslint.config.js`).toContain(entry)
     }
+  })
+
+  it("no allowlisted file re-exports the raw client (the `export { betaDb }` bypass)", () => {
+    const offenders = collectSources(BETA_ROOT)
+      .map((file) => relative(BETA_ROOT, file).split("\\").join("/"))
+      .filter((file) => isAllowed(file))
+      .filter((file) => {
+        const full = join(BETA_ROOT, file)
+        return reExportsDbClient(
+          ts.createSourceFile(
+            full,
+            readFileSync(full, "utf8"),
+            ts.ScriptTarget.Latest,
+            true,
+          ),
+          full,
+        )
+      })
+    expect(offenders).toEqual([])
+  })
+
+  it("detects the re-export bypass it is looking for (non-vacuous)", () => {
+    const hostileFile = join(BETA_ROOT, "lib", "data", "hostile.ts")
+    const hostileSources = [
+      `export { betaDb } from "@/db/client"`,
+      `export { betaDb as db } from "../../db/client"`,
+      `export * from "@/db/client"`,
+    ]
+    for (const source of hostileSources) {
+      const sf = ts.createSourceFile(
+        hostileFile,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+      )
+      expect(reExportsDbClient(sf, hostileFile), source).toBe(true)
+    }
+
+    // Holding and USING the handle internally is exactly what the allowlist
+    // exists to permit — only re-exporting it is the bypass.
+    const innocentFile = join(BETA_ROOT, "lib", "data", "innocent.ts")
+    const innocentSource = [
+      `import { betaDb } from "@/db/client"`,
+      `export function organizationForScope() { return betaDb() }`,
+    ].join("\n")
+    const innocentSf = ts.createSourceFile(
+      innocentFile,
+      innocentSource,
+      ts.ScriptTarget.Latest,
+      true,
+    )
+    expect(reExportsDbClient(innocentSf, innocentFile)).toBe(false)
+
+    // A re-export of something else entirely from db/client (hypothetically,
+    // a type) does not trip the check — only the raw handle's name does.
+    const otherExportFile = join(BETA_ROOT, "lib", "data", "other-export.ts")
+    const otherExportSf = ts.createSourceFile(
+      otherExportFile,
+      `export { SomeType } from "@/db/client"`,
+      ts.ScriptTarget.Latest,
+      true,
+    )
+    expect(reExportsDbClient(otherExportSf, otherExportFile)).toBe(false)
   })
 })

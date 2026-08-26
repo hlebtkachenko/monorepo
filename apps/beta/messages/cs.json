@@ -15,6 +15,25 @@
     "heading": "Klientský portál",
     "intro": "Portál pro klienty účetní kanceláře. Přihlášení a jednotlivé moduly se zapínají postupně."
   },
+  "org": {
+    "switcherLabel": "Přepnout organizaci",
+    "roleOwner": "Účetní",
+    "roleAdmin": "Majitel společnosti",
+    "roleMember": "Pracovník firmy (vedení)",
+    "roleGuest": "Host",
+    "vatPlatce": "Plátce DPH",
+    "vatNeplatce": "Neplátce DPH",
+    "greetingPrefix": "Vítejte",
+    "roleLabelPrefix": "Vaše role",
+    "pickerHeading": "Vaše firmy",
+    "pickerIntro": "Vyberte organizaci, se kterou chcete pracovat.",
+    "pickerOpen": "Otevřít",
+    "emptyHeading": "Zatím nemáte přístup k žádné organizaci.",
+    "emptyBody": "Ozvěte se prosím účetní kanceláři, ať vás k organizaci přidá.",
+    "emptyStaffHeading": "Zatím nemáte žádnou organizaci.",
+    "emptyStaffBody": "Jako člen kanceláře organizace spravujete v administraci.",
+    "emptyAdminLink": "Přejít do administrace"
+  },
   "auth": {
     "signInTitle": "Přihlášení",
     "signInSubtitle": "Zadejte e-mail a heslo. Účty zakládá účetní kancelář.",

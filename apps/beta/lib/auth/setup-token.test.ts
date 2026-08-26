@@ -48,10 +48,15 @@ async function createUser(staff: boolean, email?: string): Promise<string> {
 }
 
 /** An organization with the one active staff owner the schema requires. */
-async function orgWithOwner(): Promise<{ orgId: string; staffId: string }> {
+async function orgWithOwner(): Promise<{
+  orgId: string
+  slug: string
+  staffId: string
+}> {
+  const slug = unique("org-")
   const [org] = await sql<{ id: string }[]>`
     INSERT INTO organization (slug, legal_name)
-    VALUES (${unique("org-")}, 'Testovací s.r.o.')
+    VALUES (${slug}, 'Testovací s.r.o.')
     RETURNING id
   `
   const staffId = await createUser(true)
@@ -59,7 +64,7 @@ async function orgWithOwner(): Promise<{ orgId: string; staffId: string }> {
     INSERT INTO organization_membership (organization_id, user_id, role)
     VALUES (${org!.id}, ${staffId}, 'owner')
   `
-  return { orgId: org!.id, staffId }
+  return { orgId: org!.id, slug, staffId }
 }
 
 type IssueOptions = {
@@ -139,7 +144,7 @@ async function credentialHash(userId: string): Promise<string | null> {
 
 describe("account_setup", () => {
   it("creates the account, its credential and the membership, and stamps the link", async () => {
-    const { orgId, staffId } = await orgWithOwner()
+    const { orgId, slug, staffId } = await orgWithOwner()
     const email = `${unique("new")}@example.com`
     const { raw, id } = await issue({
       purpose: "account_setup",
@@ -150,7 +155,15 @@ describe("account_setup", () => {
     })
 
     const result = await consume(raw, { name: "Jan Novák" })
-    expect(result).toMatchObject({ ok: true, email, passwordSet: true })
+    expect(result).toMatchObject({
+      ok: true,
+      email,
+      passwordSet: true,
+      // PR 09: first-login routing reads these straight off the result
+      // rather than re-resolving the organization by id.
+      organizationSlug: slug,
+      grantedRole: "member",
+    })
 
     const [user] = await sql<
       {
@@ -332,7 +345,7 @@ describe("sibling invalidation", () => {
 
 describe("org_invite", () => {
   it("creates the account when the address is new", async () => {
-    const { orgId, staffId } = await orgWithOwner()
+    const { orgId, slug, staffId } = await orgWithOwner()
     const email = `${unique("inv")}@example.com`
     const { raw } = await issue({
       purpose: "org_invite",
@@ -342,7 +355,14 @@ describe("org_invite", () => {
       grantedRole: "admin",
     })
 
-    expect((await consume(raw)).ok).toBe(true)
+    const result = await consume(raw)
+    expect(result.ok).toBe(true)
+    // PR 09: the common invite path (a brand-new identity) surfaces the
+    // routing fields the same way account_setup does.
+    expect(result).toMatchObject({
+      organizationSlug: slug,
+      grantedRole: "admin",
+    })
     const [membership] = await sql<{ role: string }[]>`
       SELECT m.role FROM organization_membership m
         JOIN app_user u ON u.id = m.user_id
@@ -594,7 +614,15 @@ describe("password_reset", () => {
       email,
       issuedBy: staffId,
     })
-    await consume(setup.raw)
+    const setupResult = await consume(setup.raw)
+    // PR 09: an org-less account_setup grant has nowhere to route into — the
+    // scope-pairing CHECK guarantees organizationId and grantedRole are null
+    // together, and firstLoginPath sends both cases to the root picker.
+    expect(setupResult).toMatchObject({
+      organizationId: null,
+      organizationSlug: null,
+      grantedRole: null,
+    })
     const [user] = await sql<{ id: string }[]>`
       SELECT id FROM app_user WHERE email = ${email}
     `
@@ -610,7 +638,14 @@ describe("password_reset", () => {
       email,
       issuedBy: staffId,
     })
-    expect((await consume(reset.raw, { password: NEW_PASSWORD })).ok).toBe(true)
+    const resetResult = await consume(reset.raw, { password: NEW_PASSWORD })
+    expect(resetResult.ok).toBe(true)
+    // password_reset is never org-scoped (the DB CHECK forbids it).
+    expect(resetResult).toMatchObject({
+      organizationId: null,
+      organizationSlug: null,
+      grantedRole: null,
+    })
 
     const [after] = await sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM auth_session WHERE user_id = ${user!.id}

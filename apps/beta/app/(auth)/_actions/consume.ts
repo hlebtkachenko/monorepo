@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { PasswordSchema } from "@workspace/shared/auth"
 
 import type { BetaMessageKey } from "@/i18n/messages"
+import { firstLoginPath } from "@/lib/auth/first-login"
 import { BETA_CONSUME_RATE_LIMIT } from "@/lib/auth/policy"
 import { consumeRateLimiter } from "@/lib/auth/rate-limit"
 import { clientIp, clientUserAgent, rateLimitKey } from "@/lib/auth/request-ip"
@@ -115,7 +116,13 @@ async function consume(
     status: "consumed",
     email: result.email,
     signIn: result.passwordSet,
-    redirectTo: "/",
+    // PR 09 (spec §2.0.1): built entirely from what THIS consume just
+    // granted (the org slug + role the database returned), never from the
+    // request — see the note on `ConsumeFormState.redirectTo`.
+    redirectTo: firstLoginPath({
+      organizationSlug: result.organizationSlug,
+      grantedRole: result.grantedRole,
+    }),
   }
 }
 

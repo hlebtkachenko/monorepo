@@ -26,14 +26,21 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * which is why it takes a parameter instead of joining the static list above.
  */
 type BetaNavLabelKey =
-  "prehled" | "dokumenty" | "dane" | "finance" | "vykazy" | "majetek" | "ucetni"
+  | "prehled"
+  | "dokumenty"
+  | "dane"
+  | "finance"
+  | "vykazy"
+  | "majetek"
+  | "asistent"
+  | "ucetni"
 
 export type BetaRailItem =
   (Omit<RailMenuItem, "label"> & { labelKey: BetaNavLabelKey }) | "separator"
 
 export function betaRailNav(
   orgSlug: string,
-  options: { isOwner?: boolean } = {},
+  options: { isOwner?: boolean; showAssistant?: boolean } = {},
 ): BetaRailItem[] {
   const items: BetaRailItem[] = [
     // The structure spec names LayoutDashboard for Přehled; `IconName` is a
@@ -69,6 +76,27 @@ export function betaRailNav(
     // does not need an icon-pack-parity PR of its own.
     { labelKey: "majetek", icon: "Box", href: `/${orgSlug}/majetek` },
   ]
+
+  // Asistent (spec §2.8, §1 rail position 8), and the first entry gated on
+  // something other than the caller's role: `showAssistant` folds TWO facts the
+  // server already resolved — `BETA_ASSISTANT_ENABLED` and the §5 visibility
+  // rule (never guest, therefore never the employee seat) — into one boolean,
+  // because this module is a pure function of its arguments and a client
+  // component cannot read either fact for itself. MessageCircle is the icon
+  // spec §1 names AND one that every icon pack already carries, so unlike
+  // Přehled / Daně / Finance / Majetek above there is no substitute here.
+  //
+  // Hiding the entry is NOT the enforcement. `assertAssistantAvailable`
+  // (`lib/data/assistant.ts`) answers 404 on the route, on every page and on
+  // every write regardless of what the rail drew — the same relationship "Pro
+  // účetní" has with `requireOwner` below.
+  if (options.showAssistant) {
+    items.push({
+      labelKey: "asistent",
+      icon: "MessageCircle",
+      href: `/${orgSlug}/asistent`,
+    })
+  }
 
   if (options.isOwner) {
     // Two of spec §3's four sidebar items exist (Zpracování, PR 14; Zadávání

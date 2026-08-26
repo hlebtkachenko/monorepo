@@ -368,3 +368,16 @@ export const betaPayrollContractType = pgEnum("beta_payroll_contract_type", [
 
 export type BetaPayrollContractType =
   (typeof betaPayrollContractType.enumValues)[number]
+
+/**
+ * Mirrors: 0018_assistant.sql — CREATE TYPE beta_chat_role.
+ *
+ * The two authors an Asistent transcript can have (spec §2.8). There is
+ * deliberately NO `system` value: the system prompt is a versioned FILE
+ * (`lib/assistant/system-prompt.cs.ts`) stamped on `chat.prompt_version`, not a
+ * message row. Storing it per chat would make the effective prompt a database
+ * value nobody reviews.
+ */
+export const betaChatRole = pgEnum("beta_chat_role", ["user", "assistant"])
+
+export type BetaChatRole = (typeof betaChatRole.enumValues)[number]

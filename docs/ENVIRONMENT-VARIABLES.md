@@ -90,6 +90,28 @@ the Better Auth / Database / Email vars below. `PORT` defaults to `3100`.
 | `NEXT_PUBLIC_GITHUB_REPOSITORY`  | no       | Browser-exposed `owner/repo` slug used by admin client navigation links. Baked into the image from `${{ github.repository }}` during deploy.                                                                                                                                                                                                                                                                                                         |
 | `NEXT_PUBLIC_GITHUB_PROJECT_URL` | no       | Optional browser-exposed GitHub Project URL for the command palette. Baked from repo variable `ADMIN_GITHUB_PROJECT_URL`; omit when there is no stable active Project link.                                                                                                                                                                                                                                                                          |
 
+## Beta portal — Asistent (apps/beta)
+
+The Asistent module (`apps/beta/lib/assistant/`, spec `.context/beta-afframe/40-beta-structure.md` §2.8) ships **dark**: none of the variables below is set anywhere — not in `infra/cdk/lib/beta-app-stack.ts`, not in any GitHub environment — and with all of them absent the module is unreachable. Two independent switches, and both default off:
+
+- `BETA_ASSISTANT_ENABLED` gates the **surface** — the rail entry, `/{orgSlug}/asistent`, and `POST /api/orgs/{orgSlug}/asistent`. Anything other than the exact string `true` and all three answer 404. Flipping it is Hleb's client-exposure gate, taken only after the adversarial transcript is reviewed.
+- `BETA_ASSISTANT_API_KEY` gates the **provider call**. Absent, `streamAssistantTurn` makes no network request at all and every send is refused with a Czech "not available" message. Wiring it is a separate, later act; when it happens it belongs in SSM + `secrets` on the beta task definition, never in the plain `environment` map.
+
+A surface enabled without a key is a supported state: the UI renders and every send says the assistant is unavailable, which is what makes the module reviewable before any key exists.
+
+| Var                                   | Required | Notes                                                                                                                                                                                                                          |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BETA_ASSISTANT_ENABLED`              | no       | Exactly `true` switches the surface on. Unset (the deployed state) → rail entry hidden, route and pages 404 for every role. Compared as a string; `1` / `yes` / `TRUE` do **not** enable it.                                   |
+| `BETA_ASSISTANT_API_KEY`              | no       | Anthropic API key. Read in exactly one place (`lib/assistant/config.ts` → `provider.ts`) and never placed on a config object, a response or a log line. Unset → no request is made. **Not set in any environment today.**      |
+| `BETA_ASSISTANT_MODEL`                | no       | Model id. Default `claude-sonnet-5` (spec §2.8: "latest Sonnet default, env-configurable").                                                                                                                                    |
+| `BETA_ASSISTANT_MAX_TOKENS`           | no       | Budget control 4 — `max_tokens` on the response. Default `1500`.                                                                                                                                                               |
+| `BETA_ASSISTANT_HISTORY_MESSAGES`     | no       | Budget control 5 — how many past transcript messages are replayed as context. Default `20`. Truncation happens in the query, not the caller.                                                                                   |
+| `BETA_ASSISTANT_USER_DAILY_MESSAGES`  | no       | Budget control 3 — per-user, per-Prague-day message allowance. Default `50`. Enforced by an atomic increment on `chat_usage`, so concurrent turns cannot race past it.                                                         |
+| `BETA_ASSISTANT_MONTHLY_TOKEN_BUDGET` | no       | Budget control 1 — **install-wide** monthly token ceiling (input + output, summed across every organization). Default `2000000`. Checked before the daily allowance is consumed, so a spent month never costs a client a slot. |
+| `BETA_ASSISTANT_MAX_INPUT_CHARS`      | no       | Longest message the endpoint accepts, before any provider call. Default `4000`; over it the route answers 413. The `chat_message_content_shape` CHECK is the second floor.                                                     |
+
+Any malformed numeric value falls back to the default ceiling (never to "no ceiling") and logs one warning per process.
+
 ## Telegram dev bot (apps/bot + app-side notify)
 
 | Var                    | Required | Notes                                                                                                                                                                                                                                                                     |

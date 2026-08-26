@@ -95,6 +95,7 @@ describe("beta migration runner", () => {
           "0012_notification_prefs.sql",
           "0013_two_factor_verified.sql",
           "0016_payroll.sql",
+          "0018_assistant.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
@@ -113,6 +114,9 @@ describe("beta migration runner", () => {
           "auth_account",
           "auth_session",
           "auth_verification",
+          "chat",
+          "chat_message",
+          "chat_usage",
           "client_task",
           "document",
           "filing",

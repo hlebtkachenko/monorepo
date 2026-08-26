@@ -55,6 +55,30 @@ export function asciiFallbackFilename(filename: string): string {
   return trimmed.length > 0 ? trimmed : "dokument"
 }
 
+/**
+ * The name a HEIC's JPEG derivative is served under (PR 11, spec §2.2).
+ *
+ * `foto.heic` → `foto.jpg`. The derivative IS a JPEG, and a `Content-Type:
+ * image/jpeg` next to `filename="foto.heic"` is the kind of small inconsistency
+ * that ends with someone saving a file their viewer refuses to open.
+ *
+ * A name with no extension, or one this function does not recognise, gets `.jpg`
+ * APPENDED rather than substituted: guessing where an extension ends is how
+ * `faktura.2026.03` becomes `faktura.jpg` and loses the part that identified it.
+ *
+ * Lives here rather than next to the decoder on purpose. The file route needs
+ * this one string operation and nothing else about HEIC; importing it from
+ * `heic-preview.ts` would pull the WebAssembly decoder into the module graph of
+ * a route that serves PDFs.
+ */
+export function previewFilename(original: string): string {
+  const dot = original.lastIndexOf(".")
+  const extension = dot > 0 ? original.slice(dot + 1).toLowerCase() : ""
+  return extension === "heic" || extension === "heif"
+    ? `${original.slice(0, dot)}.jpg`
+    : `${original}.jpg`
+}
+
 /** RFC 5987 `ext-value`: `UTF-8''` followed by percent-encoded UTF-8. */
 export function rfc5987Encode(value: string): string {
   const bytes = Buffer.from(value, "utf8")

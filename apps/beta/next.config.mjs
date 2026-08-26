@@ -82,6 +82,14 @@ const nextConfig = {
   // build step); @workspace/shared is a transitive dep of @workspace/ui.
   transpilePackages: ["@workspace/ui", "@workspace/i18n", "@workspace/shared"],
   output: "standalone",
+  // `heic-decode` re-exports `libheif-js/wasm-bundle` — 1.5 MB of emscripten
+  // output whose WebAssembly rides inside the JavaScript as base64 and which
+  // reaches for `fs`, `path` and `__dirname` at load. Bundling that into the
+  // server build is slow at best and broken at worst; leaving it external means
+  // Next requires it from node_modules at runtime and traces the package into
+  // `.next/standalone` as it stands. Nothing here is client code — the module is
+  // `server-only` and reached only from the upload path.
+  serverExternalPackages: ["heic-decode"],
   poweredByHeader: false,
   ...(distDir ? { distDir } : {}),
   // Site-wide security headers. Referrer-Policy is `no-referrer` everywhere:

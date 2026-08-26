@@ -21,6 +21,7 @@ import { resolveOrgScope } from "../_lib/org-scope"
 import { DocumentsFilters } from "./_components/documents-filters"
 import { DocumentsPager } from "./_components/documents-pager"
 import { DocumentsTable } from "./_components/documents-table"
+import { UploadPanel } from "./_components/upload-panel"
 
 /**
  * Dokumenty › Vše (`/[orgSlug]/dokumenty`) — spec §2.2.
@@ -33,14 +34,20 @@ import { DocumentsTable } from "./_components/documents-table"
  * tree already resolved, so neither can be reached without a live membership,
  * and both carry the four visibility filters of `lib/data/documents.ts`.
  *
+ * THE UPLOAD PANEL IS THE ONE WRITE ON THIS PAGE, and it is RENDERED OR ABSENT
+ * — never disabled. Spec §2.0.1 is explicit for the guest seat: "upload
+ * affordances absent (not disabled)". A greyed-out "Nahrát" is a promise made to
+ * someone who will never be able to keep it, and it also tells them a capability
+ * exists that they are being denied. `canUploadDocuments` decides here; the
+ * route decides again, independently, for every request (403 for a guest) — this
+ * is the honest reflection of that rule, not its enforcement.
+ *
  * WHAT THIS PAGE DELIBERATELY DOES NOT HAVE:
- *   - an upload control. That is PR 11's surface, with the client-side
- *     downscale, the HEIC derivative and the duplicate dialog behind it. A
- *     disabled "Nahrát" button here would be a placeholder for a feature that is
- *     one PR away, which the campaign forbids;
  *   - a title header or the Vše / Doklady firmy / Stavby tab row — both moved
  *     to `../layout.tsx` (PR 13), which every sibling tab shares;
- *   - any write. Every client surface is read-only (spec §3.3).
+ *   - any write on a document ROW. Fields, status and messages are the office's
+ *     (spec §3.3); uploading a new file is the client's, and that is the whole
+ *     difference.
  *
  * `dynamic` is not set: every read below already depends on `headers()` through
  * the session, so the route is dynamic by construction. Saying so twice would be
@@ -77,9 +84,12 @@ export default async function DokumentyPage({
   ])
 
   const filtered = hasActiveFilters(query.filters)
+  const canUpload = canUploadDocuments(scope)
 
   return (
     <>
+      {canUpload ? <UploadPanel orgSlug={slug} /> : null}
+
       {/* The filter bar is worth rendering on an empty book only when it is
           what emptied it — otherwise it is six controls above nothing. */}
       {page.total > 0 || filtered ? (
@@ -104,7 +114,7 @@ export default async function DokumentyPage({
                 : // A `guest` cannot upload (spec §5), so telling them to would
                   // be an instruction they cannot follow. The employee seat of
                   // §2.6.1 narrows this further in PR 32.
-                  canUploadDocuments(scope)
+                  canUpload
                   ? t("dokumenty.emptyBody")
                   : t("dokumenty.emptyBodyReadOnly")}
             </EmptyDescription>

@@ -93,6 +93,7 @@ import {
 } from "@/lib/storage/upload-stream"
 import { isDeadlock, isUniqueViolation } from "@/lib/pg-error"
 
+import { attachHeicPreview } from "./document-preview"
 import {
   COMPANY_DOCUMENT_TYPES,
   DOCUMENT_LIST_PAGE_SIZE,
@@ -144,6 +145,9 @@ const summaryColumns = {
   amount: document.amount,
   site_ref: document.site_ref,
   office_message: document.office_message,
+  // Read as a key, projected as `hasPreview` — never serialised (PR 11).
+  // `documentSummary` turns it into the boolean the row sheet branches on.
+  preview_storage_key: document.preview_storage_key,
 }
 
 /**
@@ -461,9 +465,23 @@ export type DocumentFileHandle = {
   inlineAllowed: boolean
   /**
    * Whether the route may honour a request for `preview` — the row sheet's
-   * sandboxed frame. Images plus PDF; see `isFramePreviewableContentType`.
+   * sandboxed frame. Images plus PDF (`isFramePreviewableContentType`), plus a
+   * HEIC that has a JPEG derivative, which is the whole point of having one.
    */
   previewAllowed: boolean
+  /**
+   * The type of the bytes in `body`. Equal to the row's `content_type` except
+   * on the derivative, where it is `image/jpeg` — the response must describe
+   * what it is sending, not what the row is about.
+   */
+  contentType: string
+  /** Length of `body`, for `content-length`. The derivative's own size. */
+  byteSize: number
+  /**
+   * True when `body` is the JPEG derivative rather than the stored original.
+   * The route uses it to send a `.jpg` filename with the JPEG bytes.
+   */
+  isDerivative: boolean
   body: Readable
 }
 
@@ -472,27 +490,55 @@ export type DocumentFileHandle = {
  *
  * The storage key is read here and never leaves: the route receives a stream,
  * not a key, so there is no shape of this API in which a client-supplied key
- * reaches S3.
+ * reaches S3. That holds for BOTH keys — the derivative's is read off the same
+ * row, filtered by the same four rules, and is no more reachable from a request
+ * than the original's.
+ *
+ * `variant: "preview"` asks for the JPEG derivative and FALLS BACK to the
+ * original when there is none. The fallback is what keeps the route's contract
+ * unchanged for the types that were previewable before derivatives existed: a
+ * PDF asked for as a preview still gets the PDF.
  */
 export async function openDocumentFile(
   scope: OrgScope,
   documentId: string,
+  options: { variant?: "original" | "preview" } = {},
 ): Promise<DocumentFileHandle | null> {
   if (!UUID.test(documentId)) return null
 
   const [row] = await betaDb()
-    .select({ ...summaryColumns, storage_key: document.storage_key })
+    .select({
+      ...summaryColumns,
+      storage_key: document.storage_key,
+      preview_byte_size: document.preview_byte_size,
+    })
     .from(document)
     .where(and(visibleDocuments(scope), eq(document.id, documentId)))
     .limit(1)
 
   if (!row) return null
 
-  const body = await documentStore().get(row.storage_key, scope.organizationId)
+  const derivative =
+    options.variant === "preview" &&
+    row.preview_storage_key !== null &&
+    row.preview_byte_size !== null
+      ? { key: row.preview_storage_key, byteSize: row.preview_byte_size }
+      : null
+
+  const body = await documentStore().get(
+    derivative ? derivative.key : row.storage_key,
+    scope.organizationId,
+  )
+
   return {
     document: documentSummary(row),
     inlineAllowed: isInlineSafeContentType(row.content_type),
-    previewAllowed: isFramePreviewableContentType(row.content_type),
+    previewAllowed:
+      isFramePreviewableContentType(row.content_type) ||
+      row.preview_storage_key !== null,
+    contentType: derivative ? "image/jpeg" : row.content_type,
+    byteSize: derivative ? derivative.byteSize : row.byte_size,
+    isDerivative: derivative !== null,
     body,
   }
 }
@@ -677,6 +723,19 @@ export async function uploadDocument(
     }
   }
 
+  /**
+   * The row the transaction inserted, carried OUT of the try block.
+   *
+   * The derivative must not run inside it. `discard()` in the catch deletes the
+   * object this upload just wrote, which is the right compensation for a
+   * transaction that never committed — and exactly the wrong one after it has:
+   * a throw from the derivative step would leave a committed row pointing at a
+   * deleted object. `attachHeicPreview` swallows everything by contract, so this
+   * is belt to that brace; it is worth the two extra lines because the failure
+   * it prevents is silent and permanent.
+   */
+  let storedRow: Parameters<typeof documentSummary>[0] | undefined
+
   try {
     const outcome = await betaDb().transaction(async (tx) => {
       // The row lock that serialises the quota arithmetic. `no key update`
@@ -761,11 +820,7 @@ export async function uploadDocument(
       }
     }
     if (!outcome.row) throw new Error("insert returned no row")
-    return {
-      ok: true,
-      status: "stored",
-      document: documentSummary(outcome.row),
-    }
+    storedRow = outcome.row
   } catch (error) {
     await discard()
     // Two identical uploads that raced past the row lock — possible only if the
@@ -803,6 +858,29 @@ export async function uploadDocument(
     // been consumed, so there is nothing left to re-stream.
     if (isDeadlock(error)) return { ok: false, reason: "retry" }
     throw error
+  }
+
+  // Past this point the row is COMMITTED and there is no compensation left to
+  // run — which is the whole reason the derivative lives here rather than inside
+  // the block above.
+  //
+  // The HEIC derivative (spec §2.2), generated once, only for the outcome that
+  // produced a new object. A no-op for every other content type, and it cannot
+  // fail the upload — see `document-preview.ts`.
+  const hasPreview = await attachHeicPreview(scope, {
+    id: storedRow.id,
+    contentType: storedRow.content_type,
+    storageKey: key,
+  })
+
+  return {
+    ok: true,
+    status: "stored",
+    // The row was returned before the derivative existed, so its
+    // `preview_storage_key` is null in hand. Reflecting the outcome we just
+    // produced is cheaper and more honest than a second read of a row we wrote:
+    // the client's sheet can render the preview immediately.
+    document: { ...documentSummary(storedRow), hasPreview },
   }
 }
 

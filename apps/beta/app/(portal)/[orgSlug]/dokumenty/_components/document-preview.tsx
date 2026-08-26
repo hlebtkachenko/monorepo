@@ -11,7 +11,7 @@ import type { DocumentSummary } from "@/lib/data/projections"
 /**
  * The row sheet's preview surface (spec §2.2: "Row sheet: sandboxed preview").
  *
- * THREE OUTCOMES, decided by the STORED content type — never by the filename:
+ * FOUR OUTCOMES, decided by the STORED content type — never by the filename:
  *
  *   PNG / JPEG   a plain `<img>` on `?disposition=inline`. These render inside
  *                our own document context, which is why the inline allowlist in
@@ -20,10 +20,19 @@ import type { DocumentSummary } from "@/lib/data/projections"
  *                `default-src 'none'; sandbox; frame-ancestors 'self'`, so the
  *                framed document is its own opaque origin with no scripting and
  *                no subresource loads, and only our own pages may frame it.
- *   anything else (HEIC today)
+ *   HEIC WITH A DERIVATIVE (PR 11)
+ *                a plain `<img>` on `?disposition=preview`, which is the ONE
+ *                door to the server-generated JPEG (`lib/storage/heic-preview.ts`).
+ *                The bytes that arrive are a JPEG and are declared as one, so
+ *                this is the PNG/JPEG case wearing a different query parameter.
+ *                `hasPreview` is a derived boolean on the projection — the sheet
+ *                never learns the derivative's key, and asking for a preview
+ *                that does not exist would answer with an attachment, which is
+ *                why the flag is checked rather than assumed.
+ *   anything else (a HEIC whose decode did not succeed)
  *                a line of Czech telling the client to download it. No non-Apple
- *                browser renders HEIC, and a frame that shows nothing is worse
- *                than a sentence that explains why.
+ *                browser renders the original, and a frame that shows nothing is
+ *                worse than a sentence that explains why.
  *
  * THE IFRAME HAS NO `sandbox` ATTRIBUTE, AND THAT IS THE POINT OF THE MEASURED
  * DESIGN. Chrome refuses to run its PDF viewer in a frame that carries one — any
@@ -58,6 +67,16 @@ export function DocumentPreview({
     return (
       <img
         src={`${fileUrl}?disposition=inline`}
+        alt={document.filename}
+        className="max-h-96 w-full rounded-lg border border-border object-contain"
+      />
+    )
+  }
+
+  if (document.hasPreview) {
+    return (
+      <img
+        src={`${fileUrl}?disposition=preview`}
         alt={document.filename}
         className="max-h-96 w-full rounded-lg border border-border object-contain"
       />

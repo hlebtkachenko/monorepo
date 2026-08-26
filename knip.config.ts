@@ -63,6 +63,14 @@ const config: KnipConfig = {
       // Same @workspace/ui/postcss.config re-export indirection as apps/admin.
       ignoreDependencies: ["@tailwindcss/postcss"],
     },
+    "apps/beta-agent": {
+      // src/vendor/* are BYTE-IDENTICAL copies of apps/beta's wire schemas and
+      // CSV reader (see the package README + src/vendor/vendor.test.ts, which
+      // compares bytes). Their full export surface is deliberately not all
+      // reached from the CLI — pruning it would make the copy diverge from its
+      // source and defeat the drift test. Never hand-edit that tree; re-copy.
+      ignore: ["src/vendor/*.ts"],
+    },
     "apps/web": {
       // Same @workspace/ui/postcss.config re-export indirection as apps/admin.
       ignoreDependencies: ["@tailwindcss/postcss"],

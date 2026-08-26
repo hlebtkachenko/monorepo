@@ -12,6 +12,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { requireOwner } from "@/lib/data/scope"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
+import { PageHeader, SectionTitle } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 
 import { uploadCsvBatchAction } from "../_actions/uzaverka"
@@ -67,12 +69,7 @@ export default async function UzaverkaPage({
 
   return (
     <div className="grid gap-6 p-6">
-      <div className="grid gap-2">
-        <h1 className="font-heading text-lg font-semibold">
-          {t("uzaverka.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("uzaverka.intro")}</p>
-      </div>
+      <PageHeader title={t("uzaverka.title")} intro={t("uzaverka.intro")} />
 
       {view.periods.length > 0 ? (
         <nav
@@ -108,10 +105,10 @@ export default async function UzaverkaPage({
       {view.period ? (
         <>
           <section className="grid gap-3">
-            <h2 className="font-heading text-base font-semibold">
+            <SectionTitle>
               {t("uzaverka.matrixTitle")}{" "}
               {formatReportingPeriodLabel(view.period)}
-            </h2>
+            </SectionTitle>
             <CompletenessMatrix
               orgSlug={orgSlug}
               periodId={view.period.id}
@@ -120,9 +117,7 @@ export default async function UzaverkaPage({
           </section>
 
           <section className="grid gap-3">
-            <h2 className="font-heading text-base font-semibold">
-              {t("uzaverka.historyTitle")}
-            </h2>
+            <SectionTitle>{t("uzaverka.historyTitle")}</SectionTitle>
             <BatchHistory orgSlug={orgSlug} batches={allBatches} />
           </section>
         </>

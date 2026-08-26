@@ -20,6 +20,8 @@ import {
 } from "@/lib/import-labels"
 import { requireOwner } from "@/lib/data/scope"
 
+import { PageHeader } from "../../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../../_lib/org-scope"
 
 import { isUuid } from "../../_actions/input"
@@ -101,10 +103,14 @@ export default async function BatchPreviewPage({
         >
           {t("uzaverka.backToMatrix")}
         </Link>
-        <h1 className="font-heading text-lg font-semibold">
-          {t(IMPORT_DATASET_LABEL_KEY[batch.dataset])} ·{" "}
-          {formatReportingPeriodLabel(batch.period)}
-        </h1>
+        <PageHeader
+          title={
+            <>
+              {t(IMPORT_DATASET_LABEL_KEY[batch.dataset])} ·{" "}
+              {formatReportingPeriodLabel(batch.period)}
+            </>
+          }
+        />
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Badge
             variant={batch.status === "published" ? "secondary" : "outline"}

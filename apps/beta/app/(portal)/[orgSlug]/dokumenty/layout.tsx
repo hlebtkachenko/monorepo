@@ -2,6 +2,8 @@ import type { ReactNode } from "react"
 
 import { getBetaTranslations } from "@/i18n/translations-server"
 
+import { PageHeader } from "../../../_components/page-header"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { DokumentyNavTabs } from "./_components/dokumenty-nav-tabs"
@@ -34,12 +36,11 @@ export default async function DokumentyLayout({
 
   return (
     <div className="flex flex-col">
-      <header className="grid gap-1 px-6 pt-6">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("dokumenty.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("dokumenty.intro")}</p>
-      </header>
+      <PageHeader
+        className="px-6 pt-6"
+        title={t("dokumenty.title")}
+        intro={t("dokumenty.intro")}
+      />
       <DokumentyNavTabs orgSlug={orgSlug} />
       <div className="grid gap-6 p-6">{children}</div>
     </div>

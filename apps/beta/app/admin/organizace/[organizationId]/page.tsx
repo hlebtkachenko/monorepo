@@ -29,6 +29,8 @@ import { listOrganizationMembers } from "@/lib/data/office/memberships"
 import { officeOrganization } from "@/lib/data/office/organizations"
 import { requireOffice } from "@/lib/data/scope"
 
+import { PageHeader, SectionTitle } from "../../../_components/page-header"
+
 import {
   changeMemberRoleAction,
   inviteToOrganizationAction,
@@ -82,14 +84,16 @@ export default async function AdminOrganizationDetailPage({
 
   return (
     <div className="grid gap-8">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {organization.legalName}
-        </h1>
-        <p className="font-mono text-xs text-muted-foreground">
-          /{organization.slug}
-          {organization.ico ? ` · IČO ${organization.ico}` : ""}
-        </p>
+      <div className="grid gap-1">
+        <PageHeader
+          title={organization.legalName}
+          intro={
+            <span className="font-mono text-xs">
+              /{organization.slug}
+              {organization.ico ? ` · IČO ${organization.ico}` : ""}
+            </span>
+          }
+        />
         <div className="flex gap-1 pt-1">
           {organization.archived ? (
             <Badge variant="outline">{t("admin.stateArchived")}</Badge>
@@ -100,7 +104,7 @@ export default async function AdminOrganizationDetailPage({
             <Badge variant="outline">{t("admin.stateDemo")}</Badge>
           ) : null}
         </div>
-      </header>
+      </div>
 
       <Card>
         <CardHeader>
@@ -240,9 +244,7 @@ export default async function AdminOrganizationDetailPage({
       </Card>
 
       <section className="grid gap-3">
-        <h2 className="font-heading text-base font-semibold">
-          {t("admin.membersTitle")}
-        </h2>
+        <SectionTitle>{t("admin.membersTitle")}</SectionTitle>
         {members.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("admin.noRows")}</p>
         ) : (

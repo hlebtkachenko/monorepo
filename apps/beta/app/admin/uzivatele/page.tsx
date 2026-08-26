@@ -22,6 +22,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { listOfficeUsers } from "@/lib/data/office/users"
 import { requireOffice } from "@/lib/data/scope"
 
+import { SectionTitle } from "../../_components/page-header"
+
 import { grantOwnerEverywhereAction } from "../_actions/memberships"
 import {
   createUserAction,
@@ -93,9 +95,7 @@ export default async function AdminUsersPage() {
       </Card>
 
       <section className="grid gap-3">
-        <h2 className="font-heading text-base font-semibold">
-          {t("admin.usersTitle")}
-        </h2>
+        <SectionTitle>{t("admin.usersTitle")}</SectionTitle>
         {users.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("admin.noRows")}</p>
         ) : (

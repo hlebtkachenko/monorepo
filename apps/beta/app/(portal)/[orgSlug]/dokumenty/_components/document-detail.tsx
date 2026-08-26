@@ -75,7 +75,9 @@ export function DocumentDetail({
   return (
     <div className="grid gap-5">
       <div className="grid gap-2">
-        <h3 className="text-sm font-medium">{t("dokumenty.previewTitle")}</h3>
+        <h3 className="font-sans text-sm font-semibold">
+          {t("dokumenty.previewTitle")}
+        </h3>
         <DocumentPreview document={document} fileUrl={fileUrl} />
       </div>
 
@@ -112,7 +114,7 @@ export function DocumentDetail({
 
       {document.officeMessage ? (
         <div className="grid gap-1 rounded-lg border border-border bg-muted/40 p-3">
-          <h3 className="text-sm font-medium">
+          <h3 className="font-sans text-sm font-semibold">
             {t("dokumenty.detailOfficeMessage")}
           </h3>
           <p className="text-sm whitespace-pre-line">

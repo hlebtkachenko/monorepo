@@ -28,6 +28,8 @@ import { useBetaTranslations } from "@/i18n/translations"
 import { CLIENT_TASK_LINK_KIND_LABEL_KEY } from "@/lib/client-task-labels"
 import type { OwnerClientTaskDetail } from "@/lib/data/projections"
 
+import { SectionTitle } from "../../../../../_components/page-header"
+
 import {
   createClientTaskTemplateAction,
   deleteClientTaskTemplateAction,
@@ -111,9 +113,7 @@ export function TemplatesSection({
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-heading text-base font-semibold">
-          {t("ukoly.templatesTitle")}
-        </h2>
+        <SectionTitle>{t("ukoly.templatesTitle")}</SectionTitle>
         <MonthlySetDialog orgSlug={orgSlug} />
       </div>
 

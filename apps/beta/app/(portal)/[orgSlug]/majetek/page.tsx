@@ -35,6 +35,8 @@ import {
 import { assetsForScope, type AssetFilter } from "@/lib/data/assets"
 import type { BetaAssetCategory } from "@/db/schema"
 
+import { SectionTitle } from "../../../_components/page-header"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { createAssetAction } from "./_actions/assets"
@@ -208,9 +210,7 @@ export default async function MajetekOverviewPage({
 
       <section className="grid gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-heading text-base font-semibold">
-            {t("majetek.overviewTitle")}
-          </h2>
+          <SectionTitle>{t("majetek.overviewTitle")}</SectionTitle>
           <div className="flex gap-2">
             <Link href={`/${orgSlug}/majetek`}>
               <Button

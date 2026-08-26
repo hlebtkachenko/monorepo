@@ -31,6 +31,9 @@ import {
   MANUAL_OBLIGATION_GROUPS,
   OBLIGATION_GROUP_LABEL_KEY,
 } from "@/lib/obligation-labels"
+
+import { SectionTitle } from "../../../../../_components/page-header"
+
 import {
   createLiabilityAction,
   deleteLiabilityAction,
@@ -156,9 +159,7 @@ export function LiabilitiesSection({
         </CardContent>
       </Card>
 
-      <h2 className="font-heading text-base font-semibold">
-        {t("zadavani.liabilitiesTitle")}
-      </h2>
+      <SectionTitle>{t("zadavani.liabilitiesTitle")}</SectionTitle>
 
       {liabilities.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("zadavani.noRows")}</p>

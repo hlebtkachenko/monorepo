@@ -82,6 +82,7 @@ describe("beta migration runner", () => {
         expect(journal.map((r) => r.filename)).toEqual([
           "0000_init.sql",
           "0001_setup_token_guards.sql",
+          "0002_ownership_locks_and_offboarding.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 

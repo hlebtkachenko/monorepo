@@ -7,6 +7,12 @@ import { SignOutButton } from "./_components/sign-out-button"
  * Portal root. Still a landing card: org routing ("one active membership →
  * redirect to it, several → the picker") lands with PR 09. What it does carry
  * now is a real session — the layout guard has already run.
+ *
+ * The identity it renders is the `viewerProfile` projection
+ * (`lib/data/projections.ts`), which is what `getBetaSession()` returns: three
+ * allowlisted fields, never an `app_user` row. When this page grows an
+ * organization (PR 09), that organization arrives the same way — through
+ * `requireScope` and `organizationForScope`, never through `betaDb()`.
  */
 export default async function PortalHomePage() {
   const t = await getBetaTranslations()

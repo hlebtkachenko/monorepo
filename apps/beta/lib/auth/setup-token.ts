@@ -14,6 +14,7 @@ import {
   type BetaOrgRole,
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
+import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
 
 import { betaAuth } from "./server"
 
@@ -46,6 +47,19 @@ import { betaAuth } from "./server"
  * 4. The token never survives the consume. It is not written into the redirect,
  *    and `Referrer-Policy: no-referrer` (next.config.mjs) keeps the URL that
  *    carried it out of any outbound request.
+ *
+ * 5. The purpose gate runs INSIDE the transaction, before any side effect.
+ *    `allowedPurposes` is the calling route's own fact (the /setup route
+ *    consumes account_setup + org_invite, /reset consumes password_reset), and
+ *    it is checked on the claimed row as the first thing after the claim. This
+ *    is the carry-in from the PR 06 Advisor gate: with the check outside, a
+ *    password_reset link POSTed to /setup would run the whole reset — set the
+ *    credential, delete every session, revoke the siblings — and only then
+ *    return "invalid". Failing inside the transaction rolls the claim back, so
+ *    a wrong-route POST performs nothing and does not burn the link. It still
+ *    returns the one uniform failure, so the mismatch is not observable in the
+ *    response; the link surviving is not an oracle either, since anyone holding
+ *    it can already open the page that names its purpose.
  *
  * TRANSACTION SHAPE — and its one honest seam. The claim, the sibling revoke,
  * the membership write and the `consumed_user_id` stamp all run in ONE database
@@ -82,14 +96,22 @@ import { betaAuth } from "./server"
  *     so the value cannot be rewritten after issuance.
  */
 
-export type SetupTokenView = {
-  purpose: BetaSetupTokenPurpose
-  email: string
-  organizationName: string | null
-}
+/**
+ * What the link screens render. It is the `setupInviteView` projection: the
+ * page it feeds is UNAUTHENTICATED, so the column allowlist is the only thing
+ * between the visitor and a table whose other columns are the link hash, the
+ * issuer and the consume forensics.
+ */
+export type SetupTokenView = SetupInviteView
 
 export type ConsumeInput = {
   rawToken: string
+  /**
+   * The purposes the calling route may consume. Not optional: which flows a
+   * route serves is a server-side fact every caller has to state, and a default
+   * of "all" would make the widest permission the quiet one.
+   */
+  allowedPurposes: readonly BetaSetupTokenPurpose[]
   /** Required for every flow except an org invite for an existing account. */
   password?: string | undefined
   name?: string | undefined
@@ -184,11 +206,7 @@ export async function peekSetupToken(
     .limit(1)
 
   if (!row) return null
-  return {
-    purpose: row.purpose,
-    email: row.email,
-    organizationName: row.organizationName,
-  }
+  return setupInviteView(row)
 }
 
 /** Sentinel used to abort the transaction with a uniform verdict. */
@@ -247,7 +265,14 @@ export async function consumeSetupToken(
 
       if (!claimed) throw new ConsumeRejected({ ok: false, reason: "invalid" })
 
-      // 2. Sibling invalidation: every other live link for the same purpose,
+      // 2. Purpose gate. FIRST thing after the claim and before every side
+      //    effect, so a link POSTed to the wrong route changes nothing at all:
+      //    throwing here rolls the claim back with the transaction.
+      if (!input.allowedPurposes.includes(claimed.purpose)) {
+        throw new ConsumeRejected({ ok: false, reason: "invalid" })
+      }
+
+      // 3. Sibling invalidation: every other live link for the same purpose,
       //    the same address and the same organization dies with this one, so a
       //    re-issued invite cannot be replayed from an older email.
       await tx
@@ -264,7 +289,7 @@ export async function consumeSetupToken(
           ),
         )
 
-      // 3. Who is this link for?
+      // 4. Who is this link for?
       const [existing] = await tx
         .select({
           id: app_user.id,
@@ -376,7 +401,7 @@ export async function consumeSetupToken(
         passwordSet = true
       }
 
-      // 4. Membership. An org-scoped token always carries a role (DB CHECK
+      // 5. Membership. An org-scoped token always carries a role (DB CHECK
       //    `user_setup_token_scope_pairing`), and `owner` grants are already
       //    restricted at issuance to office staff; the `owner ⇒ is_staff`
       //    trigger is the floor if that ever slips.
@@ -388,7 +413,7 @@ export async function consumeSetupToken(
         })
       }
 
-      // 5. Forensics: who ended up consuming it. Write-once by trigger.
+      // 6. Forensics: who ended up consuming it. Write-once by trigger.
       await tx
         .update(user_setup_token)
         .set({ consumed_user_id: userId })

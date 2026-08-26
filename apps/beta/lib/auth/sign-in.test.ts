@@ -45,6 +45,7 @@ async function account(): Promise<{ email: string; userId: string }> {
   `
   const result = await consumeSetupToken({
     rawToken: raw,
+    allowedPurposes: ["account_setup"],
     password: PASSWORD,
     ip: null,
     userAgent: null,

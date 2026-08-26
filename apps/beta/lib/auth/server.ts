@@ -1,5 +1,6 @@
 import "server-only"
 
+import { randomBytes } from "node:crypto"
 import { betterAuth } from "better-auth"
 import { APIError } from "better-auth/api"
 import { drizzleAdapter } from "better-auth/adapters/drizzle"
@@ -65,12 +66,19 @@ const IS_PROD = process.env.NODE_ENV === "production"
 
 /**
  * `next build` evaluates route modules with NODE_ENV=production and none of the
- * runtime secrets present. A long, obviously-fake placeholder keeps the build
- * green while making failure-open impossible: if it ever reached a live request,
- * every signature check would fail uniformly.
+ * runtime secrets present, so the build needs SOME secret to construct the
+ * instance with.
+ *
+ * It is 32 CSPRNG bytes generated per process, never a literal. A constant —
+ * even an obviously-fake one — is baked into the image, and anything baked into
+ * an image is a key an attacker can read out of it; if such a build ever booted
+ * without BETTER_AUTH_SECRET (a bad task definition, a local `next start`), it
+ * would mint sessions signed with a publicly-known value. This one is unknowable
+ * outside the process and dies with it: a token signed under it verifies
+ * nowhere, including in the next process, which is the failure mode we want.
  */
 const IS_BUILD = process.env["NEXT_PHASE"] === "phase-production-build"
-const BUILD_PLACEHOLDER_SECRET = "build-time-placeholder-" + "x".repeat(40)
+const BUILD_PLACEHOLDER_SECRET = randomBytes(32).toString("hex")
 const MIN_SECRET_BYTES = 32
 
 /**

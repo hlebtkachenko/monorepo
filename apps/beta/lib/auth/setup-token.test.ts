@@ -95,9 +95,17 @@ async function issue(
   return { raw, id: row!.id }
 }
 
+/** What a route that served every flow would pass. Narrowed per case below. */
+const ANY_PURPOSE = [
+  "account_setup",
+  "org_invite",
+  "password_reset",
+] as const satisfies readonly BetaSetupTokenPurpose[]
+
 function consume(raw: string, overrides: Record<string, unknown> = {}) {
   return consumeSetupToken({
     rawToken: raw,
+    allowedPurposes: ANY_PURPOSE,
     password: PASSWORD,
     ip: "203.0.113.7",
     userAgent: "vitest",
@@ -700,6 +708,115 @@ describe("peek (what a GET renders)", () => {
     expect(await peekSetupToken(revoked.raw)).toBeNull()
 
     expect(await peekSetupToken(generateSetupToken())).toBeNull()
+  })
+})
+
+describe("the purpose gate — a route consumes only its own flows", () => {
+  it("refuses a password_reset link on the setup route, and resets nothing", async () => {
+    const { staffId } = await orgWithOwner()
+    const email = `${unique("gate")}@example.com`
+
+    const setup = await issue({
+      purpose: "account_setup",
+      email,
+      issuedBy: staffId,
+    })
+    const created = await consume(setup.raw)
+    expect(created.ok).toBe(true)
+    const userId = created.ok ? created.userId : ""
+    const originalHash = await credentialHash(userId)
+
+    const reset = await issue({
+      purpose: "password_reset",
+      email,
+      issuedBy: staffId,
+    })
+    const verdict = await consumeSetupToken({
+      rawToken: reset.raw,
+      // What the /setup route passes.
+      allowedPurposes: ["account_setup", "org_invite"],
+      password: NEW_PASSWORD,
+      ip: "203.0.113.8",
+      userAgent: "vitest",
+    })
+
+    expect(verdict).toEqual({ ok: false, reason: "invalid" })
+
+    // The gate runs inside the transaction, so the claim rolled back: the link
+    // is untouched and the password was never changed. With the check outside,
+    // this test would find a consumed token and a new credential.
+    const row = await tokenRow(reset.id)
+    expect(row.consumed_at).toBeNull()
+    expect(row.consumed_ip).toBeNull()
+    expect(await credentialHash(userId)).toBe(originalHash)
+
+    // And the link still works on the route that owns it.
+    const done = await consumeSetupToken({
+      rawToken: reset.raw,
+      allowedPurposes: ["password_reset"],
+      password: NEW_PASSWORD,
+      ip: null,
+      userAgent: null,
+    })
+    expect(done.ok).toBe(true)
+    expect(await credentialHash(userId)).not.toBe(originalHash)
+  })
+
+  it("refuses an account_setup link on the reset route, and creates no account", async () => {
+    const { staffId } = await orgWithOwner()
+    const email = `${unique("gatenew")}@example.com`
+    const { raw, id } = await issue({
+      purpose: "account_setup",
+      email,
+      issuedBy: staffId,
+    })
+
+    const verdict = await consumeSetupToken({
+      rawToken: raw,
+      allowedPurposes: ["password_reset"],
+      password: PASSWORD,
+      ip: null,
+      userAgent: null,
+    })
+
+    expect(verdict).toEqual({ ok: false, reason: "invalid" })
+    const [row] = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app_user WHERE email = ${email}
+    `
+    expect(row!.count).toBe(0)
+    expect((await tokenRow(id)).consumed_at).toBeNull()
+  })
+
+  it("does not revoke the siblings of a link it refuses", async () => {
+    const { orgId, staffId } = await orgWithOwner()
+    const email = `${unique("sibling")}@example.com`
+    const first = await issue({
+      purpose: "org_invite",
+      email,
+      issuedBy: staffId,
+      organizationId: orgId,
+      grantedRole: "guest",
+    })
+    const second = await issue({
+      purpose: "org_invite",
+      email,
+      issuedBy: staffId,
+      organizationId: orgId,
+      grantedRole: "guest",
+    })
+
+    await consumeSetupToken({
+      rawToken: first.raw,
+      allowedPurposes: ["password_reset"],
+      password: PASSWORD,
+      ip: null,
+      userAgent: null,
+    })
+
+    // Sibling invalidation is step 3; the gate is step 2. A refused link must
+    // not take the office's other outstanding invites down with it.
+    expect((await tokenRow(first.id)).revoked_at).toBeNull()
+    expect((await tokenRow(second.id)).revoked_at).toBeNull()
   })
 })
 

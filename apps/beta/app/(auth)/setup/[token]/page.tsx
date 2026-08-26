@@ -1,11 +1,12 @@
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { getBetaSession } from "@/lib/auth/session"
-import { peekSetupToken } from "@/lib/auth/setup-token"
 
 import { consumeSetupAction } from "../../_actions/consume"
 import { AuthCard } from "../../_components/auth-card"
 import { ConsumeForm } from "../../_components/consume-form"
 import { InvalidLink } from "../../_components/invalid-link"
+import { TooManyRequests } from "../../_components/too-many-requests"
+import { peekSetupLink } from "../../_lib/peek-setup-link"
 
 /**
  * Account setup and organization invites.
@@ -14,6 +15,9 @@ import { InvalidLink } from "../../_components/invalid-link"
  * clients, link scanners and browser prefetch all issue GETs; a link that
  * consumed itself on sight would be spent before its owner ever saw it. The
  * consume is the POST behind the form.
+ *
+ * The read goes through `peekSetupLink`, which spends this client's GET budget
+ * before it touches the database (Advisor carry-in, PR 06 gate).
  */
 export default async function SetupPage({
   params,
@@ -21,10 +25,14 @@ export default async function SetupPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
-  const view = await peekSetupToken(token)
+  const peek = await peekSetupLink(token)
 
-  if (!view || view.purpose === "password_reset") return <InvalidLink />
+  if (peek.status === "rate_limited") return <TooManyRequests />
+  if (peek.status === "invalid" || peek.view.purpose === "password_reset") {
+    return <InvalidLink />
+  }
 
+  const view = peek.view
   const t = await getBetaTranslations()
   const session = await getBetaSession()
   // The invited address is already signed in: the link only adds a membership,

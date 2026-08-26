@@ -13,6 +13,10 @@ import { betaAuthClient } from "@/lib/auth/client"
  * Účet (PR 21). Better Auth deletes the `auth_session` row and clears the
  * cookie in one response; `router.refresh()` then makes the portal guard
  * re-evaluate and redirect.
+ *
+ * Shared (`app/_components/`) rather than owned by one route group: the portal
+ * landing and the /admin chrome both draw it, and /admin lives outside the
+ * portal shell entirely.
  */
 export function SignOutButton() {
   const t = useBetaTranslations()

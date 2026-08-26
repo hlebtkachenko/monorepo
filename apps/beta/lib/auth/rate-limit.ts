@@ -50,3 +50,24 @@ export function createRateLimiter(now: () => number = Date.now) {
 
 /** Process-wide limiter shared by the consume actions. */
 export const consumeRateLimiter = createRateLimiter()
+
+/**
+ * Separate instances rather than one limiter with prefixed keys.
+ *
+ * The budgets protect different things and are read by different reviewers: a
+ * shared instance means one surface's traffic can evict another's bucket
+ * through the opportunistic sweep, and it makes "what is the limit on X" a
+ * question about key formatting rather than about a named constant.
+ */
+
+/** GET on the one-time-link screens (`peekSetupToken`). */
+export const peekRateLimiter = createRateLimiter()
+
+/**
+ * The floor under Better Auth's own limiter, for requests it would skip because
+ * no client IP could be determined. See `BETA_AUTH_NO_IP_RATE_LIMIT`.
+ */
+export const authNoIpRateLimiter = createRateLimiter()
+
+/** Setup-link issuance from /admin. A cap on a stolen office session. */
+export const officeIssueRateLimiter = createRateLimiter()

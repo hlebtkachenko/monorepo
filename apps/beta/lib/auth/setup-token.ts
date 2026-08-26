@@ -15,7 +15,14 @@ import {
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
 import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
+import { isCheckViolation, isDeadlock } from "@/lib/pg-error"
 
+import {
+  mayGrantRole,
+  mayIssuePurpose,
+  type InviteIssuer,
+} from "./invite-policy"
+import { BETA_SETUP_LINK_TTL_HOURS } from "./policy"
 import { betaAuth } from "./server"
 
 /**
@@ -132,6 +139,13 @@ export type ConsumeResult =
       passwordSet: boolean
     }
   | { ok: false; reason: "invalid" }
+  /**
+   * A lock cycle picked this transaction as the victim. The link was NOT
+   * consumed (the transaction rolled back), so the honest answer is "try
+   * again" — telling the holder of a perfectly good link that it is invalid
+   * would send them back to the office for a replacement they do not need.
+   */
+  | { ok: false; reason: "retry" }
   /** The invite is real, but this account already exists — prove it is you. */
   | { ok: false; reason: "signin_required"; email: string }
 
@@ -173,6 +187,240 @@ export function hashSetupToken(rawToken: string): string {
 /** 256 bits of CSPRNG, url-safe. Used by the issuing side (/admin, PR 08). */
 export function generateSetupToken(): string {
   return randomBytes(32).toString("base64url")
+}
+
+// ---------------------------------------------------------------------------
+// Issuance — the other half of the link's life
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is handing out the link, as the calling door already proved it.
+ *
+ * `office` comes from a resolved `OfficeScope` (/admin, PR 08); `organization`
+ * from a resolved `OrgScope` (Nastavení › Lidé, PR 22). The two share this one
+ * function so the invite matrix cannot drift between them, and neither of them
+ * can name an issuer id that is not their own signed-in user.
+ */
+type SetupLinkIssuer =
+  | { readonly kind: "office"; readonly userId: string }
+  | {
+      readonly kind: "organization"
+      readonly userId: string
+      readonly organizationId: string
+      readonly role: BetaOrgRole
+    }
+
+export type IssueSetupTokenInput = {
+  readonly purpose: BetaSetupTokenPurpose
+  readonly email: string
+  readonly organizationId?: string | null
+  readonly grantedRole?: BetaOrgRole | null
+  readonly issuer: SetupLinkIssuer
+  readonly ip: string | null
+  readonly userAgent: string | null
+}
+
+/**
+ * THE ONLY TIME THE RAW SECRET EXISTS OUTSIDE THE LINK.
+ *
+ * `token` is returned to the caller once, travels to the office user's screen
+ * once, and is never persisted, never logged and never re-derivable: the table
+ * holds `sha256(token)` and nothing else. `listSetupLinks` (the /admin
+ * registry) has no field for it, by construction rather than by omission — see
+ * `officeSetupLinkSummary` in `lib/data/projections.ts`.
+ */
+export type IssuedSetupLink = {
+  readonly id: string
+  readonly token: string
+  readonly purpose: BetaSetupTokenPurpose
+  readonly email: string
+  readonly expiresAt: Date
+}
+
+export type IssueSetupTokenRejection =
+  /** Not a usable address — checked before anything is generated. */
+  | "invalid_email"
+  /** This issuer may not mint this kind of link at all. */
+  | "purpose_not_allowed"
+  /** This issuer may not grant this role (admin → owner is the live case). */
+  | "role_not_allowed"
+  /** Organization + role pairing wrong, or an org issuer aiming elsewhere. */
+  | "scope_mismatch"
+  /**
+   * The organization has been archived. An invite into a withdrawn book is a
+   * link that resolves to a 404 the moment it is consumed (`requireScope`
+   * refuses an archived organization), so minting one is never what the office
+   * meant. Archiving also revokes the ones already outstanding — trigger
+   * `organization_archive_revokes_setup_tokens`, migration 0003 — and this is
+   * the other half: without it the office can re-mint into the same book right
+   * after archiving it.
+   */
+  | "organization_archived"
+  /** A database guard refused it. The floor did its job; say no, quietly. */
+  | "rejected"
+
+export type IssueSetupTokenResult =
+  | { ok: true; link: IssuedSetupLink }
+  | { ok: false; reason: IssueSetupTokenRejection }
+
+/**
+ * Deliberately loose. The address is a routing fact the office types in, not a
+ * credential, and an over-clever pattern rejects legitimate mail more often
+ * than it catches a typo. The DB column is `varchar(320)`; the lowercasing is
+ * done by trigger as well, and repeated here so the value this function
+ * RETURNS matches the value it stored.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/
+const EMAIL_MAX_LENGTH = 320
+
+function normalizeEmail(raw: string): string | null {
+  const email = raw.trim().toLowerCase()
+  if (email.length === 0 || email.length > EMAIL_MAX_LENGTH) return null
+  return EMAIL_PATTERN.test(email) ? email : null
+}
+
+/**
+ * Mint a one-time link.
+ *
+ * FOUR GATES, IN THIS ORDER, AND ALL OF THEM BEFORE THE SECRET IS GENERATED:
+ *
+ *   1. the address parses;
+ *   2. this issuer may mint this PURPOSE (`invite-policy.ts`);
+ *   3. this issuer may grant this ROLE — the admin-never-owner rule;
+ *   4. the purpose, the organization and the role are a coherent triple, and an
+ *      organization issuer is aiming at their OWN organization.
+ *
+ * Then the database re-checks 2-4 from its own side
+ * (`beta_setup_token_issuer_guard`, the `user_setup_token_*` CHECKs), which is
+ * why a `check_violation` here is answered as a plain refusal rather than
+ * raised: the floor catching something the gates let through is a refusal, not
+ * a fault, and the caller must not be able to tell the two apart.
+ *
+ * The TTL is fixed at {@link BETA_SETUP_LINK_TTL_HOURS} and is not a parameter.
+ * A caller-supplied lifetime is a knob whose only interesting value is "longer",
+ * and the 72h ceiling is a DB CHECK, so the useful range is one number.
+ */
+export async function issueSetupToken(
+  input: IssueSetupTokenInput,
+): Promise<IssueSetupTokenResult> {
+  const email = normalizeEmail(input.email)
+  if (!email) return { ok: false, reason: "invalid_email" }
+
+  const issuer: InviteIssuer =
+    input.issuer.kind === "office"
+      ? { kind: "office" }
+      : { kind: "organization", role: input.issuer.role }
+
+  if (!mayIssuePurpose(issuer, input.purpose)) {
+    return { ok: false, reason: "purpose_not_allowed" }
+  }
+
+  const organizationId = input.organizationId ?? null
+  const grantedRole = input.grantedRole ?? null
+
+  if (grantedRole !== null && !mayGrantRole(issuer, grantedRole)) {
+    return { ok: false, reason: "role_not_allowed" }
+  }
+
+  // Mirrors the CHECK constraints so the caller gets a named reason instead of
+  // a constraint name, and so an incoherent triple never reaches the database.
+  if ((organizationId === null) !== (grantedRole === null)) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (input.purpose === "password_reset" && organizationId !== null) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (input.purpose === "org_invite" && organizationId === null) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (
+    input.issuer.kind === "organization" &&
+    organizationId !== input.issuer.organizationId
+  ) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+
+  // An archived book admits nobody: `requireScope` refuses it, so an invite
+  // into one is a link whose only possible outcome is a 404 for the invitee.
+  // The check races with a concurrent archive, and that is fine — the archive
+  // trigger (0003) revokes whatever slipped through moments later. It is not a
+  // substitute for the trigger; it is what stops the office from re-minting
+  // into a book it has just withdrawn.
+  if (organizationId !== null) {
+    const [book] = await betaDb()
+      .select({ archived_at: organization.archived_at })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    // A missing organization falls through to the FK, which refuses it as a
+    // plain `rejected` — the caller learns nothing about which ids exist.
+    if (book && book.archived_at !== null) {
+      return { ok: false, reason: "organization_archived" }
+    }
+  }
+
+  const token = generateSetupToken()
+
+  try {
+    const [row] = await betaDb()
+      .insert(user_setup_token)
+      .values({
+        purpose: input.purpose,
+        token_hash: hashSetupToken(token),
+        email,
+        organization_id: organizationId,
+        granted_role: grantedRole,
+        issued_by_user_id: input.issuer.userId,
+        issued_ip: input.ip,
+        issued_user_agent: input.userAgent,
+        expires_at: sql`now() + ${`${BETA_SETUP_LINK_TTL_HOURS} hours`}::interval`,
+      })
+      .returning({
+        id: user_setup_token.id,
+        expiresAt: user_setup_token.expires_at,
+      })
+
+    if (!row) return { ok: false, reason: "rejected" }
+
+    return {
+      ok: true,
+      link: {
+        id: row.id,
+        token,
+        purpose: input.purpose,
+        email,
+        expiresAt: row.expiresAt,
+      },
+    }
+  } catch (error) {
+    if (isCheckViolation(error)) return { ok: false, reason: "rejected" }
+    throw error
+  }
+}
+
+/**
+ * Where a link points.
+ *
+ * ENV-FIRST, never request-derived: behind the Cloudflare Tunnel a request's
+ * own URL is the container listener, so an origin built from it would produce a
+ * link to an address that does not exist off-box (ADR-0008 amendment 2, and the
+ * same reason `server.ts` reads `BETTER_AUTH_URL` for `baseURL`). With no base
+ * configured — local development — the result is a root-relative path, which is
+ * still correct against whatever host the operator is using.
+ */
+function setupLinkPath(
+  link: Pick<IssuedSetupLink, "purpose" | "token">,
+): string {
+  const segment = link.purpose === "password_reset" ? "reset" : "setup"
+  return `/${segment}/${encodeURIComponent(link.token)}`
+}
+
+export function setupLinkUrl(
+  link: Pick<IssuedSetupLink, "purpose" | "token">,
+): string {
+  const base = process.env["BETTER_AUTH_URL"]?.trim().replace(/\/+$/, "") ?? ""
+  return `${base}${setupLinkPath(link)}`
 }
 
 /**
@@ -257,10 +505,18 @@ export async function consumeSetupToken(
            *   true  → office staff
            *   false → a company admin issuing inside their own organization
            *   null  → no issuer: the bootstrap seed
+           *
+           * The outer column is the TABLE-QUALIFIED literal, not an
+           * interpolated Drizzle column: interpolation emits a bare
+           * `"issued_by_user_id"`, which resolves against the subquery's own
+           * `app_user` first and only falls through to the outer query because
+           * `app_user` happens not to have a column by that name today. The day
+           * it does, this silently starts comparing a user to itself and every
+           * link reads as staff-issued.
            */
           issuerIsStaff: sql<
             boolean | null
-          >`(SELECT u.is_staff FROM app_user u WHERE u.id = ${user_setup_token.issued_by_user_id})`,
+          >`(SELECT u.is_staff FROM app_user u WHERE u.id = user_setup_token.issued_by_user_id)`,
         })
 
       if (!claimed) throw new ConsumeRejected({ ok: false, reason: "invalid" })
@@ -430,6 +686,11 @@ export async function consumeSetupToken(
     })
   } catch (error) {
     if (error instanceof ConsumeRejected) return error.result
+    // A lock-cycle victim: the whole transaction rolled back, so the link is
+    // still unconsumed and the only true thing to say is "try again". This
+    // arm has to sit ABOVE the check-violation arm — reporting it as `invalid`
+    // would burn a link in the user's mind that the database never touched.
+    if (isDeadlock(error)) return { ok: false, reason: "retry" }
     // A trigger rejection (e.g. an owner grant for a non-staff account) is a
     // legitimate refusal, not a bug to leak. Everything else is a real fault
     // and must not be swallowed.
@@ -496,31 +757,4 @@ async function grantMembership(
       .set({ active: true, role: values.role })
       .where(eq(organization_membership.id, existing.id))
   }
-}
-
-/**
- * Postgres `check_violation` — the class every guard in the migrations raises
- * (owner ⇒ is_staff, last-owner protection, the token CHECKs).
- *
- * The cause chain matters: Drizzle wraps the driver error in a
- * `DrizzleQueryError` that carries no `code` of its own, so reading the top
- * level alone would let a legitimate refusal escape as a 500.
- */
-function isCheckViolation(error: unknown): boolean {
-  let current: unknown = error
-  for (
-    let depth = 0;
-    current !== null && current !== undefined && depth < 5;
-    depth++
-  ) {
-    if (
-      typeof current === "object" &&
-      "code" in current &&
-      (current as { code?: unknown }).code === "23514"
-    ) {
-      return true
-    }
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
 }

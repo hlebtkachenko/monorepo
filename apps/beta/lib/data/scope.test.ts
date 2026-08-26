@@ -17,7 +17,16 @@
  * loader behind `requireScope`, and assert `expect404` for the foreign slug.
  * The fixture builder in `tests/fixtures.ts` is the shared part.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 
 import { hashAgentKey } from "@/lib/agent/key"
 
@@ -455,9 +464,22 @@ describe("the handle itself", () => {
  * genuinely holds the membership, so the 404 doctrine (never confirm what you
  * are not entitled to ask about) does not apply, and sending them to the
  * enrolment screen is the only outcome that is not a dead end.
+ *
+ * THE MANDATE IS BEHIND `BETA_TOTP_REQUIRED` AND OFF BY DEFAULT (2026-08-27), so
+ * this block switches it on and the block after it asserts the off state. Both
+ * halves matter: the seam is the enforcement point, so "the switch reaches it"
+ * is exactly as load-bearing as "the mandate works when switched on".
  */
 describe("the second-factor mandate in the seam", () => {
   const REDIRECT_PREFIX = "NEXT_REDIRECT"
+
+  beforeEach(() => {
+    vi.stubEnv("BETA_TOTP_REQUIRED", "true")
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
 
   async function expectEnrolmentRedirect(
     run: () => Promise<unknown> | unknown,
@@ -596,5 +618,67 @@ describe("the second-factor mandate in the seam", () => {
     )
     // ...and the genuine one still passes.
     expect(requireOwner(scope).role).toBe("owner")
+  })
+})
+
+/**
+ * `BETA_TOTP_REQUIRED` unset — the deployed state, and the reason the switch
+ * exists: pre-launch the population under the mandate is the office itself, and
+ * a forced enrolment that outlives its `BETTER_AUTH_SECRET` locks that office
+ * out of its own portal.
+ *
+ * The three doors are asserted separately because they enforce separately:
+ * `requireScope` reads the predicate on the joined row, `requireOffice` reads it
+ * on the user row, and a third spelling of the check in either is how one of
+ * them stays switched on.
+ */
+describe("the second-factor mandate, switched off", () => {
+  it("gives an unenrolled owner an organization scope", async () => {
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+
+    as(org.members.owner.headers)
+    const scope = await requireScope(org.slug)
+    expect(scope.role).toBe("owner")
+    // The verdict on the handle is "nothing left to satisfy", which is what
+    // keeps `requireOwner`'s floor from firing on a legitimate scope.
+    expect(scope.totpSatisfied).toBe(true)
+  })
+
+  it("lets an unenrolled office account into /admin", async () => {
+    const staff = await createAccount({ staff: true, twoFactorEnabled: false })
+    as(staff.headers)
+    const office = await requireOffice()
+    expect(office.isStaff).toBe(true)
+  })
+
+  it("still answers 404 to a non-staff caller at /admin", async () => {
+    // The switch relaxes the SECOND factor, never the tenancy answer.
+    const outsider = await createAccount()
+    as(outsider.headers)
+    await expect404(() => requireOffice(), "not staff, and not told why")
+  })
+
+  it("still lets an unenrolled owner write, through requireOwner", async () => {
+    const org = await seedOrganization()
+    await setTwoFactorEnabled(org.members.owner.userId, false)
+
+    as(org.members.owner.headers)
+    const scope = await requireScope(org.slug)
+    expect(requireOwner(scope).role).toBe("owner")
+  })
+
+  it("does not relax the membership seam — a foreign slug is still 404", async () => {
+    const [mine, theirs] = await Promise.all([
+      seedOrganization(),
+      seedOrganization(),
+    ])
+    await setTwoFactorEnabled(mine.members.owner.userId, false)
+
+    as(mine.members.admin.headers)
+    await expect404(
+      () => requireScope(theirs.slug),
+      "isolation is not what the switch controls",
+    )
   })
 })

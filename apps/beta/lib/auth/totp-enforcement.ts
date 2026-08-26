@@ -26,7 +26,35 @@
  * the client's own people on a portal that shows them their own accountant's
  * output; forcing an authenticator app on a site foreman is how a shared login
  * gets created. They may still enrol voluntarily from Nastavení › Účet.
+ *
+ * THE WHOLE MANDATE IS BEHIND AN ENV GATE, OFF BY DEFAULT (2026-08-27, Hleb's
+ * product call for the beta: "disable MFA for beta for now at all"). Pre-launch
+ * this install has no real users, the population under the mandate is the office
+ * itself, and a forced enrolment that survives a redeploy with a fresh
+ * `BETTER_AUTH_SECRET` locks that office out of its own portal — the stored TOTP
+ * secret is encrypted under it, so every correct code is rejected. The mandate
+ * is therefore a switch rather than a constant, `BETA_TOTP_REQUIRED`, read the
+ * same way `BETA_ASSISTANT_ENABLED` is (exact string `true`, nothing else) so
+ * there is one spelling of a gate in this app rather than two.
+ *
+ * WHAT THE GATE DOES **NOT** TOUCH. The feature is untouched: Nastavení › Účet
+ * still offers enrolment, Better Auth still stores the factor, and an account
+ * that HAS enrolled is still challenged for a code at sign-in (that lives in the
+ * plugin, not here). The gate decides one thing only — whether an un-enrolled
+ * office account is *forced* to enrol before it may use the portal.
  */
+
+type Env = Record<string, string | undefined>
+
+/**
+ * Is the forced-enrolment mandate switched on for this deployment?
+ *
+ * `true` AND NOT `1`/`yes`/`on` — one spelling, compared exactly, because a
+ * fuzzy truthiness check is how a gate ends up open on the string `"false"`.
+ */
+export function totpEnforcementEnabled(env: Env = process.env): boolean {
+  return env["BETA_TOTP_REQUIRED"]?.trim() === "true"
+}
 
 export type TotpSubject = {
   /** `app_user.is_staff` — office staff, the /admin precondition. */
@@ -37,10 +65,27 @@ export type TotpSubject = {
   readonly twoFactorEnabled: boolean
 }
 
-/** True when this account may not use the portal until it enrols. */
-export function requiresTotpEnrolment(subject: TotpSubject): boolean {
-  if (subject.twoFactorEnabled) return false
+/**
+ * True when this account is under the office mandate at all — the fact
+ * Nastavení › Účet states as "your account must keep 2FA on". With the gate off
+ * nobody is under it, so the notice does not claim an obligation that nothing
+ * enforces.
+ */
+export function totpMandatoryFor(
+  subject: TotpSubject,
+  env: Env = process.env,
+): boolean {
+  if (!totpEnforcementEnabled(env)) return false
   return subject.isStaff || subject.hasOwnerMembership
+}
+
+/** True when this account may not use the portal until it enrols. */
+export function requiresTotpEnrolment(
+  subject: TotpSubject,
+  env: Env = process.env,
+): boolean {
+  if (subject.twoFactorEnabled) return false
+  return totpMandatoryFor(subject, env)
 }
 
 /**

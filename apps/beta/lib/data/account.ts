@@ -8,6 +8,7 @@ import { app_user, organization, organization_membership } from "@/db/schema"
 import { requireBetaSession, type BetaSession } from "@/lib/auth/session"
 import {
   requiresTotpEnrolment,
+  totpMandatoryFor,
   TOTP_ENROLMENT_PATH,
   type TotpSubject,
 } from "@/lib/auth/totp-enforcement"
@@ -95,9 +96,11 @@ export async function viewerAccount(): Promise<ViewerAccount> {
        * "Your office account must keep 2FA on" — the difference between a
        * toggle and an obligation, which the Účet page has to state before it
        * offers a Vypnout button that will immediately bounce the user back to
-       * the enrolment screen.
+       * the enrolment screen. False for everyone while `BETA_TOTP_REQUIRED` is
+       * off: with nothing to bounce them back, stating an obligation would be
+       * stating a fiction.
        */
-      totpMandatory: subject.isStaff || subject.hasOwnerMembership,
+      totpMandatory: totpMandatoryFor(subject),
     }),
     totpEnrolmentRequired: requiresTotpEnrolment(subject),
   }
@@ -115,6 +118,11 @@ export async function viewerAccount(): Promise<ViewerAccount> {
  * The enrolment screen itself lives in the `(auth)` group, which this gate does
  * not cover — otherwise complying with the mandate would require already having
  * complied with it.
+ *
+ * A NO-OP UNLESS `BETA_TOTP_REQUIRED` IS EXACTLY `"true"`. The switch is read
+ * inside `requiresTotpEnrolment`, so every caller of the mandate — this gate,
+ * the tenancy seam, the Účet notice — turns off together and none of them can
+ * be left behind.
  */
 export async function requireTotpEnrolment(): Promise<void> {
   const viewer = await requireBetaSession()

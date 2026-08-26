@@ -16,3 +16,18 @@ export type ProUcetniActionState =
   | { status: "error"; error: BetaMessageKey }
 
 export const PRO_UCETNI_ACTION_IDLE: ProUcetniActionState = { status: "idle" }
+
+/**
+ * "Vytvořit měsíční sadu úkolů"'s own state (spec §3.4) — a
+ * `ProUcetniActionState` cannot carry the created/already-existed counts, and
+ * showing those counts is the whole point: a second click for the same month
+ * must visibly do nothing rather than look like an identical first click.
+ */
+export type MonthlySetActionState =
+  | { status: "idle" }
+  | { status: "ok"; created: number; alreadyExisted: number }
+  | { status: "error"; error: BetaMessageKey }
+
+export const MONTHLY_SET_ACTION_IDLE: MonthlySetActionState = {
+  status: "idle",
+}

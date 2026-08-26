@@ -39,6 +39,10 @@
     "emptyStaffBody": "Jako člen kanceláře organizace spravujete v administraci.",
     "emptyAdminLink": "Přejít do administrace"
   },
+  "prehled": {
+    "tasksTitle": "Co od vás potřebujeme",
+    "tasksEmpty": "Momentálně od vás nic nepotřebujeme."
+  },
   "dokumenty": {
     "title": "Dokumenty",
     "intro": "Doklady, které jste poslali účetní kanceláři, i s tím, jak jsou zpracované.",
@@ -619,5 +623,69 @@
     "okEventAdded": "Událost přidána.",
     "errorInvalidInput": "Neplatný vstup.",
     "errorNotFound": "Záznam nenalezen."
+  },
+
+  "ukoly": {
+    "title": "Úkoly klientovi",
+    "intro": "Co od klienta potřebujete — úkoly, šablony a měsíční sada. Klient vidí jen otevřené úkoly, na Přehledu.",
+
+    "create": "Přidat",
+    "save": "Uložit",
+    "delete": "Smazat",
+    "markDone": "Dokončit",
+    "reopen": "Otevřít znovu",
+    "noRows": "Zatím tu nic není.",
+
+    "tasksTitle": "Úkoly",
+    "taskCreateTitle": "Nový úkol",
+    "tasksHint": "Klient uvidí název, popis, termín a odkaz — jen dokud je úkol otevřený.",
+
+    "templatesTitle": "Šablony",
+    "templateCreateTitle": "Nová šablona",
+    "templatesHint": "Šablona nemá vlastní termín, jen den v měsíci — \"Založit měsíční sadu úkolů\" z ní vytvoří datované úkoly.",
+    "generatedBadge": "ze šablony",
+
+    "fieldTitle": "Název",
+    "fieldDescription": "Popis",
+    "fieldDueDate": "Termín",
+    "fieldTemplateDueDay": "Den v měsíci (1-31)",
+    "fieldLinkKind": "Odkaz",
+
+    "columnTitle": "Název",
+    "columnDueDate": "Termín",
+    "columnTemplateDueDay": "Den v měsíci",
+    "columnLinkKind": "Odkaz",
+    "columnStatus": "Stav",
+    "columnActions": "Akce",
+
+    "linkNone": "Bez odkazu",
+    "linkDokumenty": "Dokumenty",
+    "linkDane": "Daně a podání",
+
+    "statusOpen": "Otevřeno",
+    "statusDone": "Hotovo",
+
+    "monthlySetButton": "Založit měsíční sadu",
+    "monthlySetTitle": "Vytvořit měsíční sadu úkolů",
+    "monthlySetDescription": "Vytvoří úkol pro každou aktivní šablonu, s termínem podle zvoleného měsíce. Opakované spuštění pro stejný měsíc nic nezdvojí.",
+    "fieldMonth": "Měsíc",
+    "fieldYear": "Rok",
+    "monthlySetSubmit": "Vytvořit",
+    "monthlySetResultCreated": "Vytvořeno:",
+    "monthlySetResultExisting": "Již existovalo:",
+
+    "okSaved": "Uloženo.",
+    "okCreated": "Úkol přidán.",
+    "okDeleted": "Záznam smazán.",
+    "okMarkedDone": "Úkol označen jako hotový.",
+    "okMarkedOpen": "Úkol znovu otevřen.",
+
+    "errorInvalidInput": "Neplatný vstup.",
+    "errorTitleRequired": "Zadejte název.",
+    "errorInvalidDate": "Neplatné datum.",
+    "errorInvalidDueDay": "Zadejte den v měsíci od 1 do 31.",
+    "errorInvalidPeriod": "Neplatné období.",
+    "errorNotFound": "Záznam nenalezen.",
+    "errorRejected": "Operaci odmítla databáze."
   }
 }

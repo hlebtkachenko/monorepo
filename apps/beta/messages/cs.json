@@ -1,0 +1,18 @@
+{
+  "app": {
+    "badge": "beta",
+    "title": "Klientský portál"
+  },
+  "a11y": {
+    "skipToContent": "Přejít na obsah",
+    "mainContent": "Hlavní obsah",
+    "primaryNav": "Hlavní navigace"
+  },
+  "nav": {
+    "prehled": "Přehled"
+  },
+  "landing": {
+    "heading": "Klientský portál",
+    "intro": "Portál pro klienty účetní kanceláře. Přihlášení a jednotlivé moduly se zapínají postupně."
+  }
+}

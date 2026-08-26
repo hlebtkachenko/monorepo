@@ -82,6 +82,14 @@ export const document = pgTable(
     document_date: date("document_date"),
     amount: numeric("amount", { precision: 14, scale: 2 }),
     site_ref: text("site_ref"),
+    /**
+     * Protistrana (spec §2.2's column, §4's `document.partner_id nullable`).
+     * The composite, tenancy-carrying FK lives in migration 0015; nothing
+     * writes or renders it yet — the Zpracování form field and the Partneři
+     * detail's "linked documents" are PR 29's, and an always-empty Dokumenty
+     * column would be the placeholder §0.3 forbids.
+     */
+    partner_id: uuid("partner_id"),
 
     /** Written by the office FOR the client; part of every client projection. */
     office_message: text("office_message"),

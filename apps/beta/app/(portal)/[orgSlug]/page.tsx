@@ -67,26 +67,18 @@ export default async function OrgHomePage({
   const tiles: KpiTile[] = []
 
   if (hasObligationData(data.obligations)) {
-    const partnerSaldo = data.obligations.freshness.find(
-      (source) => source.source === "partner_saldo",
-    )
     tiles.push({
       key: "obligations",
       labelKey: "prehled.kpiObligations",
       value: data.obligations.totals.total,
       asOf: obligationsAsOf(data.obligations),
-      // Two captions, and the second one is a correctness statement rather
-      // than a nicety: until PR 28 lands the saldokonto, this total is every
-      // debt EXCEPT supplier payables, and a client reading it as "everything
-      // I owe" would be reading it wrong.
-      caption: [
-        `${formatBetaMoney(data.obligations.totals.overdue)} ${t("prehled.kpiObligationsOverdue")}`,
-        partnerSaldo?.implemented === false
-          ? t("prehled.kpiObligationsPartial")
-          : null,
-      ]
-        .filter((part): part is string => part !== null)
-        .join(" · "),
+      // ONE caption, since PR 28 closed the obligations union. It used to carry
+      // a second one — "this total excludes supplier payables" — because the
+      // partner_saldo source did not exist yet and a client reading the tile as
+      // "everything I owe" would have been reading it wrong. All three sources
+      // are implemented now, so the qualifier is gone rather than left standing
+      // as a sentence that is no longer true.
+      caption: `${formatBetaMoney(data.obligations.totals.overdue)} ${t("prehled.kpiObligationsOverdue")}`,
       href: `/${orgSlug}/finance/dluhy-a-platby`,
     })
   }

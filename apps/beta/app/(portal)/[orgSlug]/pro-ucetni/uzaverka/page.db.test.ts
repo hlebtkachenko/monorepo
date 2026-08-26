@@ -146,12 +146,13 @@ describe("loadUzaverka — the completeness matrix", () => {
 
     // Implemented but empty — the office's gap.
     expect(wired("rozvaha")).toBe(true)
-    // Payroll joined them with migration 0016: `payroll_summary` and
-    // `payroll_employee_line` are payload tables of this spine, so the cell is
-    // wired and its emptiness is now the office's gap too.
+    // PR 28 gave saldokonto its payload table and migration 0016 gave payroll
+    // its two, and the matrix started reporting both as the OFFICE's gap rather
+    // than the build's WITHOUT this loader changing: a cell reads `implemented`
+    // off `IMPORT_DATASETS`, so flipping one flag per dataset was the whole of
+    // it. Every cell is wired now; the branch survives for the next dataset.
+    expect(wired("saldokonto")).toBe(true)
     expect(wired("payroll")).toBe(true)
-    // No payload table yet (PR 27) — the build's gap, never the office's.
-    expect(wired("saldokonto")).toBe(false)
 
     for (const cell of view.cells) {
       expect(cell.published).toBeNull()
@@ -281,10 +282,13 @@ describe("UzaverkaPage — the owner gate", () => {
     // The published VZZ row shows its state, its file and its row count.
     expect(html).toContain("uzaverka.statePublished")
     expect(html).toContain("vysledovka-07-2026.csv")
-    // The three unimplemented-or-empty datasets are still IN the grid, told
-    // apart: "not wired" (no payload table) vs "not sent" (the office's gap).
-    expect(html).toContain("uzaverka.stateNotWired")
+    // The four datasets this period has nothing for are still IN the grid, as
+    // "not sent" — the office's gap. Nothing reads "not wired" any more: every
+    // dataset has a payload table since 0015 (saldokonto) and 0016 (payroll).
+    // The branch stays in the component for the next dataset, which is why the
+    // matrix has to be able to tell the two gaps apart at all.
     expect(html).toContain("uzaverka.stateMissing")
+    expect(html).not.toContain("uzaverka.stateNotWired")
 
     // The client-side pieces resolve through the REAL catalog (they use
     // next-intl's client hook), so they are asserted on their Czech words.

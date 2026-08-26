@@ -32,11 +32,15 @@ function rejected(result: ReturnType<typeof readDatasetCsv>) {
 }
 
 describe("isCsvDataset", () => {
-  it("accepts the three datasets with a payload table and nothing else", () => {
+  it("accepts the three form- and account-keyed datasets and nothing else", () => {
     expect(isCsvDataset("predvaha")).toBe(true)
     expect(isCsvDataset("rozvaha")).toBe(true)
     expect(isCsvDataset("vzz")).toBe(true)
-    // Declared in the enum, no payload table yet (spec §4, PRs 27 / 29).
+    // AGENT-ONLY, and for two different reasons. `saldokonto` HAS a payload
+    // table (PR 28) and is still refused here: its lines name a counterparty,
+    // and resolving one into a partner row runs on `external_ref` and IČO, which
+    // a fixed-header CSV cannot state without guessing at identity. `payroll`
+    // has no payload table yet (PR 29).
     expect(isCsvDataset("saldokonto")).toBe(false)
     expect(isCsvDataset("payroll")).toBe(false)
   })

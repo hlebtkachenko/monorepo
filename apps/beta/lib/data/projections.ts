@@ -35,6 +35,8 @@ import type {
   liability,
   organization,
   organization_membership,
+  partner,
+  partner_saldo,
   payroll_employee,
   payroll_employee_line,
   payroll_summary,
@@ -56,6 +58,8 @@ import type {
   BetaImportSource,
   BetaImportStatus,
   BetaObligationGroup,
+  BetaPartnerRole,
+  BetaPartnerSource,
   BetaPayrollContractType,
   BetaPeriodKind,
   BetaSetupTokenPurpose,
@@ -78,6 +82,8 @@ type AssetEventRow = typeof asset_event.$inferSelect
 type ChatRow = typeof chat.$inferSelect
 type ChatMessageRow = typeof chat_message.$inferSelect
 type ClientTaskRow = typeof client_task.$inferSelect
+type PartnerRow = typeof partner.$inferSelect
+type PartnerSaldoRow = typeof partner_saldo.$inferSelect
 type PayrollEmployeeRow = typeof payroll_employee.$inferSelect
 type PayrollSummaryRow = typeof payroll_summary.$inferSelect
 type PayrollEmployeeLineRow = typeof payroll_employee_line.$inferSelect
@@ -1502,6 +1508,179 @@ export function ownerClientTaskDetail(
     generatedFromTemplate: row.source_template_id !== null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Partner — the counterparty registry (spec §2.4 Partneři, §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * One partner as the registry renders it.
+ *
+ * `note_internal` is absent by design (office-only, §2.4's "internal note
+ * office-only", already on `CLIENT_FORBIDDEN_COLUMNS`), and so is
+ * `external_ref` — the office's own system id, forbidden for the reason that
+ * list gives: shipping it invites the next feature to accept one back.
+ * `organization_id` is absent because the reader already holds the scope that
+ * produced the row.
+ *
+ * `source` IS here. It is not a secret and it is the one fact that explains the
+ * row to whoever is looking at it: a partner the saldokonto import created will
+ * be re-stated by the next import, and one the office typed will not.
+ */
+export type PartnerView = {
+  id: string
+  name: string
+  ico: string | null
+  dic: string | null
+  role: BetaPartnerRole
+  email: string | null
+  phone: string | null
+  street: string | null
+  houseNumber: string | null
+  orientationNumber: string | null
+  city: string | null
+  postalCode: string | null
+  countryCode: string
+  legalFormCsuCode: string | null
+  registryFileNumber: string | null
+  /** ISO instant of the last ARES refresh (PR 29), or null. */
+  aresFetchedAt: string | null
+  noteClient: string | null
+  source: BetaPartnerSource
+  /** The registry's own §2.4 freshness stamp: when the office last edited it. */
+  updatedAt: string
+}
+
+export function partnerView(
+  row: Pick<
+    PartnerRow,
+    | "id"
+    | "name"
+    | "ico"
+    | "dic"
+    | "partner_role"
+    | "email"
+    | "phone"
+    | "street"
+    | "house_number"
+    | "orientation_number"
+    | "city"
+    | "postal_code"
+    | "country_code"
+    | "legal_form_csu_code"
+    | "registry_file_number"
+    | "ares_fetched_at"
+    | "note_client"
+    | "source"
+    | "updated_at"
+  >,
+): PartnerView {
+  return {
+    id: row.id,
+    name: row.name,
+    ico: row.ico,
+    dic: row.dic,
+    role: row.partner_role,
+    email: row.email,
+    phone: row.phone,
+    street: row.street,
+    houseNumber: row.house_number,
+    orientationNumber: row.orientation_number,
+    city: row.city,
+    postalCode: row.postal_code,
+    countryCode: row.country_code,
+    legalFormCsuCode: row.legal_form_csu_code,
+    registryFileNumber: row.registry_file_number,
+    aresFetchedAt:
+      row.ares_fetched_at === null ? null : row.ares_fetched_at.toISOString(),
+    noteClient: row.note_client,
+    source: row.source,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+/**
+ * The §2.4 "aging signal" — which age band a partner's OLDEST open item falls
+ * into.
+ *
+ * IT CLASSIFIES THE PARTNER, NOT THE MONEY, and that distinction is the whole
+ * honesty of this field. A classic aging report splits a balance ACROSS bands
+ * (30 000 Kč at 1-30 days, 12 000 at 31-90...), which needs the individual open
+ * invoices. `partner_saldo` holds two totals and one date (spec §4) — the
+ * office's saldokonto never sends the invoice list — so a per-band split would
+ * be a number this portal invented, which §0.2 forbids outright. What CAN be
+ * said from the stored row is how old the oldest unpaid item is, and that is
+ * exactly what §2.4 asks for: an aging SIGNAL.
+ *
+ * `unknown` is a real state, not a fallback: a receivable-only row may carry no
+ * `oldest_due` at all (a payable always does — DB CHECK), and §0.4's "empty
+ * beats stale" says an absent date renders as absent rather than as "current".
+ *
+ * Derived in SQL against `CURRENT_DATE`, like every other date comparison in
+ * this product, and never stored — a stored band goes wrong every night at
+ * midnight.
+ */
+export type PartnerAging =
+  "unknown" | "not_due" | "days_1_30" | "days_31_90" | "days_over_90"
+
+/**
+ * One row of Finance › Pohledávky a závazky (spec §2.4: "grouped per partner:
+ * dlužné nám / dlužíme, oldest splatnost, aging signal").
+ *
+ * THE PARTNER'S IDENTITY IS INLINE rather than a nested `PartnerView`. This
+ * surface is one table and needs three of that shape's twenty fields; embedding
+ * the whole projection would ship an address and an ARES stamp to a page that
+ * renders neither, and would make the row shape change every time the registry
+ * gains a column.
+ *
+ * BOTH TOTALS ARE NULLABLE STRINGS. `numeric(14,2)` (§0.7) never parsed into a
+ * JavaScript number, and a null is an unstated side — never a measured zero.
+ */
+export type PartnerSaldoView = {
+  id: string
+  partnerId: string
+  partnerName: string
+  partnerIco: string | null
+  partnerRole: BetaPartnerRole
+  /** "Dlužné nám". */
+  receivableTotal: string | null
+  /** "Dlužíme". */
+  payableTotal: string | null
+  /** The oldest unpaid splatnost, or null when none was stated. */
+  oldestDue: string | null
+  aging: PartnerAging
+  /**
+   * Days past `oldestDue`, derived in SQL against `CURRENT_DATE`. Null when
+   * `oldestDue` is; 0 when the date has not passed yet.
+   */
+  daysOverdue: number | null
+}
+
+export function partnerSaldoView(
+  row: Pick<
+    PartnerSaldoRow,
+    "id" | "partner_id" | "receivable_total" | "payable_total" | "oldest_due"
+  > & {
+    partner_name: string
+    partner_ico: string | null
+    partner_role: BetaPartnerRole
+    aging: PartnerAging
+    days_overdue: number | null
+  },
+): PartnerSaldoView {
+  return {
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partner_name,
+    partnerIco: row.partner_ico,
+    partnerRole: row.partner_role,
+    receivableTotal: row.receivable_total,
+    payableTotal: row.payable_total,
+    oldestDue: row.oldest_due,
+    aging: row.aging,
+    daysOverdue: row.days_overdue === null ? null : Number(row.days_overdue),
   }
 }
 

@@ -725,8 +725,13 @@ describe("the manual CSV fallback — file to draft to published", () => {
       ),
     ).toEqual({ status: "error", error: "uzaverka.errorNoFile" })
 
-    // `saldokonto` is a declared dataset with no payload table — the fallback
-    // must refuse it rather than create a batch nothing can fill.
+    // `saldokonto` HAS a payload table since PR 28, and the CSV fallback still
+    // refuses it: a saldokonto line names a counterparty, and resolving a name
+    // into a partner row is the agent's job (`lib/data/partners.ts` holds the
+    // match order). A fixed-header CSV cannot state an `external_ref`, so a
+    // fallback import would have to guess at identity — which is the one thing
+    // the partner registry exists to prevent. `CSV_DATASETS` is the closed list
+    // and saldokonto is deliberately not in it.
     expect(
       await actions.uploadCsvBatchAction(
         IDLE,

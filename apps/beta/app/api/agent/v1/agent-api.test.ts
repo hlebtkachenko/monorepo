@@ -42,6 +42,10 @@ const ROUTES: Record<string, () => Promise<{ POST: Handler }>> = {
     import("./orgs/[orgSlug]/publish/trial-balance/route") as Promise<{
       POST: Handler
     }>,
+  saldokonto: () =>
+    import("./orgs/[orgSlug]/publish/saldokonto/route") as Promise<{
+      POST: Handler
+    }>,
   payroll: () =>
     import("./orgs/[orgSlug]/publish/payroll/route") as Promise<{
       POST: Handler
@@ -490,6 +494,385 @@ describe("publishing a dataset", () => {
       summary: { batchId: string; dataset: string }
     }
     expect(body.summary.dataset).toBe("predvaha")
+  })
+})
+
+/**
+ * The saldokonto, which is the only dataset that is BOTH an upsert and a
+ * publish (spec §3.2: "saldokonto (partner+saldo upsert)").
+ *
+ * The end-to-end claim is that ONE call reaches four surfaces: the partner
+ * registry gains a row, the published batch feeds Pohledávky a závazky, the
+ * Dodavatelé arm of Dluhy a platby lists the payable, and the uzávěrka
+ * completeness matrix stops saying "zatím nenapojeno". None of those is
+ * asserted through a mock — each is read back through the function the client
+ * page itself calls.
+ */
+describe("publishing a saldokonto", () => {
+  const saldoBody = (
+    externalRef: string,
+    overrides: {
+      partner?: Record<string, unknown>
+      line?: Record<string, unknown>
+    } = {},
+  ) => ({
+    period: march,
+    lines: [
+      {
+        partner: {
+          externalRef,
+          name: "Stavebniny Novak s.r.o.",
+          ico: "12345678",
+          partnerRole: "supplier",
+          city: "Praha",
+          ...(overrides.partner ?? {}),
+        },
+        receivableTotal: "0.00",
+        payableTotal: "48250.50",
+        oldestDue: "2026-04-30",
+        ...(overrides.line ?? {}),
+      },
+    ],
+  })
+
+  it("creates the partner, publishes the batch, and feeds all three surfaces", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "saldokonto",
+      org.slug,
+      saldoBody("money:partner:1"),
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      status: string
+      summary: {
+        dataset: string
+        batchId: string
+        periodId: string
+        rowCount: number
+        partners: { created: number; updated: number }
+      }
+    }
+    expect(body.status).toBe("applied")
+    expect(body.summary.dataset).toBe("saldokonto")
+    expect(body.summary.rowCount).toBe(1)
+    // The registry side of the act is reported apart from the batch: it is the
+    // one part of a saldokonto publish that is NOT superseded next month.
+    expect(body.summary.partners).toMatchObject({ created: 1, updated: 0 })
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+
+    // 1. The registry.
+    const { partnersForScope, saldokontoForScope } =
+      await import("@/lib/data/partners")
+    const partners = await partnersForScope(owner)
+    expect(partners).toHaveLength(1)
+    expect(partners[0]).toMatchObject({
+      name: "Stavebniny Novak s.r.o.",
+      ico: "12345678",
+      role: "supplier",
+      // Created BY the import, which is what `source` records.
+      source: "saldokonto",
+    })
+
+    // 2. Finance › Pohledávky a závazky.
+    const view = await saldokontoForScope(owner)
+    expect(view.period?.id).toBe(body.summary.periodId)
+    expect(view.batch?.id).toBe(body.summary.batchId)
+    expect(view.batch?.source).toBe("agent")
+    expect(view.rows).toHaveLength(1)
+    expect(view.rows[0]).toMatchObject({
+      partnerName: "Stavebniny Novak s.r.o.",
+      payableTotal: "48250.50",
+      oldestDue: "2026-04-30",
+    })
+    expect(view.totals.payable).toBe("48250.50")
+
+    // 3. Finance › Dluhy a platby — the Dodavatelé arm, which no consumer had
+    // to change to receive.
+    const { obligationsForScope } = await import("@/lib/data/obligations")
+    const obligations = await obligationsForScope(owner)
+    expect(obligations.groups.map((g) => g.group)).toEqual(["dodavatele"])
+    expect(obligations.groups[0]!.obligations[0]).toMatchObject({
+      source: "partner_saldo",
+      group: "dodavatele",
+      label: "Stavebniny Novak s.r.o.",
+      amount: "48250.50",
+      dueOn: "2026-04-30",
+    })
+    expect(obligations.totals.total).toBe("48250.50")
+
+    // 4. Pro účetní › Měsíční uzávěrka — the completeness matrix, which flipped
+    // from "zatím nenapojeno" to a real state through the dataset registry
+    // alone.
+    const { datasetFreshnessForScope } = await import("@/lib/data/imports")
+    const freshness = await datasetFreshnessForScope(owner)
+    const saldokonto = freshness.find((row) => row.dataset === "saldokonto")!
+    expect(saldokonto.implemented).toBe(true)
+    expect(saldokonto.batchId).toBe(body.summary.batchId)
+    expect(saldokonto.period?.month).toBe(3)
+    expect(saldokonto.rowCount).toBe(1)
+  })
+
+  it("updates the partner in place and supersedes the batch on a re-run", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const first = (await (
+      await post("saldokonto", org.slug, saldoBody("money:partner:2"), {
+        secret: globalKey.secret,
+      })
+    ).json()) as { summary: { batchId: string } }
+
+    const second = (await (
+      await post(
+        "saldokonto",
+        org.slug,
+        saldoBody("money:partner:2", {
+          partner: { name: "Stavebniny Novak a.s." },
+          line: { payableTotal: "31000.00", oldestDue: "2026-05-31" },
+        }),
+        { secret: globalKey.secret },
+      )
+    ).json()) as {
+      summary: {
+        batchId: string
+        supersededBatchId: string | null
+        partners: { created: number; updated: number }
+      }
+    }
+
+    // The MEASUREMENT is versioned...
+    expect(second.summary.supersededBatchId).toBe(first.summary.batchId)
+    // ...and the IDENTITY is not: one partner, updated in place, keeping the
+    // saldo history that points at it.
+    expect(second.summary.partners).toMatchObject({ created: 0, updated: 1 })
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { partnersForScope, saldokontoForScope } =
+      await import("@/lib/data/partners")
+    const partners = await partnersForScope(owner)
+    expect(partners).toHaveLength(1)
+    expect(partners[0]!.name).toBe("Stavebniny Novak a.s.")
+
+    const view = await saldokontoForScope(owner)
+    expect(view.rows).toHaveLength(1)
+    expect(view.rows[0]!.payableTotal).toBe("31000.00")
+  })
+
+  it("ADOPTS a partner the office typed by hand rather than duplicating it", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    // The accountant entered this supplier before the first import: no
+    // `external_ref`, an office note the import must not touch, and the IČO the
+    // import will find it by.
+    const { createPartnerRow } = await import("@/tests/fixtures")
+    const typedId = await createPartnerRow(org.organizationId, {
+      name: "Stavebniny Novak",
+      ico: "12345678",
+      source: "manual",
+      noteInternal: "Vzdy plati pozde.",
+    })
+
+    const response = await post(
+      "saldokonto",
+      org.slug,
+      saldoBody("money:partner:3"),
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(200)
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { partnersForScope } = await import("@/lib/data/partners")
+    const partners = await partnersForScope(owner)
+
+    // ONE row, not two. A second row for the same IČO would split this
+    // supplier's saldo across two lines of Pohledávky.
+    expect(partners).toHaveLength(1)
+    expect(partners[0]!.id).toBe(typedId)
+    expect(partners[0]!.name).toBe("Stavebniny Novak s.r.o.")
+    // `source` is the row's ORIGIN and is frozen: the office typed this one,
+    // and adoption does not rewrite that.
+    expect(partners[0]!.source).toBe("manual")
+  })
+
+  it("refuses a SECOND source id on one IČO, and writes nothing", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post("saldokonto", org.slug, saldoBody("money:partner:4a"), {
+      secret: globalKey.secret,
+    })
+
+    // Two rows of the office's own system claiming one legal person.
+    // Re-pointing would move the partner's whole saldo history under a new id.
+    const response = await post(
+      "saldokonto",
+      org.slug,
+      saldoBody("money:partner:4b"),
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toMatchObject({
+      error: "identity_changed",
+    })
+
+    // The refusal rolled the WHOLE call back — no second partner, and the first
+    // batch is still the published one.
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { partnersForScope, saldokontoForScope } =
+      await import("@/lib/data/partners")
+    expect(await partnersForScope(owner)).toHaveLength(1)
+    expect((await saldokontoForScope(owner)).rows).toHaveLength(1)
+  })
+
+  it("is idempotent under a retried Idempotency-Key", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+    const requestId = "run-saldokonto-1"
+
+    const first = (await (
+      await post("saldokonto", org.slug, saldoBody("money:partner:5"), {
+        secret: globalKey.secret,
+        requestId,
+      })
+    ).json()) as { status: string; summary: { batchId: string } }
+    const replay = (await (
+      await post("saldokonto", org.slug, saldoBody("money:partner:5"), {
+        secret: globalKey.secret,
+        requestId,
+      })
+    ).json()) as { status: string; summary: { batchId: string } }
+
+    expect(first.status).toBe("applied")
+    expect(replay.status).toBe("replayed")
+    expect(replay.summary.batchId).toBe(first.summary.batchId)
+
+    // A replay wrote NOTHING: one batch, one partner, one activity_log row.
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { partnersForScope } = await import("@/lib/data/partners")
+    expect(await partnersForScope(owner)).toHaveLength(1)
+
+    const log = await readActivityLog(org.organizationId)
+    expect(
+      log.filter((row) => row.action === "saldokonto.publish"),
+    ).toHaveLength(1)
+  })
+
+  it("records the act as the agent, with the partner summary the office reads", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post("saldokonto", org.slug, saldoBody("money:partner:6"), {
+      secret: globalKey.secret,
+    })
+
+    const [entry] = await readActivityLog(org.organizationId)
+    expect(entry).toMatchObject({
+      actor_kind: "agent",
+      agent_key_id: globalKey.id,
+      action: "saldokonto.publish",
+      entity_kind: "import_batch",
+    })
+    expect(entry!.summary).toMatchObject({
+      dataset: "saldokonto",
+      rowCount: 1,
+      partners: { created: 1, updated: 0 },
+    })
+  })
+
+  it("refuses a payable with no splatnost — a debt with no date would vanish", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "saldokonto",
+      org.slug,
+      {
+        period: march,
+        lines: [
+          {
+            partner: {
+              externalRef: "money:partner:7",
+              name: "Bez data s.r.o.",
+            },
+            payableTotal: "1000.00",
+          },
+        ],
+      },
+      { secret: globalKey.secret },
+    )
+    // A named 400 rather than a 23514 at the bottom of a transaction: the
+    // obligations union lists a payable WITH its splatnost, so a dateless one
+    // would be silently dropped from Dluhy a platby.
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({ error: "invalid_body" })
+  })
+
+  it("refuses a negative total and a duplicate partner in one payload", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    // A negative receivable IS a payable; the caller meant the other column.
+    expect(
+      (
+        await post(
+          "saldokonto",
+          org.slug,
+          {
+            period: march,
+            lines: [
+              {
+                partner: { externalRef: "money:partner:8", name: "Zaporny" },
+                receivableTotal: "-100.00",
+              },
+            ],
+          },
+          { secret: globalKey.secret },
+        )
+      ).status,
+    ).toBe(400)
+
+    // Two lines for one partner would double that supplier's payable if the
+    // unique index were ever relaxed, so it is refused in both places.
+    expect(
+      (
+        await post(
+          "saldokonto",
+          org.slug,
+          {
+            period: march,
+            lines: [
+              {
+                partner: { externalRef: "money:partner:9", name: "Dvakrat" },
+                receivableTotal: "100.00",
+              },
+              {
+                partner: { externalRef: "money:partner:9", name: "Dvakrat" },
+                receivableTotal: "200.00",
+              },
+            ],
+          },
+          { secret: globalKey.secret },
+        )
+      ).status,
+    ).toBe(400)
+  })
+
+  it("cannot be reached for a book the key does not scope", async () => {
+    // The same 404 a browser gets: the URL space of an office's client list is
+    // not something a credential gets to enumerate.
+    const response = await post(
+      "saldokonto",
+      other.slug,
+      saldoBody("money:partner:10"),
+      { secret: scopedKey.secret },
+    )
+    expect(response.status).toBe(404)
   })
 })
 

@@ -1187,12 +1187,14 @@ describe("datasetFreshnessForScope — the §0.4 contract", () => {
     // reaching for an older period.
     expect(freshness.every((row) => row.publishedAt === null)).toBe(true)
     expect(freshness.every((row) => row.period === null)).toBe(true)
-    // Only `saldokonto` is still unwired: payroll's payload tables landed with
-    // migration 0016, so its emptiness is now the office's gap rather than the
-    // build's — the distinction §0.4 exists to keep visible.
+    // EVERY dataset is wired now: payroll's payload tables landed with migration
+    // 0016 and the saldokonto's with 0015, so an empty cell is the office's gap
+    // rather than the build's in all five cases — which is the distinction §0.4
+    // exists to keep visible, and the reason the flag survives having no `false`
+    // left to carry.
     expect(
       freshness.filter((row) => !row.implemented).map((row) => row.dataset),
-    ).toEqual(["saldokonto"])
+    ).toEqual([])
   })
 
   it("stamps each dataset with its own newest published period", async () => {

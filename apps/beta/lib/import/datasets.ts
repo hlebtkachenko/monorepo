@@ -54,7 +54,16 @@ import {
   type CsvStructuralCode,
 } from "./csv"
 
-/** The datasets this fallback can carry — the three with a payload table. */
+/**
+ * The datasets this fallback can carry — the three that are form- or
+ * account-keyed.
+ *
+ * `saldokonto` is deliberately absent even though it has had a payload table
+ * since PR 28: its lines name a COUNTERPARTY, and resolving one into a partner
+ * row runs on `external_ref` and IČO (`lib/data/partners.ts`), neither of which
+ * a fixed-header CSV drop can state without guessing at identity. `payroll` will
+ * be the same shape. Both stay agent-only.
+ */
 export type CsvDataset = "predvaha" | "rozvaha" | "vzz"
 
 export const CSV_DATASETS: readonly CsvDataset[] = Object.freeze([

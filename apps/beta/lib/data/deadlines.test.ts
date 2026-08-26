@@ -28,7 +28,9 @@ import {
   createFilingRow,
   createLiabilityRow,
   createMonthPeriod,
+  createPartnerRow,
   endFixtures,
+  publishSaldokontoRow,
   seedOrganization,
   type TestOrganization,
 } from "../../tests/fixtures"
@@ -181,6 +183,53 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
       paidAt: new Date(),
       dueOn: daysFromToday(2),
     })
+
+    expect(await readFor(target)).toEqual([])
+  })
+
+  it("grew a supplier payable when PR 28 closed the union, with no change here", async () => {
+    // THE POINT OF THIS TEST is the file it is NOT in. `deadlines.ts` imports
+    // `obligationUnionSql` whole rather than re-deriving the money arm, so the
+    // saldokonto's `dodavatele` payables reached Přehled's Nejbližší termíny by
+    // an arm being appended in `obligations.ts` — this module was not touched.
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Stavebniny Novak s.r.o.",
+    })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      {
+        partnerId,
+        payableTotal: "48250.50",
+        oldestDue: daysFromToday(4),
+      },
+    ])
+
+    const rows = await readFor(target)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      origin: "platba",
+      filingKind: null,
+      family: null,
+      // The office's own words, never translated — the same slot a manual
+      // liability's titul uses.
+      label: "Stavebniny Novak s.r.o.",
+      amount: "48250.50",
+      overdue: false,
+    })
+  })
+
+  it("never lists the receivable side as something to pay", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Odberatel a.s.",
+    })
+    // They owe the CLIENT. A deadline list is a list of acts the client has to
+    // perform, and collecting is not one of them.
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, receivableTotal: "120000.00", oldestDue: daysFromToday(3) },
+    ])
 
     expect(await readFor(target)).toEqual([])
   })

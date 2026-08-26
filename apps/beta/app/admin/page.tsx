@@ -29,6 +29,8 @@ import { listOfficeOrganizations } from "@/lib/data/office/organizations"
 import { RESERVED_ORG_SLUGS } from "@/lib/data/org-slug"
 import { requireOffice } from "@/lib/data/scope"
 
+import { SectionTitle } from "../_components/page-header"
+
 import { createOrganizationAction } from "./_actions/organizations"
 import { AdminActionForm } from "./_components/admin-action-form"
 
@@ -114,9 +116,7 @@ export default async function AdminOrganizationsPage() {
       </Card>
 
       <section className="grid gap-3">
-        <h2 className="font-heading text-base font-semibold">
-          {t("admin.organizationsTitle")}
-        </h2>
+        <SectionTitle>{t("admin.organizationsTitle")}</SectionTitle>
         {organizations.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("admin.noRows")}</p>
         ) : (

@@ -13,6 +13,8 @@ import { formatBytes, formatDate } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaMessageKey } from "@/i18n/messages"
 
+import { SectionTitle } from "../../../../_components/page-header"
+
 import { prepareUpload } from "./downscale"
 import {
   EMPTY_UPLOAD_QUEUE,
@@ -308,9 +310,9 @@ export function UploadPanel({ orgSlug }: { orgSlug: string }) {
       className="grid gap-4 rounded-xl border border-border p-4"
     >
       <header className="grid gap-1">
-        <h2 id="upload-panel-title" className="text-sm font-semibold">
+        <SectionTitle id="upload-panel-title">
           {t("dokumenty.uploadTitle")}
-        </h2>
+        </SectionTitle>
         <p className="text-sm text-muted-foreground">
           {t("dokumenty.uploadIntro")}
         </p>

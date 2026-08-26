@@ -6,6 +6,8 @@ import { formatBetaAddress, formatBetaBankAccount } from "@/lib/format/identity"
 import { organizationIdentity } from "@/lib/data/organization-identity"
 import { financniUradName } from "@/lib/tax-office"
 
+import { SectionTitle } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { AresPanel } from "../_components/ares-panel"
 import { CompanyForm } from "../_components/company-form"
@@ -76,9 +78,7 @@ export default async function SpolecnostPage({
   return (
     <div className="grid gap-6">
       <section className="grid gap-3">
-        <h2 className="text-base font-medium text-foreground">
-          {t("nastaveni.companyTitle")}
-        </h2>
+        <SectionTitle>{t("nastaveni.companyTitle")}</SectionTitle>
         <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[minmax(0,14rem)_1fr]">
           {rows.map(([label, value]) => (
             <div key={label} className="contents">
@@ -113,7 +113,7 @@ export default async function SpolecnostPage({
             }
           />
           <section className="grid gap-3">
-            <h3 className="text-sm font-medium text-foreground">
+            <h3 className="font-sans text-sm font-semibold text-foreground">
               {t("nastaveni.editTitle")}
             </h3>
             <CompanyForm orgSlug={orgSlug} identity={identity} />

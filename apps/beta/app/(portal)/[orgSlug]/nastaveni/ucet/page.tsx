@@ -3,6 +3,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { viewerAccount } from "@/lib/data/account"
 import { emailNotificationsEnabled } from "@/lib/data/notification-prefs"
 
+import { SectionTitle } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { AccountProfileForm } from "../_components/account-profile-form"
 import { PasswordForm } from "../_components/password-form"
@@ -51,21 +53,19 @@ export default async function UcetPage({
   return (
     <div className="grid max-w-2xl gap-8">
       <section className="grid gap-3">
-        <h2 className="text-base font-medium text-foreground">
-          {t("nastaveni.accountTitle")}
-        </h2>
+        <SectionTitle>{t("nastaveni.accountTitle")}</SectionTitle>
         <AccountProfileForm name={account.name} email={account.email} />
       </section>
 
       <section className="grid gap-3">
-        <h3 className="text-sm font-medium text-foreground">
+        <h3 className="font-sans text-sm font-semibold text-foreground">
           {t("nastaveni.passwordTitle")}
         </h3>
         <PasswordForm />
       </section>
 
       <section className="grid gap-3">
-        <h3 className="text-sm font-medium text-foreground">
+        <h3 className="font-sans text-sm font-semibold text-foreground">
           {t("nastaveni.totpTitle")}
         </h3>
         <TotpSection
@@ -75,14 +75,14 @@ export default async function UcetPage({
       </section>
 
       <section className="grid gap-3">
-        <h3 className="text-sm font-medium text-foreground">
+        <h3 className="font-sans text-sm font-semibold text-foreground">
           {t("nastaveni.notificationsTitle")}
         </h3>
         <EmailNotificationsToggle initialEnabled={notificationsEnabled} />
       </section>
 
       <section className="grid gap-1">
-        <h3 className="text-sm font-medium text-foreground">
+        <h3 className="font-sans text-sm font-semibold text-foreground">
           {t("nastaveni.localeTitle")}
         </h3>
         <p className="text-sm text-muted-foreground">

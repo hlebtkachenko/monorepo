@@ -88,7 +88,7 @@ export function DataPresence({
 
   return (
     <section className="grid gap-2">
-      <h2 className="font-heading text-sm font-semibold">
+      <h2 className="mt-0 font-sans text-sm font-semibold">
         {t("prehled.dataTitle")}
       </h2>
       <p className="text-xs text-muted-foreground">{t("prehled.dataHint")}</p>

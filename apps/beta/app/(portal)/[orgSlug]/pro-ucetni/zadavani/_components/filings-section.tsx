@@ -33,6 +33,9 @@ import {
   FILING_STATUS_LABEL_KEY,
 } from "@/lib/filing-labels"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
+
+import { SectionTitle } from "../../../../../_components/page-header"
+
 import {
   createFilingAction,
   deleteFilingAction,
@@ -221,9 +224,7 @@ export function FilingsSection({
       </Card>
 
       <div className="grid gap-2">
-        <h2 className="font-heading text-base font-semibold">
-          {t("zadavani.filingsTitle")}
-        </h2>
+        <SectionTitle>{t("zadavani.filingsTitle")}</SectionTitle>
         <p className="text-sm text-muted-foreground">
           {t("zadavani.filingsHint")}
         </p>

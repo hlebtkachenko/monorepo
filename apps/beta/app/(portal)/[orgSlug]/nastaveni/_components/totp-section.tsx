@@ -115,7 +115,7 @@ function RegenerateBackupCodes() {
 
   return (
     <section className="grid gap-3 rounded-lg border border-border-subtle p-4">
-      <h4 className="text-sm font-medium text-foreground">
+      <h4 className="font-sans text-sm font-semibold text-foreground">
         {t("nastaveni.backupCodesTitle")}
       </h4>
       <p className="text-xs text-muted-foreground">
@@ -196,7 +196,7 @@ function DisableTotp({ onDisabled }: { onDisabled: () => void }) {
 
   return (
     <section className="grid gap-3 rounded-lg border border-destructive/40 p-4">
-      <h4 className="text-sm font-medium text-foreground">
+      <h4 className="font-sans text-sm font-semibold text-foreground">
         {t("nastaveni.totpDisableTitle")}
       </h4>
       <p className="text-xs text-muted-foreground">

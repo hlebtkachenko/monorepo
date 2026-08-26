@@ -57,7 +57,7 @@ const {
   publishedPayrollPeriods,
 } = await import("./payroll")
 const { openPayslipFile, payslipDocumentsForScope } = await import("./payslips")
-const { canUploadDocuments, listDocuments, openDocumentFile } =
+const { canUploadDocuments, listDocuments, openDocumentFile, uploadDocument } =
   await import("./documents")
 
 const { setDocumentStoreForTests } = await import("../storage/store")
@@ -374,6 +374,52 @@ describe("Dokumenty — the seat's personal folder (spec §2.6.1)", () => {
     const guest = await scopeFor(world.org, world.org.members.guest)
     expect(canUploadDocuments(seat)).toBe(true)
     expect(canUploadDocuments(guest)).toBe(false)
+  })
+
+  it("round-trips a real upload: the seat can read back what it wrote", async () => {
+    // The widening and the narrowing landed in one change, and the failure
+    // mode of getting them half right is a seat that uploads a file it can
+    // then never see. The bytes go through `uploadDocument`, which is what
+    // stamps `uploaded_by_user_id` — the input to filter 5.
+    const org = await seedOrganization()
+    const account = await createAccount()
+    await addGuest(org, account)
+    await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Jan Zedník",
+      appUserId: account.userId,
+    })
+    const scope = await scopeFor(org, account)
+
+    const filename = `${unique("dochazka")}.pdf`
+    const result = await uploadDocument(scope, {
+      filename,
+      docType: "attendance",
+      // Salted so the org+sha256 unique index sees a genuinely new file.
+      source: (async function* () {
+        yield new Uint8Array(Buffer.from(`%PDF-1.7\n${unique("salt")}`))
+      })(),
+    })
+    expect(result.ok).toBe(true)
+
+    const page = await listDocuments(scope)
+    expect(page.documents.map((doc) => doc.filename)).toContain(filename)
+
+    // AND THE OTHER DIRECTION IS DELIBERATELY *NOT* NARROWED. The seat's
+    // upload is an ordinary client-visible document of the company's book, so
+    // the office and every other client-tier viewer see it — spec §5 makes an
+    // unlinked guest "an external VIEWER of all client-visible data", and §2.6.1
+    // narrows what a SEAT may see, never what others may see of the seat's
+    // uploads. A docházka sheet an employee hands to the accountant is the
+    // company's document; hiding it from the company would break the workflow
+    // the upload exists for.
+    const otherGuest = await scopeFor(org, org.members.guest)
+    const ownerScope = await scopeFor(org, org.members.owner)
+    expect(
+      (await listDocuments(ownerScope)).documents.map((doc) => doc.filename),
+    ).toContain(filename)
+    expect(
+      (await listDocuments(otherGuest)).documents.map((doc) => doc.filename),
+    ).toContain(filename)
   })
 })
 

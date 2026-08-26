@@ -48,5 +48,20 @@ export const betaFormats = {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     },
+    /**
+     * A statutory statement cell (Výkazy, spec §2.5): grouped, two decimals,
+     * and NO currency symbol.
+     *
+     * A rozvaha prints bare numbers under one "v Kč" heading — repeating "Kč"
+     * in every cell of a four-column form is noise the paper form does not
+     * have, and it is the column header, not the cell, that says what the unit
+     * is. Two fraction digits always, so the decimal points line up down a
+     * column of `tabular-nums`.
+     */
+    statement: {
+      style: "decimal",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    },
   },
 } satisfies Formats

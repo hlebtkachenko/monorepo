@@ -1,0 +1,154 @@
+import Link from "next/link"
+
+import { Button } from "@workspace/ui/components/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
+
+import { getBetaTranslations } from "@/i18n/translations-server"
+import { requireOwner } from "@/lib/data/scope"
+import { formatReportingPeriodLabel } from "@/lib/format/period-label"
+
+import { resolveOrgScope } from "../../_lib/org-scope"
+
+import { uploadCsvBatchAction } from "../_actions/uzaverka"
+
+import { BatchHistory } from "./_components/batch-history"
+import { CompletenessMatrix } from "./_components/completeness-matrix"
+import { CsvUploadForm } from "./_components/csv-upload-form"
+import { loadUzaverka } from "./_lib/load-uzaverka"
+
+/** The query-string key the period selector writes. */
+const PERIOD_PARAM = "obdobi"
+
+/**
+ * Pro účetní › Měsíční uzávěrka — the review surface (spec §3.2, as amended:
+ * "the Pro účetní UI becomes the REVIEW surface: completeness matrix, batch
+ * history, publish/rollback buttons, and a manual file-drop fallback").
+ *
+ * THE FEEDING CHANNEL IS THE AGENT, NOT THIS PAGE. Everything here reviews
+ * what the office's own agent published through the ingestion API; the CSV form
+ * at the bottom is the fallback for the month that channel is down. The order
+ * on screen says so — what is in, then what happened, then how to fix it by
+ * hand.
+ *
+ * PERIOD-AT-A-TIME, because that is the unit of the ritual: the office closes
+ * 07/2026, and the question is whether all five datasets are in for 07/2026.
+ * The selector lists every period the organization knows about (a filing
+ * creates one), not only those with imports, so the office can open the month
+ * it is about to feed.
+ *
+ * OWNER-ONLY BY THE LAYOUT ABOVE (`pro-ucetni/layout.tsx`), and independently
+ * by every action's own `requireOwner` — the layout stops a browser from
+ * SEEING this page; it does not run for a Server Action POST.
+ */
+export default async function UzaverkaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgSlug: string }>
+  searchParams: Promise<{ obdobi?: string }>
+}) {
+  const { orgSlug } = await params
+  const requested = (await searchParams)[PERIOD_PARAM]
+
+  const [scope, t] = await Promise.all([
+    resolveOrgScope(orgSlug),
+    getBetaTranslations(),
+  ])
+  const owner = requireOwner(scope)
+  const view = await loadUzaverka(owner, requested)
+
+  const now = new Date()
+  const allBatches = view.cells.flatMap((cell) => cell.batches)
+
+  return (
+    <div className="grid gap-6 p-6">
+      <div className="grid gap-2">
+        <h1 className="font-heading text-lg font-semibold">
+          {t("uzaverka.title")}
+        </h1>
+        <p className="text-sm text-muted-foreground">{t("uzaverka.intro")}</p>
+      </div>
+
+      {view.periods.length > 0 ? (
+        <nav
+          aria-label={t("uzaverka.periodPickerLabel")}
+          className="flex flex-wrap items-center gap-2"
+        >
+          <span className="text-sm text-muted-foreground">
+            {t("uzaverka.periodPickerLabel")}
+          </span>
+          {view.periods.map((option) => (
+            <Link
+              key={option.id}
+              href={`/${orgSlug}/pro-ucetni/uzaverka?${PERIOD_PARAM}=${option.id}`}
+              scroll={false}
+            >
+              <Button
+                variant={
+                  option.id === view.period?.id ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                {formatReportingPeriodLabel(option)}
+              </Button>
+            </Link>
+          ))}
+        </nav>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {t("uzaverka.noPeriodsYet")}
+        </p>
+      )}
+
+      {view.period ? (
+        <>
+          <section className="grid gap-3">
+            <h2 className="font-heading text-base font-semibold">
+              {t("uzaverka.matrixTitle")}{" "}
+              {formatReportingPeriodLabel(view.period)}
+            </h2>
+            <CompletenessMatrix
+              orgSlug={orgSlug}
+              periodId={view.period.id}
+              cells={view.cells}
+            />
+          </section>
+
+          <section className="grid gap-3">
+            <h2 className="font-heading text-base font-semibold">
+              {t("uzaverka.historyTitle")}
+            </h2>
+            <BatchHistory orgSlug={orgSlug} batches={allBatches} />
+          </section>
+        </>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-heading text-base">
+            {t("uzaverka.uploadTitle")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <p className="text-sm text-muted-foreground">
+            {t("uzaverka.uploadIntro")}
+          </p>
+          <CsvUploadForm
+            action={uploadCsvBatchAction}
+            orgSlug={orgSlug}
+            // The period under review when there is one, so the common case
+            // (feed the month you are looking at) is prefilled; otherwise the
+            // current month, which is what an office with an empty book means.
+            defaultYear={view.period?.year ?? now.getFullYear()}
+            defaultMonth={view.period?.month ?? now.getMonth() + 1}
+          />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

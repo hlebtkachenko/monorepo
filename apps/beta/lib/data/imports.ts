@@ -1,9 +1,10 @@
 import "server-only"
 
-import { and, asc, desc, eq, inArray } from "drizzle-orm"
+import { aliasedTable, and, asc, desc, eq, inArray } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import {
+  app_user,
   import_batch,
   reporting_period,
   statement_line,
@@ -17,10 +18,12 @@ import { isUniqueViolation } from "@/lib/pg-error"
 
 import {
   importBatchView,
+  officeImportBatchRow,
   reportingPeriodView,
   statementLineView,
   trialBalanceLineView,
   type ImportBatchView,
+  type OfficeImportBatchRow,
   type ReportingPeriodView,
   type StatementLineView,
   type TrialBalanceLineView,
@@ -310,6 +313,51 @@ export async function publishedBatchFor(
   return row ? toBatchView(row) : null
 }
 
+/**
+ * The periods a dataset actually HAS a published batch for, newest first — the
+ * list Výkazy's period picker (spec §2.5) is built from.
+ *
+ * NO DEAD PERIODS, and that is the whole reason this is a separate read rather
+ * than `reportingPeriodsForScope` filtered in the page. `reporting_period` rows
+ * accumulate from every source in the product (a filing creates one), so the
+ * organization's period list is mostly periods Výkazy has nothing for. A picker
+ * built from it would offer 07/2026 and then answer "zatím nebylo nahráno" —
+ * which is §0.4's honest EMPTY state being used as a dead end, not as
+ * information. Here the picker can only offer periods that render something.
+ *
+ * `status = 'published'` is in the WHERE clause for the same reason it is in
+ * `publishedBatchFor`: a draft must not put a period into a client's picker.
+ */
+export async function publishedPeriodsForDataset(
+  scope: OrgScope,
+  dataset: BetaImportDataset,
+): Promise<ReportingPeriodView[]> {
+  const rows = await betaDb()
+    .select(PERIOD_COLUMNS)
+    .from(import_batch)
+    .innerJoin(reporting_period, periodJoin)
+    .where(
+      and(
+        eq(import_batch.organization_id, scope.organizationId),
+        eq(import_batch.dataset, dataset),
+        eq(import_batch.status, "published"),
+      ),
+    )
+    .orderBy(desc(reporting_period.ends_on))
+
+  return rows.map((row) =>
+    reportingPeriodView({
+      id: row.period_id,
+      period_kind: row.period_kind,
+      year: row.period_year,
+      month: row.period_month,
+      quarter: row.period_quarter,
+      starts_on: row.period_starts_on,
+      ends_on: row.period_ends_on,
+    }),
+  )
+}
+
 export type BatchHistoryFilter = {
   readonly dataset?: BetaImportDataset
   readonly periodId?: string
@@ -349,6 +397,101 @@ export async function batchHistoryForScope(
     .orderBy(desc(import_batch.imported_at), desc(import_batch.id))
 
   return rows.map(toBatchView)
+}
+
+/**
+ * The SAME history, plus WHO — the office's own view of it (spec §3.2: "batch
+ * history with diffs, publish/rollback buttons").
+ *
+ * A SECOND FUNCTION RATHER THAN A FLAG ON THE FIRST, and a second projection
+ * rather than a widened `ImportBatchView`. `ImportBatchView`'s own header says
+ * the two user id columns are absent because "a client tier must not be handed
+ * the office's user ids", and names the office review surface as the thing that
+ * "joins `app_user` and projects them". This is that join. Keeping it apart
+ * means the client shape cannot acquire a `publishedByName` by someone adding a
+ * field to the wrong projection: the office read takes an `OwnerScope`, so a
+ * page holding a bare `OrgScope` cannot call it at all.
+ *
+ * IT STILL SHIPS NO USER ID — a name and nothing else. The office needs to know
+ * which colleague published a batch; nothing on this surface needs to address
+ * that person, and an id in a payload is an invitation for the next feature to
+ * accept one back.
+ *
+ * `agent`-sourced batches have no `imported_by_user_id` at all (PR 24 posts
+ * under an office agent key, not a session), so a null name is the ordinary
+ * case here and renders as the SOURCE — "agent" — not as an unknown human.
+ */
+export async function officeBatchHistoryFor(
+  scope: OwnerScope,
+  filter: BatchHistoryFilter = {},
+): Promise<OfficeImportBatchRow[]> {
+  const rows = await officeBatchQuery(
+    and(
+      eq(import_batch.organization_id, scope.organizationId),
+      filter.dataset ? eq(import_batch.dataset, filter.dataset) : undefined,
+      filter.periodId ? eq(import_batch.period_id, filter.periodId) : undefined,
+    ),
+  )
+  return rows.map(toOfficeBatchRow)
+}
+
+/**
+ * ONE batch by id, for the office's batch preview.
+ *
+ * OWNER-ONLY, and that is the whole visibility rule this read needs: the page
+ * it serves shows a DRAFT's rows (the manual fallback's preview step, spec
+ * §3.2), and a draft is work in progress no client may watch. A read that took
+ * a bare `OrgScope` would have to re-decide that per caller; taking an
+ * `OwnerScope` makes it a compile error to ask from anywhere else.
+ *
+ * `null` covers "another organization's" and "does not exist" identically —
+ * the same non-oracle `requireScope` keeps everywhere.
+ */
+export async function officeBatchFor(
+  scope: OwnerScope,
+  batchId: string,
+): Promise<OfficeImportBatchRow | null> {
+  const [row] = await officeBatchQuery(
+    and(
+      eq(import_batch.id, batchId),
+      eq(import_batch.organization_id, scope.organizationId),
+    ),
+  )
+  return row ? toOfficeBatchRow(row) : null
+}
+
+/** The office join, written once so the two reads above cannot drift. */
+function officeBatchQuery(where: ReturnType<typeof and>) {
+  const importedBy = aliasedTable(app_user, "imported_by")
+  const publishedBy = aliasedTable(app_user, "published_by")
+
+  return betaDb()
+    .select({
+      ...BATCH_COLUMNS,
+      imported_by_name: importedBy.name,
+      published_by_name: publishedBy.name,
+    })
+    .from(import_batch)
+    .innerJoin(reporting_period, periodJoin)
+    .leftJoin(importedBy, eq(importedBy.id, import_batch.imported_by_user_id))
+    .leftJoin(
+      publishedBy,
+      eq(publishedBy.id, import_batch.published_by_user_id),
+    )
+    .where(where)
+    .orderBy(desc(import_batch.imported_at), desc(import_batch.id))
+}
+
+function toOfficeBatchRow(
+  row: BatchRow & {
+    imported_by_name: string | null
+    published_by_name: string | null
+  },
+): OfficeImportBatchRow {
+  return officeImportBatchRow(toBatchView(row), {
+    importedByName: row.imported_by_name,
+    publishedByName: row.published_by_name,
+  })
 }
 
 /**

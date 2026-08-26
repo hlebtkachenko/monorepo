@@ -26,7 +26,7 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * which is why it takes a parameter instead of joining the static list above.
  */
 type BetaNavLabelKey =
-  "prehled" | "dokumenty" | "dane" | "finance" | "majetek" | "ucetni"
+  "prehled" | "dokumenty" | "dane" | "finance" | "vykazy" | "majetek" | "ucetni"
 
 export type BetaRailItem =
   (Omit<RailMenuItem, "label"> & { labelKey: BetaNavLabelKey }) | "separator"
@@ -56,6 +56,14 @@ export function betaRailNav(
     // sidebar leaves land (PRs 26-28); `finance/page.tsx` redirects to Dluhy a
     // platby, so it is a live route, not a landing stub.
     { labelKey: "finance", icon: "CreditCard", href: `/${orgSlug}/finance` },
+    // Výkazy (spec §2.5), between Finance and Majetek exactly as §1's rail
+    // orders them. The first entry whose spec-named icon EXISTS in `IconName`
+    // — BarChart3 is in every pack already, so unlike Přehled / Daně /
+    // Finance / Majetek above there is no substitute to explain here. The href
+    // is the module root because Rozvaha IS the module root
+    // (`vykazy/_nav/vykazy-nav.ts`), so `AppRail`'s longest-prefix match keeps
+    // the entry active across all three statements with no redirect hop.
+    { labelKey: "vykazy", icon: "BarChart3", href: `/${orgSlug}/vykazy` },
     // The structure spec names Package for Majetek. `Box` is the closest
     // existing `IconName` (present in all three packs already), so this entry
     // does not need an icon-pack-parity PR of its own.

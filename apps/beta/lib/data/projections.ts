@@ -761,6 +761,46 @@ export function importBatchView(
 }
 
 /**
+ * A batch as the OFFICE's own review surface sees it (spec §3.2's batch
+ * history) — `ImportBatchView` plus the two actor names, and nothing else.
+ *
+ * A SEPARATE TYPE, not a widened `ImportBatchView`, for exactly the reason that
+ * type's header states: the client shape must never carry the office's user
+ * ids, and the review surface "joins `app_user` and projects them, the way the
+ * /admin shapes below do". Keeping the two apart is what stops a field added
+ * here from reaching a client tier — `officeBatchHistoryFor` takes an
+ * `OwnerScope`, so this shape is only reachable from a surface the client
+ * cannot open.
+ *
+ * NAMES, NOT IDS, and NOT the raw column names either (same discipline as
+ * `officeMemberRow`'s `staff`): `imported_by_user_id` becomes
+ * `importedByName`, so a `{ ...row }` that skipped this function would be
+ * caught rather than shipped.
+ *
+ * BOTH ARE NULLABLE, and the common case is null. An agent-fed batch (§3.2's
+ * feeding channel) has no session behind it and therefore no user id; a batch
+ * that has never been published has no publisher; and `ON DELETE SET NULL` on
+ * both columns means an offboarded colleague's batches keep their history
+ * without keeping their account. A surface renders a null as the batch's
+ * SOURCE, never as an unknown person.
+ */
+export type OfficeImportBatchRow = ImportBatchView & {
+  importedByName: string | null
+  publishedByName: string | null
+}
+
+export function officeImportBatchRow(
+  batch: ImportBatchView,
+  actors: { importedByName: string | null; publishedByName: string | null },
+): OfficeImportBatchRow {
+  return {
+    ...batch,
+    importedByName: actors.importedByName,
+    publishedByName: actors.publishedByName,
+  }
+}
+
+/**
  * One řádek of a rozvaha or a VZZ (spec §2.5).
  *
  * ALL FIVE VALUE COLUMNS ARE STRINGS, and stay strings all the way to the

@@ -68,6 +68,13 @@ export default defineConfig({
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            // `lib/import/**` (PR 26): the manual-fallback CSV reader is a pure
+            // function over a string — a tokenizer, a header matcher and a
+            // decimal normalizer. It is also the piece most worth testing
+            // adversarially (BOM, quoted `;`, Czech decimal comma, ragged
+            // rows), and a suite that needed Docker to assert "a row with two
+            // commas in one amount is refused" is a suite that gets skipped.
+            "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
@@ -120,6 +127,7 @@ export default defineConfig({
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
             "**/node_modules/**",
           ],

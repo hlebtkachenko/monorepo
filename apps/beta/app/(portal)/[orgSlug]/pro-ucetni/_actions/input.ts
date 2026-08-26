@@ -3,7 +3,12 @@ import "server-only"
 import {
   BETA_CLIENT_DOCUMENT_TYPES,
   type BetaClientDocumentType,
+  type BetaFilingKind,
+  type BetaFilingStatus,
+  type BetaObligationGroup,
+  type BetaPeriodKind,
 } from "@/db/schema"
+import { MANUAL_OBLIGATION_GROUPS } from "@/lib/obligation-labels"
 
 /**
  * Reading a `FormData` at the Pro účetní boundary — the org-tier twin of
@@ -94,4 +99,193 @@ export function isUuid(value: string): boolean {
 export function formUuid(formData: FormData, key: string): string | null {
   const value = formString(formData, key)
   return isUuid(value) ? value : null
+}
+
+// ---------------------------------------------------------------------------
+// Zadávání dat (PR 18) — the closed lists and value shapes the forms post
+// ---------------------------------------------------------------------------
+
+/**
+ * A field that may legitimately be EMPTY, read as "present and valid" vs
+ * "malformed" vs "empty".
+ *
+ * The two-state `X | null` above works for a field where null IS the refusal
+ * (an id, an enum). It cannot express an optional money amount: `null` there
+ * means "the office has not stated one", which is a real, storable value
+ * (§0.4 — an unknown is not a zero), and folding it together with "you typed
+ * letters" would silently store a blank instead of refusing.
+ */
+export type FieldResult<T> = { ok: true; value: T } | { ok: false }
+
+const OK_EMPTY = { ok: true, value: null } as const
+const REFUSED = { ok: false } as const
+
+/**
+ * `YYYY-MM-DD` — the shape `<input type="date">` posts and a `date` column
+ * stores. The regex is a SHAPE check, not a calendar check: Postgres rejects
+ * `2026-02-31` itself, and re-implementing the Gregorian calendar here would be
+ * a second authority on what a date is.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+export function formDate(formData: FormData, key: string): string | null {
+  const value = formString(formData, key)
+  return ISO_DATE.test(value) ? value : null
+}
+
+/** The same, optional: empty is a value, malformed is a refusal. */
+export function formOptionalDate(
+  formData: FormData,
+  key: string,
+): FieldResult<string | null> {
+  const value = formString(formData, key)
+  if (value.length === 0) return OK_EMPTY
+  return ISO_DATE.test(value) ? { ok: true, value } : REFUSED
+}
+
+/**
+ * A `numeric(14,2)` money value, AS A STRING, checked for shape and passed
+ * through untouched.
+ *
+ * NOTHING IS PARSED, ROUNDED OR REFORMATTED HERE — not even to validate it.
+ * `Number(value)` would be a float, and a float is what §0.7 keeps money away
+ * from; the check is a regex over the digits the office typed, and those exact
+ * digits are what reaches Postgres.
+ *
+ * A comma is accepted and rewritten to a dot: a Czech keyboard produces
+ * "1234,50" and refusing it would be a validation error about the decimal
+ * separator of the user's own locale. That IS a rewrite of the input, and the
+ * only one — it moves no digit.
+ *
+ * `allowNegative` is false by default and true only for a filing's
+ * `amount_due`, which is sign-carrying (a DPH nadměrný odpočet is a refund owed
+ * to the client). A liability's amount is strictly positive at the database.
+ */
+const DECIMAL = /^-?\d{1,12}(?:\.\d{1,2})?$/
+
+export function formDecimal(
+  formData: FormData,
+  key: string,
+  options: { required?: boolean; allowNegative?: boolean } = {},
+): FieldResult<string | null> {
+  const raw = formString(formData, key).replace(",", ".")
+  if (raw.length === 0) return options.required ? REFUSED : OK_EMPTY
+  if (!DECIMAL.test(raw)) return REFUSED
+  if (!options.allowNegative && raw.startsWith("-")) return REFUSED
+  return { ok: true, value: raw }
+}
+
+/**
+ * Variabilní symbol — 1 to 10 digits, or empty.
+ *
+ * Mirrors the `*_variable_symbol_digits` CHECK both `filing` and `liability`
+ * carry. Checked here as well as there so a typo is a Czech sentence rather
+ * than a 500 carrying a constraint name.
+ */
+const VARIABLE_SYMBOL = /^\d{1,10}$/
+
+export function formVariableSymbol(
+  formData: FormData,
+  key: string,
+): FieldResult<string | null> {
+  const value = formString(formData, key)
+  if (value.length === 0) return OK_EMPTY
+  return VARIABLE_SYMBOL.test(value) ? { ok: true, value } : REFUSED
+}
+
+/**
+ * A whole number in an inclusive range — the period's year, month and quarter.
+ *
+ * `Number()` is safe here in a way it is not for money: these are small
+ * integers with no fractional part and no precision to lose, and the range
+ * check refuses anything a `smallint` column would not take anyway. The
+ * `Number.isInteger` guard is what stops "2026.5" and "1e3" from passing.
+ */
+export function formInteger(
+  formData: FormData,
+  key: string,
+  range: { min: number; max: number },
+): number | null {
+  const raw = formString(formData, key)
+  if (!/^\d{1,4}$/.test(raw)) return null
+  const value = Number(raw)
+  if (!Number.isInteger(value)) return null
+  return value >= range.min && value <= range.max ? value : null
+}
+
+/**
+ * The closed lists Zadávání dat's selects post.
+ *
+ * Written out rather than read off the pgEnum's `enumValues`, deliberately and
+ * only in the one case where the two differ: `OBLIGATION_GROUPS` is the enum
+ * MINUS `dodavatele`, because that group belongs wholly to PR 28's imported
+ * saldokonto and the database refuses a manual liability in it
+ * (`liability_group_is_residue`, migration 0006). Reading the enum here would
+ * put a fourth option in the select whose only outcome is a constraint
+ * violation. The other three lists are the enums in full, and are asserted
+ * total against `enumValues` in `input.test.ts` so a value added to the
+ * migration cannot quietly go missing from a form.
+ */
+const FILING_KINDS: readonly BetaFilingKind[] = [
+  "dph_priznani",
+  "dph_kontrolni_hlaseni",
+  "dph_souhrnne_hlaseni",
+  "dppo_priznani",
+  "dppo_zaloha",
+  "ucetni_zaverka",
+  "vyuctovani_dane",
+  "prehled_cssz",
+  "prehled_zp",
+  "jmhz",
+  "silnicni_dan",
+  "ostatni",
+]
+
+export function formFilingKind(
+  formData: FormData,
+  key: string,
+): BetaFilingKind | null {
+  const value = formString(formData, key)
+  return FILING_KINDS.find((kind) => kind === value) ?? null
+}
+
+const FILING_STATUSES: readonly BetaFilingStatus[] = [
+  "planned",
+  "filed",
+  "confirmed",
+  "corrective",
+]
+
+export function formFilingStatus(
+  formData: FormData,
+  key: string,
+): BetaFilingStatus | null {
+  const value = formString(formData, key)
+  return FILING_STATUSES.find((status) => status === value) ?? null
+}
+
+const PERIOD_KINDS: readonly BetaPeriodKind[] = ["month", "quarter", "year"]
+
+export function formPeriodKind(
+  formData: FormData,
+  key: string,
+): BetaPeriodKind | null {
+  const value = formString(formData, key)
+  return PERIOD_KINDS.find((kind) => kind === value) ?? null
+}
+
+/**
+ * The creditor group of a MANUAL liability — the enum MINUS `dodavatele`.
+ *
+ * The list lives in `@/lib/obligation-labels` rather than here because the
+ * liability form's `<select>` renders it in a Client Component, and this module
+ * is `server-only`. Reader and select therefore share ONE list: an option the
+ * form can offer is exactly an option this reader accepts, and vice versa.
+ */
+export function formObligationGroup(
+  formData: FormData,
+  key: string,
+): BetaObligationGroup | null {
+  const value = formString(formData, key)
+  return MANUAL_OBLIGATION_GROUPS.find((group) => group === value) ?? null
 }

@@ -32,6 +32,20 @@ describe("beta rail nav", () => {
     ).toBe(true)
   })
 
+  it("shows Finance to every role — Dluhy a platby is client-visible", () => {
+    const finance = items(entries).find((item) => item.labelKey === "finance")
+    expect(finance?.href).toBe("/acme-sro/finance")
+    expect(finance?.icon).toBe("CreditCard")
+
+    // Present for a guest too: §5 makes guest an external VIEWER of the same
+    // client-visible data, and §2.4's Dluhy a platby is exactly that.
+    expect(
+      items(betaRailNav("acme-sro", { isOwner: false })).some(
+        (item) => item.labelKey === "finance",
+      ),
+    ).toBe(true)
+  })
+
   it("hides Pro účetní from every non-owner viewer", () => {
     expect(entries).toEqual(betaRailNav("acme-sro", { isOwner: false }))
     expect(items(entries).some((item) => item.labelKey === "ucetni")).toBe(
@@ -47,7 +61,7 @@ describe("beta rail nav", () => {
     const ucetni = items(ownerEntries).find(
       (item) => item.labelKey === "ucetni",
     )
-    expect(ucetni?.href).toBe("/acme-sro/pro-ucetni/zpracovani")
+    expect(ucetni?.href).toBe("/acme-sro/pro-ucetni")
     expect(ucetni?.icon).toBe("Briefcase")
 
     // Every href stays absolute, unique and org-scoped with the extra entry too.

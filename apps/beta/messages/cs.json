@@ -12,6 +12,7 @@
     "prehled": "Přehled",
     "dokumenty": "Dokumenty",
     "dane": "Daně a podání",
+    "finance": "Finance",
     "ucetni": "Pro účetní"
   },
   "landing": {
@@ -422,5 +423,107 @@
     "kindJmhz": "JMHZ",
     "kindSilnicniDan": "Silniční daň",
     "kindOstatni": "Ostatní"
+  },
+
+  "finance": {
+    "dluhyTitle": "Dluhy a platby",
+    "dluhyIntro": "Nezaplacené závazky ze všech evidencí, seřazené podle splatnosti.",
+
+    "groupFu": "Finanční úřad",
+    "groupCsszZp": "ČSSZ a zdravotní pojišťovny",
+    "groupDodavatele": "Dodavatelé",
+    "groupOstatni": "Ostatní",
+
+    "columnTitle": "Titul",
+    "columnDueOn": "Splatnost",
+    "columnVariableSymbol": "VS",
+    "columnAmount": "Částka",
+    "columnState": "Stav",
+
+    "stateOverdue": "Po splatnosti",
+    "stateOpen": "K úhradě",
+
+    "totalAll": "Celkem k úhradě",
+    "totalOverdue": "Z toho po splatnosti",
+    "groupTotal": "Celkem",
+    "asOf": "Údaje k",
+
+    "emptyHeading": "Neevidujeme žádné nezaplacené závazky.",
+    "emptyBody": "Jakmile účetní zadá podání s částkou nebo další závazek, objeví se tady.",
+
+    "sourcesTitle": "Odkud údaje pocházejí",
+    "sourcesHint": "Každá evidence má vlastní datum poslední změny. Chybí-li, zatím do ní nic nepřibylo.",
+    "sourceFiling": "Daňová podání",
+    "sourcePartnerSaldo": "Saldokonto dodavatelů",
+    "sourceManualLiability": "Ručně zadané závazky",
+    "sourceNotConnected": "Zatím nenapojeno",
+    "sourceNoData": "Zatím nebylo nahráno",
+    "sourceOpenCount": "otevřených položek"
+  },
+
+  "zadavani": {
+    "title": "Zadávání dat",
+    "intro": "Jediné místo, kde se údaje mimo doklady zadávají. Klientské stránky jsou jen ke čtení.",
+
+    "pending": "Ukládám…",
+    "save": "Uložit",
+    "create": "Přidat",
+    "delete": "Smazat",
+    "markPaid": "Označit jako zaplacené",
+    "markUnpaid": "Vrátit mezi nezaplacené",
+    "noRows": "Zatím tu nic není.",
+
+    "filingsTitle": "Daňová podání",
+    "filingsHint": "Částka a datum zaplacení řídí, co se objeví v Dluzích a platbách.",
+    "filingCreateTitle": "Nové podání",
+    "filingCreateHint": "Období se založí automaticky, pokud ještě neexistuje.",
+
+    "liabilitiesTitle": "Ostatní závazky",
+    "liabilitiesHint": "Jen to, co není daňové podání ani faktura od dodavatele — penále, úrok z prodlení, splátkový kalendář, nájem.",
+    "liabilityCreateTitle": "Nový závazek",
+
+    "fieldKind": "Typ podání",
+    "fieldPeriodKind": "Období",
+    "fieldYear": "Rok",
+    "fieldMonth": "Měsíc",
+    "fieldQuarter": "Čtvrtletí",
+    "fieldDueOn": "Splatnost",
+    "fieldStatus": "Stav",
+    "fieldFiledOn": "Podáno dne",
+    "fieldAmount": "Částka v Kč",
+    "fieldVariableSymbol": "Variabilní symbol",
+    "fieldGroup": "Věřitel",
+    "fieldLabel": "Titul",
+    "fieldNoteClient": "Poznámka pro klienta",
+    "fieldNoteInternal": "Interní poznámka",
+
+    "periodMonth": "Měsíc",
+    "periodQuarter": "Čtvrtletí",
+    "periodYear": "Rok",
+
+    "columnPeriod": "Období",
+    "columnKind": "Typ",
+    "columnTitle": "Titul",
+    "columnState": "Stav",
+    "columnActions": "Akce",
+
+    "statePaid": "Zaplaceno",
+    "stateOpen": "Nezaplaceno",
+    "stateOverdue": "Po splatnosti",
+    "stateNoAmount": "Bez částky",
+
+    "okSaved": "Uloženo.",
+    "okCreated": "Záznam přidán.",
+    "okDeleted": "Záznam smazán.",
+    "okMarkedPaid": "Označeno jako zaplacené.",
+    "okMarkedUnpaid": "Vráceno mezi nezaplacené.",
+
+    "errorInvalidInput": "Neplatný vstup.",
+    "errorAmountInvalid": "Částka musí být kladné číslo nejvýš se dvěma desetinnými místy.",
+    "errorLabelRequired": "Vyplňte titul závazku.",
+    "errorVariableSymbolInvalid": "Variabilní symbol smí mít jen 1 až 10 číslic.",
+    "errorPeriodInvalid": "Vyberte platné období.",
+    "errorNotFound": "Záznam nenalezen.",
+    "errorRejected": "Operaci odmítla databáze."
   }
 }

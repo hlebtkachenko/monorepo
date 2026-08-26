@@ -3,6 +3,7 @@ import "server-only"
 import { sql } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
+import { betaObligationGroup } from "@/db/schema"
 import type {
   BetaFilingKind,
   BetaObligationGroup,
@@ -23,11 +24,34 @@ import type { OrgScope } from "./scope"
  * three numbers that disagree. So this file reads the sources and shapes them,
  * and owns nothing.
  *
- * THREE SOURCES, ONE IMPLEMENTED (spec §2.4):
+ * THREE SOURCES, TWO IMPLEMENTED (spec §2.4):
  *
- *   filing            unpaid filings with a positive amount_due     — HERE, now
+ *   filing            unpaid filings with a positive amount_due     — PR 16
  *   partner_saldo     payables per partner, from the saldokonto     — PR 28
- *   manual_liability  the residue the other two cannot see          — PR 18
+ *   manual_liability  the residue the other two cannot see          — HERE, now
+ *
+ * THE UNION IS DISJOINT BY CONSTRUCTION, WHICH IS THE ANTI-TRIPLE-ENTRY RULE.
+ * §2.4 writes the sources with their creditor groups in parentheses — "filings
+ * (FÚ / ČSSZ a ZP) ∪ partner_saldo payables (Dodavatelé) ∪ manual liability
+ * residue (Ostatní)" — and that is a partition, not a coincidence: Advisor
+ * defect F11 found liabilities being typed three times over, and a union that
+ * could show the same debt twice would have rebuilt the defect one layer up.
+ * Two fences make it structural rather than conventional, and both live in
+ * migration 0006:
+ *
+ *   1. `liability_group_is_residue` refuses `dodavatele` outright — that group
+ *      belongs wholly to the imported saldokonto.
+ *   2. A liability CANNOT NAME A FILING. There is no `filing_id` column, so a
+ *      filing's money is only ever read off the filing row. "The same debt from
+ *      two sources" is not a state this query has to detect; it is a state the
+ *      schema cannot express — which is why there is no dedup pass below and
+ *      must never be one. A fuzzy match on (group, due date, amount) would
+ *      silently hide a real second debt, and hiding a debt is the worse error.
+ *
+ * `fu` and `cssz_zp` stay open to the manual source for the residue that
+ * genuinely lives there — penále, úrok z prodlení, a splátkový kalendář — none
+ * of which is a form with a statutory deadline, so none of which has a filing
+ * row to duplicate. See the migration header for that judgement in full.
  *
  * WHY A QUERY BUILDER AND NOT A DATABASE VIEW. A view would have to be replaced
  * by a migration twice more as the other two sources land, and — the deciding
@@ -39,12 +63,13 @@ import type { OrgScope } from "./scope"
  * GUC this database does not set. The union lives here, in the one place that
  * already holds the scope.
  *
- * ADDING A SOURCE (PR 18 / PR 28) is meant to be a small, local change: register
- * it in `OBLIGATION_SOURCES` with `implemented: true`, add one arm to the
- * `UNION ALL` in `obligationRowsQuery` selecting the same column list, and add
- * one arm to the freshness query. `Obligation` does not change shape, so no
- * consumer does either — which is the whole reason `source` is a discriminator
- * on every row rather than something the caller infers.
+ * ADDING A SOURCE (PR 28) is meant to be a small, local change: register it in
+ * `OBLIGATION_SOURCES` with `implemented: true`, add one arm to the `UNION ALL`
+ * in `obligationRowsQuery` selecting the same column list, and add one arm to
+ * the freshness query. `Obligation` does not change shape, so no consumer does
+ * either — which is the whole reason `source` is a discriminator on every row
+ * rather than something the caller infers. PR 18 followed that contract to the
+ * letter and this note is the evidence it holds.
  */
 
 export type ObligationSource = "filing" | "partner_saldo" | "manual_liability"
@@ -63,7 +88,7 @@ export const OBLIGATION_SOURCES: readonly {
 }[] = Object.freeze([
   { source: "filing", implemented: true },
   { source: "partner_saldo", implemented: false },
-  { source: "manual_liability", implemented: false },
+  { source: "manual_liability", implemented: true },
 ])
 
 /** One outstanding obligation, whichever source produced it. */
@@ -121,8 +146,47 @@ export type ObligationSourceFreshness = {
   openCount: number
 }
 
+/**
+ * One creditor group as Dluhy a platby renders it (spec §2.4: "groups FÚ / ČSSZ
+ * a ZP ... Dodavatelé ... Ostatní").
+ *
+ * ONLY NON-EMPTY GROUPS ARE RETURNED. Spec §0.4's "empty beats stale" cuts both
+ * ways: a group with nothing in it must not render as a heading over "0 Kč",
+ * because that reads as a measured zero rather than as an absence. A page with
+ * no groups at all renders the empty state, which says something true.
+ *
+ * `total` / `overdue` are SQL window sums over exactly this group's rows —
+ * `SUM(...) OVER (PARTITION BY "group")`, computed once inside the same query
+ * that returns the rows. No money value is ever added in JavaScript (§0.2).
+ *
+ * `asOf` is the §2.4 per-group stamp: "the SOURCE's own stamp (filing edit /
+ * import period / manual edit)". A group can be fed by more than one source —
+ * `ostatni` takes both a filing of kind `ostatni` and every manual liability —
+ * so it is the LATEST of the stamps its rows carry. Picking the latest of a set
+ * of timestamps is not accounting arithmetic; it is which of two dates to print.
+ */
+export type ObligationGroupSummary = {
+  group: BetaObligationGroup
+  /** Never empty. Ordered by deadline, soonest first. */
+  obligations: Obligation[]
+  /** SQL window sum over this group. `numeric(14,2)` as a string. */
+  total: string
+  /** The overdue subset of the same sum. */
+  overdue: string
+  /** How many of the rows are past their deadline. A row count, not money. */
+  overdueCount: number
+  /** ISO instant — the newest source stamp among this group's rows. */
+  asOf: string
+}
+
 export type ObligationsReadModel = {
   obligations: Obligation[]
+  /**
+   * The same obligations, bucketed by creditor group in enum order and never
+   * carrying an empty bucket. This is what the page renders; `obligations` is
+   * the flat list the unified Nejbližší termíny of §2.1 (PR 20) reads.
+   */
+  groups: ObligationGroupSummary[]
   freshness: ObligationSourceFreshness[]
   /** SQL-computed sums, as strings. Spec §0.2: no arithmetic above the database. */
   totals: {
@@ -167,6 +231,8 @@ type ObligationRow = {
   period_ends_on: string | null
   total_all: string
   total_overdue: string
+  group_total: string
+  group_overdue: string
 }
 
 /**
@@ -220,8 +286,51 @@ function obligationRowsQuery(organizationId: string) {
         AND f.amount_due > 0
 
       -- SOURCE 2/3 (PR 28): partner_saldo payables, group 'dodavatele'.
-      -- SOURCE 3/3 (PR 18): manual liability residue, group 'ostatni'.
-      -- Each arrives as one more UNION ALL SELECT with this column list.
+      -- It arrives as one more UNION ALL SELECT with this column list.
+
+      UNION ALL
+
+      -- SOURCE 3/3: the manual liability residue (spec §2.4, §4 "liability
+      -- (residual manual only)") — what neither the filing registry nor the
+      -- imported saldokonto can express.
+      --
+      -- NO "amount > 0" PREDICATE HERE, and the asymmetry with the filing arm
+      -- above is deliberate rather than an omission. filing.amount_due is
+      -- nullable and sign-carrying, so that arm has to exclude three different
+      -- non-debts in its WHERE clause. liability.amount is NOT NULL with
+      -- CHECK (amount > 0) (migration 0006) — money owed TO this company is a
+      -- receivable, not a negative debt — so the same predicate here would be a
+      -- filter that can never remove a row, and stating a rule twice is how the
+      -- two copies eventually disagree.
+      --
+      -- Every period column is NULL: a manual liability is not stamped with a
+      -- reporting period (§2.4's row shape is titul / věřitel / částka /
+      -- splatnost / VS, with no period), which is exactly why Obligation.period
+      -- has been nullable since the union shipped with one arm. The casts are
+      -- not decoration — a bare NULL in the second arm of a UNION takes its type
+      -- from the first, and period_kind would arrive as beta_period_kind rather
+      -- than the text the row type expects.
+      SELECT
+        'manual_liability'::text                    AS source,
+        l.id                                        AS source_id,
+        l.creditor_group::text                      AS "group",
+        NULL::text                                  AS filing_kind,
+        l.label                                     AS label,
+        l.amount                                    AS amount,
+        l.due_on                                    AS due_on,
+        l.variable_symbol                           AS variable_symbol,
+        to_char(l.updated_at AT TIME ZONE 'UTC',
+                ${sql.raw(ISO_INSTANT)})            AS as_of,
+        NULL::uuid                                  AS period_id,
+        NULL::text                                  AS period_kind,
+        NULL::smallint                              AS period_year,
+        NULL::smallint                              AS period_month,
+        NULL::smallint                              AS period_quarter,
+        NULL::text                                  AS period_starts_on,
+        NULL::text                                  AS period_ends_on
+      FROM liability l
+      WHERE l.organization_id = ${organizationId}
+        AND l.paid_at IS NULL
     )
     SELECT
       o.source, o.source_id, o."group", o.filing_kind, o.label, o.amount,
@@ -234,7 +343,16 @@ function obligationRowsQuery(organizationId: string) {
       COALESCE(
         SUM(o.amount) FILTER (WHERE o.due_on < CURRENT_DATE) OVER (),
         0
-      )                                                AS total_overdue
+      )                                                AS total_overdue,
+      -- The §2.4 per-group totals, partitioned by creditor group. Same rule as
+      -- the two above: the sum is computed once, by Postgres, over exactly the
+      -- rows being returned — never by adding strings in JavaScript.
+      SUM(o.amount) OVER (PARTITION BY o."group")      AS group_total,
+      COALESCE(
+        SUM(o.amount) FILTER (WHERE o.due_on < CURRENT_DATE)
+          OVER (PARTITION BY o."group"),
+        0
+      )                                                AS group_overdue
     FROM obligation o
     ORDER BY o.due_on ASC, o.source ASC, o.source_id ASC
   `
@@ -255,7 +373,18 @@ function freshnessQuery(organizationId: string) {
               ${sql.raw(ISO_INSTANT)}) AS source_updated_at
       FROM filing f
      WHERE f.organization_id = ${organizationId}
-    -- PR 28 / PR 18 append their own arm here.
+
+    UNION ALL
+
+    -- The manual source's own stamp, on the same terms: when the office last
+    -- touched a liability, whether or not any of them is still outstanding.
+    SELECT
+      'manual_liability'::text AS source,
+      to_char(max(l.updated_at) AT TIME ZONE 'UTC',
+              ${sql.raw(ISO_INSTANT)}) AS source_updated_at
+      FROM liability l
+     WHERE l.organization_id = ${organizationId}
+    -- PR 28 appends its own arm here.
   `
 }
 
@@ -277,8 +406,9 @@ export async function obligationsForScope(
     db.execute(freshnessQuery(scope.organizationId)),
   ])
 
-  const obligations = (rows as unknown as ObligationRow[]).map(toObligation)
-  const first = (rows as unknown as ObligationRow[])[0]
+  const obligationRows = rows as unknown as ObligationRow[]
+  const obligations = obligationRows.map(toObligation)
+  const first = obligationRows[0]
 
   const stampBySource = new Map(
     (freshnessRows as unknown as FreshnessRow[]).map((row) => [
@@ -296,6 +426,7 @@ export async function obligationsForScope(
 
   return {
     obligations,
+    groups: groupObligations(obligationRows, obligations),
     // Built from the constant, not from the query: a source with no rows at all
     // still has to appear, or the surface cannot tell "nothing outstanding"
     // apart from "this source does not exist yet".
@@ -313,6 +444,67 @@ export async function obligationsForScope(
     },
   }
 }
+
+/**
+ * Bucket the flat, deadline-ordered list into the §2.4 creditor groups.
+ *
+ * TAKES BOTH THE RAW ROWS AND THE PROJECTED ONES, and that is not clumsiness:
+ * the per-group sums are window values that live on the RAW row (`group_total`,
+ * `group_overdue`) and are deliberately absent from `Obligation` — the union's
+ * row shape is frozen by contract, and a projected row carrying its own group's
+ * total would also be a projected row that means something different depending
+ * on which query produced it. The two arrays are the same query's output in the
+ * same order, so index `i` of one is index `i` of the other.
+ *
+ * GROUPS COME OUT IN ENUM ORDER, not in first-seen order. First-seen order is a
+ * function of which deadline happens to be soonest, so the FÚ block would move
+ * up and down the page between visits with nothing having changed. The enum's
+ * order is §2.4's own (FÚ, ČSSZ a ZP, Dodavatelé, Ostatní).
+ */
+function groupObligations(
+  rows: readonly ObligationRow[],
+  obligations: readonly Obligation[],
+): ObligationGroupSummary[] {
+  const byGroup = new Map<BetaObligationGroup, ObligationGroupSummary>()
+
+  for (const [index, row] of rows.entries()) {
+    const obligation = obligations[index]
+    if (!obligation) continue
+
+    const existing = byGroup.get(row.group)
+    if (existing) {
+      existing.obligations.push(obligation)
+      existing.overdueCount += obligation.overdue ? 1 : 0
+      // The stamp of the group is the latest of its rows' source stamps. Every
+      // `as_of` is rendered by Postgres in the same fixed-width UTC ISO 8601
+      // form (`ISO_INSTANT`), so ordering them as strings orders them as
+      // instants — no Date parsing, no timezone to get wrong.
+      if (obligation.asOf > existing.asOf) existing.asOf = obligation.asOf
+      continue
+    }
+
+    byGroup.set(row.group, {
+      group: row.group,
+      obligations: [obligation],
+      total: row.group_total,
+      overdue: row.group_overdue,
+      overdueCount: obligation.overdue ? 1 : 0,
+      asOf: obligation.asOf,
+    })
+  }
+
+  return OBLIGATION_GROUP_ORDER.map((group) => byGroup.get(group)).filter(
+    (summary): summary is ObligationGroupSummary => summary !== undefined,
+  )
+}
+
+/**
+ * §2.4's own group order, read off the pgEnum rather than re-typed — a fifth
+ * creditor group added to `beta_obligation_group` renders without anyone having
+ * to remember this line exists.
+ */
+const OBLIGATION_GROUP_ORDER: readonly BetaObligationGroup[] =
+  betaObligationGroup.enumValues
 
 function toObligation(row: ObligationRow): Obligation {
   return {

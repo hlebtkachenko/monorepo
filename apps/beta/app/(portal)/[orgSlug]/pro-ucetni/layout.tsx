@@ -4,6 +4,8 @@ import { requireOwner } from "@/lib/data/scope"
 
 import { resolveOrgScope } from "../_lib/org-scope"
 
+import { ProUcetniTabs } from "./_components/pro-ucetni-tabs"
+
 /**
  * The owner-only gate for the whole Pro účetní section (spec §3, §5).
  *
@@ -35,5 +37,15 @@ export default async function ProUcetniLayout({
   const scope = await resolveOrgScope(orgSlug)
   requireOwner(scope)
 
-  return <>{children}</>
+  return (
+    <>
+      {/*
+        The section's own navigation (spec §3's sidebar), added in PR 18
+        because that is when the section gained a SECOND leaf — one link to
+        the page you are already on would have been chrome for its own sake.
+      */}
+      <ProUcetniTabs orgSlug={scope.organizationSlug} />
+      {children}
+    </>
+  )
 }

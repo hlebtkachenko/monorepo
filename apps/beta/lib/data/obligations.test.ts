@@ -1,18 +1,19 @@
 /**
  * Finance › Dluhy a platby — the derived obligations read model (spec §2.4).
  *
- * Two things are under test and they are different in kind. The first is the
- * FILING SOURCE: which rows become an obligation and which do not, which is
- * where a wrong predicate would show a client a debt they do not owe. The second
- * is the UNION CONTRACT: the shape PR 18's manual liabilities and PR 28's
- * partner saldo will plug into. The contract cases are deliberately written to
- * fail if the shape changes, because the whole point of shipping a union with
- * one arm is that adding the other two costs nothing at the consumers.
+ * Three things are under test and they are different in kind. The first is EACH
+ * SOURCE: which rows become an obligation and which do not, which is where a
+ * wrong predicate would show a client a debt they do not owe. The second is the
+ * UNION CONTRACT: the row shape PR 28's partner saldo will plug into, written to
+ * fail if that shape changes. The third — new with PR 18, because the union now
+ * has two arms — is that the two sources COMPOSE: same shape, same ordering, one
+ * set of totals, and no row shown twice.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   createFilingRow,
+  createLiabilityRow,
   createMonthPeriod,
   createReportingPeriod,
   endFixtures,
@@ -26,10 +27,14 @@ vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
 }))
 
-// The two exported types ARE the contract PR 18 and PR 28 build against, so
-// they are named here rather than inferred: a change to either shape has to
-// break this file before it breaks a consumer that does not exist yet.
-import type { Obligation, ObligationSourceFreshness } from "./obligations"
+// The exported types ARE the contract PR 28 builds against, so they are named
+// here rather than inferred: a change to any of the shapes has to break this
+// file before it breaks a consumer that does not exist yet.
+import type {
+  Obligation,
+  ObligationGroupSummary,
+  ObligationSourceFreshness,
+} from "./obligations"
 
 const { requireScope } = await import("./scope")
 const { obligationsForScope, OBLIGATION_SOURCES } =
@@ -278,14 +283,14 @@ describe("freshness — spec §0.4, empty beats stale", () => {
     ])
     expect(freshness.map((f) => [f.source, f.implemented])).toEqual([
       ["filing", true],
-      // Not placeholders (§0.3 forbids those) — the fact a surface needs in
+      // Not a placeholder (§0.3 forbids those) — the fact a surface needs in
       // order to render an absent source as ABSENT rather than as "0 Kč".
       ["partner_saldo", false],
-      ["manual_liability", false],
+      ["manual_liability", true],
     ])
     expect(
       freshness.filter((f) => !f.implemented).map((f) => f.sourceUpdatedAt),
-    ).toEqual([null, null])
+    ).toEqual([null])
   })
 
   it("stamps the SOURCE's last edit, not its last obligation", async () => {
@@ -413,7 +418,7 @@ describe("the union contract — what PR 18 and PR 28 plug into", () => {
       "partner_saldo",
       "manual_liability",
     ])
-    expect(OBLIGATION_SOURCES.filter((s) => s.implemented)).toHaveLength(1)
+    expect(OBLIGATION_SOURCES.filter((s) => s.implemented)).toHaveLength(2)
     expect(Object.isFrozen(OBLIGATION_SOURCES)).toBe(true)
   })
 })
@@ -463,5 +468,421 @@ describe("tenancy", () => {
     // The freshness list is still complete — an empty surface that can still
     // say WHEN it was last fed is the §0.4 requirement.
     expect(model.freshness).toHaveLength(3)
+  })
+})
+
+describe("the manual source — the residue arm (PR 18)", () => {
+  it("lists an unpaid liability, with its titul as the row's label", async () => {
+    const target = await seedOrganization()
+    const id = await createLiabilityRow(target.organizationId, {
+      label: "Penale z prodleni",
+      amount: "1500.50",
+      dueOn: "2026-04-30",
+      variableSymbol: "87654321",
+    })
+
+    const { obligations } = await readFor(target)
+
+    expect(obligations).toHaveLength(1)
+    expect(obligations[0]).toMatchObject({
+      key: `manual_liability:${id}`,
+      source: "manual_liability",
+      group: "ostatni",
+      // The mirror image of a filing row: `filingKind` is what a filing has and
+      // a liability has not, `label` is what a liability has and a filing has
+      // not. Both fields have existed since the union shipped with one arm,
+      // which is why this needed no shape change.
+      filingKind: null,
+      label: "Penale z prodleni",
+      amount: "1500.50",
+      dueOn: "2026-04-30",
+      variableSymbol: "87654321",
+    })
+  })
+
+  it("carries no period — a liability is not stamped with one", async () => {
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId)
+
+    const { obligations } = await readFor(target)
+    expect(obligations[0]!.period).toBeNull()
+  })
+
+  it("excludes a paid one, however large", async () => {
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId, {
+      amount: "999999.00",
+      paidAt: new Date("2026-03-20T10:00:00Z"),
+    })
+
+    expect((await readFor(target)).obligations).toEqual([])
+  })
+
+  it("keeps the group the office chose, for the residue that has no filing", async () => {
+    const target = await seedOrganization()
+    // Penále is owed to the FÚ and is NOT a form with a statutory deadline, so
+    // there is no filing row it could duplicate. Filing it under Ostatní would
+    // be a heading that lies.
+    await createLiabilityRow(target.organizationId, {
+      group: "fu",
+      label: "Penale FU",
+      dueOn: "2026-02-28",
+    })
+    await createLiabilityRow(target.organizationId, {
+      group: "cssz_zp",
+      label: "Splatkovy kalendar CSSZ",
+      dueOn: "2026-03-31",
+    })
+
+    const { obligations } = await readFor(target)
+    expect(obligations.map((o) => [o.label, o.group])).toEqual([
+      ["Penale FU", "fu"],
+      ["Splatkovy kalendar CSSZ", "cssz_zp"],
+    ])
+  })
+
+  it("derives Po splatnosti against today, and never stores it", async () => {
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId, {
+      dueInDays: -10,
+      amount: "5000.00",
+    })
+    await createLiabilityRow(target.organizationId, {
+      dueInDays: 30,
+      amount: "7000.00",
+    })
+
+    const { obligations } = await readFor(target)
+    expect(obligations.map((o) => o.overdue)).toEqual([true, false])
+    expect(obligations[0]!.daysOverdue).toBe(10)
+    expect(obligations[1]!.daysOverdue).toBe(0)
+  })
+
+  it("stamps the SOURCE's last edit, not its last obligation", async () => {
+    const target = await seedOrganization()
+    // Every liability is PAID, so the source contributes nothing — and must
+    // still report when the office last touched it.
+    await createLiabilityRow(target.organizationId, { paidAt: new Date() })
+
+    const { obligations, freshness } = await readFor(target)
+    const manual = freshness.find((f) => f.source === "manual_liability")!
+
+    expect(obligations).toEqual([])
+    expect(manual.openCount).toBe(0)
+    expect(manual.implemented).toBe(true)
+    expect(Date.parse(manual.sourceUpdatedAt!)).not.toBeNaN()
+  })
+
+  it("reports no stamp at all for an organization with no liabilities", async () => {
+    const target = await seedOrganization()
+    const manual = (await readFor(target)).freshness.find(
+      (f) => f.source === "manual_liability",
+    )!
+
+    expect(manual.sourceUpdatedAt).toBeNull()
+    expect(manual.openCount).toBe(0)
+    expect(manual.implemented).toBe(true)
+  })
+
+  it("never shows another organization's liabilities", async () => {
+    const foreign = await seedOrganization()
+    await createLiabilityRow(foreign.organizationId, { amount: "123456.00" })
+
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId, { amount: "1000.00" })
+
+    const { obligations, totals } = await readFor(target)
+    expect(obligations).toHaveLength(1)
+    expect(totals.total).toBe("1000.00")
+    expect(JSON.stringify(obligations)).not.toContain("123456")
+  })
+
+  it("is readable by every role, guest included", async () => {
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId)
+
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      as(target.members[role].headers)
+      const model = await obligationsForScope(await requireScope(target.slug))
+      expect(model.obligations, `${role} reads the residue`).toHaveLength(1)
+    }
+  })
+})
+
+describe("the two sources compose — no triple entry, no double show", () => {
+  it("interleaves both sources by deadline, keys them apart, sums them once", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+
+    const filingId = await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "31200.00",
+    })
+    const liabilityId = await createLiabilityRow(target.organizationId, {
+      label: "Penale z prodleni",
+      dueOn: "2026-02-28",
+      amount: "1500.50",
+    })
+
+    const { obligations, totals } = await readFor(target)
+
+    // One list, ordered by deadline ACROSS sources — not filings then
+    // liabilities. The client owes what they owe, in the order it falls due.
+    expect(obligations.map((o) => o.key)).toEqual([
+      `manual_liability:${liabilityId}`,
+      `filing:${filingId}`,
+    ])
+    // Two tables can hold the same uuid, so the key is prefixed by source.
+    expect(new Set(obligations.map((o) => o.key)).size).toBe(2)
+    expect(totals.total).toBe("32700.50")
+  })
+
+  it("shows a debt once per source, and never guesses that two are one", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+
+    // The office has typed the same MONEY twice: once as a filing's amount_due
+    // and once as a hand-entered FÚ liability with the same amount and the same
+    // deadline. §2.4's rule is that this is not the read model's problem to
+    // guess about — a liability cannot NAME a filing (there is no `filing_id`
+    // column, migration 0006), so no fact says these are the same debt. Both
+    // rows show. A fuzzy match on (group, due date, amount) would silently hide
+    // a real second debt, and hiding a debt is the worse error.
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "31200.00",
+    })
+    await createLiabilityRow(target.organizationId, {
+      group: "fu",
+      label: "DPH 02/2026",
+      dueOn: "2026-03-25",
+      amount: "31200.00",
+    })
+
+    const { obligations, totals } = await readFor(target)
+    expect(obligations).toHaveLength(2)
+    expect(obligations.map((o) => o.source).sort()).toEqual([
+      "filing",
+      "manual_liability",
+    ])
+    expect(totals.total).toBe("62400.00")
+  })
+
+  it("cannot be handed a supplier payable at all — the disjointness fence", async () => {
+    const target = await seedOrganization()
+
+    // `dodavatele` is PR 28's group and the database refuses it on the manual
+    // table (migration 0006, `liability_group_is_residue`). That is what makes
+    // the union disjoint by construction rather than by convention.
+    await expect(
+      createLiabilityRow(target.organizationId, { group: "dodavatele" }),
+    ).rejects.toThrow(/liability_group_is_residue/)
+  })
+
+  it("counts open obligations per source, separately", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await createFilingRow(target.organizationId, periodId, {
+      amountDue: "100.00",
+      dueOn: "2026-02-25",
+    })
+    await createLiabilityRow(target.organizationId, { dueOn: "2026-03-31" })
+    await createLiabilityRow(target.organizationId, { dueOn: "2026-04-30" })
+
+    const { freshness } = await readFor(target)
+    expect(freshness.map((f) => [f.source, f.openCount] as const)).toEqual([
+      ["filing", 1],
+      ["partner_saldo", 0],
+      ["manual_liability", 2],
+    ])
+  })
+
+  it("keeps every source's own stamp independent", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await createFilingRow(target.organizationId, periodId, {
+      amountDue: "100.00",
+    })
+
+    const before = await readFor(target)
+    expect(
+      before.freshness.find((f) => f.source === "manual_liability")!
+        .sourceUpdatedAt,
+    ).toBeNull()
+    const filingStamp = before.freshness.find(
+      (f) => f.source === "filing",
+    )!.sourceUpdatedAt
+
+    await createLiabilityRow(target.organizationId)
+
+    const after = await readFor(target)
+    // Adding a liability does not move the filing source's stamp. §2.4's
+    // per-group stamp is the SOURCE's own, and a shared "last refreshed" would
+    // make a stale dataset look fresh because a different one was touched.
+    expect(
+      after.freshness.find((f) => f.source === "filing")!.sourceUpdatedAt,
+    ).toBe(filingStamp)
+    expect(
+      after.freshness.find((f) => f.source === "manual_liability")!
+        .sourceUpdatedAt,
+    ).not.toBeNull()
+  })
+})
+
+describe("groups — the §2.4 creditor buckets the page renders", () => {
+  it("buckets by creditor group in enum order, never in first-seen order", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+
+    // Deliberately seeded so the SOONEST deadline is the LAST group: a
+    // first-seen ordering would put Ostatní on top, and the block would move up
+    // and down the page between visits with nothing having changed.
+    await createLiabilityRow(target.organizationId, {
+      group: "ostatni",
+      dueOn: "2026-01-31",
+      amount: "100.00",
+    })
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "prehled_cssz",
+      dueOn: "2026-02-20",
+      amountDue: "200.00",
+    })
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "300.00",
+    })
+
+    const { groups } = await readFor(target)
+    expect(groups.map((g) => g.group)).toEqual(["fu", "cssz_zp", "ostatni"])
+  })
+
+  it("omits an empty group entirely — a heading over 0 Kč reads as a measured zero", async () => {
+    const target = await seedOrganization()
+    await createLiabilityRow(target.organizationId, { amount: "100.00" })
+
+    const groups: ObligationGroupSummary[] = (await readFor(target)).groups
+    expect(groups.map((g) => g.group)).toEqual(["ostatni"])
+    expect(groups[0]!.obligations).toHaveLength(1)
+  })
+
+  it("has no groups at all when nothing is outstanding", async () => {
+    const target = await seedOrganization()
+    expect((await readFor(target)).groups).toEqual([])
+  })
+
+  it("sums each group in SQL, over exactly that group's rows", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueInDays: -5,
+      amountDue: "10000.50",
+    })
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dppo_zaloha",
+      dueInDays: 20,
+      amountDue: "7000.00",
+    })
+    await createLiabilityRow(target.organizationId, {
+      group: "ostatni",
+      dueInDays: -1,
+      amount: "2500.25",
+    })
+
+    const { groups, totals } = await readFor(target)
+    const fu = groups.find((g) => g.group === "fu")!
+    const ostatni = groups.find((g) => g.group === "ostatni")!
+
+    expect(fu.total).toBe("17000.50")
+    expect(fu.overdue).toBe("10000.50")
+    expect(fu.overdueCount).toBe(1)
+    expect(ostatni.total).toBe("2500.25")
+    expect(ostatni.overdue).toBe("2500.25")
+    expect(ostatni.overdueCount).toBe(1)
+
+    // Every addition happened in Postgres over numeric(14,2); the group sums and
+    // the page total come from the same query and agree by construction.
+    expect(totals.total).toBe("19500.75")
+    expect(totals.overdue).toBe("12500.75")
+    expect(typeof fu.total).toBe("string")
+  })
+
+  it("sums a group fed by BOTH sources as one number", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "1000.00",
+    })
+    await createLiabilityRow(target.organizationId, {
+      group: "fu",
+      label: "Penale",
+      dueOn: "2026-04-30",
+      amount: "250.50",
+    })
+
+    const [fu] = (await readFor(target)).groups
+    expect(fu!.group).toBe("fu")
+    expect(fu!.obligations.map((o) => o.source)).toEqual([
+      "filing",
+      "manual_liability",
+    ])
+    expect(fu!.total).toBe("1250.50")
+  })
+
+  it("stamps a mixed group with the LATEST of its rows' source stamps", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "1000.00",
+    })
+    // Written second, so its `updated_at` is the newer one.
+    await createLiabilityRow(target.organizationId, {
+      group: "fu",
+      dueOn: "2026-04-30",
+    })
+
+    const [fu] = (await readFor(target)).groups
+    const stamps = fu!.obligations.map((o) => o.asOf)
+    expect(fu!.asOf).toBe(stamps.reduce((a, b) => (a > b ? a : b)))
+    expect(fu!.asOf).toMatch(/Z$/)
+  })
+
+  it("keeps every group's rows ordered by deadline, soonest first", async () => {
+    const target = await seedOrganization()
+    for (const dueOn of ["2026-09-30", "2026-03-31", "2026-06-30"]) {
+      await createLiabilityRow(target.organizationId, { dueOn })
+    }
+
+    const [ostatni] = (await readFor(target)).groups
+    expect(ostatni!.obligations.map((o) => o.dueOn)).toEqual([
+      "2026-03-31",
+      "2026-06-30",
+      "2026-09-30",
+    ])
+  })
+
+  it("groups exactly the rows the flat list carries, and no others", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await createFilingRow(target.organizationId, periodId, {
+      kind: "prehled_zp",
+      dueOn: "2026-02-20",
+      amountDue: "500.00",
+    })
+    await createLiabilityRow(target.organizationId, { dueOn: "2026-05-31" })
+
+    const { obligations, groups } = await readFor(target)
+    expect(
+      groups.flatMap((g) => g.obligations.map((o) => o.key)).sort(),
+    ).toEqual(obligations.map((o) => o.key).sort())
   })
 })

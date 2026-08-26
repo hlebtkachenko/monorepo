@@ -407,6 +407,37 @@ export type BetaPayrollContractType =
   (typeof betaPayrollContractType.enumValues)[number]
 
 /**
+ * Mirrors: 0017_loans.sql — CREATE TYPE beta_loan_kind.
+ *
+ * Spec §2.4, verbatim: "typ (úvěr/leasing/kontokorent)". Spelled in English
+ * like `betaAssetCategory` — ordinary product categories this application
+ * classifies, not named legal instruments the way `betaPayrollContractType` is.
+ * Czech display labels live in `messages/cs.json`.
+ */
+export const betaLoanKind = pgEnum("beta_loan_kind", [
+  "loan",
+  "lease",
+  "overdraft",
+])
+
+export type BetaLoanKind = (typeof betaLoanKind.enumValues)[number]
+
+/**
+ * Mirrors: 0017_loans.sql — CREATE TYPE beta_loan_installment_period.
+ *
+ * Spec §2.4: "splátka + frekvence". A CLOSED list of the four frequencies a
+ * Czech splátkový kalendář uses — an installment is never approximated into a
+ * neighbouring frequency to fit the list.
+ */
+export const betaLoanInstallmentPeriod = pgEnum(
+  "beta_loan_installment_period",
+  ["monthly", "quarterly", "semiannual", "annual"],
+)
+
+export type BetaLoanInstallmentPeriod =
+  (typeof betaLoanInstallmentPeriod.enumValues)[number]
+
+/**
  * Mirrors: 0018_assistant.sql — CREATE TYPE beta_chat_role.
  *
  * The two authors an Asistent transcript can have (spec §2.8). There is

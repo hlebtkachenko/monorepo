@@ -63,5 +63,18 @@ export const betaFormats = {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     },
+    /**
+     * An interest rate as the contract states it (spec §2.4 "úrok").
+     *
+     * `style: "decimal"`, NOT `style: "percent"`: `loan.interest_rate_pct`
+     * already holds the figure in percent units, and Intl's percent style
+     * multiplies by 100 — it would print a 4,125 % úvěr as 412,5 %. The "%"
+     * belongs to the caller's markup, next to the number this produces.
+     */
+    rate: {
+      style: "decimal",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 3,
+    },
   },
 } satisfies Formats

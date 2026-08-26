@@ -55,6 +55,10 @@ describe("FINANCE_NAV", () => {
     )
   })
 
+  it("carries the Úvěry a leasingy leaf", () => {
+    expect(FINANCE_NAV.map((item) => item.slug)).toContain("uvery")
+  })
+
   it("lights exactly one tab, on the leaf and on a route beneath it", () => {
     for (const item of FINANCE_NAV) {
       const href = financeHref("acme", item.slug)
@@ -78,5 +82,37 @@ describe("FINANCE_NAV", () => {
         ),
       ).toEqual([])
     }
+  })
+})
+
+describe("isActiveFinanceNav", () => {
+  const uvery = FINANCE_NAV.find((item) => item.slug === "uvery")!
+  const dluhy = FINANCE_NAV.find((item) => item.slug === "dluhy-a-platby")!
+
+  it("matches a leaf on its own path and on a route beneath it", () => {
+    expect(
+      isActiveFinanceNav(uvery, "acme-sro", "/acme-sro/finance/uvery"),
+    ).toBe(true)
+    expect(
+      isActiveFinanceNav(uvery, "acme-sro", "/acme-sro/finance/uvery/detail"),
+    ).toBe(true)
+  })
+
+  it("never matches a sibling leaf or the module root", () => {
+    expect(
+      isActiveFinanceNav(uvery, "acme-sro", "/acme-sro/finance/dluhy-a-platby"),
+    ).toBe(false)
+    expect(isActiveFinanceNav(uvery, "acme-sro", "/acme-sro/finance")).toBe(
+      false,
+    )
+    expect(
+      isActiveFinanceNav(dluhy, "acme-sro", "/acme-sro/finance/uvery"),
+    ).toBe(false)
+  })
+
+  it("never matches another organization's identically-shaped path", () => {
+    expect(
+      isActiveFinanceNav(uvery, "acme-sro", "/jina-sro/finance/uvery"),
+    ).toBe(false)
   })
 })

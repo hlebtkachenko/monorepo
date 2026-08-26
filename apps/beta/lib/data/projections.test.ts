@@ -22,11 +22,13 @@ import {
   forbiddenClientKeys,
   membershipSummary,
   organizationCard,
+  organizationIdentityView,
   organizationSummary,
   ownerDocumentDetail,
   orgMemberSummary,
   reportingPeriodView,
   setupInviteView,
+  viewerAccountView,
   viewerProfile,
 } from "./projections"
 
@@ -169,6 +171,106 @@ describe("organizationCard", () => {
       organizationCard({ ...hostileOrganizationRow, ares_fetched_at: null })
         .aresFetchedAt,
     ).toBeNull()
+  })
+})
+
+describe("viewerAccountView — Nastavení › Účet (PR 21)", () => {
+  it("carries the two facts the page needs and no privileged column", () => {
+    const view = viewerAccountView({
+      name: "Jan Novák",
+      email: "jan@example.com",
+      totpEnabled: true,
+      totpMandatory: true,
+    })
+
+    expect(Object.keys(view).sort()).toEqual([
+      "email",
+      "name",
+      "totpEnabled",
+      "totpMandatory",
+    ])
+    // `two_factor_enabled` is forbidden and the check normalizes case and
+    // separators — so `twoFactorEnabled` would NOT have been a rename, it
+    // collapses to the same name and is caught. `totpEnabled` is a different
+    // word for a deliberately-chosen fact, the same discipline
+    // `ownerDocumentDetail` uses for internal_note → note.
+    expect(forbiddenClientKeys(view)).toEqual([])
+    expect(forbiddenClientKeys({ twoFactorEnabled: true })).toEqual([
+      "twoFactorEnabled",
+    ])
+    // Staff-ness produced `twoFactorMandatory` and does not travel itself.
+    expect(view).not.toHaveProperty("isStaff")
+    expect(view).not.toHaveProperty("is_staff")
+    expect(view).not.toHaveProperty("userId")
+  })
+})
+
+describe("organizationIdentityView — Nastavení › Společnost (PR 21)", () => {
+  it("differs from organizationCard exactly in the contact pair and the ids", () => {
+    // Two projections over the same table, one per surface — the same split
+    // `documentSummary` / `ownerDocumentDetail` makes. Pinned here so the
+    // difference stays a DECISION rather than drift: Přehled's card is a
+    // read-only dashboard tile that deliberately drops the contact details and
+    // needs `id`/`isDemo`; Nastavení's is the editable identity card, which
+    // needs the contact pair and has no use for either id.
+    const card = new Set(Object.keys(organizationCard(hostileOrganizationRow)))
+    const identity = new Set(
+      Object.keys(organizationIdentityView(hostileOrganizationRow)),
+    )
+
+    expect([...identity].filter((k) => !card.has(k)).sort()).toEqual([
+      "contactEmail",
+      "contactPhone",
+    ])
+    expect([...card].filter((k) => !identity.has(k)).sort()).toEqual([
+      "id",
+      "isDemo",
+    ])
+  })
+
+  it("carries the full card and still passes the client fence", () => {
+    const view = organizationIdentityView(hostileOrganizationRow)
+
+    expect(Object.keys(view).sort()).toEqual([
+      "aresFetchedAt",
+      "bankAccountNumber",
+      "bankAccountPrefix",
+      "bankCode",
+      "bic",
+      "contactEmail",
+      "contactPhone",
+      "courtFileNumber",
+      "dataBoxId",
+      "dic",
+      "iban",
+      "ico",
+      "legalName",
+      "registeredCity",
+      "registeredCountryCode",
+      "registeredHouseNumber",
+      "registeredOrientationNumber",
+      "registeredPostalCode",
+      "registeredStreet",
+      "slug",
+      "taxOfficeCode",
+      "vatRegime",
+      "vatRegisteredFrom",
+    ])
+    expect(forbiddenClientKeys(view)).toEqual([])
+    // Office bookkeeping about the book, not facts about the company.
+    expect(view).not.toHaveProperty("id")
+    expect(view).not.toHaveProperty("isDemo")
+    expect(view).not.toHaveProperty("is_demo")
+    expect(view).not.toHaveProperty("archivedAt")
+    expect(view.aresFetchedAt).toBe(now.toISOString())
+  })
+
+  it("renders a never-consulted ARES stamp as null, not as a date", () => {
+    const view = organizationIdentityView({
+      ...hostileOrganizationRow,
+      ares_fetched_at: null,
+    })
+    expect(view.aresFetchedAt).toBeNull()
   })
 })
 
@@ -495,6 +597,110 @@ describe("forbiddenClientKeys", () => {
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("disabled_at")
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("token_hash")
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("note_internal")
+  })
+
+  /**
+   * PR 21 carry-in from the PR 07 gate: the credential columns.
+   *
+   * Everything the earlier cases cover is office-internal — embarrassing to
+   * leak. These are the ones for which "shipped to a browser" and "account
+   * compromised" are the same sentence, and none of them had an entry until the
+   * twoFactor() plugin made `two_factor` a table this app reads.
+   */
+  describe("credential columns (PR 07 gate carry-in)", () => {
+    const CREDENTIAL_COLUMNS = [
+      "password",
+      "access_token",
+      "refresh_token",
+      "id_token",
+      "secret",
+      "backup_codes",
+      "token",
+    ]
+
+    it("lists every credential column", () => {
+      for (const column of CREDENTIAL_COLUMNS) {
+        expect(CLIENT_FORBIDDEN_COLUMNS, column).toContain(column)
+      }
+    })
+
+    it("catches a whole auth_account row spread into a payload", () => {
+      // The shape this fence exists for: `{ ...row }` type-checks, renders, and
+      // ships the credential hash.
+      const hostileAccountRow = {
+        id: "0199a0b1-0000-7000-8000-000000000010",
+        user_id: "0199a0b1-0000-7000-8000-000000000001",
+        account_id: "0199a0b1-0000-7000-8000-000000000001",
+        provider_id: "credential",
+        access_token: "at_live_x",
+        refresh_token: "rt_live_x",
+        id_token: "id_live_x",
+        scope: null,
+        password: "$2b$12$hash",
+        created_at: now,
+        updated_at: now,
+      }
+      expect(forbiddenClientKeys({ ...hostileAccountRow }).sort()).toEqual([
+        "access_token",
+        "id_token",
+        "password",
+        "refresh_token",
+      ])
+    })
+
+    it("catches a whole two_factor row, including the TOTP seed", () => {
+      const hostileTwoFactorRow = {
+        id: "0199a0b1-0000-7000-8000-000000000011",
+        user_id: "0199a0b1-0000-7000-8000-000000000001",
+        secret: "JBSWY3DPEHPK3PXP",
+        backup_codes: "encrypted-blob",
+        verified: true,
+        created_at: now,
+      }
+      expect(forbiddenClientKeys({ ...hostileTwoFactorRow }).sort()).toEqual([
+        "backup_codes",
+        "secret",
+      ])
+    })
+
+    it("catches a session token, which httpOnly would otherwise protect", () => {
+      const hostileSessionRow = {
+        id: "0199a0b1-0000-7000-8000-000000000012",
+        user_id: "0199a0b1-0000-7000-8000-000000000001",
+        token: "sess_live_x",
+        expires_at: now,
+        ip_address: "203.0.113.9",
+        user_agent: "curl/8",
+        created_at: now,
+        updated_at: now,
+      }
+      expect(forbiddenClientKeys({ ...hostileSessionRow })).toEqual(["token"])
+    })
+
+    it("catches each of them renamed to camelCase", () => {
+      expect(forbiddenClientKeys({ accessToken: "x" })).toEqual(["accessToken"])
+      expect(forbiddenClientKeys({ backupCodes: ["x"] })).toEqual([
+        "backupCodes",
+      ])
+      expect(forbiddenClientKeys({ Secret: "x" })).toEqual(["Secret"])
+    })
+
+    it("catches one nested inside an enrolment payload", () => {
+      expect(
+        forbiddenClientKeys({
+          enrolment: { totpURI: "otpauth://", secret: "s" },
+        }),
+      ).toEqual(["secret"])
+    })
+
+    it("still passes the projections that legitimately carry neighbours", () => {
+      // No false positive on the real projections: `noteClient`, `contactEmail`
+      // and friends are not credentials, and the check is name-based.
+      expect(
+        forbiddenClientKeys(organizationIdentityView(hostileOrganizationRow)),
+      ).toEqual([])
+      expect(forbiddenClientKeys(viewerProfile(hostileUserRow))).toEqual([])
+    })
   })
 
   it("catches the office's own note under either spelling", () => {

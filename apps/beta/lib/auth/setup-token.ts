@@ -160,7 +160,34 @@ export type ConsumeResult =
    * would send them back to the office for a replacement they do not need.
    */
   | { ok: false; reason: "retry" }
-  /** The invite is real, but this account already exists — prove it is you. */
+  /**
+   * The invite is real, but this account already exists — prove it is you.
+   *
+   * DELIBERATELY DISTINGUISHABLE FROM `invalid` (decision recorded at the PR 21
+   * gate, carried in from the PR 06 gate as a possible B4-4 uniformity
+   * deviation). KEPT distinguishable, for three reasons:
+   *
+   *   1. B4-4's uniformity requirement is about the TOKEN ORACLE — expired,
+   *      revoked, already-used and never-existed must be indistinguishable, so a
+   *      stranger grinding token-shaped URLs learns nothing. This arm is
+   *      unreachable without a VALID, unexpired, unconsumed link, so it answers
+   *      no question about a token anyone is guessing at.
+   *   2. The residual disclosure is "the address on this invite already has an
+   *      identity here" — to someone who is already holding an invite the OFFICE
+   *      issued for that address, on a screen (`peekSetupToken`) that already
+   *      renders the address and the organization's legal name. It tells the
+   *      holder nothing they were not deliberately told.
+   *   3. Making it uniform would strand a real and common case: an accountant or
+   *      a company owner who already has a beta account, invited into a second
+   *      book. Refusing does NOT consume the link, so "invalid" would be a
+   *      permanent dead end for them — they would go back to the office for a
+   *      replacement that behaves identically. A security-neutral message
+   *      becomes a support call.
+   *
+   * The takeover guard itself (B4-4's actual demand) is unchanged and is what
+   * produces this arm: an `org_invite` for an existing identity NEVER sets a
+   * credential, whatever the session says. See the branch in `consumeSetupToken`.
+   */
   | { ok: false; reason: "signin_required"; email: string }
 
 /**

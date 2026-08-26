@@ -80,6 +80,48 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   "disabled_at",
   "email_verified",
   "two_factor_enabled",
+  // ------------------------------------------------------------------
+  // Credential storage (PR 21 carry-in from the PR 07 gate).
+  // ------------------------------------------------------------------
+  //
+  // Everything above this block is "office-internal": embarrassing to leak,
+  // not fatal. Everything in it is a CREDENTIAL — the columns for which
+  // "shipped to a browser" and "account compromised" are the same sentence.
+  // None of them had an entry before PR 21 because none of the tables holding
+  // them had ever been projected; the twoFactor() plugin makes `two_factor` a
+  // table this app's own code now reads, which is exactly the moment the list
+  // has to grow rather than the moment after.
+  //
+  //   auth_account.password       — the credential hash. Better Auth's own
+  //                                 hasher writes it and nothing else ever
+  //                                 reads it (`db/schema/auth.ts`).
+  //   auth_account.access_token /
+  //     refresh_token / id_token  — bearer material for a linked provider.
+  //                                 Beta has no OAuth provider today, which is
+  //                                 precisely why the fence belongs here now:
+  //                                 the day one is added, the projection that
+  //                                 spreads an `auth_account` row is already
+  //                                 caught.
+  //   two_factor.secret           — the TOTP seed. Leaking it does not reveal
+  //                                 a code; it reveals EVERY code, forever.
+  //   two_factor.backup_codes     — the single-use codes that bypass the
+  //                                 factor entirely.
+  //   auth_session.token          — the session itself. A page that echoed it
+  //                                 would hand a copy of the login to every
+  //                                 script on the page, defeating `httpOnly`.
+  //
+  // `token` is the bluntest entry here: it is a common word, and a future
+  // projection wanting to carry an unrelated one (a CSRF nonce, an upload
+  // ticket) has to give it a distinguishing name. That is the intended
+  // outcome — "token" alone in a client payload is never informative enough to
+  // be worth the ambiguity.
+  "password",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "secret",
+  "backup_codes",
+  "token",
   // user_setup_token — the link secret and its forensics.
   "token_hash",
   "issued_by_user_id",
@@ -174,6 +216,60 @@ export function viewerProfile(
   row: Pick<AppUserRow, "id" | "email" | "name">,
 ): ViewerProfile {
   return { userId: row.id, email: row.email, name: row.name }
+}
+
+/**
+ * The signed-in identity as its OWN settings page renders it (spec §2.10,
+ * Nastavení › Účet) — deliberately a separate shape from `ViewerProfile`, not a
+ * widening of it.
+ *
+ * `ViewerProfile` is the ambient identity every page in the app holds; this one
+ * is read by exactly one page and carries two facts that page needs and no
+ * other surface should be handed by default.
+ *
+ * `totpEnabled` is `app_user.two_factor_enabled` RENAMED, and the rename is
+ * load-bearing rather than cosmetic — the same discipline `ownerDocumentDetail`
+ * uses for `internal_note` → `note` and `officeMemberRow` for `is_staff` →
+ * `staff`. The raw column is on `CLIENT_FORBIDDEN_COLUMNS`, and
+ * `forbiddenClientKeys` normalizes case and separators, so `twoFactorEnabled`
+ * would NOT have been a rename at all — it collapses to the same name and the
+ * fence catches it, exactly as it should. `totpEnabled` is a different word for
+ * a deliberately-chosen fact, and it is more precise anyway: TOTP is the one
+ * second factor this app enables.
+ *
+ * The FACT is not a secret from the account it belongs to — this is the page
+ * whose whole job is to say whether that person's own second factor is on. It is
+ * a secret from everyone else, and nothing else projects it.
+ *
+ * `totpMandatory` is DERIVED, never stored — `isStaff || hasOwnerMembership`
+ * from `lib/auth/totp-enforcement.ts`. It is deliberately not the two booleans it
+ * came from: `is_staff` is forbidden, and shipping "you are office staff" to a
+ * settings page adds nothing the sentence "your account must keep 2FA on" does
+ * not already say.
+ *
+ * NO `userId`. The page acts on "the current session's account" and never names
+ * an id; every write it makes goes through Better Auth's own endpoints, which
+ * read the subject from the session.
+ */
+export type ViewerAccountView = {
+  name: string
+  email: string
+  totpEnabled: boolean
+  totpMandatory: boolean
+}
+
+export function viewerAccountView(row: {
+  name: string
+  email: string
+  totpEnabled: boolean
+  totpMandatory: boolean
+}): ViewerAccountView {
+  return {
+    name: row.name,
+    email: row.email,
+    totpEnabled: row.totpEnabled,
+    totpMandatory: row.totpMandatory,
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +410,131 @@ export function organizationCard(
     bic: row.bic,
     aresFetchedAt:
       row.ares_fetched_at === null ? null : row.ares_fetched_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Organization identity card — Nastavení › Společnost (spec §2.10)
+// ---------------------------------------------------------------------------
+
+/**
+ * The full identity card `OrganizationSummary` deliberately is not.
+ *
+ * Read by ONE surface (Nastavení › Společnost) and rendered for every role, per
+ * spec §2.10 "owner edit; others view" — none of these fields is office-internal,
+ * they are the legal facts about the client's own company, printed on every
+ * invoice they issue.
+ *
+ * SEPARATE FROM `OrganizationCard` ABOVE, ON PURPOSE, and the difference is two
+ * fields each way. The card is Přehled's read-only dashboard tile (§2.1 item 5):
+ * it needs `id` and `isDemo` for the surrounding chrome and deliberately drops
+ * `contact_email` / `contact_phone` as "office contact routing, not the
+ * statutory identity". This one is the EDITABLE card: the form writes the
+ * contact pair, and it has no use for either id, because every write it makes is
+ * scoped by an `OwnerScope` the caller already holds. That is the same split
+ * `documentSummary` / `ownerDocumentDetail` makes — one allowlist per surface's
+ * needs rather than one union that is right for neither.
+ * `projections.test.ts` pins the difference so it stays a decision rather than
+ * drift, and the two composite fields (sídlo, účet) are rendered through the
+ * SHARED `lib/format/identity.ts` formatters by both surfaces.
+ *
+ * `slug` is here because the card shows the address the portal lives at. It is
+ * NOT editable anywhere in this app: changing it would break every link the
+ * office has already sent.
+ *
+ * `vatRegime` / `vatRegisteredFrom` are here to be DISPLAYED and nowhere in the
+ * writable field set (`OrganizationIdentityPatch`). Spec §3.5 gives the VAT
+ * regime to /admin — it drives which Daně a podání families exist — and the ARES
+ * rules make the same point from the other side: a `dic: null` from the registry
+ * must never be read as "not a payer".
+ *
+ * `aresFetchedAt` is the §2.10 cache stamp, rendered as "Naposledy načteno z
+ * ARES: …". Absent (null) means ARES has never been consulted for this book.
+ *
+ * `isDemo` and `archived_at` are absent: `requireScope` refuses an archived
+ * book, so a page holding this object is by construction looking at a live one,
+ * and the demo flag is /admin's own bookkeeping.
+ */
+export type OrganizationIdentityView = {
+  slug: string
+  legalName: string
+  ico: string | null
+  dic: string | null
+  vatRegime: OrganizationRow["vat_regime"]
+  vatRegisteredFrom: string | null
+  registeredStreet: string | null
+  registeredHouseNumber: string | null
+  registeredOrientationNumber: string | null
+  registeredCity: string | null
+  registeredPostalCode: string | null
+  registeredCountryCode: string
+  dataBoxId: string | null
+  courtFileNumber: string | null
+  /** ÚFO code; resolved to a name in the UI via `lib/tax-office.ts`. */
+  taxOfficeCode: string | null
+  bankAccountPrefix: string | null
+  bankAccountNumber: string | null
+  bankCode: string | null
+  iban: string | null
+  bic: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  /** The §2.10 24h ARES cache stamp, or null when ARES was never consulted. */
+  aresFetchedAt: string | null
+}
+
+export function organizationIdentityView(
+  row: Pick<
+    OrganizationRow,
+    | "slug"
+    | "legal_name"
+    | "ico"
+    | "dic"
+    | "vat_regime"
+    | "vat_registered_from"
+    | "registered_street"
+    | "registered_house_number"
+    | "registered_orientation_number"
+    | "registered_city"
+    | "registered_postal_code"
+    | "registered_country_code"
+    | "data_box_id"
+    | "court_file_number"
+    | "tax_office_code"
+    | "bank_account_prefix"
+    | "bank_account_number"
+    | "bank_code"
+    | "iban"
+    | "bic"
+    | "contact_email"
+    | "contact_phone"
+    | "ares_fetched_at"
+  >,
+): OrganizationIdentityView {
+  return {
+    slug: row.slug,
+    legalName: row.legal_name,
+    ico: row.ico,
+    dic: row.dic,
+    vatRegime: row.vat_regime,
+    vatRegisteredFrom: row.vat_registered_from,
+    registeredStreet: row.registered_street,
+    registeredHouseNumber: row.registered_house_number,
+    registeredOrientationNumber: row.registered_orientation_number,
+    registeredCity: row.registered_city,
+    registeredPostalCode: row.registered_postal_code,
+    registeredCountryCode: row.registered_country_code,
+    dataBoxId: row.data_box_id,
+    courtFileNumber: row.court_file_number,
+    taxOfficeCode: row.tax_office_code,
+    bankAccountPrefix: row.bank_account_prefix,
+    bankAccountNumber: row.bank_account_number,
+    bankCode: row.bank_code,
+    iban: row.iban,
+    bic: row.bic,
+    contactEmail: row.contact_email,
+    contactPhone: row.contact_phone,
+    aresFetchedAt: row.ares_fetched_at?.toISOString() ?? null,
   }
 }
 

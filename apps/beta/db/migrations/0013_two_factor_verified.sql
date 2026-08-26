@@ -1,0 +1,41 @@
+-- 0013 — two_factor.verified (PR 21, Nastavení › Účet)
+--
+-- WHY THIS MIGRATION EXISTS AT ALL. 0000_init.sql created `two_factor` from the
+-- shape the plan sketched (id, user_id, secret, backup_codes, created_at), and
+-- PR 21 is the first PR to actually turn Better Auth's `twoFactor()` plugin on.
+-- The plugin's own model declares a FOURTH field, `verified`
+-- (better-auth 1.6.13, `dist/plugins/two-factor/schema.d.mts`), and it is not
+-- optional in practice:
+--
+--   * `/two-factor/enable` INSERTS it unconditionally
+--     (`dist/plugins/two-factor/index.mjs`: `verified: existingTwoFactor != null
+--     && existingTwoFactor.verified !== false || !!options?.skipVerificationOnEnable`),
+--   * `/two-factor/verify-totp` UPDATES it to true on the first successful code
+--     and REFUSES a sign-in against an unverified row
+--     (`dist/plugins/two-factor/totp/index.mjs`),
+--   * and the Drizzle adapter hard-fails on a field the table does not declare —
+--     `checkMissingFields` throws `BetterAuthError: The field "verified" does not
+--     exist in the "two_factor" Drizzle schema`
+--     (`@better-auth/drizzle-adapter@1.6.13/dist/index.mjs`).
+--
+-- So without this column enrolment throws at the first click. There is no way to
+-- express "drop this field" through the plugin's `schema` option — that option
+-- only RENAMES — and hand-rolling TOTP to avoid one boolean would be a far worse
+-- trade on an auth surface.
+--
+-- `verified` is what separates "a secret was generated" from "the human proved
+-- they hold it". Only the second one may satisfy a sign-in challenge, which is
+-- why an unverified row is refused at sign-in rather than treated as enrolled.
+--
+-- DEFAULT true matches the plugin's own declared default (`defaultValue: true`).
+-- It is never the value a fresh enrolment gets — that path passes `false`
+-- explicitly — so the default only ever applies to a row written by something
+-- other than the plugin, and for such a row "already proven" is the safe reading:
+-- the only writer that could produce one is a migration or a fixture, and a
+-- half-enrolled row that silently cannot be used to sign in is the failure mode
+-- that looks like a broken account.
+--
+-- The table is empty in every environment (the plugin has never been on), so
+-- there is no backfill decision hiding behind that default today.
+ALTER TABLE two_factor
+  ADD COLUMN verified boolean NOT NULL DEFAULT true;

@@ -55,6 +55,10 @@ export const RESERVED_ORG_SLUGS: readonly string[] = Object.freeze([
   "reset",
   "setup",
   "sign-in",
+  // The forced-TOTP screen (PR 21). It is where an office account that has not
+  // enrolled is sent from every gated layout, so a book squatting on the name
+  // would make the mandate uncompletable, not merely the book unreachable.
+  "zabezpeceni",
   // Forward reservations: names a portal of this shape always grows, and which
   // would be equally unrecoverable if handed out first. Cheap now, impossible
   // later.

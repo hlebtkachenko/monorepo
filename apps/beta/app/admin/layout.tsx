@@ -6,6 +6,7 @@ import { Badge } from "@workspace/ui/components/badge"
 
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { getBetaSession } from "@/lib/auth/session"
+import { requireTotpEnrolment } from "@/lib/data/account"
 import { requireOffice } from "@/lib/data/scope"
 
 import { SignOutButton } from "../_components/sign-out-button"
@@ -31,6 +32,13 @@ import { AdminTabs } from "./_components/admin-tabs"
  * The layout gate is what stops a browser from SEEING /admin. It is NOT what
  * stops one from POSTING to it: a Server Action is a public endpoint that does
  * not run this layout. Every action in `_actions/` re-checks.
+ *
+ * FORCED TOTP (PR 21). /admin lives OUTSIDE the `(portal)` group, so the gate
+ * that group's layout applies does not reach it — and this is the surface that
+ * needs it most: `is_staff` here can create organizations, flip staff flags and
+ * mint setup links into every client book. `requireTotpEnrolment()` is called
+ * after `requireOffice()` so a non-staff visitor still gets the 404 rather than
+ * a redirect that would confirm the area exists.
  */
 
 export const metadata: Metadata = {
@@ -41,6 +49,7 @@ export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   await requireOffice()
+  await requireTotpEnrolment()
 
   const t = await getBetaTranslations()
   const session = await getBetaSession()

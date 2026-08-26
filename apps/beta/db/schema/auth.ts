@@ -29,6 +29,7 @@
  *   verification: { modelName: "auth_verification", fields: { expiresAt: "expires_at",
  *                                                             createdAt: "created_at", updatedAt: "updated_at" } }
  *   twoFactor:    { modelName: "two_factor",        fields: { userId: "user_id", backupCodes: "backup_codes" } }
+ *                 (`secret` and `verified` need no remap — same name both sides)
  *
  * Also required: `advanced.database.generateId: "uuid"` (every PK here is a
  * uuid column, and Better Auth generates the id on the TS side before handing
@@ -40,6 +41,7 @@
  * single-task service; see plan Part 1 — desiredCount is 1).
  */
 import {
+  boolean,
   pgTable,
   text,
   timestamp,
@@ -124,11 +126,16 @@ export const auth_verification = pgTable("auth_verification", {
 /**
  * TOTP enrollment. Better Auth's twoFactor() plugin owns every write here.
  *
- * The plugin is NOT enabled yet (see `lib/auth/server.ts`): it lands with the
- * enrolment screen in Nastavení › Účet (PR 21), because turning it on before
- * that screen exists would gate owners on a flow they cannot complete.
- * Enforcement ("an owner without 2FA is redirected to enrolment") is
- * layout-level then, not a DB constraint.
+ * LIVE SINCE PR 21. The plugin is enabled in `lib/auth/server.ts` together with
+ * the enrolment screen in Nastavení › Účet, and enforcement ("an owner without
+ * 2FA is sent to enrolment") is layout-level (`lib/auth/totp-enforcement.ts`),
+ * never a DB constraint — a constraint would lock an owner out of the very page
+ * that would let them comply.
+ *
+ * NOTHING IN THIS APP READS `secret` OR `backup_codes`. Both are written and
+ * read exclusively by the plugin, encrypted under BETTER_AUTH_SECRET
+ * (`symmetricEncrypt`), and both are on `CLIENT_FORBIDDEN_COLUMNS` so a
+ * projection cannot ship either even by accident.
  */
 export const two_factor = pgTable("two_factor", {
   id: uuid("id")
@@ -139,6 +146,15 @@ export const two_factor = pgTable("two_factor", {
     .references(() => app_user.id, { onDelete: "cascade" }),
   secret: text("secret").notNull(),
   backup_codes: text("backup_codes").notNull(),
+  /**
+   * "The human proved they hold this secret", as opposed to "a secret was
+   * generated for them". `/two-factor/enable` writes `false`; the first correct
+   * code at `/two-factor/verify-totp` flips it to `true`, and a sign-in
+   * challenge against an unverified row is refused. Added in
+   * `0013_two_factor_verified.sql` — see that file for why the plugin cannot
+   * run without the column.
+   */
+  verified: boolean("verified").notNull().default(true),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

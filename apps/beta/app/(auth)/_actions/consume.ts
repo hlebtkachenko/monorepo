@@ -30,6 +30,16 @@ import type { ConsumeFormState } from "./state"
  * existed, wrong purpose for this route, account already set up — one message,
  * so nothing here answers "does this address have an account?".
  *
+ * ONE DELIBERATE EXCEPTION, `signin_required` (decision recorded at the PR 21
+ * gate). It is reachable ONLY by someone already holding a valid, unconsumed
+ * invite for an address the office chose, on a screen that already renders that
+ * address and the organization's name — so it is not a token oracle and not an
+ * account-existence oracle against anyone who was not already told. Collapsing
+ * it into `linkInvalid` would strand every multi-org invitee at a permanent
+ * dead end (the link is NOT consumed by the refusal) with no recoverable
+ * action. The full rationale, and why this does not weaken Advisor blocker
+ * B4-4, is on the `signin_required` arm in `lib/auth/setup-token.ts`.
+ *
  * `allowedPurposes` is passed DOWN into the consume rather than checked on its
  * result: the gate has to run inside the claim transaction, before any side
  * effect, or a password_reset link POSTed here would complete the reset and

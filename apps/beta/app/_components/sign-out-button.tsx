@@ -9,14 +9,17 @@ import { useBetaTranslations } from "@/i18n/translations"
 import { betaAuthClient } from "@/lib/auth/client"
 
 /**
- * Sign-out lives here until the header account menu lands with Nastavení ›
- * Účet (PR 21). Better Auth deletes the `auth_session` row and clears the
- * cookie in one response; `router.refresh()` then makes the portal guard
- * re-evaluate and redirect.
+ * The bare sign-out control, for the two surfaces that draw their own chrome
+ * and have no account menu: the pre-org root picker and /admin. Inside the org
+ * shell, sign-out lives in `AccountMenu` instead (PR 21) — an account menu that
+ * did not carry it would be the first place a user looks and does not find it.
  *
- * Shared (`app/_components/`) rather than owned by one route group: the portal
- * landing and the /admin chrome both draw it, and /admin lives outside the
- * portal shell entirely.
+ * Better Auth deletes the `auth_session` row and clears the cookie in one
+ * response; `router.refresh()` then makes the portal guard re-evaluate and
+ * redirect.
+ *
+ * Shared (`app/_components/`) rather than owned by one route group: both
+ * consumers are outside the portal shell.
  */
 export function SignOutButton() {
   const t = useBetaTranslations()

@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import {
+  agent_key,
   app_user,
   organization,
   organization_membership,
@@ -22,14 +23,25 @@ import { isValidOrgSlugFormat } from "./org-slug"
  * organization lives in the same tables with no RLS (plan Part 4), so what keeps
  * one client's book out of another's page is THIS module and nothing else.
  *
- * TWO DOORS, AND NO THIRD ONE. `requireScope` (an organization) and
+ * TWO DOORS FOR A HUMAN, AND NO THIRD ONE. `requireScope` (an organization) and
  * `requireOffice` (the cross-org office area) are the only functions that
- * produce a scope handle. The brand symbols are module-private, so no other
- * file — not a route, not a test, not a future data module — can build one by
- * hand: an object literal shaped like `OrgScope` is a type error, because the
- * symbol key it would need is not in scope anywhere else. A data function that
- * takes `OrgScope` is therefore provably reachable only through a resolved
- * membership.
+ * produce a scope handle for a signed-in person. The brand symbols are
+ * module-private, so no other file — not a route, not a test, not a future data
+ * module — can build one by hand: an object literal shaped like `OrgScope` is a
+ * type error, because the symbol key it would need is not in scope anywhere
+ * else. A data function that takes `OrgScope` is therefore provably reachable
+ * only through a resolved membership.
+ *
+ * THE AGENT DOOR (PR 24) IS NOT A THIRD AUTHORITY. `resolveAgentScope` /
+ * `resolveAgentOwnerScope` at the bottom of this file admit the office's own
+ * ingestion agent, and they deliberately end in the SAME membership query the
+ * human door runs — with `agent_key.acting_user_id` as the user. An agent key is
+ * the non-interactive form of one accountant's authority: it can reach exactly
+ * the books that accountant can, it dies when that account is deactivated, and
+ * it grants no role the human does not already hold. It lives HERE, next to its
+ * siblings, because "every scope in this application is minted in one file" is
+ * the property `scope-brand-fence.boundary.test.ts` enforces and a second brand
+ * home would be a second place to audit.
  *
  * WHY EVERY REFUSAL IS 404. Unknown slug, no session, no membership, an
  * inactive membership, a deactivated user, an archived organization — all six
@@ -62,6 +74,7 @@ import { isValidOrgSlugFormat } from "./org-slug"
 const orgScopeBrand = Symbol("beta.OrgScope")
 const officeScopeBrand = Symbol("beta.OfficeScope")
 const ownerScopeBrand = Symbol("beta.OwnerScope")
+const agentScopeBrand = Symbol("beta.AgentScope")
 
 /**
  * Proof that a specific user holds a specific active membership in a specific
@@ -257,6 +270,157 @@ export function requireOwner(scope: OrgScope): OwnerScope {
     ...scope,
     [ownerScopeBrand]: true,
     role: "owner",
+  }
+  return Object.freeze(owner)
+}
+
+// ---------------------------------------------------------------------------
+// The agent door (spec §3.2 — the office's ingestion agent)
+// ---------------------------------------------------------------------------
+
+/**
+ * Proof that a live office agent key presented itself, and which office account
+ * it acts as.
+ *
+ * It is NOT an organization handle: it carries no `organizationId` a query could
+ * filter on, on purpose. Reaching a book still costs a second resolution
+ * (`resolveAgentOwnerScope`), so no ingestion write can be addressed by anything
+ * this object alone contains.
+ */
+export type AgentScope = {
+  readonly [agentScopeBrand]: true
+  readonly keyId: string
+  readonly label: string
+  /** The one book this key is confined to, or null for an office-global key. */
+  readonly organizationId: string | null
+  /** The office account whose authority this key carries. */
+  readonly actingUserId: string
+}
+
+/**
+ * Resolve a presented key hash into an agent scope, or `null`.
+ *
+ * Refuses identically for: an unknown hash, a revoked key, a key whose acting
+ * account has lost `is_staff`, and a key whose acting account is deactivated.
+ * The caller answers ALL of them with the same 401 — a distinguishable error
+ * would turn this endpoint into an oracle for "is this key real but revoked",
+ * which is exactly the question an attacker holding a stale key wants answered.
+ *
+ * ONE QUERY, ALL FOUR CONDITIONS, for the same reason `resolveOrgScope` is one
+ * query: two statements have two failure modes and the difference is observable.
+ *
+ * The lookup is BY HASH, so the raw secret is never compared, never logged and
+ * never travels further than the request. Constant-time comparison is not a
+ * consideration here — the index lookup either finds a row or does not, and
+ * every miss costs the same one indexed probe.
+ */
+export async function resolveAgentScope(
+  keyHash: string,
+): Promise<AgentScope | null> {
+  const [row] = await betaDb()
+    .select({
+      keyId: agent_key.id,
+      label: agent_key.label,
+      organizationId: agent_key.organization_id,
+      actingUserId: agent_key.acting_user_id,
+    })
+    .from(agent_key)
+    .innerJoin(app_user, eq(app_user.id, agent_key.acting_user_id))
+    .where(
+      and(
+        eq(agent_key.key_hash, keyHash),
+        isNull(agent_key.revoked_at),
+        // The live half of migration 0011's issuance trigger: `is_staff` can be
+        // revoked after a key is issued, and a credential must never outlive the
+        // access of the human it acts as.
+        eq(app_user.is_staff, true),
+        isNull(app_user.disabled_at),
+      ),
+    )
+    .limit(1)
+
+  if (!row) return null
+
+  const agent: AgentScope = {
+    [agentScopeBrand]: true,
+    keyId: row.keyId,
+    label: row.label,
+    organizationId: row.organizationId,
+    actingUserId: row.actingUserId,
+  }
+  return Object.freeze(agent)
+}
+
+/**
+ * Resolve the book named by `orgSlug` for this key, as an `OwnerScope`, or
+ * `null`.
+ *
+ * WHERE THE ORGANIZATION COMES FROM. The URL, never the payload — spec §3.2's
+ * "NO org_id inference from payload beyond the key's scope". A body that names a
+ * tenant is refused before this function is reached (`lib/agent/schemas.ts`), so
+ * there is exactly one place in the request a book can be named and exactly one
+ * check on it:
+ *
+ *   - ORG-SCOPED key (`organizationId` set): the slug must resolve to THAT
+ *     organization. Any other slug — real or not — is `null`, i.e. a 404.
+ *   - OFFICE-GLOBAL key (`organizationId` null): the slug may name any book, and
+ *     the membership join below is what decides whether this key reaches it.
+ *
+ * THE MEMBERSHIP JOIN IS THE SAME ONE `resolveOrgScope` RUNS, with the key's
+ * acting user in place of a session user and `role = 'owner'` added. That
+ * sameness is the point: an agent cannot reach a book its accountant cannot,
+ * cannot outlive an offboarding, and cannot hold a role nobody granted. There is
+ * no staff bypass here either — `is_staff` admits nobody to a book by itself.
+ *
+ * It returns an `OwnerScope` because agent writes are office writes: the
+ * ingestion API feeds the same Zadávání dat / Měsíční uzávěrka surfaces the
+ * accountant types into, and reusing the brand means every write it can perform
+ * is a write `lib/data/*` already gates as owner-only. Nothing about the CLIENT
+ * tiers changes — no agent path produces an `OrgScope` for a non-owner role.
+ */
+export async function resolveAgentOwnerScope(
+  agent: AgentScope,
+  orgSlug: string,
+): Promise<OwnerScope | null> {
+  if (!isValidOrgSlugFormat(orgSlug)) return null
+
+  const [row] = await betaDb()
+    .select({
+      organizationId: organization.id,
+      organizationSlug: organization.slug,
+      isStaff: app_user.is_staff,
+    })
+    .from(organization_membership)
+    .innerJoin(
+      organization,
+      eq(organization.id, organization_membership.organization_id),
+    )
+    .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+    .where(
+      and(
+        eq(organization.slug, orgSlug),
+        eq(organization_membership.user_id, agent.actingUserId),
+        eq(organization_membership.role, "owner"),
+        eq(organization_membership.active, true),
+        isNull(organization.archived_at),
+        isNull(app_user.disabled_at),
+        agent.organizationId === null
+          ? undefined
+          : eq(organization.id, agent.organizationId),
+      ),
+    )
+    .limit(1)
+
+  if (!row) return null
+
+  const owner: OwnerScope = {
+    [orgScopeBrand]: true,
+    [ownerScopeBrand]: true,
+    organizationId: row.organizationId,
+    organizationSlug: row.organizationSlug,
+    userId: agent.actingUserId,
+    role: "owner",
+    isStaff: row.isStaff,
   }
   return Object.freeze(owner)
 }

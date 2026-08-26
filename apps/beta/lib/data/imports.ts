@@ -2,7 +2,7 @@ import "server-only"
 
 import { aliasedTable, and, asc, desc, eq, inArray } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   app_user,
   import_batch,
@@ -699,13 +699,18 @@ export async function trialBalanceLinesForBatch(
 export async function createDraftBatch(
   scope: OwnerScope,
   input: ImportBatchInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<{ id: string; rowCount: number }> {
   const rowCount =
     input.dataset === "predvaha"
       ? input.trialBalanceLines.length
       : input.statementLines.length
 
-  return betaDb().transaction(async (tx) => {
+  // A caller already inside a transaction (PR 24's ingestion API, which writes
+  // its activity_log row in the same one) gets a SAVEPOINT here rather than a
+  // second connection, so "the batch and its payload land together or not at
+  // all" holds across the wider unit of work too.
+  return executor.transaction(async (tx) => {
     const [batch] = await tx
       .insert(import_batch)
       .values({
@@ -817,6 +822,7 @@ export type PublishOutcome =
 export async function publishBatch(
   scope: OwnerScope,
   batchId: string,
+  executor: BetaExecutor = betaDb(),
 ): Promise<PublishOutcome> {
   let outcome: PublishOutcome & {
     // Internal-only, present on every `ok: true` branch, stripped before this
@@ -825,7 +831,7 @@ export async function publishBatch(
     periodId?: string
   }
   try {
-    outcome = await betaDb().transaction(async (tx) => {
+    outcome = await executor.transaction(async (tx) => {
       // Pre-lock read, safe only because `import_batch_freeze_identity` makes
       // (period_id, dataset) immutable: the coordinates this lock is taken on
       // cannot change under it.

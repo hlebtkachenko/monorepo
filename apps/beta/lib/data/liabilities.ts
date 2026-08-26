@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import { liability, type BetaObligationGroup } from "@/db/schema"
 
 import { liabilityView, type LiabilityView } from "./projections"
@@ -118,14 +118,41 @@ export type LiabilityWriteInput = {
   readonly variableSymbol?: string | null
   readonly noteClient?: string | null
   readonly noteInternal?: string | null
+  /**
+   * The source system's own id (migration 0011) — the agent ingestion API's
+   * upsert match key. Office-typed rows leave it NULL and are never overwritten
+   * by an agent run.
+   */
+  readonly externalRef?: string | null
+}
+
+/** The liability an agent's `externalRef` names, or null. */
+export async function liabilityIdByExternalRef(
+  owner: OwnerScope,
+  externalRef: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<string | null> {
+  const [row] = await executor
+    .select({ id: liability.id })
+    .from(liability)
+    .where(
+      and(
+        eq(liability.organization_id, owner.organizationId),
+        eq(liability.external_ref, externalRef),
+      ),
+    )
+    .limit(1)
+
+  return row?.id ?? null
 }
 
 /** Create a manual liability. */
 export async function createLiability(
   owner: OwnerScope,
   input: LiabilityWriteInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<{ id: string }> {
-  const [row] = await betaDb()
+  const [row] = await executor
     .insert(liability)
     .values({
       organization_id: owner.organizationId,
@@ -137,6 +164,7 @@ export async function createLiability(
       variable_symbol: input.variableSymbol ?? null,
       note_client: input.noteClient ?? null,
       note_internal: input.noteInternal ?? null,
+      external_ref: input.externalRef ?? null,
     })
     .returning({ id: liability.id })
 
@@ -169,6 +197,7 @@ export async function updateLiability(
   owner: OwnerScope,
   liabilityId: string,
   patch: LiabilityPatch,
+  executor: BetaExecutor = betaDb(),
 ): Promise<boolean> {
   // `"key" in patch` rather than `patch.key !== undefined`: an explicit
   // `{ paidAt: null }` is "mark this unpaid again", which is a different
@@ -190,7 +219,7 @@ export async function updateLiability(
 
   if (Object.keys(values).length === 0) return true
 
-  const updated = await betaDb()
+  const updated = await executor
     .update(liability)
     .set(values)
     .where(

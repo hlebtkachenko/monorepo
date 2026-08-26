@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   asset,
   asset_event,
@@ -274,14 +274,41 @@ export type AssetWriteInput = {
   readonly siteRef?: string | null
   readonly noteClient?: string | null
   readonly noteInternal?: string | null
+  /**
+   * The source system's own id (migration 0011) — the agent ingestion API's
+   * upsert match key. Office-typed rows leave it NULL and are never overwritten
+   * by an agent run.
+   */
+  readonly externalRef?: string | null
+}
+
+/** The asset an agent's `externalRef` names, with its current disposal state. */
+export async function assetByExternalRef(
+  scope: OwnerScope,
+  externalRef: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string; status: BetaAssetStatus } | null> {
+  const [row] = await executor
+    .select({ id: asset.id, status: asset.status })
+    .from(asset)
+    .where(
+      and(
+        eq(asset.organization_id, scope.organizationId),
+        eq(asset.external_ref, externalRef),
+      ),
+    )
+    .limit(1)
+
+  return row ?? null
 }
 
 /** Create an asset. Always starts `in_use` — disposal is its own write, below. */
 export async function createAsset(
   scope: OwnerScope,
   input: AssetWriteInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<{ id: string }> {
-  const [row] = await betaDb()
+  const [row] = await executor
     .insert(asset)
     .values({
       organization_id: scope.organizationId,
@@ -297,6 +324,7 @@ export async function createAsset(
       site_ref: input.siteRef ?? null,
       note_client: input.noteClient ?? null,
       note_internal: input.noteInternal ?? null,
+      external_ref: input.externalRef ?? null,
     })
     .returning({ id: asset.id })
 
@@ -324,6 +352,7 @@ export async function updateAsset(
   scope: OwnerScope,
   assetId: string,
   patch: AssetPatch,
+  executor: BetaExecutor = betaDb(),
 ): Promise<boolean> {
   const values = {
     ...("name" in patch ? { name: patch.name } : {}),
@@ -354,7 +383,7 @@ export async function updateAsset(
 
   if (Object.keys(values).length === 0) return true
 
-  const updated = await betaDb()
+  const updated = await executor
     .update(asset)
     .set(values)
     .where(
@@ -382,8 +411,9 @@ export async function disposeAsset(
   scope: OwnerScope,
   assetId: string,
   disposedOn: string,
+  executor: BetaExecutor = betaDb(),
 ): Promise<boolean> {
-  const updated = await betaDb()
+  const updated = await executor
     .update(asset)
     .set({ status: "disposed", disposed_on: disposedOn })
     .where(

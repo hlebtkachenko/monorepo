@@ -91,6 +91,7 @@ describe("beta migration runner", () => {
           "0008_assets.sql",
           "0009_client_tasks.sql",
           "0010_document_preview.sql",
+          "0011_agent_api.sql",
           "0012_notification_prefs.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
@@ -102,6 +103,8 @@ describe("beta migration runner", () => {
         `
         expect(tables.map((t) => t.table_name)).toEqual([
           "_beta_migrations",
+          "activity_log",
+          "agent_key",
           "app_user",
           "asset",
           "asset_event",

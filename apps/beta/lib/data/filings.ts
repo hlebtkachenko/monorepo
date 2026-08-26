@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   betaFilingFamily,
   document,
@@ -333,6 +333,43 @@ export type FilingWriteInput = {
   readonly documentId?: string | null
   readonly noteClient?: string | null
   readonly noteInternal?: string | null
+  /**
+   * The source system's own id (migration 0011). Set only by the agent
+   * ingestion API, where it is the upsert match key; office-typed filings leave
+   * it NULL and are therefore never overwritten by an agent run.
+   */
+  readonly externalRef?: string | null
+}
+
+/**
+ * The filing an agent's `externalRef` names, with the two fields an upsert is
+ * not allowed to change.
+ *
+ * Returns `kind` and `periodId` alongside the id because `updateFiling` refuses
+ * to patch either (they are the row's identity), so the caller has to be able to
+ * REFUSE a payload that moved one rather than silently ignore it.
+ */
+export async function filingByExternalRef(
+  scope: OrgScope,
+  externalRef: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string; kind: BetaFilingKind; periodId: string } | null> {
+  const [row] = await executor
+    .select({
+      id: filing.id,
+      kind: filing.kind,
+      periodId: filing.period_id,
+    })
+    .from(filing)
+    .where(
+      and(
+        eq(filing.organization_id, scope.organizationId),
+        eq(filing.external_ref, externalRef),
+      ),
+    )
+    .limit(1)
+
+  return row ?? null
 }
 
 /**
@@ -348,10 +385,11 @@ export type FilingWriteInput = {
 export async function createFiling(
   scope: OrgScope,
   input: FilingWriteInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<{ id: string }> {
   assertOwner(scope)
 
-  const [row] = await betaDb()
+  const [row] = await executor
     .insert(filing)
     .values({
       organization_id: scope.organizationId,
@@ -366,6 +404,7 @@ export async function createFiling(
       document_id: input.documentId ?? null,
       note_client: input.noteClient ?? null,
       note_internal: input.noteInternal ?? null,
+      external_ref: input.externalRef ?? null,
     })
     .returning({ id: filing.id })
 
@@ -410,6 +449,7 @@ export async function updateFiling(
   scope: OrgScope,
   filingId: string,
   patch: FilingPatch,
+  executor: BetaExecutor = betaDb(),
 ): Promise<boolean> {
   assertOwner(scope)
 
@@ -431,7 +471,7 @@ export async function updateFiling(
 
   if (Object.keys(values).length === 0) return true
 
-  const updated = await betaDb()
+  const updated = await executor
     .update(filing)
     .set(values)
     .where(

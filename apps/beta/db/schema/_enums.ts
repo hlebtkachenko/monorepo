@@ -34,6 +34,16 @@ export const betaOrgRole = pgEnum("beta_org_role", [
 /** A membership role value, derived from the enum — never a hand-written union. */
 export type BetaOrgRole = (typeof betaOrgRole.enumValues)[number]
 
+/**
+ * Mirrors: 0011_agent_api.sql — CREATE TYPE beta_actor_kind.
+ *
+ * Spec §4 activity_log: "actor kind user|agent". Two values and no third — a
+ * system actor would be an authority nobody granted.
+ */
+export const betaActorKind = pgEnum("beta_actor_kind", ["user", "agent"])
+
+export type BetaActorKind = (typeof betaActorKind.enumValues)[number]
+
 /** Mirrors: 0000_init.sql — CREATE TYPE beta_vat_regime. */
 export const betaVatRegime = pgEnum("beta_vat_regime", ["platce", "neplatce"])
 

@@ -30,6 +30,17 @@ export type AdminActionState =
       email: string
       expiresAt: string
     }
+  | {
+      status: "issuedKey"
+      /**
+       * A freshly minted agent key. Same once-only contract as `issued` above,
+       * and a separate arm rather than a reused `url` field on purpose: a key is
+       * not a link, it must never be rendered as one (no anchor, no autolink),
+       * and it has no expiry to show — it lives until it is revoked.
+       */
+      secret: string
+      label: string
+    }
 
 export const ADMIN_ACTION_IDLE: AdminActionState = { status: "idle" }
 

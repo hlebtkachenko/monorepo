@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import { reporting_period, type BetaPeriodKind } from "@/db/schema"
 
 import { reportingPeriodView, type ReportingPeriodView } from "./projections"
@@ -111,12 +111,13 @@ function normalizePeriodInput(input: ReportingPeriodInput): {
 export async function ensureReportingPeriod(
   scope: OrgScope,
   input: ReportingPeriodInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<ReportingPeriodView> {
   assertOwner(scope)
 
   const values = normalizePeriodInput(input)
 
-  const [inserted] = await betaDb()
+  const [inserted] = await executor
     .insert(reporting_period)
     .values({ organization_id: scope.organizationId, ...values })
     .onConflictDoNothing({
@@ -132,7 +133,7 @@ export async function ensureReportingPeriod(
 
   if (inserted) return reportingPeriodView(inserted)
 
-  const [existing] = await betaDb()
+  const [existing] = await executor
     .select(PERIOD_COLUMNS)
     .from(reporting_period)
     .where(

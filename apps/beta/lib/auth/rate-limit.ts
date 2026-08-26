@@ -71,3 +71,15 @@ export const authNoIpRateLimiter = createRateLimiter()
 
 /** Setup-link issuance from /admin. A cap on a stolen office session. */
 export const officeIssueRateLimiter = createRateLimiter()
+
+/**
+ * The agent ingestion API's two budgets (`lib/agent/auth.ts`).
+ *
+ * Separate instances, and separate from every limiter above: the IP bucket is
+ * spent by unauthenticated traffic before a key is hashed, the key bucket only
+ * by a credential that already resolved. Folding either into a shared limiter
+ * would let one surface's traffic evict the other's bucket through the
+ * opportunistic sweep.
+ */
+export const agentIpRateLimiter = createRateLimiter()
+export const agentKeyRateLimiter = createRateLimiter()

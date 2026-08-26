@@ -154,6 +154,29 @@ export const BETA_AUTH_NO_IP_RATE_LIMIT = { window: 60, max: 20 } as const
 export const BETA_OFFICE_ISSUE_RATE_LIMIT = { window: 60, max: 20 } as const
 
 /**
+ * Agent ingestion budgets (spec §3.2), two of them, keyed on different things.
+ *
+ * PER IP, spent BEFORE the credential is hashed: it is the anti-guessing budget,
+ * and it has to bite on requests that carry no valid key at all. Generous,
+ * because the office agent and every other caller behind one NAT share it.
+ *
+ * PER KEY, spent after the key resolves: it is the blast-radius cap on a LEAKED
+ * key — a credential that publishes 60 batches a minute is not doing a month-end
+ * close. A month-end run is a handful of calls per organization, so this is two
+ * orders of magnitude of headroom and still bounds what a stolen key can do
+ * before the office revokes it in /admin.
+ */
+export const BETA_AGENT_IP_RATE_LIMIT = { window: 60, max: 240 } as const
+export const BETA_AGENT_KEY_RATE_LIMIT = { window: 60, max: 60 } as const
+
+/**
+ * How stale `agent_key.last_used_at` may be. The column is a liveness signal for
+ * the /admin registry, not an access log — writing it on every request would put
+ * an UPDATE on the hot path of a bulk import for no reader's benefit.
+ */
+export const BETA_AGENT_LAST_USED_INTERVAL_MS = 60_000
+
+/**
  * Setup-link lifetime. Plan Part 4 asks for 48-72h; the DB CHECK
  * `user_setup_token_ttl_max_72h` is the ceiling, this is the value actually
  * used. Not a caller parameter — see `issueSetupToken`.

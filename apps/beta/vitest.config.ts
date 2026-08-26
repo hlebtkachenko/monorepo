@@ -94,6 +94,11 @@ export default defineConfig({
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
             "lib/notifications/**/*.test.ts",
+            // The agent credential's shape and its input schemas (PR 24) are
+            // crypto and zod over strings — the pieces most worth testing
+            // adversarially, and a suite that needs Docker to assert "a body
+            // naming an organization is refused" is a suite that gets skipped.
+            "lib/agent/**/*.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -114,6 +119,10 @@ export default defineConfig({
           // here. Everything else under `app/` stays a pure unit.
           exclude: [
             "app/api/orgs/**",
+            // The agent ingestion API's suite (PR 24) needs real keys, real
+            // memberships and real transactions — a route test asserting that a
+            // revoked key answers 401 means nothing against a mock.
+            "app/api/agent/**",
             "app/**/dane/**",
             "app/**/majetek/**",
             "**/*.db.test.ts",
@@ -134,6 +143,7 @@ export default defineConfig({
             "db/**/*.test.ts",
             "lib/**/*.test.ts",
             "app/api/orgs/**/*.test.ts",
+            "app/api/agent/**/*.test.ts",
             "app/**/dane/**/*.test.ts",
             "app/**/majetek/**/*.test.ts",
             // Server Actions and page loaders that need real rows — see the
@@ -142,6 +152,7 @@ export default defineConfig({
           ],
           exclude: [
             "lib/**/*.boundary.test.ts",
+            "lib/agent/**/*.test.ts",
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",

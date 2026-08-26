@@ -14,12 +14,15 @@ import type { PgTable } from "drizzle-orm/pg-core"
 import postgres from "postgres"
 import { afterAll, describe, expect, it } from "vitest"
 import {
+  activity_log,
+  agent_key,
   app_user,
   asset,
   asset_event,
   auth_account,
   auth_session,
   auth_verification,
+  betaActorKind,
   betaAssetCategory,
   betaAssetEventKind,
   betaAssetStatus,
@@ -61,6 +64,8 @@ afterAll(async () => {
 })
 
 const tables: PgTable[] = [
+  activity_log,
+  agent_key,
   app_user,
   asset,
   asset_event,
@@ -138,6 +143,7 @@ describe("drizzle schema mirrors the migrations", () => {
     expect(
       Object.fromEntries(actual.map((r) => [r.enum_name, r.labels])),
     ).toEqual({
+      beta_actor_kind: [...betaActorKind.enumValues],
       beta_asset_category: [...betaAssetCategory.enumValues],
       beta_asset_event_kind: [...betaAssetEventKind.enumValues],
       beta_asset_status: [...betaAssetStatus.enumValues],

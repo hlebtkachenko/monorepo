@@ -27,7 +27,9 @@ vi.mock("../../_actions/people", () => ({
 }))
 
 const { PeopleActionForm } = await import("./people-action-form")
-const { IssuedInviteLink } = await import("./issued-invite-link")
+const { IssuedInviteLink } = await import(
+  "../../../../../_components/issued-invite-link",
+)
 const { setMemberActiveAction } = await import("../../_actions/people")
 
 function render(node: React.ReactElement): string {

@@ -8,12 +8,11 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { useBetaTranslations } from "@/i18n/translations"
 
+import { IssuedInviteLink } from "../../../../../_components/issued-invite-link"
 import {
   NASTAVENI_ACTION_IDLE,
   type NastaveniActionState,
 } from "../../_actions/state"
-
-import { IssuedInviteLink } from "./issued-invite-link"
 
 /**
  * The one form every Lidé write goes through — the same shape as

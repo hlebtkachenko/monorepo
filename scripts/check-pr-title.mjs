@@ -43,6 +43,9 @@ const SCOPES = [
   "ai",
   "api",
   "auth",
+  // Afframe Beta campaign (EPIC #1009): every PR of the beta.afframe.com
+  // client portal shares this scope so the changelog + `git log` cluster.
+  "beta",
   "bot",
   "brain",
   "bundle",

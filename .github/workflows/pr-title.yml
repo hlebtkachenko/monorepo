@@ -46,6 +46,7 @@ jobs:
             ai
             api
             auth
+            beta
             bot
             brain
             bundle

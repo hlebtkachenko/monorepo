@@ -330,6 +330,9 @@ const hostileDocumentRow = {
   extension: "pdf",
   byte_size: 12345,
   sha256: "a".repeat(64),
+  preview_storage_key:
+    "org/0199a0b1-0000-7000-8000-000000000004/0199a0b1-0000-7000-8000-000000000007.jpg",
+  preview_byte_size: 4321,
   document_date: "2026-03-01",
   amount: "1234.56",
   site_ref: "Vinohrady",
@@ -355,6 +358,7 @@ describe("documentSummary — the CLIENT projection", () => {
       "docType",
       "documentDate",
       "filename",
+      "hasPreview",
       "id",
       "officeMessage",
       "siteRef",
@@ -367,6 +371,34 @@ describe("documentSummary — the CLIENT projection", () => {
     expect(summary).not.toHaveProperty("sha256")
     expect(summary).not.toHaveProperty("visible_to_client")
     expect(forbiddenClientKeys(summary)).toEqual([])
+  })
+
+  /**
+   * The derivative's key is a key like any other (PR 11). The projection turns
+   * it into a yes/no, and the row it was read from is right there in the same
+   * function — so this is the assertion that the boolean did not arrive with the
+   * string still attached to it.
+   */
+  it("reduces the preview derivative to a boolean, never its key", () => {
+    const summary = documentSummary(hostileDocumentRow)
+
+    expect(summary.hasPreview).toBe(true)
+    expect(summary).not.toHaveProperty("preview_storage_key")
+    expect(summary).not.toHaveProperty("previewStorageKey")
+    expect(summary).not.toHaveProperty("preview_byte_size")
+    expect(JSON.stringify(summary)).not.toContain("org/")
+    expect(
+      forbiddenClientKeys({
+        previewStorageKey: hostileDocumentRow.preview_storage_key,
+      }),
+    ).toEqual(["previewStorageKey"])
+  })
+
+  it("says no preview when the row carries none", () => {
+    expect(
+      documentSummary({ ...hostileDocumentRow, preview_storage_key: null })
+        .hasPreview,
+    ).toBe(false)
   })
 })
 

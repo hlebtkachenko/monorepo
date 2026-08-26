@@ -46,9 +46,12 @@
  *               document.
  *   `preview`   `inline` for PNG, JPEG and PDF. The sheet's preview FRAME,
  *               whose response is its own opaque origin under the CSP below.
- *               HEIC is excluded from both: no non-Apple browser renders it, so
- *               it is a broken frame rather than a preview until PR 11's JPEG
- *               derivative lands.
+ *               ALSO the one door to a HEIC's JPEG DERIVATIVE (PR 11): a HEIC
+ *               row that has one answers this disposition with the JPEG's bytes,
+ *               its own type and its own length, under a `.jpg` filename. HEIC
+ *               stays out of `inline` and out of every other door — no non-Apple
+ *               browser renders the original, so serving it inline would be a
+ *               broken image rather than a preview.
  */
 import { Readable } from "node:stream"
 
@@ -56,7 +59,10 @@ import { NextResponse } from "next/server"
 
 import { openDocumentFile } from "@/lib/data/documents"
 import { resolveOrgScope } from "@/lib/data/scope"
-import { contentDispositionHeader } from "@/lib/storage/content-disposition"
+import {
+  contentDispositionHeader,
+  previewFilename,
+} from "@/lib/storage/content-disposition"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -142,12 +148,20 @@ export async function GET(
   const scope = await resolveOrgScope(orgSlug)
   if (!scope) return notFound()
 
-  const handle = await openDocumentFile(scope, documentId)
-  if (!handle) return notFound()
-
   // The request may ASK; the stored content type decides. An unrecognised
   // value — a stale link, a hand-edited URL — falls through to `attachment`.
   const asked = new URL(request.url).searchParams.get("disposition")
+
+  // `preview` is the ONE door to the JPEG derivative (PR 11). `inline` is not,
+  // deliberately: one door is one thing to reason about, and the sheet's HEIC
+  // image points at `?disposition=preview` for exactly that reason. Everything
+  // else — a copied link, a download button, `?disposition=inline` on a HEIC —
+  // still gets the original bytes as an attachment.
+  const handle = await openDocumentFile(scope, documentId, {
+    variant: asked === "preview" ? "preview" : "original",
+  })
+  if (!handle) return notFound()
+
   const allowed =
     (asked === "inline" && handle.inlineAllowed) ||
     (asked === "preview" && handle.previewAllowed)
@@ -158,11 +172,17 @@ export async function GET(
     {
       status: 200,
       headers: {
-        "content-type": handle.document.contentType,
-        "content-length": String(handle.document.byteSize),
+        // The type and length of THE BYTES BEING SENT, which on the derivative
+        // are the JPEG's, not the HEIC row's. Sending the row's numbers next to
+        // the derivative's bytes would be a `content-length` a browser truncates
+        // the response to.
+        "content-type": handle.contentType,
+        "content-length": String(handle.byteSize),
         "content-disposition": contentDispositionHeader(
           disposition,
-          handle.document.filename,
+          handle.isDerivative
+            ? previewFilename(handle.document.filename)
+            : handle.document.filename,
         ),
         "x-content-type-options": "nosniff",
         // Dead weight on a running server — `next.config.mjs` replaces it (see

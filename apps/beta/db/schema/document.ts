@@ -65,6 +65,19 @@ export const document = pgTable(
     /** Hex sha256 of the stored bytes; feeds the duplicate soft-detect. */
     sha256: char("sha256", { length: 64 }).notNull(),
 
+    /**
+     * The JPEG preview derivative of a HEIC upload (migration 0010, spec §2.2).
+     *
+     * `org/<organization uuid>/<object uuid>.jpg`, its own object with its own
+     * key — never derived from `storage_key`. Null for every other stored type,
+     * and null for a HEIC whose decode did not succeed: the derivative is a
+     * best-effort convenience, so its absence is a normal state, not an error.
+     * CHECKs in the migration pin the pair (key and size, both or neither), the
+     * key's shape and containment, and `content_type = 'image/heic'`.
+     */
+    preview_storage_key: text("preview_storage_key"),
+    preview_byte_size: bigint("preview_byte_size", { mode: "number" }),
+
     /** Office-typed display fields (spec §2.2). Nothing writes them in PR 10. */
     document_date: date("document_date"),
     amount: numeric("amount", { precision: 14, scale: 2 }),

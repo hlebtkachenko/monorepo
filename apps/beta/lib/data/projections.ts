@@ -107,6 +107,12 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   // client the mechanism exists and invite a UI to branch on it.
   "internal_note",
   "storage_key",
+  // The derivative's key (PR 11). Listed separately because the normalizer
+  // collapses case and separators, not prefixes — `preview_storage_key` and
+  // `storage_key` are two different names to it, and both are keys the client
+  // must never receive. `DocumentSummary.hasPreview` is the derived boolean the
+  // row sheet actually needs.
+  "preview_storage_key",
   "sha256",
   "visible_to_client",
   // filing — the office's own working note about a client's tax affairs, which
@@ -316,6 +322,21 @@ export type DocumentSummary = {
   amount: string | null
   siteRef: string | null
   officeMessage: string | null
+  /**
+   * Whether a JPEG preview derivative exists for this row (PR 11, spec §2.2).
+   *
+   * A DERIVED BOOLEAN, NOT `preview_storage_key`. The client never learns that
+   * S3 exists (see `CLIENT_FORBIDDEN_COLUMNS` on `storage_key`), and the same
+   * argument applies twice over to a second key: what the row sheet needs to
+   * know is "will `?disposition=preview` render something", which is a yes/no.
+   * The route re-resolves the key itself from the row, so this field grants no
+   * capability — it only saves the sheet from framing an element that would
+   * answer with an attachment.
+   *
+   * False for every non-HEIC type (they are previewable on their own terms) and
+   * false for a HEIC whose decode did not succeed.
+   */
+  hasPreview: boolean
 }
 
 export function documentSummary(
@@ -332,6 +353,7 @@ export function documentSummary(
     | "amount"
     | "site_ref"
     | "office_message"
+    | "preview_storage_key"
   >,
 ): DocumentSummary {
   return {
@@ -346,6 +368,7 @@ export function documentSummary(
     amount: row.amount,
     siteRef: row.site_ref,
     officeMessage: row.office_message,
+    hasPreview: row.preview_storage_key !== null,
   }
 }
 

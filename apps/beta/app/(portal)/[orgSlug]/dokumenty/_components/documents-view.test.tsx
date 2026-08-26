@@ -55,6 +55,7 @@ function doc(overrides: Partial<DocumentSummary> = {}): DocumentSummary {
     amount: "12345.60",
     siteRef: "Vinohrady",
     officeMessage: null,
+    hasPreview: false,
     ...overrides,
   }
 }
@@ -320,5 +321,44 @@ describe("DocumentPreview — one element per stored content type", () => {
     expect(html).not.toContain("<iframe")
     expect(html).not.toContain("<img")
     expect(html).toContain("Náhled tohoto souboru prohlížeč nezobrazí.")
+  })
+
+  /**
+   * PR 11: a HEIC that HAS a server-generated JPEG derivative renders as an
+   * image after all — `?disposition=preview` is the one door to it, and the
+   * bytes that come back are a JPEG declared as one.
+   */
+  it("renders a HEIC as an image once its derivative exists", () => {
+    const html = render(
+      <DocumentPreview
+        document={doc({
+          contentType: "image/heic",
+          filename: "foto.heic",
+          hasPreview: true,
+        })}
+        fileUrl={FILE_URL}
+      />,
+    )
+    expect(html).toContain("<img")
+    expect(html).toContain(`src="${FILE_URL}?disposition=preview"`)
+    expect(html).not.toContain("<iframe")
+    expect(html).not.toContain("Náhled tohoto souboru prohlížeč nezobrazí.")
+    // The sheet never learns the derivative's key; `hasPreview` is the whole
+    // contract (`lib/data/projections.ts`).
+    expect(html).not.toMatch(/org\/[0-9a-f]{8}-/i)
+  })
+
+  it("still frames a PDF, which never has a derivative", () => {
+    // The DB pins `preview_storage_key` to `content_type = 'image/heic'`
+    // (migration 0010), so this combination cannot occur — asserting the
+    // ORDER of the branches anyway, because the day it can occur a PDF must
+    // not silently become an <img>.
+    const html = render(
+      <DocumentPreview
+        document={doc({ contentType: "application/pdf" })}
+        fileUrl={FILE_URL}
+      />,
+    )
+    expect(html).toContain("<iframe")
   })
 })

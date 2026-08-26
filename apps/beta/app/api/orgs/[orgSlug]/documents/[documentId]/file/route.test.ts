@@ -9,6 +9,7 @@
  */
 import { randomUUID } from "node:crypto"
 
+import postgres from "postgres"
 import {
   afterAll,
   afterEach,
@@ -27,12 +28,14 @@ import {
   PNG_BYTES,
   type MemoryDocumentStore,
 } from "../../../../../../../tests/memory-document-store"
+import { REAL_HEIC_BYTES } from "../../../../../../../tests/heic-fixture"
 import {
   anonymousHeaders,
   endFixtures,
   seedOrganization,
   type TestOrganization,
 } from "../../../../../../../tests/fixtures"
+import { sharedDatabaseUrl } from "../../../../../../../tests/scratch-db"
 
 const request = vi.hoisted(() => ({ headers: new Headers() }))
 
@@ -48,12 +51,20 @@ let uploadDocument: typeof import("@/lib/data/documents").uploadDocument
 let resolveOrgScope: typeof import("@/lib/data/scope").resolveOrgScope
 let setDocumentStoreForTests: (store: unknown) => void
 let store: MemoryDocumentStore
+/**
+ * A raw driver handle, not `betaDb()`: `db/client.ts` is import-fenced to the
+ * data layer, and a route's spec is not the data layer. It is used only to put a
+ * seeded row into the state the office would have put it in (hidden, payslip,
+ * withdrawn).
+ */
+let sql: postgres.Sql
 
 let orgA: TestOrganization
 let orgB: TestOrganization
 
 beforeAll(async () => {
   process.env["BETTER_AUTH_URL"] ??= ORIGIN
+  sql = postgres(sharedDatabaseUrl(), { max: 2, onnotice: () => {} })
   route = await import("./route")
   ;({ uploadDocument } = await import("@/lib/data/documents"))
   ;({ resolveOrgScope } = await import("@/lib/data/scope"))
@@ -69,6 +80,7 @@ afterEach(() => {
 })
 
 afterAll(async () => {
+  await sql.end({ timeout: 5 })
   await endFixtures()
 })
 
@@ -280,5 +292,197 @@ describe("GET .../file — refusals", () => {
     expect((await get(orgA.members.owner.headers, orgA.slug, id)).status).toBe(
       404,
     )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The HEIC JPEG derivative (PR 11)
+// ---------------------------------------------------------------------------
+
+/**
+ * `?disposition=preview` is the ONE door to the derivative, and it is a door in
+ * the same wall as every other: the row is resolved through `visibleDocuments`
+ * before its second key is ever read, so the derivative inherits the four
+ * filters — tenancy, soft delete, the payslip exclusion, the hidden class —
+ * rather than being a path around them. Each of those is asserted below against
+ * the derivative specifically, because "the original is protected" is not the
+ * same statement as "both objects are protected".
+ */
+describe("GET .../file — the HEIC derivative", () => {
+  it("serves the JPEG, declared as a JPEG, under a .jpg name", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "IMG_0421.heic")
+
+    const response = await get(
+      orgA.members.owner.headers,
+      orgA.slug,
+      id,
+      "?disposition=preview",
+    )
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toBe("image/jpeg")
+    expect(response.headers.get("content-disposition")).toMatch(/^inline;/)
+    expect(response.headers.get("content-disposition")).toContain(
+      'filename="IMG_0421.jpg"',
+    )
+
+    const body = Buffer.from(await response.arrayBuffer())
+    expect([...body.subarray(0, 3)]).toEqual([0xff, 0xd8, 0xff])
+    // The length header describes the DERIVATIVE, not the row's HEIC.
+    expect(response.headers.get("content-length")).toBe(String(body.byteLength))
+    expect(body.equals(REAL_HEIC_BYTES)).toBe(false)
+  })
+
+  it("keeps every OTHER door on the original bytes", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "IMG_0422.heic")
+
+    for (const query of ["", "?disposition=inline", "?disposition=nonsense"]) {
+      const response = await get(
+        orgA.members.owner.headers,
+        orgA.slug,
+        id,
+        query,
+      )
+      expect(response.headers.get("content-type")).toBe("image/heic")
+      expect(response.headers.get("content-disposition")).toMatch(
+        /^attachment;/,
+      )
+      expect(response.headers.get("content-disposition")).toContain(".heic")
+    }
+  })
+
+  it("falls back to an attachment when the HEIC has no derivative", async () => {
+    useStore()
+    // The synthetic `ftyp` box passes the allowlist and decodes to nothing, so
+    // the row carries no preview — and asking for one must not become an error.
+    const id = await seedDocument(orgA, Buffer.from(HEIC_BYTES), "foto.heic")
+
+    const response = await get(
+      orgA.members.owner.headers,
+      orgA.slug,
+      id,
+      "?disposition=preview",
+    )
+    expect(response.status).toBe(200)
+    expect(response.headers.get("content-type")).toBe("image/heic")
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment;/)
+  })
+
+  it("still frames a PDF on ?disposition=preview, unchanged", async () => {
+    useStore()
+    const id = await seedDocument(orgA, PDF_BYTES, "faktura.pdf")
+    const response = await get(
+      orgA.members.owner.headers,
+      orgA.slug,
+      id,
+      "?disposition=preview",
+    )
+    expect(response.headers.get("content-type")).toBe("application/pdf")
+    expect(response.headers.get("content-disposition")).toMatch(/^inline;/)
+  })
+})
+
+describe("GET .../file — the derivative is behind the SAME four filters", () => {
+  it("answers 404 to another organization's member", async () => {
+    useStore()
+    const foreign = await seedDocument(orgB, REAL_HEIC_BYTES, "cizi.heic")
+
+    expect(
+      (
+        await get(
+          orgA.members.owner.headers,
+          orgA.slug,
+          foreign,
+          "?disposition=preview",
+        )
+      ).status,
+    ).toBe(404)
+    expect(
+      (
+        await get(
+          orgA.members.owner.headers,
+          orgB.slug,
+          foreign,
+          "?disposition=preview",
+        )
+      ).status,
+    ).toBe(404)
+  })
+
+  it("answers 404 to a signed-out visitor", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "verejne.heic")
+    expect(
+      (await get(anonymousHeaders(), orgA.slug, id, "?disposition=preview"))
+        .status,
+    ).toBe(404)
+  })
+
+  it("hides the derivative of an office-hidden row from every role but owner", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "interni.heic")
+    await sql`UPDATE document SET visible_to_client = false WHERE id = ${id}`
+
+    for (const role of ["admin", "member", "guest"] as const) {
+      expect(
+        (
+          await get(
+            orgA.members[role].headers,
+            orgA.slug,
+            id,
+            "?disposition=preview",
+          )
+        ).status,
+      ).toBe(404)
+    }
+    // The owner IS the accountant and sees the whole book.
+    expect(
+      (
+        await get(
+          orgA.members.owner.headers,
+          orgA.slug,
+          id,
+          "?disposition=preview",
+        )
+      ).status,
+    ).toBe(200)
+  })
+
+  it("hides the derivative of a payslip from EVERY role, owner included", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "vyplatnice.heic")
+    await sql`UPDATE document SET doc_type = 'payslip' WHERE id = ${id}`
+
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      expect(
+        (
+          await get(
+            orgA.members[role].headers,
+            orgA.slug,
+            id,
+            "?disposition=preview",
+          )
+        ).status,
+      ).toBe(404)
+    }
+  })
+
+  it("answers 404 for the derivative of a soft-deleted row", async () => {
+    useStore()
+    const id = await seedDocument(orgA, REAL_HEIC_BYTES, "smazane.heic")
+    await sql`UPDATE document SET deleted_at = now() WHERE id = ${id}`
+
+    expect(
+      (
+        await get(
+          orgA.members.owner.headers,
+          orgA.slug,
+          id,
+          "?disposition=preview",
+        )
+      ).status,
+    ).toBe(404)
   })
 })

@@ -31,6 +31,7 @@ import {
   ZIP_BYTES,
   type MemoryDocumentStore,
 } from "../../tests/memory-document-store"
+import { REAL_HEIC_BYTES } from "../../tests/heic-fixture"
 import {
   endFixtures,
   seedOrganization,
@@ -1674,5 +1675,196 @@ describe("database constraints", () => {
       SELECT uploaded_by_user_id FROM document WHERE id = ${rowOf(result).id}
     `
     expect(row!.uploaded_by_user_id).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// The HEIC preview derivative (PR 11, spec §2.2 / §0.4 fix F22)
+// ---------------------------------------------------------------------------
+
+/**
+ * The derivative is generated after the upload transaction commits, from the
+ * object that is already in the store. So the properties worth asserting are:
+ * that a real HEIC gets one, that nothing else does, that the ORIGINAL is
+ * untouched either way, and — the one that keeps a thumbnail from ever costing
+ * a client a document — that an undecodable HEIC still uploads successfully.
+ */
+describe("uploadDocument — the HEIC JPEG derivative", () => {
+  it("stores a second object and flags the row when the HEIC really decodes", async () => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    const result = await upload(scope, REAL_HEIC_BYTES, {
+      filename: "IMG_0421.heic",
+    })
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+
+    expect(result.status).toBe("stored")
+    expect(rowOf(result).contentType).toBe("image/heic")
+    expect(rowOf(result).hasPreview).toBe(true)
+
+    // Two objects: the original and the derivative, both under this org's own
+    // prefix (the store's containment check would have thrown otherwise).
+    expect(fake.keys()).toHaveLength(2)
+    const [originalKey, previewKey] = fake.keys()
+    expect(originalKey).toMatch(/\.heic$/)
+    expect(previewKey).toMatch(/\.jpg$/)
+    expect(previewKey!.startsWith(`org/${org.organizationId}/`)).toBe(true)
+
+    // The ORIGINAL is byte-for-byte what was uploaded. The derivative is a real
+    // JPEG, and the row's recorded size describes the derivative's bytes.
+    expect(fake.bytesOf(originalKey!)).toEqual(REAL_HEIC_BYTES)
+    expect(fake.contentTypeOf(previewKey!)).toBe("image/jpeg")
+    expect([...fake.bytesOf(previewKey!)!.subarray(0, 3)]).toEqual([
+      0xff, 0xd8, 0xff,
+    ])
+
+    const [row] = await sql<
+      { preview_storage_key: string; preview_byte_size: string }[]
+    >`
+      SELECT preview_storage_key, preview_byte_size
+        FROM document WHERE id = ${rowOf(result).id}
+    `
+    expect(row!.preview_storage_key).toBe(previewKey)
+    expect(Number(row!.preview_byte_size)).toBe(
+      fake.bytesOf(previewKey!)!.byteLength,
+    )
+  })
+
+  it("STILL UPLOADS a HEIC the decoder cannot open — the derivative is a convenience", async () => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    // `HEIC_BYTES` is a hand-built `ftyp` box: enough to pass the magic-byte
+    // allowlist, nothing behind it to decode. This is the shape of every
+    // real-world failure — a truncated transfer, an exotic codec — and the
+    // client must not lose their document over it.
+    const result = await upload(scope, HEIC_BYTES, { filename: "foto.heic" })
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+
+    expect(result.status).toBe("stored")
+    expect(rowOf(result).hasPreview).toBe(false)
+    expect(fake.keys()).toHaveLength(1)
+
+    const [row] = await sql<{ preview_storage_key: string | null }[]>`
+      SELECT preview_storage_key FROM document WHERE id = ${rowOf(result).id}
+    `
+    expect(row!.preview_storage_key).toBeNull()
+  })
+
+  it.each([
+    ["a PDF", () => PDF_BYTES],
+    ["a PNG", () => PNG_BYTES],
+    ["a JPEG", () => JPEG_BYTES],
+  ])("never derives anything for %s", async (_label, bytes) => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    const result = await upload(scope, bytes())
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+
+    expect(rowOf(result).hasPreview).toBe(false)
+    expect(fake.keys()).toHaveLength(1)
+  })
+
+  it("does not derive a second time for a duplicate", async () => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    await upload(scope, REAL_HEIC_BYTES, { filename: "prvni.heic" })
+    expect(fake.keys()).toHaveLength(2)
+
+    const second = await upload(scope, REAL_HEIC_BYTES, {
+      filename: "druhy.heic",
+    })
+    if (!second.ok) throw new Error("refused")
+    expect(second.status).toBe("duplicate")
+    // The duplicate branch discards the object it wrote; nothing new is derived
+    // from it, and the twin keeps the derivative it was born with.
+    expect(fake.keys()).toHaveLength(2)
+  })
+
+  it("refuses to move a derivative once it exists (migration 0010)", async () => {
+    useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    const result = await upload(scope, REAL_HEIC_BYTES, {
+      filename: "IMG_0999.heic",
+    })
+    if (!result.ok) throw new Error("refused")
+
+    const other = `org/${org.organizationId}/00000000-0000-7000-8000-000000000001.jpg`
+    await expect(sql`
+      UPDATE document SET preview_storage_key = ${other}
+       WHERE id = ${rowOf(result).id}
+    `).rejects.toThrow(/cannot replace its preview derivative/)
+
+    // Clearing it IS allowed — that is the shape PR 37's retention purge needs.
+    await sql`
+      UPDATE document SET preview_storage_key = NULL, preview_byte_size = NULL
+       WHERE id = ${rowOf(result).id}
+    `
+  })
+
+  it("refuses a derivative on a row that is not a HEIC, and a half-set pair", async () => {
+    useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    const pdf = await upload(scope, PDF_BYTES)
+    if (!pdf.ok) throw new Error("refused")
+
+    const key = `org/${org.organizationId}/00000000-0000-7000-8000-000000000002.jpg`
+    await expect(sql`
+      UPDATE document SET preview_storage_key = ${key}, preview_byte_size = 10
+       WHERE id = ${rowOf(pdf).id}
+    `).rejects.toThrow(/document_preview_only_for_heic/)
+
+    const heic = await upload(scope, REAL_HEIC_BYTES, { filename: "x.heic" })
+    if (!heic.ok) throw new Error("refused")
+    await expect(sql`
+      UPDATE document SET preview_byte_size = NULL
+       WHERE id = ${rowOf(heic).id}
+    `).rejects.toThrow(/document_preview_pair_complete/)
+  })
+})
+
+describe("uploadDocument — the client downscale changes nothing about the server", () => {
+  it("accepts the JPEG a browser canvas would have produced", async () => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    // A genuine JPEG, produced by re-encoding the HEIC fixture — the same shape
+    // of bytes `prepareUpload` hands the request after a canvas re-encode.
+    const { heicJpegPreview } = await import("@/lib/storage/heic-preview")
+    const encoded = await heicJpegPreview(REAL_HEIC_BYTES)
+    expect(encoded).not.toBeNull()
+
+    const result = await upload(scope, encoded!.bytes, {
+      filename: "IMG_0421.jpg",
+    })
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+
+    expect(rowOf(result).contentType).toBe("image/jpeg")
+    expect(rowOf(result).byteSize).toBe(encoded!.bytes.byteLength)
+    // A downscaled photo is an ordinary JPEG: no derivative, one object.
+    expect(rowOf(result).hasPreview).toBe(false)
+    expect(fake.keys()).toHaveLength(1)
+  })
+
+  it("still refuses a spoofed upload — the browser's opinion is not an input", async () => {
+    const fake = useStore()
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    // A ZIP named like a downscaled photo. The client-side pipeline would have
+    // called this an image; the server reads the bytes.
+    const result = await upload(scope, ZIP_BYTES, { filename: "IMG_0421.jpg" })
+    expect(result).toEqual({ ok: false, reason: "unsupported_type" })
+    expect(fake.keys()).toEqual([])
   })
 })

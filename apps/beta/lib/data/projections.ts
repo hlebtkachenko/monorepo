@@ -25,16 +25,23 @@ import type {
   app_user,
   document,
   filing,
+  import_batch,
   liability,
   organization,
   organization_membership,
   reporting_period,
+  statement_line,
+  trial_balance_line,
   BetaFilingFamily,
   BetaFilingKind,
   BetaFilingStatus,
+  BetaImportDataset,
+  BetaImportSource,
+  BetaImportStatus,
   BetaObligationGroup,
   BetaPeriodKind,
   BetaSetupTokenPurpose,
+  BetaStatementKind,
 } from "@/db/schema"
 
 type AppUserRow = typeof app_user.$inferSelect
@@ -44,6 +51,9 @@ type MembershipRow = typeof organization_membership.$inferSelect
 type ReportingPeriodRow = typeof reporting_period.$inferSelect
 type FilingRow = typeof filing.$inferSelect
 type LiabilityRow = typeof liability.$inferSelect
+type ImportBatchRow = typeof import_batch.$inferSelect
+type StatementLineRow = typeof statement_line.$inferSelect
+type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -639,6 +649,190 @@ export function liabilityView(
     noteClient: row.note_client,
     overdue: row.overdue,
     updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Import spine — batches and their payload rows (spec §3.2, §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * One import batch as a surface renders it (spec §3.2: batch history,
+ * completeness matrix, rollback button).
+ *
+ * WHAT IS ABSENT, AND WHY EACH ONE:
+ *
+ *   - `sha256` — on `CLIENT_FORBIDDEN_COLUMNS` for the same reason
+ *     `document.sha256` is: shipping a content digest creates the temptation to
+ *     accept one back.
+ *   - `mapping` — the office's CSV column mapping. Configuration of how the
+ *     office works, not a fact about the client's books.
+ *   - `note_internal` — the office's own "why I re-imported" note, forbidden.
+ *   - `imported_by_user_id` / `published_by_user_id` — a client tier must not be
+ *     handed the office's user ids. The office review surface (PR 25) that wants
+ *     names joins `app_user` and projects them, the way the /admin shapes below
+ *     do.
+ *   - `organization_id` — the reader already holds the scope that produced the
+ *     row.
+ *
+ * `supersededByBatchId` IS here: it is the edge of the chain the batch-history
+ * view draws, and it names a row in the same list the reader is already looking
+ * at. `publishedAt` is the §0.4 freshness stamp itself, so it is the one field
+ * on this shape no surface can do without.
+ */
+export type ImportBatchView = {
+  id: string
+  dataset: BetaImportDataset
+  status: BetaImportStatus
+  source: BetaImportSource
+  period: ReportingPeriodView
+  /** Present only for a manual file drop; an agent-fed batch has no file. */
+  filename: string | null
+  rowCount: number
+  importedAt: string
+  /** The §0.4 dataset stamp. NULL for a draft, and cleared again by a rollback. */
+  publishedAt: string | null
+  supersededAt: string | null
+  supersededByBatchId: string | null
+}
+
+export function importBatchView(
+  row: Pick<
+    ImportBatchRow,
+    | "id"
+    | "dataset"
+    | "status"
+    | "source"
+    | "filename"
+    | "row_count"
+    | "imported_at"
+    | "published_at"
+    | "superseded_at"
+    | "superseded_by_batch_id"
+  > & { period: ReportingPeriodView },
+): ImportBatchView {
+  return {
+    id: row.id,
+    dataset: row.dataset,
+    status: row.status,
+    source: row.source,
+    period: row.period,
+    filename: row.filename,
+    rowCount: row.row_count,
+    importedAt: row.imported_at.toISOString(),
+    publishedAt: row.published_at?.toISOString() ?? null,
+    supersededAt: row.superseded_at?.toISOString() ?? null,
+    supersededByBatchId: row.superseded_by_batch_id,
+  }
+}
+
+/**
+ * One řádek of a rozvaha or a VZZ (spec §2.5).
+ *
+ * ALL FIVE VALUE COLUMNS ARE STRINGS, and stay strings all the way to the
+ * formatter. They are `numeric(14,2)` in Postgres (§0.7) and this application
+ * does no arithmetic on them at all (§0.2) — parsing one into a JavaScript
+ * number is how a haléř goes missing from a statutory statement.
+ *
+ * A `null` is not a zero. The rozvaha prints "x" in the korekce column of many
+ * lines and leaves cells blank; §0.4's "empty beats stale" applies at cell
+ * granularity, so an absent value renders absent.
+ *
+ * `sortOrder` is deliberately absent: the rows arrive in printed order and the
+ * array order IS that order. Shipping the column would invite a client
+ * component to re-sort by it, which is a second implementation of an ordering
+ * the database already applied.
+ */
+export type StatementLineView = {
+  id: string
+  statementKind: BetaStatementKind
+  /** Označení — "B.II.", "A.1.", "*", or null on a spacer row. */
+  ozn: string | null
+  rowCode: string
+  rowLabel: string
+  indent: number
+  isBold: boolean
+  /** Rozvaha aktiva only. */
+  brutto: string | null
+  /** Rozvaha aktiva only. */
+  korekce: string | null
+  /** Rozvaha aktiva only — STORED as imported, never derived from brutto − korekce. */
+  netto: string | null
+  /** Rozvaha pasiva and VZZ. */
+  bezne: string | null
+  minule: string | null
+}
+
+export function statementLineView(
+  row: Pick<
+    StatementLineRow,
+    | "id"
+    | "statement_kind"
+    | "ozn"
+    | "row_code"
+    | "row_label"
+    | "indent"
+    | "is_bold"
+    | "value_brutto"
+    | "value_korekce"
+    | "value_netto"
+    | "value_bezne"
+    | "value_minule"
+  >,
+): StatementLineView {
+  return {
+    id: row.id,
+    statementKind: row.statement_kind,
+    ozn: row.ozn,
+    rowCode: row.row_code,
+    rowLabel: row.row_label,
+    indent: row.indent,
+    isBold: row.is_bold,
+    brutto: row.value_brutto,
+    korekce: row.value_korekce,
+    netto: row.value_netto,
+    bezne: row.value_bezne,
+    minule: row.value_minule,
+  }
+}
+
+/**
+ * One account of an obratová předvaha (spec §2.5), and the row Finance › Účty a
+ * hotovost reads its bank and cash balances off (§2.4, via PR 26's
+ * `account_balance_map`).
+ *
+ * Four money strings, same rule as above: `numeric(14,2)`, never parsed.
+ */
+export type TrialBalanceLineView = {
+  id: string
+  accountCode: string
+  accountName: string
+  openingBalance: string | null
+  turnoverDebit: string | null
+  turnoverCredit: string | null
+  closingBalance: string | null
+}
+
+export function trialBalanceLineView(
+  row: Pick<
+    TrialBalanceLineRow,
+    | "id"
+    | "account_code"
+    | "account_name"
+    | "opening_balance"
+    | "turnover_debit"
+    | "turnover_credit"
+    | "closing_balance"
+  >,
+): TrialBalanceLineView {
+  return {
+    id: row.id,
+    accountCode: row.account_code,
+    accountName: row.account_name,
+    openingBalance: row.opening_balance,
+    turnoverDebit: row.turnover_debit,
+    turnoverCredit: row.turnover_credit,
+    closingBalance: row.closing_balance,
   }
 }
 

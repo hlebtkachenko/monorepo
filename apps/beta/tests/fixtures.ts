@@ -19,9 +19,13 @@ import type {
   BetaDocumentType,
   BetaFilingKind,
   BetaFilingStatus,
+  BetaImportDataset,
+  BetaImportSource,
+  BetaImportStatus,
   BetaObligationGroup,
   BetaOrgRole,
   BetaPeriodKind,
+  BetaStatementKind,
   BetaVatRegime,
 } from "@/db/schema"
 
@@ -324,6 +328,172 @@ export async function attachDocumentToFiling(
   documentId: string | null,
 ): Promise<void> {
   await db()`UPDATE filing SET document_id = ${documentId} WHERE id = ${filingId}`
+}
+
+// ---------------------------------------------------------------------------
+// Import spine (PR 23) — batches and payload rows, written as raw SQL
+// ---------------------------------------------------------------------------
+//
+// Same reasoning as the filing seeds above: `lib/data/imports.ts` is the office
+// write path and it is owner-gated, so a fixture that used it could not seed the
+// world for a test whose subject IS the gate — and every read test would then be
+// asserting against rows its own subject wrote.
+//
+// `createImportBatchRow` can seed a PUBLISHED batch directly, which the write
+// path deliberately cannot do in one step. That is the point: a read test that
+// needs a published rozvaha should not have to replay the publish ritual to get
+// one, and a publish test should not be able to hide a bug behind the fixture
+// that seeded it.
+
+export async function createImportBatchRow(
+  organizationId: string,
+  periodId: string,
+  values: {
+    dataset?: BetaImportDataset
+    status?: BetaImportStatus
+    source?: BetaImportSource
+    filename?: string | null
+    rowCount?: number
+    noteInternal?: string | null
+    importedByUserId?: string | null
+  } = {},
+): Promise<string> {
+  const sql = db()
+  const status = values.status ?? "draft"
+  const source = values.source ?? "agent"
+
+  const [row] = await sql<{ id: string }[]>`
+    INSERT INTO import_batch (
+      organization_id, period_id, dataset, status, source, filename,
+      row_count, note_internal, imported_by_user_id, published_at
+    )
+    VALUES (
+      ${organizationId},
+      ${periodId},
+      ${values.dataset ?? "rozvaha"},
+      ${status},
+      ${source},
+      ${source === "manual" ? (values.filename ?? "predvaha.csv") : null},
+      ${values.rowCount ?? 0},
+      ${values.noteInternal ?? null},
+      ${values.importedByUserId ?? null},
+      ${status === "draft" ? null : sql`now()`}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/**
+ * A statement line, straight to SQL.
+ *
+ * The five value columns default to NULL rather than to zero: a blank cell on a
+ * statutory form is not a zero, and a fixture that quietly filled them would
+ * make the column-shape CHECK untestable.
+ */
+export async function createStatementLineRow(
+  organizationId: string,
+  batchId: string,
+  periodId: string,
+  values: {
+    statementKind?: BetaStatementKind
+    ozn?: string | null
+    rowCode?: string
+    rowLabel?: string
+    sortOrder?: number
+    indent?: number
+    isBold?: boolean
+    brutto?: string | null
+    korekce?: string | null
+    netto?: string | null
+    bezne?: string | null
+    minule?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO statement_line (
+      organization_id, import_batch_id, period_id, statement_kind, ozn,
+      row_code, row_label, sort_order, indent, is_bold,
+      value_brutto, value_korekce, value_netto, value_bezne, value_minule
+    )
+    VALUES (
+      ${organizationId},
+      ${batchId},
+      ${periodId},
+      ${values.statementKind ?? "rozvaha_aktiva"},
+      ${values.ozn ?? null},
+      ${values.rowCode ?? "001"},
+      ${values.rowLabel ?? "AKTIVA CELKEM"},
+      ${values.sortOrder ?? 1},
+      ${values.indent ?? 0},
+      ${values.isBold ?? false},
+      ${values.brutto ?? null},
+      ${values.korekce ?? null},
+      ${values.netto ?? null},
+      ${values.bezne ?? null},
+      ${values.minule ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+export async function createTrialBalanceLineRow(
+  organizationId: string,
+  batchId: string,
+  periodId: string,
+  values: {
+    accountCode?: string
+    accountName?: string
+    openingBalance?: string | null
+    turnoverDebit?: string | null
+    turnoverCredit?: string | null
+    closingBalance?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO trial_balance_line (
+      organization_id, import_batch_id, period_id, account_code, account_name,
+      opening_balance, turnover_debit, turnover_credit, closing_balance
+    )
+    VALUES (
+      ${organizationId},
+      ${batchId},
+      ${periodId},
+      ${values.accountCode ?? "221"},
+      ${values.accountName ?? "Bankovní účty"},
+      ${values.openingBalance ?? null},
+      ${values.turnoverDebit ?? null},
+      ${values.turnoverCredit ?? null},
+      ${values.closingBalance ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/** The raw status of a batch, for asserting on state the projections hide. */
+export async function readImportBatchRow(batchId: string): Promise<{
+  status: BetaImportStatus
+  published_at: Date | null
+  superseded_at: Date | null
+  superseded_by_batch_id: string | null
+  row_count: number
+}> {
+  const [row] = await db()<
+    {
+      status: BetaImportStatus
+      published_at: Date | null
+      superseded_at: Date | null
+      superseded_by_batch_id: string | null
+      row_count: number
+    }[]
+  >`
+    SELECT status, published_at, superseded_at, superseded_by_batch_id, row_count
+      FROM import_batch WHERE id = ${batchId}
+  `
+  if (!row) throw new Error(`fixture: no import_batch ${batchId}`)
+  return row
 }
 
 export async function createFilingRow(

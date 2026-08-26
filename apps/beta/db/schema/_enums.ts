@@ -199,3 +199,71 @@ export const betaObligationGroup = pgEnum("beta_obligation_group", [
 
 export type BetaObligationGroup =
   (typeof betaObligationGroup.enumValues)[number]
+
+/**
+ * Mirrors: 0007_import_spine.sql — CREATE TYPE beta_import_dataset.
+ *
+ * The datasets that arrive as BATCHES (spec §4). All five are declared now and
+ * three are implemented: `predvaha` → `trial_balance_line`, `rozvaha` / `vzz` →
+ * `statement_line`. `saldokonto` (PR 27) and `payroll` (PR 29) add a payload
+ * table and a write path, not a new publish semantic.
+ *
+ * Filings, liabilities, client tasks, assets and indicators are ingestion
+ * ENDPOINTS (§3.2) but not datasets: none of them is a period-versioned
+ * snapshot, so none of them has a publish state.
+ */
+export const betaImportDataset = pgEnum("beta_import_dataset", [
+  "predvaha",
+  "rozvaha",
+  "vzz",
+  "saldokonto",
+  "payroll",
+])
+
+export type BetaImportDataset = (typeof betaImportDataset.enumValues)[number]
+
+/**
+ * Mirrors: 0007_import_spine.sql — CREATE TYPE beta_import_status.
+ *
+ * Spec §3.2: "draft → published → superseded batches". `superseded` is not
+ * deleted — it is the answer to "what did the client see before the
+ * correction?", which is the question rollback exists to act on.
+ */
+export const betaImportStatus = pgEnum("beta_import_status", [
+  "draft",
+  "published",
+  "superseded",
+])
+
+export type BetaImportStatus = (typeof betaImportStatus.enumValues)[number]
+
+/**
+ * Mirrors: 0007_import_spine.sql — CREATE TYPE beta_import_source.
+ *
+ * Spec §3.2: the office agent is the feeding channel, with a manual file drop as
+ * the fallback. The two are recorded apart because they fail differently and the
+ * completeness matrix triages them differently.
+ */
+export const betaImportSource = pgEnum("beta_import_source", [
+  "agent",
+  "manual",
+])
+
+export type BetaImportSource = (typeof betaImportSource.enumValues)[number]
+
+/**
+ * Mirrors: 0007_import_spine.sql — CREATE TYPE beta_statement_kind.
+ *
+ * Aktiva and pasiva are separate kinds because they do not share a column shape:
+ * aktiva is printed in brutto / korekce / netto / minulé období, pasiva and VZZ
+ * in běžné / minulé (Advisor F7/F8, verified against the monorepo's own ColKey
+ * union in `apps/web/app/vykazy/_lib/types.ts`). One kind with a side flag would
+ * make the `statement_line_column_shape` CHECK unstatable.
+ */
+export const betaStatementKind = pgEnum("beta_statement_kind", [
+  "rozvaha_aktiva",
+  "rozvaha_pasiva",
+  "vzz",
+])
+
+export type BetaStatementKind = (typeof betaStatementKind.enumValues)[number]

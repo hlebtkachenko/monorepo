@@ -25,6 +25,7 @@ While the repo is pre-revenue and Hleb is solo, _advisory_ means: the check must
 | `shellcheck`                                          | required                     | required                    |
 | `cdk-synth-strict (staging)`                          | required                     | required                    |
 | `cdk-synth-strict (production)`                       | required                     | required                    |
+| `cdk-synth-strict (beta)`                             | advisory [^8]                | required                    |
 | `codeql` (posts as `Analyze (javascript-typescript)`) | required [^6]                | required                    |
 | `dependency-review` (posts as `review`)               | required [^6]                | required                    |
 | `gitleaks`                                            | required                     | required                    |
@@ -62,6 +63,8 @@ requiring branch-protection changes.
 [^6]: Live `.github/rulesets/main.json` lists these checks as required by their posted context name (`lint` for commitlint, `Analyze (javascript-typescript)` for codeql, `review` for dependency-review, `scan-pr / osv-scan` for osv-scanner). The earlier `advisory` classification was stale — branch protection has enforced them for some time. Reconciled 2026-05-19 as part of AFF-65.
 
 [^7]: `actionlint`, `zizmor`, and `size` (size-limit) use trigger-level `paths:` filters today. Promoting them to required without first refactoring to the ci-status-shim pattern would create stuck PRs — branch protection reads a `paths:`-skipped check as "missing". Promote after the shim refactor lands. Track the promotion in GitHub Issues.
+
+[^8]: `cdk-synth-strict (beta)` is the third leg of the same matrix job in `.github/workflows/workflow-lint.yml`, added with the dedicated `beta` CDK environment (Network-beta + BetaData-beta + BetaApp-beta). New contexts ship advisory: it is not listed in `.github/rulesets/main.json`, so it reports but does not block. Hleb flips it to required after a green PR cycle.
 
 A check moves from advisory to required by:
 

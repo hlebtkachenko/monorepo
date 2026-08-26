@@ -137,7 +137,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [staging, production]
+        # `beta` is ADVISORY — only "(staging)" and "(production)" are required
+        # branch-protection contexts. Hleb flips a new leg to required manually
+        # after a green PR cycle (docs/conventions/CI-POLICY.md).
+        env: [staging, production, beta]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

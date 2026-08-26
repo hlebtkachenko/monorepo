@@ -25,7 +25,7 @@
     "@aws-cdk/core:defaultCrossStackReferences": "strong",
     "homeRegion": "eu-central-1",
     "drRegion": "eu-west-1",
-    "validEnvironments": ["staging", "production"],
+    "validEnvironments": ["staging", "production", "beta"],
     "availability-zones:account=000000000000:region=eu-central-1": [
       "eu-central-1a",
       "eu-central-1b",

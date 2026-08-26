@@ -1,0 +1,581 @@
+# Deploy the dedicated `beta` environment (the beta.afframe.com client portal).
+#
+# SELF-CONTAINED BY DESIGN. This workflow deliberately does NOT call
+# `_deploy-aws.yml`: extending that workflow to a third env would have meant
+# nine edit sites on the only path to production (plan
+# `.context/beta-afframe/30-plan-v3-beta-env.md` Part 2 + the Advisor gate in
+# `31-advisor-part2-pipeline.md`). Auth + hardening are copied from
+# `_deploy-aws.yml`; the job structure follows `deploy-mcp.yml`. Prod's
+# pipeline is never touched by a beta deploy, and vice versa.
+#
+# What it deploys: `Network-beta`, `BetaData-beta`, `BetaApp-beta` — one
+# Fargate service with the `beta` app container plus a `cloudflared` sidecar.
+# See `infra/cdk/bin/app.ts` (the `env === "beta"` branch).
+#
+# What it deliberately omits vs `_deploy-aws.yml`:
+#   - change detection / SSM last-tag reuse. Beta always builds (~3 min) and
+#     the machinery would be ~300 lines for a single small image. The
+#     `/monorepo/beta/last-deploy/*` records are still written on green smoke
+#     so a future pin / rollback path has history to read.
+#   - a runner-side migration step. The beta RDS sits in PRIVATE_ISOLATED
+#     subnets behind a zero-NAT VPC, so no GitHub runner can reach it. The
+#     app image's entrypoint applies the Drizzle migrations before serving
+#     (desiredCount 1 serializes them). See `infra/cdk/lib/beta-app-stack.ts`.
+#   - auto-rollback on smoke failure. Because migrations run at container
+#     start, rolling the ECS service back to the previous task definition
+#     would put OLD code in front of NEW schema — the same unsafe shape
+#     `_deploy-aws.yml` refuses at `MIGRATIONS_APPLIED=true`. Beta always
+#     migrates, so rollback is ALWAYS unsafe here; smoke reports and stops.
+#   - the power / sleeping-page machinery. Beta is out of power scope and
+#     runs 24/7 (~$20/mo) — plan Part 2 §6.
+#
+# Trigger: `workflow_dispatch` ONLY. No tag trigger, so cutting a release
+# never fires a beta deploy (plan Part 2 §2). Dispatch it on the `main-beta`
+# ref. NOTE: GitHub resolves `workflow_dispatch` availability from the
+# DEFAULT branch — while `deploy-beta.yml` lives only on `main-beta` the
+# Actions UI / `gh workflow run` will not offer it. Use the documented local
+# fallback until the branch transfers. See `docs/runbooks/BETA-DEPLOY.md`.
+#
+# FIRST DEPLOY IS HLEB-GATED. The GitHub `beta` environment, its secrets, the
+# Cloudflare tunnel + DNS record, and the SSM secret seeding are all manual
+# prerequisites — the checklist is `docs/runbooks/BETA-DEPLOY.md`.
+name: deploy-beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag_override:
+        description: "Existing beta image tag to deploy (e.g. sha-abcdef). Empty = build + push the image for the dispatched commit. Set it to re-run CDK against an image already in ECR (pin / rollback)."
+        required: false
+        type: string
+        default: ""
+
+permissions: {}
+
+concurrency:
+  # Same group shape as `_deploy-aws.yml` (`env-mutation-<env>`) so a beta
+  # deploy can never race another beta mutation. Prod/staging use their own
+  # groups, so this never serializes against them.
+  group: env-mutation-beta
+  cancel-in-progress: false
+
+jobs:
+  # Fast-fail gate. Everything here costs ~30s and turns three different
+  # opaque mid-deploy failures (missing app, missing secret, AWS not
+  # bootstrapped) into an immediate, named error.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: beta
+    permissions:
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      APP_DOMAIN_BETA: ${{ vars.APP_DOMAIN_BETA }}
+      BETA_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+      BETA_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_BETA }}
+      BOOTSTRAPPED: ${{ vars.AWS_BOOTSTRAPPED }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      # `apps/beta` lands in a later PR of the beta campaign. Until it does,
+      # this workflow has nothing to build — fail here, loudly and in
+      # seconds, instead of at `docker build` five minutes in.
+      - name: Assert the beta app image source exists
+        run: |
+          set -euo pipefail
+          if [ ! -f apps/beta/Dockerfile ]; then
+            echo "::error::apps/beta/Dockerfile not found on this ref. The beta app scaffold has not landed yet — this workflow is only dispatchable once it exists. See docs/runbooks/BETA-DEPLOY.md."
+            exit 1
+          fi
+          echo "OK   apps/beta/Dockerfile present."
+
+      - name: Assert required vars + secrets are present
+        run: |
+          set -euo pipefail
+          if [ "${BOOTSTRAPPED}" != "true" ]; then
+            echo "::error::AWS deploy gated: vars.AWS_BOOTSTRAPPED is not 'true'."
+            exit 1
+          fi
+          fail=0
+          check() {
+            local label="$1" value="$2"
+            if [ -z "${value:-}" ] || [[ "$value" =~ ^[[:space:]]*$ ]]; then
+              echo "::error::Required input '${label}' is empty for env=beta"
+              fail=1
+            fi
+          }
+          check AWS_REGION "$AWS_REGION"
+          check AWS_ACCOUNT_ID "$AWS_ACCOUNT_ID"
+          check APP_DOMAIN_BETA "$APP_DOMAIN_BETA"
+          check AWS_DEPLOY_ROLE_ARN_BETA "$BETA_ROLE"
+          check CLOUDFLARE_TUNNEL_TOKEN_BETA "$BETA_TUNNEL_TOKEN"
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::One or more required deploy inputs are empty. Set them on the 'beta' GitHub environment before re-running — see docs/runbooks/BETA-DEPLOY.md."
+            exit 1
+          fi
+          echo "All required deploy inputs present for env=beta."
+
+  build:
+    needs: guard
+    if: inputs.image_tag_override == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: beta
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: beta
+      SERVICE: beta
+      IMAGE_TAG: sha-${{ github.sha }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # `git describe` walks tag history for BUILD_VERSION below.
+          fetch-depth: 0
+
+      - id: ver
+        name: Compute BUILD_VERSION
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if NEAREST=$(git describe --tags --abbrev=0 HEAD 2>/dev/null); then
+            VALUE="${NEAREST#v}-${SHA:0:7}"
+          else
+            VALUE="sha-${SHA:0:7}"
+          fi
+          # Beta never ships from a release tag (it deploys off `main-beta`),
+          # so the exact-tag branch `_deploy-aws.yml` carries is omitted.
+          echo "BUILD_VERSION resolved: ${VALUE}"
+          echo "value=${VALUE}" >> "$GITHUB_OUTPUT"
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          BETA_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$BETA_ROLE" ]; then echo "::add-mask::$BETA_ROLE"; fi
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          # Beta's OWN role. Its trust policy is scoped to the
+          # `repo:hlebtkachenko/monorepo:environment:beta` subject and its
+          # permissions reach only the beta stacks / `monorepo-beta-*` ECR /
+          # `/monorepo/beta/*` SSM. Never the prod or staging role — see
+          # docs/specs/OIDC-TRUST.md.
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-beta-build-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      # First-deploy chicken-and-egg: `BetaDataStack` owns this repository,
+      # but the push below runs BEFORE `cdk deploy`. Idempotent, and the
+      # settings match `infra/cdk/lib/beta-data-stack.ts` so the subsequent
+      # `cdk deploy BetaData-beta` adopts it without a diff.
+      - name: Ensure ECR repository exists
+        run: |
+          set -euo pipefail
+          repo="monorepo-${ENV_NAME}-${SERVICE}"
+          if aws ecr describe-repositories --repository-names "$repo" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "OK   ECR repo exists: $repo"
+          else
+            echo "CREATE ECR repo: $repo"
+            aws ecr create-repository \
+              --repository-name "$repo" \
+              --image-tag-mutability IMMUTABLE \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=AES256 \
+              --region "$AWS_REGION" >/dev/null
+          fi
+
+      - name: Build + push beta image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: apps/beta/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/monorepo-beta-beta:${{ env.IMAGE_TAG }}
+          # Same call as `_deploy-aws.yml`: SLSA attestations produce an OCI
+          # image-index that ECR Basic Scanning rejects
+          # (UnsupportedImageTypeException), which would make the CVE gate
+          # below fail on NOT_FOUND forever.
+          provenance: false
+          sbom: false
+          cache-from: type=gha,scope=beta-beta
+          # mode=min (prod uses mode=max): the GitHub Actions cache is a
+          # shared 10 GB LRU across this repo, and a fourth full-layer
+          # exporter would evict the prod build caches.
+          cache-to: type=gha,scope=beta-beta,mode=min
+          build-args: |
+            BUILD_SHA=${{ github.sha }}
+            BUILD_TIME=${{ github.event.repository.updated_at }}
+            BUILD_VERSION=${{ steps.ver.outputs.value }}
+            GITHUB_REPOSITORY=${{ github.repository }}
+            SOURCE_REPOSITORY_URL=https://github.com/${{ github.repository }}
+
+      # CVE gate, copied from `_deploy-aws.yml`. Non-negotiable here: the
+      # beta portal serves real client tax documents on the public internet.
+      - name: Wait for ECR scan + fail on CRITICAL CVE
+        run: |
+          set -euo pipefail
+          repo="monorepo-${ENV_NAME}-${SERVICE}"
+          tag="${IMAGE_TAG}"
+          echo "Waiting for scan results: $repo:$tag"
+
+          # scanOnPush is async — there is a propagation delay between
+          # `docker push` and ECR registering the scan. Kick the scan
+          # ourselves (idempotent: re-starting an existing scan returns
+          # LimitExceededException for that day, which we suppress) and then
+          # poll describe-image-scan-findings until findingsStatus settles.
+          aws ecr start-image-scan \
+            --repository-name "$repo" \
+            --image-id imageTag="$tag" \
+            --region "$AWS_REGION" >/dev/null 2>&1 || true
+
+          status=""
+          for i in $(seq 1 60); do
+            status=$(aws ecr describe-image-scan-findings \
+              --repository-name "$repo" \
+              --image-id imageTag="$tag" \
+              --region "$AWS_REGION" \
+              --query 'imageScanStatus.status' \
+              --output text 2>/dev/null || echo "NOT_FOUND")
+            case "$status" in
+              COMPLETE) break ;;
+              FAILED)
+                echo "::error::ECR scan FAILED for $repo:$tag"
+                aws ecr describe-image-scan-findings \
+                  --repository-name "$repo" \
+                  --image-id imageTag="$tag" \
+                  --region "$AWS_REGION" \
+                  --query 'imageScanStatus' --output json || true
+                exit 1
+                ;;
+              *) echo "  poll $i/60: status=$status"; sleep 5 ;;
+            esac
+          done
+          if [ "$status" != "COMPLETE" ]; then
+            echo "::error::ECR scan did not complete in 5 min for $repo:$tag (last status: $status)"
+            exit 1
+          fi
+
+          # Shared allowlist of accepted CVE IDs (no upstream fix, no exploit
+          # path in our containers). One per line, # comments.
+          allowlist_file=".github/security/cve-allowlist.txt"
+          allowed_ids=""
+          if [ -f "$allowlist_file" ]; then
+            allowed_ids=$(grep -vE '^\s*#|^\s*$' "$allowlist_file" | sort -u | xargs || true)
+          fi
+          echo "CVE allowlist: ${allowed_ids:-<empty>}"
+
+          # ANSI-C quoting ($'...') keeps shellcheck SC2016 quiet on the
+          # JMESPath backtick string literal (intentional, not shell
+          # command substitution).
+          query=$'imageScanFindings.findings[?severity==\x60CRITICAL\x60].name'
+          all_criticals=$(aws ecr describe-image-scan-findings \
+            --repository-name "$repo" \
+            --image-id imageTag="$tag" \
+            --region "$AWS_REGION" \
+            --query "$query" \
+            --output text | tr '\t' '\n' | sort -u)
+
+          if [ -z "$all_criticals" ]; then
+            echo "OK  No CRITICAL CVEs in $repo:$tag"
+            exit 0
+          fi
+
+          unallowed=""
+          for cve in $all_criticals; do
+            allowed=0
+            for a in $allowed_ids; do
+              if [ "$cve" = "$a" ]; then allowed=1; break; fi
+            done
+            if [ "$allowed" = "0" ]; then unallowed="$unallowed $cve"; fi
+          done
+
+          if [ -n "$unallowed" ]; then
+            count=$(echo "$unallowed" | wc -w | tr -d ' ')
+            echo "::error::$repo:$tag has $count un-allowlisted CRITICAL CVE(s):$unallowed"
+            echo "Run \`aws ecr describe-image-scan-findings --repository-name $repo --image-id imageTag=$tag --region $AWS_REGION\` to see the full list."
+            exit 1
+          fi
+
+          allowed_count=$(echo "$all_criticals" | wc -l | tr -d ' ')
+          echo "OK  All $allowed_count CRITICAL CVE(s) in $repo:$tag are allowlisted."
+
+  deploy:
+    needs: [guard, build]
+    # `!cancelled()` is REQUIRED: without it GitHub applies an implicit
+    # `success()` over `needs:`, and the SKIPPED `build` job on the
+    # `image_tag_override` path would silently auto-skip this job. Verified
+    # failure mode on the prod pipeline (`_deploy-aws.yml` deploy job).
+    if: |
+      !cancelled() &&
+      needs.guard.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    # Ceiling for a cold first deploy: new VPC + a fresh RDS instance
+    # (~15 min) + the ECS rollout.
+    timeout-minutes: 75
+    environment: beta
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: beta
+      IMAGE_TAG: ${{ inputs.image_tag_override != '' && inputs.image_tag_override || format('sha-{0}', github.sha) }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          BETA_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$BETA_ROLE" ]; then echo "::add-mask::$BETA_ROLE"; fi
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-beta-deploy-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 3600
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.9.0
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      # Scoped install: this job only runs `cdk deploy`. No QEMU / Buildx
+      # here (unlike `_deploy-aws.yml`) because none of the three beta stacks
+      # contains a DockerImageAsset — the app image is pulled from ECR and
+      # cloudflared from its public registry digest.
+      - run: pnpm install --frozen-lockfile --filter @workspace/cdk...
+
+      # An `image_tag_override` pins an image that must already be in ECR.
+      # Without this check CDK deploys happily and ECS starts crash-looping
+      # on ImagePullFailure ~5 minutes later.
+      - name: Verify override image exists in ECR
+        if: inputs.image_tag_override != ''
+        run: |
+          set -euo pipefail
+          repo="monorepo-${ENV_NAME}-beta"
+          if aws ecr describe-images \
+              --repository-name "$repo" \
+              --image-ids imageTag="$IMAGE_TAG" \
+              --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "OK   ${repo}:${IMAGE_TAG}"
+          else
+            echo "::error::MISSING ${repo}:${IMAGE_TAG} — image_tag_override points at a non-existent image. Re-run with an empty override to build fresh."
+            exit 1
+          fi
+
+      - name: Sync Cloudflare Tunnel token from GHA secret → SSM SecureString
+        env:
+          TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN_BETA }}
+        run: |
+          set -euo pipefail
+
+          # Same convention as prod (`_deploy-aws.yml`): the tunnel token is
+          # the one workflow-managed secret that never transits Vault. It is
+          # Cloudflare-issued, owned end-to-end by this workflow, and read by
+          # the cloudflared sidecar via EcsSecret.fromSsmParameter at task
+          # start. better-auth-secret + resend-api-key take the Vault → SSM
+          # path instead and are only verified below.
+          if [ -z "$TUNNEL_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_TUNNEL_TOKEN_BETA is not set on the 'beta' environment. Create beta's own Cloudflare tunnel and store its connector token — see docs/runbooks/BETA-DEPLOY.md."
+            exit 1
+          fi
+          echo "::add-mask::$TUNNEL_TOKEN"
+
+          NAME="/monorepo/${ENV_NAME}/cloudflare-tunnel-token"
+          aws ssm put-parameter \
+            --name "$NAME" \
+            --value "$TUNNEL_TOKEN" \
+            --type SecureString \
+            --description "Cloudflare Tunnel connector token (monorepo beta). Source: GHA secret CLOUDFLARE_TUNNEL_TOKEN_BETA. Does not transit Vault." \
+            --overwrite \
+            --region "$AWS_REGION" >/dev/null
+          echo "synced: $NAME"
+
+      # The two Vault-backed app secrets reach SSM only via the VPS
+      # `vault-to-ssm-sync` timer. A missing parameter fails the ECS task
+      # rollout opaquely with ResourceInitializationError ~6 minutes from
+      # now; catch it here with an actionable message.
+      - name: Verify Vault-backed secrets resolve in SSM
+        run: |
+          set -euo pipefail
+          fail=0
+          for name in better-auth-secret resend-api-key; do
+            param="/monorepo/${ENV_NAME}/${name}"
+            val=$(aws ssm get-parameter --name "$param" --with-decryption \
+              --region "$AWS_REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+            if [ -z "$val" ] || [ "$val" = "None" ]; then
+              echo "::error::SSM parameter ${param} is missing or empty. Seed Vault key platform/beta/${name} and confirm the vault-to-ssm-sync timer covers env=beta — see docs/runbooks/BETA-DEPLOY.md and docs/runbooks/VAULT-OPS.md."
+              fail=1
+            else
+              echo "ok: ${param} resolves (len=${#val})"
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then exit 1; fi
+
+      - name: Deploy CDK stacks
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          # `bin/app.ts` reads APP_DOMAIN; the beta branch has no
+          # ADMIN_DOMAIN (the portal's staff area is a route in the same
+          # app, gated on `is_staff`).
+          APP_DOMAIN: ${{ vars.APP_DOMAIN_BETA }}
+          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS }}
+        run: |
+          set -euo pipefail
+          # --exclusively: deploy exactly these three and nothing that
+          # happens to be an upstream dependency. `betaImageTag` is what
+          # BetaAppStack reads first; `imageTag` is passed as the shared
+          # fallback so both context keys agree.
+          pnpm --filter @workspace/cdk exec cdk deploy \
+            "Network-${ENV_NAME}" "BetaData-${ENV_NAME}" "BetaApp-${ENV_NAME}" \
+            --exclusively \
+            --context "env=${ENV_NAME}" \
+            --context "betaImageTag=${IMAGE_TAG}" \
+            --context "imageTag=${IMAGE_TAG}" \
+            --require-approval=never
+
+  # Crash-loop detector. With migrations in the container entrypoint, "the
+  # task reached steady state and answers /healthz through the tunnel" is the
+  # only meaningful post-deploy assertion — and the only one worth having.
+  smoke:
+    needs: [guard, build, deploy]
+    if: |
+      !cancelled() &&
+      needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: beta
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      ENV_NAME: beta
+      APP_DOMAIN_BETA: ${{ vars.APP_DOMAIN_BETA }}
+      GIT_SHA: ${{ github.sha }}
+      IMAGE_TAG: ${{ inputs.image_tag_override != '' && inputs.image_tag_override || format('sha-{0}', github.sha) }}
+    steps:
+      - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
+        with:
+          egress-policy: audit
+
+      - name: Mask account-bearing inputs in logs
+        env:
+          ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          BETA_ROLE: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+        run: |
+          echo "::add-mask::$ACCOUNT_ID"
+          if [ -n "$BETA_ROLE" ]; then echo "::add-mask::$BETA_ROLE"; fi
+
+      - uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN_BETA }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-beta-smoke-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          role-duration-seconds: 1800
+
+      - id: smoke
+        name: Smoke probe (/healthz through the beta tunnel)
+        run: |
+          set -euo pipefail
+          # 40 attempts x 5s = 200s ceiling, above the 180s
+          # healthCheckGracePeriod in BetaAppStack (cold pull of two arm64
+          # images + the startup migrations).
+          url="https://${APP_DOMAIN_BETA}/healthz"
+          for i in $(seq 1 40); do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 10 "$url" || true)
+            if [ "$code" = "200" ]; then
+              echo "smoke: PASS  healthz=$code  (attempt $i)"
+              exit 0
+            fi
+            echo "smoke: try=$i  healthz=$code"
+            sleep 5
+          done
+          echo "::error::smoke failed after 40 attempts against ${url}"
+          exit 1
+
+      # Written only on green smoke, so a broken image never becomes the
+      # "last known good" a future pin would read back.
+      - name: Record last-known-good in SSM
+        if: success()
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text)
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          GOOD_TD=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" --region "$AWS_REGION" --query 'services[0].taskDefinition' --output text)
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/git-sha" --type String --value "$GIT_SHA" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/git-sha"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/image-tag" --type String --value "$IMAGE_TAG" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/image-tag"
+          aws ssm put-parameter --name "/monorepo/${ENV_NAME}/last-deploy/task-def-arn" --type String --value "$GOOD_TD" --overwrite --region "$AWS_REGION" >/dev/null || echo "::warning::Failed to write last-deploy/task-def-arn"
+          echo "Recorded last-known-good: sha=$GIT_SHA tag=$IMAGE_TAG task-def=$GOOD_TD (env=beta)"
+
+      # No auto-rollback: the entrypoint migrates on every start, so the
+      # previous task definition would meet a migrated schema. Dump the
+      # diagnostic surface instead and hand the operator the runbook.
+      - name: Diagnose failed smoke
+        if: failure() && steps.smoke.conclusion == 'failure'
+        run: |
+          set -euo pipefail
+          CLUSTER="monorepo-${ENV_NAME}"
+          SERVICE_ARN=$(aws ecs list-services --cluster "$CLUSTER" --region "$AWS_REGION" --query 'serviceArns[0]' --output text 2>/dev/null || echo "")
+          if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
+            echo "::error::No ECS service in cluster $CLUSTER."
+            exit 1
+          fi
+          SERVICE_NAME=${SERVICE_ARN##*/}
+          echo "::group::ECS service events (last 10)"
+          aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE_NAME" \
+            --region "$AWS_REGION" --query 'services[0].events[:10].[createdAt,message]' --output table || true
+          echo "::endgroup::"
+          echo "::group::Stopped task reasons"
+          aws ecs list-tasks --cluster "$CLUSTER" --service-name "$SERVICE_NAME" \
+            --desired-status STOPPED --region "$AWS_REGION" --query 'taskArns[:3]' --output text || true
+          echo "::endgroup::"
+          echo "::error::Beta smoke failed. Auto-rollback is deliberately NOT attempted — beta migrates at container start, so the previous task definition would run OLD code against a MIGRATED schema. Recovery is forward-fix: read /ecs/monorepo-beta/beta logs, then redeploy. See docs/runbooks/BETA-DEPLOY.md."
+          exit 1

@@ -325,7 +325,10 @@ describe("SecurityStack account-wide guard (production env only)", () => {
         BudgetName: Match.stringLikeRegexp(
           "^monorepo-production-accounttotal-[0-9a-f]{8}$",
         ),
-        BudgetLimit: { Amount: 55, Unit: "USD" },
+        // $75, not $55: raised for beta-environment headroom. The beta env
+        // instantiates no SecurityStack, so its ~$20-22/mo lands only in
+        // this untagged account-wide guard.
+        BudgetLimit: { Amount: 75, Unit: "USD" },
       },
     })
   })

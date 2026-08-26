@@ -21,6 +21,7 @@ Choose the narrowest runbook matching the task.
 ## Deployment and infrastructure
 
 - [`AWS-SETUP.md`](AWS-SETUP.md)
+- [`BETA-DEPLOY.md`](BETA-DEPLOY.md)
 - [`CI-TURBO-REMOTE-CACHE.md`](CI-TURBO-REMOTE-CACHE.md)
 - [`DB-ACCESS.md`](DB-ACCESS.md)
 - [`DEPLOY.md`](DEPLOY.md)

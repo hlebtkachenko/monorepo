@@ -128,7 +128,7 @@ Trust policy (account where the SSM parameters live):
 }
 ```
 
-Permissions policy — read only, scoped to the six tracked parameters. SSM
+Permissions policy — read only, scoped to the nine tracked parameters. SSM
 SecureStrings use the AWS-managed `alias/aws/ssm` key, so `kms:Decrypt` is on
 `*` and gated by that key's own policy (same shape as the `vault-ssm-sync`
 writer in `infra/cdk/lib/secrets-stack.ts`):
@@ -147,7 +147,10 @@ writer in `infra/cdk/lib/secrets-stack.ts`):
         "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/staging/sync-heartbeat",
         "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/production/better-auth-secret",
         "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/production/resend-api-key",
-        "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/production/sync-heartbeat"
+        "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/production/sync-heartbeat",
+        "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/beta/better-auth-secret",
+        "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/beta/resend-api-key",
+        "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/beta/sync-heartbeat"
       ]
     },
     {
@@ -173,6 +176,138 @@ Provisioning checklist (manual — held for operator approval, tracked in DEV-46
    this repo) + a read-only policy on `platform/data/{staging,production}/{better-auth-secret,resend-api-key}`. See `docs/runbooks/VAULT-OPS.md` § JWT auth.
 5. `workflow_dispatch` the workflow; once green, uncomment the `schedule` in
    `.github/workflows/secrets-drift.yml`.
+
+## Beta environment deploy role (`monorepo-deploy-beta`)
+
+The `beta` environment (the beta.afframe.com client portal) gets its **own**
+role, never the staging or production one. Same environment-scoped principle,
+but unlike staging/production — which were bootstrapped with
+`AdministratorAccess` — this one is least-privilege from day one: it can reach
+the three beta CFN stacks through the CDK bootstrap roles, the
+`monorepo-beta-*` ECR repositories, and the `/monorepo/beta/*` SSM namespace,
+and nothing else.
+
+Consumed by `.github/workflows/deploy-beta.yml` as the environment secret
+`AWS_DEPLOY_ROLE_ARN_BETA`. Provisioning is manual and Hleb-gated — the
+ordered checklist is [`../runbooks/BETA-DEPLOY.md`](../runbooks/BETA-DEPLOY.md).
+
+Trust policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<TBD-account-id>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub": "repo:hlebtkachenko/monorepo:environment:beta"
+        }
+      }
+    }
+  ]
+}
+```
+
+Permissions policy. `cdk.json` sets `@aws-cdk/core:newStyleStackSynthesis`, so
+`cdk deploy` does all CloudFormation, S3-asset and ECR-asset work through the
+`cdk-hnb659fds-*` bootstrap roles — this role only needs to be allowed to
+assume them. The remaining statements cover the direct AWS API calls the
+workflow itself makes (image push, tunnel-token seeding, secret verification,
+smoke diagnostics):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeCdkBootstrapRoles",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::<TBD-account-id>:role/cdk-hnb659fds-*-<TBD-account-id>-eu-central-1"
+    },
+    {
+      "Sid": "EcrAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrBetaRepositories",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:CreateRepository",
+        "ecr:DescribeRepositories",
+        "ecr:DescribeImages",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:StartImageScan",
+        "ecr:DescribeImageScanFindings"
+      ],
+      "Resource": "arn:aws:ecr:eu-central-1:<TBD-account-id>:repository/monorepo-beta-*"
+    },
+    {
+      "Sid": "BetaSsmNamespace",
+      "Effect": "Allow",
+      "Action": ["ssm:PutParameter", "ssm:GetParameter", "ssm:GetParameters"],
+      "Resource": "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/monorepo/beta/*"
+    },
+    {
+      "Sid": "CdkBootstrapVersionRead",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": "arn:aws:ssm:eu-central-1:<TBD-account-id>:parameter/cdk-bootstrap/hnb659fds/version"
+    },
+    {
+      "Sid": "SsmSecureStringKey",
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": { "kms:ViaService": "ssm.eu-central-1.amazonaws.com" }
+      }
+    },
+    {
+      "Sid": "BetaSmokeDiagnostics",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:ListServices",
+        "ecs:DescribeServices",
+        "ecs:ListTasks",
+        "ecs:DescribeTasks"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "ecs:cluster": "arn:aws:ecs:eu-central-1:<TBD-account-id>:cluster/monorepo-beta"
+        }
+      }
+    }
+  ]
+}
+```
+
+Notes on the scoping choices:
+
+- `ecr:GetAuthorizationToken` has no resource-level support in IAM; `*` is the
+  only valid form and it grants nothing beyond a registry login token.
+- `ecs:ListServices` does not support the `ecs:cluster` condition key on every
+  API version. If the smoke job's diagnostic step fails with `AccessDenied`,
+  split `ecs:ListServices` into its own statement on `"Resource": "*"` without
+  the condition rather than widening the whole block.
+- The role has **no** `iam:*`, no `cloudformation:*` and no write access
+  outside the `monorepo-beta-*` / `/monorepo/beta/*` namespaces. A compromised
+  beta workflow cannot touch staging or production.
 
 ## What this trust policy does NOT permit
 

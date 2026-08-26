@@ -8,9 +8,13 @@ import {
   organization_membership,
   type BetaOrgRole,
 } from "@/db/schema"
-import { mayChangeRole } from "@/lib/auth/invite-policy"
-import { guardRefusal, isDeadlock } from "@/lib/pg-error"
+import { mayChangeRole, mayDeactivate } from "@/lib/auth/invite-policy"
 
+import {
+  writeMembership,
+  type MembershipRefusal,
+  type MembershipWriteResult,
+} from "../membership-writes"
 import { officeMemberRow, type OfficeMemberRow } from "../projections"
 import type { OfficeScope } from "../scope"
 
@@ -36,27 +40,13 @@ import { officeDb } from "./db"
  * the last-owner guard's DELETE arm for no reason.
  */
 
-export type MembershipRefusal =
-  /** No such membership in that organization. */
-  | "not_found"
-  /** The invite matrix says no — an admin reaching for owner is the live case. */
-  | "role_not_allowed"
-  /** Would leave the organization with no owner (DB trigger). */
-  | "last_owner"
-  /** The target is not office staff, so cannot hold owner (DB trigger). */
-  | "owner_requires_staff"
-  /** The target IS office staff but the account is deactivated (0003). */
-  | "owner_requires_active"
-  /**
-   * Postgres broke a lock cycle and picked this transaction as the victim.
-   * Nothing was wrong with the request; the next attempt is expected to work.
-   */
-  | "retry"
-  /** Some other guard refused. */
-  | "rejected"
-
-export type MembershipWriteResult =
-  { ok: true } | { ok: false; reason: MembershipRefusal }
+/**
+ * Re-exported rather than declared here (PR 22): the refusal vocabulary and its
+ * translation now live in `../membership-writes.ts`, shared with the
+ * organization door. /admin's action layer keeps importing it from this module,
+ * which is where its callers already look.
+ */
+export type { MembershipRefusal, MembershipWriteResult }
 
 export async function listOrganizationMembers(
   office: OfficeScope,
@@ -149,7 +139,10 @@ export async function setMembershipActive(
   const db = officeDb(office)
 
   const [current] = await db
-    .select({ active: organization_membership.active })
+    .select({
+      active: organization_membership.active,
+      role: organization_membership.role,
+    })
     .from(organization_membership)
     .where(
       and(
@@ -161,6 +154,23 @@ export async function setMembershipActive(
 
   if (!current) return { ok: false, reason: "not_found" }
   if (current.active === input.active) return { ok: true }
+
+  // The ceiling, applied to the verb it was missing from (PR 22 carry-in). It
+  // is a no-op for the office — `OFFICE_INVITABLE_ROLES` is every role — and
+  // stating it here anyway is what keeps the two doors calling the same
+  // function for the same question, rather than one of them growing an `if`.
+  if (
+    !mayDeactivate(
+      { kind: "office" },
+      {
+        issuerUserId: office.userId,
+        targetUserId: input.targetUserId,
+        targetRole: current.role,
+      },
+    )
+  ) {
+    return { ok: false, reason: "role_not_allowed" }
+  }
 
   return writeMembership(() =>
     db
@@ -256,36 +266,4 @@ export async function grantOwnerInAllOrganizations(
   return result.ok
     ? { ok: true, organizationCount: live.length }
     : { ok: false, reason: result.reason }
-}
-
-/**
- * Run a membership write and turn a guard's refusal into a named reason.
- *
- * Only `check_violation` is translated. Anything else is a real fault and is
- * re-thrown: swallowing it would turn a broken database into a polite Czech
- * sentence, which is the worst possible way to learn about one.
- */
-async function writeMembership(
-  write: () => PromiseLike<unknown>,
-): Promise<MembershipWriteResult> {
-  try {
-    await write()
-    return { ok: true }
-  } catch (error) {
-    // A deadlock is not a refusal and not a fault — the database picked this
-    // transaction as the victim of a lock cycle. Answering it as a 500 would
-    // tell the office the server is broken when the next click would succeed.
-    if (isDeadlock(error)) return { ok: false, reason: "retry" }
-
-    const refusal = guardRefusal(error)
-    if (refusal === "last_owner") return { ok: false, reason: "last_owner" }
-    if (refusal === "owner_requires_staff") {
-      return { ok: false, reason: "owner_requires_staff" }
-    }
-    if (refusal === "owner_requires_active") {
-      return { ok: false, reason: "owner_requires_active" }
-    }
-    if (refusal !== null) return { ok: false, reason: "rejected" }
-    throw error
-  }
 }

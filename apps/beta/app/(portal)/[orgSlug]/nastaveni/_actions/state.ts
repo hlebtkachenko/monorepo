@@ -24,6 +24,21 @@ export type NastaveniActionState =
   | { status: "idle" }
   | { status: "ok"; message: BetaMessageKey }
   | { status: "error"; error: BetaMessageKey }
+  /**
+   * A freshly minted invite link (PR 22, Lidé). The raw secret exists HERE and
+   * nowhere else: the table holds `sha256(token)`, the link registry has no
+   * column for it, and it is never logged — a log line naming a setup link is a
+   * credential in a log aggregator. It travels to the admin's screen once, and
+   * the recovery for losing it is to issue a new one (which the sibling sweep
+   * invalidates the lost one against, on consume).
+   */
+  | {
+      status: "issued"
+      url: string
+      email: string
+      /** ISO — rendered as a cs-CZ local time by the component. */
+      expiresAt: string
+    }
   | {
       status: "suggestions"
       /** Empty when ARES agrees with the book on every field it knows. */

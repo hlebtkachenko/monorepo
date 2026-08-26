@@ -878,6 +878,7 @@
   "nastaveni": {
     "navLabel": "Nastavení",
     "navSpolecnost": "Společnost",
+    "navLide": "Lidé",
     "navUcet": "Účet",
     "pending": "Ukládám…",
 
@@ -969,6 +970,37 @@
     "localeTitle": "Jazyk",
     "localeValue": "Čeština",
 
+    "peopleTitle": "Lidé s přístupem",
+    "peopleHint": "Kdo se dostane do portálu této firmy a co tam smí. Přístup se nikdy nemaže, jen deaktivuje — historie tím zůstane dohledatelná.",
+    "columnPerson": "Osoba",
+    "columnState": "Stav",
+    "columnRole": "Role",
+    "columnActions": "Akce",
+    "save": "Uložit",
+    "activate": "Obnovit přístup",
+    "deactivate": "Deaktivovat",
+
+    "roleOwner": "Účetní",
+    "roleAdmin": "Majitel společnosti",
+    "roleMember": "Pracovník firmy (vedení)",
+    "roleGuest": "Host",
+
+    "stateActive": "Aktivní",
+    "stateInactive": "Deaktivováno",
+    "stateLastOwner": "Jediná účetní",
+    "stateYou": "(vy)",
+    "lastOwnerHint": "Poslední účetní firmy. Přístup zruší až kancelář, jinak by kniha zůstala bez správce.",
+
+    "inviteTitle": "Pozvat dalšího člověka",
+    "inviteHint": "Vytvoříme jednorázový odkaz. Pošlete ho pozvanému sami — platí 72 hodin a zobrazí se jen jednou.",
+    "inviteSubmit": "Vytvořit odkaz",
+    "fieldEmail": "E-mail",
+    "inviteIssuedTitle": "Odkaz je připraven",
+    "inviteIssuedOnce": "Zkopírujte ho teď. Znovu ho už nezobrazíme — pokud se ztratí, vytvořte nový.",
+    "inviteExpiresAt": "platí do",
+    "copy": "Kopírovat",
+    "copied": "Zkopírováno",
+
     "okSaved": "Uloženo.",
     "okAresApplied": "Vybrané údaje byly převzaty z ARES.",
     "okAresNoChange": "Vybrané údaje se už shodují s ARES. Nic se neměnilo.",
@@ -980,6 +1012,20 @@
     "errorNothingAccepted": "Nevybrali jste žádný údaj k převzetí.",
     "errorNotSaved": "Uložení se nepodařilo. Zkuste to prosím znovu.",
     "errorPasswordWrong": "Nesprávné heslo.",
-    "errorCodeWrong": "Nesprávný kód. Zkontrolujte čas v telefonu a zkuste to znovu."
+    "errorCodeWrong": "Nesprávný kód. Zkontrolujte čas v telefonu a zkuste to znovu.",
+
+    "okRoleChanged": "Role byla změněna.",
+    "okMemberActivated": "Přístup byl obnoven.",
+    "okMemberDeactivated": "Přístup byl deaktivován.",
+    "errorNotAllowed": "Na tuto změnu nemáte oprávnění.",
+    "errorMemberNotFound": "Tato osoba už ve firmě není.",
+    "errorLastOwner": "Firma by zůstala bez účetní. Změnu provede účetní kancelář.",
+    "errorOwnerIsOffice": "Roli Účetní přiděluje jen účetní kancelář.",
+    "errorInvalidEmail": "Zadejte platný e-mail.",
+    "errorOrganizationArchived": "Firma je ukončená, nové přístupy do ní nevytváříme.",
+    "errorInvalidInput": "Zkontrolujte zadané údaje.",
+    "errorTooManyRequests": "Příliš mnoho pokusů. Zkuste to za chvíli.",
+    "errorRetry": "Zkuste to prosím ještě jednou.",
+    "errorRejected": "Změnu se nepodařilo uložit."
   }
 }

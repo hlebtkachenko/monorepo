@@ -83,12 +83,42 @@ export function foreignCookieHeaders(value: string): Headers {
   return new Headers({ cookie: `__Secure-better-auth.session_token=${value}` })
 }
 
+/**
+ * `two_factor_enabled` DEFAULTS TO `staff` (PR 22).
+ *
+ * The forced-TOTP mandate is enforced in the tenancy seam itself — `requireScope`
+ * and `requireOffice` refuse an office account that has not enrolled — so a
+ * staff fixture without the flag would not model "an accountant", it would model
+ * "an accountant who is currently locked out of everything". Every existing
+ * suite wants the former. The tests whose SUBJECT is the mandate pass
+ * `twoFactorEnabled: false` explicitly, which is the honest way to seed the
+ * locked-out case.
+ *
+ * Client-side accounts (`staff: false`) stay unenrolled, because they are not
+ * under the mandate and forcing an authenticator on a site foreman is exactly
+ * what `totp-enforcement.ts` argues against.
+ *
+ * THE FLAG IS SET AFTER SIGN-IN, and the order is not cosmetic. Better Auth's
+ * twoFactor plugin intercepts `signInEmail` for a user whose `two_factor_enabled`
+ * is already true: it answers with a two-factor CHALLENGE instead of a session,
+ * and the challenge cannot be satisfied without a verified `two_factor` row and
+ * a real TOTP code. Seeding the flag first therefore produces an account with no
+ * usable session at all — which is a faithful model of a half-enrolled user and
+ * a useless model of an accountant. Signing in first and flipping the column
+ * afterwards yields what production actually has: a live session belonging to an
+ * account that holds a second factor.
+ */
 export async function createAccount(
-  options: { staff?: boolean; email?: string } = {},
+  options: {
+    staff?: boolean
+    email?: string
+    twoFactorEnabled?: boolean
+  } = {},
 ): Promise<TestAccount> {
   const sql = db()
   const email = options.email ?? `${unique("user")}@example.com`
   const isStaff = options.staff ?? false
+  const twoFactorEnabled = options.twoFactorEnabled ?? isStaff
 
   const [row] = await sql<{ id: string }[]>`
     INSERT INTO app_user (email, name, is_staff)
@@ -106,7 +136,10 @@ export async function createAccount(
     password: await ctx.password.hash(PASSWORD),
   })
 
-  return { userId, email, isStaff, headers: await signIn(email) }
+  const headers = await signIn(email)
+  if (twoFactorEnabled) await setTwoFactorEnabled(userId, true)
+
+  return { userId, email, isStaff, headers }
 }
 
 /** A live session for `email`, as request headers. */
@@ -223,6 +256,19 @@ export async function setStaff(
   isStaff: boolean,
 ): Promise<void> {
   await db()`UPDATE app_user SET is_staff = ${isStaff} WHERE id = ${userId}`
+}
+
+/**
+ * Flip the enrolment flag directly (PR 22). Better Auth's twoFactor plugin owns
+ * this column in production; a test that drove a real TOTP enrolment to assert
+ * "an unenrolled owner cannot write" would be asserting the plugin, not the
+ * seam.
+ */
+export async function setTwoFactorEnabled(
+  userId: string,
+  enabled: boolean,
+): Promise<void> {
+  await db()`UPDATE app_user SET two_factor_enabled = ${enabled} WHERE id = ${userId}`
 }
 
 // ---------------------------------------------------------------------------

@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import betaCs from "@/messages/cs.json"
 import { IDENTITY_FIELDS } from "@/lib/ares/suggestions"
+import { managesPeople } from "@/lib/auth/invite-policy"
 
-import { IDENTITY_FIELD_LABEL } from "../_components/labels"
+import { IDENTITY_FIELD_LABEL, ROLE_LABEL_KEY } from "../_components/labels"
 
 import {
   isActiveNastaveniNav,
   nastaveniHref,
+  nastaveniNavFor,
   NASTAVENI_DEFAULT_SLUG,
   NASTAVENI_NAV,
 } from "./nastaveni-nav"
@@ -24,10 +26,9 @@ describe("NASTAVENI_NAV", () => {
   })
 
   it("renders only the tabs that have a page behind them", () => {
-    // Lidé is PR 22. A tab that renders and then 404s is worse than one that
-    // does not exist yet (the repo's no-dead-links / no-placeholder rules).
     expect(NASTAVENI_NAV.map((item) => item.slug)).toEqual([
       "spolecnost",
+      "lide",
       "ucet",
     ])
   })
@@ -49,8 +50,38 @@ describe("NASTAVENI_NAV", () => {
   })
 })
 
+describe("nastaveniNavFor — spec §5 visibility", () => {
+  it("shows Lidé to the roles that administer people, and only those", () => {
+    for (const role of ["owner", "admin"] as const) {
+      expect(nastaveniNavFor(role).map((item) => item.slug)).toContain("lide")
+    }
+    for (const role of ["member", "guest"] as const) {
+      expect(nastaveniNavFor(role).map((item) => item.slug)).not.toContain(
+        "lide",
+      )
+    }
+  })
+
+  it("agrees with the invite matrix rather than restating it", () => {
+    // The tab is derived from `managesPeople`, so a change to the matrix moves
+    // the tab with it. This asserts the two cannot part company.
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      const visible = nastaveniNavFor(role).some((item) => item.slug === "lide")
+      expect(visible).toBe(managesPeople({ kind: "organization", role }))
+    }
+  })
+
+  it("never hides the tabs that belong to everyone", () => {
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      const slugs = nastaveniNavFor(role).map((item) => item.slug)
+      expect(slugs).toContain("spolecnost")
+      expect(slugs).toContain("ucet")
+    }
+  })
+})
+
 describe("isActiveNastaveniNav", () => {
-  const [spolecnost, ucet] = NASTAVENI_NAV
+  const [spolecnost, , ucet] = NASTAVENI_NAV
 
   it("matches a tab on its own path and its subpaths", () => {
     expect(
@@ -101,5 +132,30 @@ describe("identity field labels", () => {
       const [namespace, name] = key.split(".") as [keyof typeof betaCs, string]
       expect(betaCs[namespace]).toHaveProperty(name)
     }
+  })
+})
+
+describe("role labels — spec §2.6.1", () => {
+  it("resolves every role against the catalog", () => {
+    for (const key of Object.values(ROLE_LABEL_KEY)) {
+      const [namespace, name] = key.split(".") as [keyof typeof betaCs, string]
+      expect(betaCs[namespace]).toHaveProperty(name)
+    }
+  })
+
+  it("uses the spec's display names, not the enum names", () => {
+    // The whole argument for the recommendation is that "member" must not read
+    // as the smaller of two options to somebody assigning it, so the exact
+    // Czech strings are the contract — not a detail the catalog may drift on.
+    expect(ROLE_LABEL_KEY).toEqual({
+      owner: "nastaveni.roleOwner",
+      admin: "nastaveni.roleAdmin",
+      member: "nastaveni.roleMember",
+      guest: "nastaveni.roleGuest",
+    })
+    expect(betaCs.nastaveni.roleOwner).toBe("Účetní")
+    expect(betaCs.nastaveni.roleAdmin).toBe("Majitel společnosti")
+    expect(betaCs.nastaveni.roleMember).toBe("Pracovník firmy (vedení)")
+    expect(betaCs.nastaveni.roleGuest).toBe("Host")
   })
 })

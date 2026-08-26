@@ -78,6 +78,21 @@ export function mayGrantRole(issuer: InviteIssuer, role: BetaOrgRole): boolean {
 }
 
 /**
+ * Whether this issuer administers people AT ALL — spec §5's visibility rule for
+ * Nastavení › Lidé, expressed as the predicate that already decides every
+ * individual act rather than as a second list of roles.
+ *
+ * "Who may see the tab" and "who may do anything on it" are the same question,
+ * and answering them from two places is how a tab ends up rendering an invite
+ * form whose every submission is refused (or, worse, the reverse). `member` and
+ * `guest` invite nothing, so `invitableRoles` is empty for them, so the tab is
+ * not theirs — one fact, one derivation.
+ */
+export function managesPeople(issuer: InviteIssuer): boolean {
+  return invitableRoles(issuer).length > 0
+}
+
+/**
  * Which link purposes this issuer may mint.
  *
  * `password_reset` and an org-less `account_setup` are office-staff acts and
@@ -91,7 +106,7 @@ export function mayIssuePurpose(
   purpose: BetaSetupTokenPurpose,
 ): boolean {
   if (issuer.kind === "office") return true
-  return purpose === "org_invite" && invitableRoles(issuer).length > 0
+  return purpose === "org_invite" && managesPeople(issuer)
 }
 
 /**
@@ -136,6 +151,66 @@ export function mayChangeRole(
   return true
 }
 
+/**
+ * The DEACTIVATION ceiling.
+ *
+ * WHY IT IS IN THIS FILE AND NOT AN `if` IN THE WRITE. Deactivating a seat and
+ * demoting it are the same act measured by outcome: both take an organization's
+ * accountant out of the book they keep. `mayChangeRole` already refuses a
+ * company admin who reaches for an owner, and until this function existed
+ * `setMembershipActive` had no ceiling at all — so the rule the invite matrix
+ * spells out ("admin: admin | member | guest, NEVER owner") held on one verb and
+ * not on the other, which is the drift the matrix lives in one module to
+ * prevent. The ceiling is therefore the SAME one: an issuer may deactivate only
+ * a role they could have granted.
+ *
+ * THE DATABASE IS NOT A SUBSTITUTE HERE. `beta_prevent_last_owner_removal`
+ * refuses the deactivation that would empty an organization of owners
+ * (migration 0002 — its UPDATE arm fires on `NEW.active = false`), but an
+ * organization with two accountants has a spare, so the trigger permits
+ * deactivating either one. That floor answers "does the book still have an
+ * owner", never "was this issuer allowed to ask" — the second question has no
+ * database expression, and this is it.
+ *
+ * SELF-DEACTIVATION IS REFUSED ON THE ORGANIZATION DOOR, and permitted on the
+ * office one. It is the same asymmetry `mayChangeRole` documents, for a
+ * narrower reason: a client-side admin who deactivates their own seat is
+ * instantly outside the organization (`requireScope` reads `active`), so the
+ * one person who could undo it no longer can — the recovery is a phone call to
+ * the accounting office. There is no act it enables that "invite a replacement,
+ * then have them do it" does not, so refusing it removes a self-lockout without
+ * removing a capability. Office staff keep it: /admin is the break-glass, and
+ * an accountant tidying up their own membership in a book they no longer keep
+ * is the ordinary case.
+ */
+export function mayDeactivate(
+  issuer: InviteIssuer,
+  input: {
+    readonly issuerUserId: string
+    readonly targetUserId: string
+    /** The role the target holds RIGHT NOW — the thing being taken away. */
+    readonly targetRole: BetaOrgRole
+  },
+): boolean {
+  if (!invitableRoles(issuer).includes(input.targetRole)) return false
+  if (
+    issuer.kind === "organization" &&
+    input.issuerUserId === input.targetUserId
+  ) {
+    return false
+  }
+  return true
+}
+
+/**
+ * REACTIVATION never raises a role, so it needs no separate ceiling beyond
+ * `mayDeactivate`'s: the row keeps whatever role it was deactivated with, and
+ * `resolveReactivationRole` (`setup-token.ts`) is what stops a link from
+ * lowering it. The symmetric question — may this issuer switch the seat back on
+ * — is the same ceiling as switching it off, so both verbs call the function
+ * above.
+ */
+
 /** owner > admin > member > guest, for the self-demotion test only. */
 const ROLE_RANK: Record<BetaOrgRole, number> = {
   owner: 3,
@@ -146,4 +221,35 @@ const ROLE_RANK: Record<BetaOrgRole, number> = {
 
 function isDemotion(current: BetaOrgRole, next: BetaOrgRole): boolean {
   return ROLE_RANK[next] < ROLE_RANK[current]
+}
+
+/**
+ * The role a REACTIVATED membership ends up holding, given the role it was
+ * deactivated with and the role a consumed link grants.
+ *
+ * THE BUG THIS EXISTS TO CLOSE. `grantMembership` used to write the link's role
+ * straight onto a reactivated row. A company admin may issue `guest` invites,
+ * and a deactivated OWNER's row is still an owner row — so re-inviting a
+ * deactivated accountant at `guest` silently demoted them on the way back in,
+ * handing a lower privilege level a demotion primitive it is refused everywhere
+ * else (`mayChangeRole` exists precisely to refuse it). The membership was
+ * inactive, so `beta_prevent_last_owner_removal` had nothing to catch either:
+ * the row was never an *active* owner during the write.
+ *
+ * THE RULE IS `max(stored, granted)`, not "refuse". A refusal would break the
+ * ordinary case the reactivation path is FOR — an office re-inviting somebody
+ * who left at a lower seat than they held before is a legitimate, common act,
+ * and answering it with an error the invitee sees (the link they were sent is
+ * "invalid") is a worse failure than the one being fixed. Taking the maximum
+ * keeps the invariant that matters — a link can never LOWER a role — while
+ * still letting a link raise one, which is exactly what an invite is for and
+ * what the issuance-side ceiling has already authorized.
+ */
+export function resolveReactivationRole(
+  storedRole: BetaOrgRole,
+  grantedRole: BetaOrgRole,
+): BetaOrgRole {
+  return ROLE_RANK[grantedRole] > ROLE_RANK[storedRole]
+    ? grantedRole
+    : storedRole
 }

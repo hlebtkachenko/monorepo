@@ -60,6 +60,18 @@ function as(account: TestAccount): void {
   request.headers = account.headers
 }
 
+/**
+ * Undo the fixture's default (PR 22: a staff account is seeded ENROLLED, because
+ * the tenancy seam now refuses an office account that is not, and every other
+ * suite wants an accountant rather than a locked-out one). This suite's subject
+ * is precisely the locked-out state, so it asks for it explicitly.
+ */
+async function markUnenrolled(userId: string): Promise<void> {
+  await sql`
+    UPDATE app_user SET two_factor_enabled = false WHERE id = ${userId}
+  `
+}
+
 /** Better Auth's plugin owns this column; the fixture writes it directly. */
 async function markEnrolled(userId: string): Promise<void> {
   await sql`
@@ -89,6 +101,7 @@ let org: TestOrganization
 
 beforeEach(async () => {
   org = await seedOrganization()
+  await markUnenrolled(org.members.owner.userId)
   navigation.redirectedTo = []
 })
 
@@ -116,7 +129,7 @@ describe("requireTotpEnrolment — the routing matrix", () => {
   it("blocks office staff who hold no owner membership at all", async () => {
     // The gap that keying on the membership alone would leave: `is_staff` opens
     // /admin, which can mint memberships into every client book.
-    const staff = await createAccount({ staff: true })
+    const staff = await createAccount({ staff: true, twoFactorEnabled: false })
     as(staff)
     expect(await passesGate()).toBe(false)
   })
@@ -144,7 +157,10 @@ describe("requireTotpEnrolment — the routing matrix", () => {
     // future reader does not mistake that filter for "archiving a book
     // un-mandates its accountant".
     const archivable = await createOrganization()
-    const accountant = await createAccount({ staff: true })
+    const accountant = await createAccount({
+      staff: true,
+      twoFactorEnabled: false,
+    })
     await addMembership(archivable.organizationId, accountant.userId, "owner")
 
     as(accountant)

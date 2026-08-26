@@ -73,6 +73,19 @@ export const authNoIpRateLimiter = createRateLimiter()
 export const officeIssueRateLimiter = createRateLimiter()
 
 /**
+ * Setup-link issuance from Nastavení › Lidé — a SEPARATE instance from the
+ * office one above, deliberately.
+ *
+ * Both are blast-radius caps on a stolen session rather than anti-guessing
+ * budgets, but they cap different blasts: /admin can mint into every book in the
+ * database, Lidé into exactly one. Sharing a limiter would let a busy office
+ * afternoon exhaust a client company's budget (and the reverse), and the
+ * opportunistic sweep in `createRateLimiter` would let one surface's traffic
+ * evict the other's buckets.
+ */
+export const orgInviteRateLimiter = createRateLimiter()
+
+/**
  * The agent ingestion API's two budgets (`lib/agent/auth.ts`).
  *
  * Separate instances, and separate from every limiter above: the IP bucket is

@@ -1,5 +1,6 @@
 import "server-only"
 
+import type { BetaOrgRole } from "@/db/schema"
 import {
   IDENTITY_FIELDS,
   isAresField,
@@ -19,6 +20,42 @@ import {
 export function formString(formData: FormData, key: string): string {
   const value = formData.get(key)
   return typeof value === "string" ? value.trim() : ""
+}
+
+/**
+ * The Lidé helpers (PR 22). Deliberately duplicated from `admin/_actions/
+ * input.ts` rather than shared: both files exist to state that THIS boundary
+ * reads THESE fields, and a shared "form input" module is the kind of
+ * convenience that ends with one surface accepting a field the other never
+ * meant to offer. Three total functions of two lines each is a cheaper price
+ * than a common vocabulary between two doors with different privileges.
+ */
+
+const ORG_ROLES: readonly BetaOrgRole[] = ["owner", "admin", "member", "guest"]
+
+export function formRole(formData: FormData, key: string): BetaOrgRole | null {
+  const value = formString(formData, key)
+  return ORG_ROLES.find((role) => role === value) ?? null
+}
+
+/** A deliberate two-state field: "the field was missing" is never `false`. */
+export function formFlag(formData: FormData, key: string): boolean | null {
+  const value = formString(formData, key)
+  if (value === "true") return true
+  if (value === "false") return false
+  return null
+}
+
+/**
+ * Postgres answers a non-uuid `= $1` against a uuid column with 22P02, which
+ * reaches the browser as a 500. A malformed id has to be an ordinary refusal so
+ * a probe cannot tell a typo from a real id it is not allowed to see.
+ */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function formUuid(formData: FormData, key: string): string | null {
+  const value = formString(formData, key)
+  return UUID.test(value) ? value : null
 }
 
 function formOptionalString(formData: FormData, key: string): string | null {

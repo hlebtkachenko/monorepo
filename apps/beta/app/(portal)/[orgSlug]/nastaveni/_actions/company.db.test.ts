@@ -37,7 +37,7 @@ import {
 const request = vi.hoisted(() => ({ headers: new Headers() }))
 const registry = vi.hoisted(() => ({
   result: null as
-    | { ok: true; profile: unknown; cached: boolean }
+    | { ok: true; profile: unknown; cached: boolean; fetchedAtMs: number }
     | { ok: false; reason: "not_found" | "unavailable" }
     | null,
   calls: [] as string[],
@@ -140,7 +140,12 @@ afterAll(async () => {
 })
 
 beforeEach(() => {
-  registry.result = { ok: true, profile: profile(), cached: false }
+  registry.result = {
+    ok: true,
+    profile: profile(),
+    cached: false,
+    fetchedAtMs: Date.now(),
+  }
   registry.calls = []
 })
 
@@ -337,13 +342,72 @@ describe("lookupAresAction — suggest, never write", () => {
   })
 
   it("reports a cache hit as one", async () => {
-    registry.result = { ok: true, profile: profile(), cached: true }
+    registry.result = {
+      ok: true,
+      profile: profile(),
+      cached: true,
+      fetchedAtMs: Date.now(),
+    }
     as(org.members.owner.headers)
     const result = await actions.lookupAresAction(
       IDLE,
       fd({ orgSlug: org.slug, ico: "25012345" }),
     )
     expect(result).toMatchObject({ status: "suggestions", cached: true })
+  })
+
+  it("stamps the REGISTRY's moment on a cache hit, not now", async () => {
+    // Advisor carry-in (PR 21 → 22). `ares_fetched_at` means "when ARES last
+    // told us this". Stamping `new Date()` on a cache HIT slid the column
+    // forward on every click: a card nobody had reconciled in 23 hours claimed
+    // it had been reconciled a second ago, and the 24h window it describes
+    // never closed.
+    const answeredAtMs = Date.now() - 6 * 60 * 60 * 1000
+    registry.result = {
+      ok: true,
+      profile: profile(),
+      cached: true,
+      fetchedAtMs: answeredAtMs,
+    }
+
+    as(org.members.owner.headers)
+    const result = await actions.lookupAresAction(
+      IDLE,
+      fd({ orgSlug: org.slug, ico: "25012345" }),
+    )
+
+    expect(result).toMatchObject({ status: "suggestions", cached: true })
+    if (result.status !== "suggestions") throw new Error("unreachable")
+    expect(new Date(result.fetchedAt).getTime()).toBe(answeredAtMs)
+
+    const stamped = (await readCard(org)).aresFetchedAt
+    expect(stamped).not.toBeNull()
+    expect(new Date(stamped!).getTime()).toBe(answeredAtMs)
+  })
+
+  it("stamps the same moment through the ACCEPT path too", async () => {
+    // `acceptAresAction` re-derives the suggestions and stamps as well, so the
+    // forward-slide had a second entrance.
+    const answeredAtMs = Date.now() - 3 * 60 * 60 * 1000
+    registry.result = {
+      ok: true,
+      profile: profile(),
+      cached: true,
+      fetchedAtMs: answeredAtMs,
+    }
+
+    as(org.members.owner.headers)
+    await actions.acceptAresAction(
+      IDLE,
+      fd({
+        orgSlug: org.slug,
+        ico: "25012345",
+        intent: "acceptAll",
+      }),
+    )
+
+    const stamped = (await readCard(org)).aresFetchedAt
+    expect(new Date(stamped!).getTime()).toBe(answeredAtMs)
   })
 
   it("keeps the form editable when ARES is down, and does not stamp", async () => {
@@ -546,6 +610,7 @@ describe("acceptAresAction — per-field accept", () => {
       ok: true,
       profile: profile({ dic: null }),
       cached: false,
+      fetchedAtMs: Date.now(),
     }
     const before = await readCard(org)
 

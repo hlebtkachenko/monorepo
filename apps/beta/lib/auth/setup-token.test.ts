@@ -492,6 +492,126 @@ describe("org_invite", () => {
     `
     expect(row!.count).toBe(0)
   })
+
+  /**
+   * REACTIVATION — the demotion primitive that hid behind `active = false`
+   * (Advisor carry-in, PR 06 → 09 → 22).
+   *
+   * "Never demotes a LIVE membership" was already asserted above. The gap was
+   * the dormant one: an inactive row still HOLDS its role, and reactivating it
+   * used to write the link's role over it. So a company admin — who may issue
+   * `guest` links and nothing higher — could deactivate the accountant and then
+   * re-invite them at `guest`, achieving in two steps exactly the demotion the
+   * matrix refuses in one. `beta_prevent_last_owner_removal` never fires,
+   * because the row is not an ACTIVE owner at any point during the write.
+   */
+  describe("reactivating a dormant membership", () => {
+    async function seatAndDeactivate(
+      orgId: string,
+      staffId: string,
+      role: BetaOrgRole,
+    ): Promise<{ userId: string; email: string }> {
+      const email = `${unique("dormant")}@example.com`
+      const userId = await createUser(role === "owner", email)
+      await sql`
+        INSERT INTO organization_membership (organization_id, user_id, role, active)
+        VALUES (${orgId}, ${userId}, ${role}, true)
+      `
+      // A second owner first, or the last-owner trigger refuses to put the
+      // first one to sleep.
+      await sql`
+        UPDATE organization_membership SET active = false
+         WHERE organization_id = ${orgId} AND user_id = ${userId}
+      `
+      return { userId, email }
+    }
+
+    async function roleOf(orgId: string, userId: string) {
+      const [row] = await sql<{ role: BetaOrgRole; active: boolean }[]>`
+        SELECT role, active FROM organization_membership
+         WHERE organization_id = ${orgId} AND user_id = ${userId}
+      `
+      return row!
+    }
+
+    it("never lowers the stored role — a guest link cannot demote a dormant owner", async () => {
+      const { orgId, staffId } = await orgWithOwner()
+      const dormant = await seatAndDeactivate(orgId, staffId, "owner")
+
+      const { raw } = await issue({
+        purpose: "org_invite",
+        email: dormant.email,
+        issuedBy: staffId,
+        organizationId: orgId,
+        grantedRole: "guest",
+      })
+      expect(
+        await consume(raw, { sessionUserId: dormant.userId }),
+      ).toMatchObject({ ok: true })
+
+      expect(await roleOf(orgId, dormant.userId)).toEqual({
+        role: "owner",
+        active: true,
+      })
+    })
+
+    it("does not lower an admin to guest either", async () => {
+      const { orgId, staffId } = await orgWithOwner()
+      const dormant = await seatAndDeactivate(orgId, staffId, "admin")
+
+      const { raw } = await issue({
+        purpose: "org_invite",
+        email: dormant.email,
+        issuedBy: staffId,
+        organizationId: orgId,
+        grantedRole: "guest",
+      })
+      await consume(raw, { sessionUserId: dormant.userId })
+
+      expect(await roleOf(orgId, dormant.userId)).toEqual({
+        role: "admin",
+        active: true,
+      })
+    })
+
+    it("still RAISES a role — that is what an invite is for", async () => {
+      const { orgId, staffId } = await orgWithOwner()
+      const dormant = await seatAndDeactivate(orgId, staffId, "guest")
+
+      const { raw } = await issue({
+        purpose: "org_invite",
+        email: dormant.email,
+        issuedBy: staffId,
+        organizationId: orgId,
+        grantedRole: "admin",
+      })
+      await consume(raw, { sessionUserId: dormant.userId })
+
+      expect(await roleOf(orgId, dormant.userId)).toEqual({
+        role: "admin",
+        active: true,
+      })
+    })
+
+    it("reactivates at the same role when the link agrees", async () => {
+      const { orgId, staffId } = await orgWithOwner()
+      const dormant = await seatAndDeactivate(orgId, staffId, "member")
+
+      const { raw } = await issue({
+        purpose: "org_invite",
+        email: dormant.email,
+        issuedBy: staffId,
+        organizationId: orgId,
+        grantedRole: "member",
+      })
+      await consume(raw, { sessionUserId: dormant.userId })
+
+      expect(await roleOf(orgId, dormant.userId)).toEqual({
+        role: "member",
+        active: true,
+      })
+    })
+  })
 })
 
 describe("claiming an identity that already exists", () => {

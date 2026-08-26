@@ -20,6 +20,7 @@ import { isCheckViolation, isDeadlock } from "@/lib/pg-error"
 import {
   mayGrantRole,
   mayIssuePurpose,
+  resolveReactivationRole,
   type InviteIssuer,
 } from "./invite-policy"
 import { BETA_SETUP_LINK_TTL_HOURS } from "./policy"
@@ -775,8 +776,18 @@ async function accountExists(tx: Tx, userId: string): Promise<boolean> {
  * An ALREADY-ACTIVE membership is left exactly as it is. A link must never
  * change the role of a live membership: an admin may issue `guest` invites, and
  * re-sending one to an existing owner would otherwise be a demotion primitive
- * handed to a lower privilege level. An inactive membership is reactivated with
- * the role the link grants — there is no live privilege to lose there.
+ * handed to a lower privilege level.
+ *
+ * AN INACTIVE MEMBERSHIP IS REACTIVATED AT `max(stored, granted)`, NOT AT THE
+ * LINK'S ROLE. The earlier version wrote the link's role unconditionally, on the
+ * reasoning that an inactive row has "no live privilege to lose". That reasoning
+ * was wrong in one direction: the row is dormant, not empty, and a deactivated
+ * OWNER row reactivated by an admin-issued `guest` link came back as a guest —
+ * the exact demotion primitive the paragraph above refuses for the active case,
+ * reachable by deactivating first. `beta_prevent_last_owner_removal` does not
+ * cover it either, because the row was never an ACTIVE owner during the write.
+ * The rule itself lives in `invite-policy.ts` next to the rest of the matrix;
+ * see `resolveReactivationRole` for why it is a maximum rather than a refusal.
  */
 async function grantMembership(
   tx: Tx,
@@ -786,6 +797,7 @@ async function grantMembership(
     .select({
       id: organization_membership.id,
       active: organization_membership.active,
+      role: organization_membership.role,
     })
     .from(organization_membership)
     .where(
@@ -808,7 +820,10 @@ async function grantMembership(
   if (!existing.active) {
     await tx
       .update(organization_membership)
-      .set({ active: true, role: values.role })
+      .set({
+        active: true,
+        role: resolveReactivationRole(existing.role, values.role),
+      })
       .where(eq(organization_membership.id, existing.id))
   }
 }

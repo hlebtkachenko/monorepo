@@ -10,11 +10,26 @@ import { useBetaTranslations } from "@/i18n/translations"
 import {
   isActiveNastaveniNav,
   nastaveniHref,
-  NASTAVENI_NAV,
+  type NastaveniNavItem,
 } from "../_nav/nastaveni-nav"
 
-/** The §2.10 tab row. Mirrors `DaneNavTabs`'s shape deliberately. */
-export function NastaveniNavTabs({ orgSlug }: { orgSlug: string }) {
+/**
+ * The §2.10 tab row. Mirrors `DaneNavTabs`'s shape deliberately.
+ *
+ * `items` is a PROP rather than the module constant (PR 22): Lidé is visible to
+ * owner and admin only, and the filter belongs on the server that already
+ * resolved the role. Passing the finished list means this component holds no
+ * visibility rule at all and cannot be made to render a tab by editing state in
+ * devtools — the page behind it 404s for the same viewer regardless, but a nav
+ * that advertises a surface somebody may not open is its own small leak.
+ */
+export function NastaveniNavTabs({
+  orgSlug,
+  items,
+}: {
+  orgSlug: string
+  items: readonly NastaveniNavItem[]
+}) {
   const pathname = usePathname() ?? ""
   const t = useBetaTranslations()
 
@@ -23,7 +38,7 @@ export function NastaveniNavTabs({ orgSlug }: { orgSlug: string }) {
       aria-label={t("nastaveni.navLabel")}
       className="flex flex-wrap gap-1 border-b border-border-subtle px-6 pt-3 pb-2"
     >
-      {NASTAVENI_NAV.map((item) => {
+      {items.map((item) => {
         const href = nastaveniHref(orgSlug, item.slug)
         const active = isActiveNastaveniNav(item, orgSlug, pathname)
         return (

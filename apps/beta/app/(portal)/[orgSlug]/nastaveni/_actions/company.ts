@@ -227,7 +227,13 @@ async function deriveSuggestions(
   return {
     ok: true,
     suggestions: aresSuggestions(identity, result.profile),
-    fetchedAt: new Date(),
+    // THE REGISTRY'S OWN MOMENT, never `new Date()` (Advisor carry-in, PR 21 →
+    // 22). `ares_fetched_at` means "when ARES last told us this", and a cache
+    // hit is not ARES telling us anything — stamping `now()` on one slid the
+    // column forward on every click, so a card that had not been reconciled in
+    // 23 hours claimed it had been reconciled a second ago. `lookup.ts` returns
+    // the moment behind the profile it is handing over; this writes that.
+    fetchedAt: new Date(result.fetchedAtMs),
     cached: result.cached,
   }
 }

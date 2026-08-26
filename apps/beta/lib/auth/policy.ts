@@ -218,6 +218,16 @@ export const BETA_AUTH_NO_IP_RATE_LIMIT = { window: 60, max: 20 } as const
 export const BETA_OFFICE_ISSUE_RATE_LIMIT = { window: 60, max: 20 } as const
 
 /**
+ * Organization invite limit (Nastavení › Lidé, PR 22). Tighter than the office's
+ * because the legitimate ceiling is lower: an office provisions many books in a
+ * sitting, a company invites its own handful of people. A client admin who has
+ * genuinely sent ten invites in a minute has made a mistake; an attacker holding
+ * their session has been slowed to a rate the office notices in the link
+ * registry.
+ */
+export const BETA_ORG_INVITE_RATE_LIMIT = { window: 60, max: 10 } as const
+
+/**
  * Agent ingestion budgets (spec §3.2), two of them, keyed on different things.
  *
  * PER IP, spent BEFORE the credential is hashed: it is the anti-guessing budget,

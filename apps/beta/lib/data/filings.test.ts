@@ -9,6 +9,8 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
+import type { BetaFilingFamily, BetaFilingKind } from "@/db/schema"
+
 import {
   attachDocumentToFiling,
   createDocumentRow,
@@ -32,6 +34,7 @@ const { requireScope } = await import("./scope")
 const {
   filingsForScope,
   visibleFilingFamiliesForScope,
+  filingYtdPaidByFamily,
   createFiling,
   updateFiling,
   deleteFilings,
@@ -196,6 +199,58 @@ describe("filingsForScope — a scoped read", () => {
     as(org.members.admin.headers)
     const [row] = await filingsForScope(await requireScope(org.slug))
     expect(row!.overdue).toBe(false)
+  })
+
+  it("marks an unpaid filing overdue the day after its deadline, not before", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const yesterday = await createFilingRow(org.organizationId, periodId, {
+      dueInDays: -1,
+    })
+    const tomorrow = await createFilingRow(org.organizationId, periodId, {
+      dueInDays: 1,
+    })
+
+    as(org.members.admin.headers)
+    const rows = await filingsForScope(await requireScope(org.slug))
+    const byId = new Map(rows.map((row) => [row.id, row.overdue]))
+    expect(byId.get(yesterday)).toBe(true)
+    expect(byId.get(tomorrow)).toBe(false)
+  })
+
+  it("maps every filing kind to exactly the family spec §2.3 names", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const expected: Record<BetaFilingKind, BetaFilingFamily> = {
+      dph_priznani: "dph",
+      dph_kontrolni_hlaseni: "dph",
+      dph_souhrnne_hlaseni: "dph",
+      dppo_priznani: "dan_z_prijmu",
+      dppo_zaloha: "dan_z_prijmu",
+      ucetni_zaverka: "dan_z_prijmu",
+      vyuctovani_dane: "mzdove_odvody",
+      prehled_cssz: "mzdove_odvody",
+      prehled_zp: "mzdove_odvody",
+      jmhz: "mzdove_odvody",
+      silnicni_dan: "ostatni",
+      ostatni: "ostatni",
+    }
+
+    for (const kind of Object.keys(expected) as BetaFilingKind[]) {
+      await createFilingRow(org.organizationId, periodId, { kind })
+    }
+
+    as(org.members.admin.headers)
+    const rows = await filingsForScope(await requireScope(org.slug))
+    const familyByKind = new Map(rows.map((row) => [row.kind, row.family]))
+
+    for (const [kind, family] of Object.entries(expected) as [
+      BetaFilingKind,
+      BetaFilingFamily,
+    ][]) {
+      expect(familyByKind.get(kind), kind).toBe(family)
+    }
   })
 
   it("filters by family — the five §2.3 sidebar entries over one table", async () => {
@@ -402,6 +457,89 @@ describe("hasAttachment — the four document filters, mirrored", () => {
   })
 })
 
+/**
+ * `attachmentDocumentId` (PR 17, Daně a podání's download link) has to agree
+ * with `hasAttachment` in every case the suite above already exercises — not
+ * a second copy of that coverage, a check that the two never disagree,
+ * because a UI that trusted `hasAttachment` to gate a link built from
+ * `attachmentDocumentId` would be exactly wrong the one time they diverged.
+ */
+describe("attachmentDocumentId — mirrors hasAttachment exactly", () => {
+  it("equals the visible document's id when hasAttachment is true", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const filingId = await createFilingRow(org.organizationId, periodId)
+    const documentId = await createDocumentRow(org.organizationId)
+    await attachDocumentToFiling(filingId, documentId)
+
+    as(org.members.guest.headers)
+    const [row] = await filingsForScope(await requireScope(org.slug))
+    expect(row!.hasAttachment).toBe(true)
+    expect(row!.attachmentDocumentId).toBe(documentId)
+  })
+
+  it("is null in every case hasAttachment is false — absent, soft-deleted, hidden, payslip", async () => {
+    const org = await seedOrganization()
+
+    // No attachment at all.
+    const barePeriod = await createMonthPeriod(org.organizationId)
+    await createFilingRow(org.organizationId, barePeriod)
+
+    // Soft-deleted document.
+    const deletedPeriod = await createMonthPeriod(org.organizationId)
+    const deletedFilingId = await createFilingRow(
+      org.organizationId,
+      deletedPeriod,
+    )
+    const deletedDocumentId = await createDocumentRow(org.organizationId)
+    await attachDocumentToFiling(deletedFilingId, deletedDocumentId)
+    await softDeleteDocument(deletedDocumentId)
+
+    // Office-hidden document.
+    const hiddenPeriod = await createMonthPeriod(org.organizationId)
+    const hiddenFilingId = await createFilingRow(
+      org.organizationId,
+      hiddenPeriod,
+    )
+    const hiddenDocumentId = await createDocumentRow(org.organizationId, {
+      visibleToClient: false,
+    })
+    await attachDocumentToFiling(hiddenFilingId, hiddenDocumentId)
+
+    // A payslip document.
+    const payslipPeriod = await createMonthPeriod(org.organizationId)
+    const payslipFilingId = await createFilingRow(
+      org.organizationId,
+      payslipPeriod,
+    )
+    const payslipDocumentId = await createDocumentRow(org.organizationId, {
+      docType: "payslip",
+    })
+    await attachDocumentToFiling(payslipFilingId, payslipDocumentId)
+
+    // The hidden document, read by the owner: hasAttachment flips true, but
+    // the payslip stays absent even for the owner (fail closed, spec §2.2).
+    as(org.members.owner.headers)
+    const ownerRows = await filingsForScope(await requireScope(org.slug))
+    for (const row of ownerRows) {
+      if (row.id === hiddenFilingId) {
+        expect(row.hasAttachment).toBe(true)
+        expect(row.attachmentDocumentId).toBe(hiddenDocumentId)
+      } else {
+        expect(row.hasAttachment, row.id).toBe(false)
+        expect(row.attachmentDocumentId, row.id).toBeNull()
+      }
+    }
+
+    as(org.members.admin.headers)
+    const adminRows = await filingsForScope(await requireScope(org.slug))
+    for (const row of adminRows) {
+      expect(row.hasAttachment, row.id).toBe(false)
+      expect(row.attachmentDocumentId, row.id).toBeNull()
+    }
+  })
+})
+
 describe("visibleFilingFamiliesForScope — the §2.3 DPH gate", () => {
   it("hides DPH from a neplátce with no DPH history", async () => {
     const org = await seedOrganization({ vatRegime: "neplatce" })
@@ -455,6 +593,72 @@ describe("visibleFilingFamiliesForScope — the §2.3 DPH gate", () => {
     expect(
       await visibleFilingFamiliesForScope(await requireScope(org.slug)),
     ).not.toContain("dph")
+  })
+})
+
+describe("filingYtdPaidByFamily — Souhrn's YTD-paid-per-family sum", () => {
+  it("returns all four families, zero-filled, for an organization with no filings at all", async () => {
+    const org = await seedOrganization()
+    as(org.members.admin.headers)
+
+    const rows = await filingYtdPaidByFamily(await requireScope(org.slug))
+    expect(rows.map((r) => r.family).sort()).toEqual(
+      ["dan_z_prijmu", "dph", "mzdove_odvody", "ostatni"].sort(),
+    )
+    expect(rows.every((r) => r.paidTotal === "0.00")).toBe(true)
+  })
+
+  it("sums only PAID filings, this calendar year, grouped by family", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const now = new Date()
+
+    // Paid this year — counted.
+    await createFilingRow(org.organizationId, periodId, {
+      kind: "dph_priznani",
+      amountDue: "1000.00",
+      paidAt: now,
+    })
+    await createFilingRow(org.organizationId, periodId, {
+      kind: "dph_kontrolni_hlaseni",
+      amountDue: "500.50",
+      paidAt: now,
+    })
+    // Unpaid — not counted, however large.
+    await createFilingRow(org.organizationId, periodId, {
+      kind: "dppo_priznani",
+      amountDue: "99999.00",
+      paidAt: null,
+    })
+    // Paid, but a prior year — not counted.
+    await createFilingRow(org.organizationId, periodId, {
+      kind: "prehled_cssz",
+      amountDue: "300.00",
+      paidAt: new Date("2000-01-01T00:00:00Z"),
+    })
+
+    as(org.members.admin.headers)
+    const rows = await filingYtdPaidByFamily(await requireScope(org.slug))
+    const byFamily = new Map(rows.map((r) => [r.family, r.paidTotal]))
+
+    expect(byFamily.get("dph")).toBe("1500.50")
+    expect(byFamily.get("dan_z_prijmu")).toBe("0.00")
+    expect(byFamily.get("mzdove_odvody")).toBe("0.00")
+  })
+
+  it("belongs to one organization only", async () => {
+    const org = await seedOrganization()
+    const foreign = await seedOrganization()
+    const periodId = await createMonthPeriod(foreign.organizationId)
+    await createFilingRow(foreign.organizationId, periodId, {
+      kind: "dph_priznani",
+      amountDue: "5000.00",
+      paidAt: new Date(),
+    })
+
+    as(org.members.admin.headers)
+    const rows = await filingYtdPaidByFamily(await requireScope(org.slug))
+    expect(rows.every((r) => r.paidTotal === "0.00")).toBe(true)
   })
 })
 

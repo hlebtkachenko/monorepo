@@ -2,7 +2,11 @@ import "server-only"
 
 import {
   BETA_CLIENT_DOCUMENT_TYPES,
+  betaAccountKind,
+  betaAccountMatchKind,
   betaClientTaskLinkKind,
+  type BetaAccountKind,
+  type BetaAccountMatchKind,
   type BetaClientDocumentType,
   type BetaClientTaskLinkKind,
   type BetaFilingKind,
@@ -308,4 +312,70 @@ export function formClientTaskLinkKind(
   return (
     betaClientTaskLinkKind.enumValues.find((kind) => kind === value) ?? null
   )
+}
+
+// ---------------------------------------------------------------------------
+// Účty a hotovost (PR 27) — the account map's own fields
+// ---------------------------------------------------------------------------
+
+/**
+ * `beta_account_kind` and `beta_account_match_kind`, read off the pgEnums the
+ * same way `formClientTaskLinkKind` is: an unrecognised value is a refusal,
+ * never a cast. Both enums are total here (unlike `formObligationGroup`, whose
+ * list is the enum MINUS one value) — every kind a client can have is a kind
+ * the office may assign.
+ */
+export function formAccountKind(
+  formData: FormData,
+  key: string,
+): BetaAccountKind | null {
+  const value = formString(formData, key)
+  return betaAccountKind.enumValues.find((kind) => kind === value) ?? null
+}
+
+export function formAccountMatchKind(
+  formData: FormData,
+  key: string,
+): BetaAccountMatchKind | null {
+  const value = formString(formData, key)
+  return betaAccountMatchKind.enumValues.find((kind) => kind === value) ?? null
+}
+
+/**
+ * An účet as the office's rozvrh spells it — 1 to 20 characters, no padding.
+ *
+ * Mirrors `account_balance_map_account_code_shape` (migration 0014) and NOTHING
+ * MORE. There is deliberately no digit rule: a Czech účtový rozvrh carries
+ * "343.01", "311100" and worse, and a validator that guessed wrong would refuse
+ * a real client's real rozvrh. The one rule that IS enforced is the one the
+ * matching depends on — a leading or trailing space would make a prefix entry
+ * match nothing while looking correct in every UI that renders it.
+ */
+export function formAccountCode(
+  formData: FormData,
+  key: string,
+): string | null {
+  // `formString` already trims, so this cannot be tripped by the padding it
+  // removes; what it catches is a value that is nothing BUT padding, and a code
+  // longer than the column.
+  const value = formString(formData, key)
+  return value.length >= 1 && value.length <= 20 ? value : null
+}
+
+/**
+ * A two-valued choice posted as an explicit `"true"` / `"false"` string.
+ *
+ * The same discipline `setFilingPaidAction` uses inline, and for the same
+ * reason: "the field was missing" must never be readable as `false`. Here it
+ * backs the Aktivní / Neaktivní select — a mis-read would retire an account and
+ * silently drop it out of the client's Účty a hotovost.
+ */
+export function formBooleanChoice(
+  formData: FormData,
+  key: string,
+): boolean | null {
+  const value = formString(formData, key)
+  if (value === "true") return true
+  if (value === "false") return false
+  return null
 }

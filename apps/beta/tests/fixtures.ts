@@ -16,6 +16,8 @@
 import postgres from "postgres"
 
 import type {
+  BetaAccountKind,
+  BetaAccountMatchKind,
   BetaClientTaskLinkKind,
   BetaDocumentType,
   BetaFilingKind,
@@ -774,6 +776,44 @@ export async function createClientTaskTemplateRow(
       ${values.description ?? null},
       ${values.templateDueDay ?? 5},
       ${values.linkKind ?? "none"}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+// ---------------------------------------------------------------------------
+// account_balance_map (PR 27) — raw SQL, same reasoning as every fixture above:
+// `lib/data/account-balances.ts`'s writes are owner-gated by their parameter
+// type, so a fixture routed through them could not seed a world for a test
+// whose subject IS that gate, and every read test would be asserting against
+// rows its own subject wrote.
+// ---------------------------------------------------------------------------
+
+export async function createAccountMappingRow(
+  organizationId: string,
+  values: {
+    accountCode?: string
+    matchKind?: BetaAccountMatchKind
+    label?: string
+    kind?: BetaAccountKind
+    sortOrder?: number
+    active?: boolean
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO account_balance_map (
+      organization_id, account_code, match_kind, friendly_label, kind,
+      sort_order, active
+    )
+    VALUES (
+      ${organizationId},
+      ${values.accountCode ?? "221"},
+      ${values.matchKind ?? "exact"},
+      ${values.label ?? "Běžný účet"},
+      ${values.kind ?? "bank"},
+      ${values.sortOrder ?? 0},
+      ${values.active ?? true}
     )
     RETURNING id
   `

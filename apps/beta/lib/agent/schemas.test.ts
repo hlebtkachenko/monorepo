@@ -17,6 +17,7 @@ import {
   hashAgentKey,
 } from "./key"
 import {
+  accountBalanceMapUpsertSchema,
   assetsUpsertSchema,
   clientTasksUpsertSchema,
   filingsUpsertSchema,
@@ -407,6 +408,116 @@ describe("clientTasksUpsertSchema", () => {
         items: [{ ...item, isTemplate: true }],
       }).success,
     ).toBe(false)
+  })
+})
+
+describe("accountBalanceMapUpsertSchema", () => {
+  const item = { accountCode: "221", label: "Bankovní účty", kind: "bank" }
+
+  it("accepts a minimal entry — the account code is the key", () => {
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({ items: [item] }).success,
+    ).toBe(true)
+  })
+
+  it("accepts the analytic codes a real rozvrh spells", () => {
+    for (const accountCode of ["221.01", "221_02", "311100", "343-1"]) {
+      expect(
+        accountBalanceMapUpsertSchema.safeParse({
+          items: [{ ...item, accountCode }],
+        }).success,
+        accountCode,
+      ).toBe(true)
+    }
+  })
+
+  it("has no externalRef field — a second match key would be the defect", () => {
+    // Every other registry needs one because it has no natural key. This one's
+    // account code IS its identity and is unique per book (migration 0014), so
+    // a second key could only ever disagree with the first.
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, externalRef: "money:acct:1" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a padded account code — a prefix match would silently miss", () => {
+    for (const accountCode of [" 221", "221 ", " ", ""]) {
+      expect(
+        accountBalanceMapUpsertSchema.safeParse({
+          items: [{ ...item, accountCode }],
+        }).success,
+        JSON.stringify(accountCode),
+      ).toBe(false)
+    }
+  })
+
+  it("refuses a code longer than the column", () => {
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, accountCode: "2".repeat(21) }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a blank label rather than storing whitespace", () => {
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, label: "   " }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a kind or match kind outside the enums", () => {
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, kind: "crypto" }],
+      }).success,
+    ).toBe(false)
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, matchKind: "regex" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a sort order the column cannot hold", () => {
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, sortOrder: 1000 }],
+      }).success,
+    ).toBe(false)
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, sortOrder: -1 }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses an empty call and an unknown field", () => {
+    expect(accountBalanceMapUpsertSchema.safeParse({ items: [] }).success).toBe(
+      false,
+    )
+    expect(
+      accountBalanceMapUpsertSchema.safeParse({
+        items: [{ ...item, balance: "100.00" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("carries no money field at all — this table stores none", () => {
+    const parsed = accountBalanceMapUpsertSchema.parse({
+      items: [{ ...item, matchKind: "prefix", sortOrder: 2, active: false }],
+    })
+    expect(Object.keys(parsed.items[0]!).sort()).toEqual([
+      "accountCode",
+      "active",
+      "kind",
+      "label",
+      "matchKind",
+      "sortOrder",
+    ])
   })
 })
 

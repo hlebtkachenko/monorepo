@@ -174,6 +174,7 @@ describe("loadZadavani — what the owner gets", () => {
       orgSlug: target.slug,
       filings: [],
       liabilities: [],
+      accounts: [],
     })
   })
 })

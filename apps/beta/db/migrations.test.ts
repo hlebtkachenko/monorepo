@@ -94,6 +94,7 @@ describe("beta migration runner", () => {
           "0011_agent_api.sql",
           "0012_notification_prefs.sql",
           "0013_two_factor_verified.sql",
+          "0014_account_balance_map.sql",
           "0016_payroll.sql",
           "0018_assistant.sql",
         ])
@@ -106,6 +107,7 @@ describe("beta migration runner", () => {
         `
         expect(tables.map((t) => t.table_name)).toEqual([
           "_beta_migrations",
+          "account_balance_map",
           "activity_log",
           "agent_key",
           "app_user",

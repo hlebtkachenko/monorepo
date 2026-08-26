@@ -2,6 +2,12 @@
 
 import { revalidatePath } from "next/cache"
 
+import type { BetaAccountKind, BetaAccountMatchKind } from "@/db/schema"
+import {
+  createAccountMapping,
+  deleteAccountMappings,
+  updateAccountMapping,
+} from "@/lib/data/account-balances"
 import { createFiling, deleteFilings, updateFiling } from "@/lib/data/filings"
 import {
   createLiability,
@@ -10,9 +16,13 @@ import {
 } from "@/lib/data/liabilities"
 import { ensureReportingPeriod } from "@/lib/data/reporting-periods"
 import { requireOwner, requireScope } from "@/lib/data/scope"
-import { isCheckViolation } from "@/lib/pg-error"
+import { isCheckViolation, isUniqueViolation } from "@/lib/pg-error"
 
 import {
+  formAccountCode,
+  formAccountKind,
+  formAccountMatchKind,
+  formBooleanChoice,
   formDate,
   formDecimal,
   formFilingKind,
@@ -32,7 +42,7 @@ import type { ProUcetniActionState } from "./state"
  * Pro účetní › Zadávání dat — the writes behind spec §3.3's "ONLY editing home
  * for non-document data".
  *
- * SIX ACTIONS, TWO TABLES, ONE GATE. Every one of them opens with
+ * NINE ACTIONS, THREE TABLES, ONE GATE. Every one of them opens with
  * `requireOwner(await requireScope(orgSlug))` — not because the page did it on
  * the way in, but because a Server Action is a public POST endpoint with a
  * generated name, reachable without ever rendering the page that holds its form
@@ -64,6 +74,18 @@ async function ownerFor(formData: FormData) {
 function revalidateZadavani(orgSlug: string): void {
   revalidatePath(`/${orgSlug}/pro-ucetni/zadavani`)
   revalidatePath(`/${orgSlug}/finance/dluhy-a-platby`)
+}
+
+/**
+ * The account map's own pair of surfaces. A separate function rather than a
+ * third `revalidatePath` in the one above: an account edit cannot change Dluhy
+ * a platby (the obligations read model does not touch this table), and
+ * revalidating a page a write cannot affect is how a cache eventually gets
+ * revalidated for reasons nobody can reconstruct.
+ */
+function revalidateAccounts(orgSlug: string): void {
+  revalidatePath(`/${orgSlug}/pro-ucetni/zadavani`)
+  revalidatePath(`/${orgSlug}/finance/ucty-a-hotovost`)
 }
 
 const REJECTED: ProUcetniActionState = {
@@ -432,6 +454,152 @@ export async function deleteLiabilityAction(
     }
 
     revalidateZadavani(orgSlug)
+    return { status: "ok", message: "zadavani.okDeleted" }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// The account map (spec §3.3's `account_balance_map`, feeding §2.4's Účty)
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the fields an account create and an account edit share.
+ *
+ * `accountCode` IS NOT AMONG THEM — it is read by the create action alone.
+ * Re-pointing an existing entry at a different účet would silently rewrite
+ * every historical card built from it (`AccountMappingWriteInput` says the same
+ * thing at the data layer, and omits it from the patch type), so a mis-typed
+ * code is deleted and re-entered. That costs nothing: the row holds no data,
+ * only a name for somebody else's.
+ */
+function readAccountFields(formData: FormData):
+  | {
+      ok: true
+      value: {
+        matchKind: BetaAccountMatchKind
+        label: string
+        kind: BetaAccountKind
+        sortOrder: number
+        active: boolean
+      }
+    }
+  | { ok: false; state: ProUcetniActionState } {
+  const matchKind = formAccountMatchKind(formData, "matchKind")
+  const kind = formAccountKind(formData, "kind")
+  const sortOrder = formInteger(formData, "sortOrder", { min: 0, max: 999 })
+  const active = formBooleanChoice(formData, "active")
+  if (
+    matchKind === null ||
+    kind === null ||
+    sortOrder === null ||
+    active === null
+  ) {
+    return { ok: false, state: INVALID }
+  }
+
+  const label = formString(formData, "label")
+  if (label.length === 0 || label.length > 120) {
+    return {
+      ok: false,
+      state: { status: "error", error: "zadavani.errorAccountLabelRequired" },
+    }
+  }
+
+  return { ok: true, value: { matchKind, label, kind, sortOrder, active } }
+}
+
+/**
+ * Turn the two refusals this table has of its own into Czech sentences.
+ *
+ * `guarded` already maps every CHECK violation to "the database said no", which
+ * is true and useless here: the overlap trigger fires on the ONE mistake an
+ * accountant will actually make (mapping prefix `221` next to exact `221.01`),
+ * and telling them which card to fix is the difference between a usable form
+ * and a wall. The unique index is the other half — the same account mapped
+ * twice — and it is not a CHECK at all, so `guarded` would let it escape as a
+ * 500.
+ */
+async function guardedAccountWrite(
+  write: () => Promise<ProUcetniActionState>,
+): Promise<ProUcetniActionState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isUniqueViolation(error) || isCheckViolation(error)) {
+      return { status: "error", error: "zadavani.errorAccountOverlap" }
+    }
+    throw error
+  }
+}
+
+export async function createAccountMappingAction(
+  _previous: ProUcetniActionState,
+  formData: FormData,
+): Promise<ProUcetniActionState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const accountCode = formAccountCode(formData, "accountCode")
+  if (accountCode === null) {
+    return { status: "error", error: "zadavani.errorAccountCodeInvalid" }
+  }
+
+  const fields = readAccountFields(formData)
+  if (!fields.ok) return fields.state
+
+  return guardedAccountWrite(async () => {
+    await createAccountMapping(owner, { ...fields.value, accountCode })
+
+    revalidateAccounts(orgSlug)
+    return { status: "ok", message: "zadavani.okCreated" }
+  })
+}
+
+export async function saveAccountMappingAction(
+  _previous: ProUcetniActionState,
+  formData: FormData,
+): Promise<ProUcetniActionState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const mappingId = formUuid(formData, "mappingId")
+  if (mappingId === null) return INVALID
+
+  const fields = readAccountFields(formData)
+  if (!fields.ok) return fields.state
+
+  return guardedAccountWrite(async () => {
+    const saved = await updateAccountMapping(owner, mappingId, fields.value)
+    if (!saved) return { status: "error", error: "zadavani.errorNotFound" }
+
+    revalidateAccounts(orgSlug)
+    return { status: "ok", message: "zadavani.okSaved" }
+  })
+}
+
+/**
+ * Delete an entry outright.
+ *
+ * The form offers it NEXT TO the Aktivní / Neaktivní select rather than instead
+ * of it, because the two do different things: retiring an account keeps every
+ * past card intact, while deleting it drops that account out of the client's
+ * history as well. Both are legitimate — a mis-typed code has no history worth
+ * keeping — and the office should be choosing between them knowingly.
+ */
+export async function deleteAccountMappingAction(
+  _previous: ProUcetniActionState,
+  formData: FormData,
+): Promise<ProUcetniActionState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const mappingId = formUuid(formData, "mappingId")
+  if (mappingId === null) return INVALID
+
+  return guarded(async () => {
+    const deleted = await deleteAccountMappings(owner, [mappingId])
+    if (deleted === 0) {
+      return { status: "error", error: "zadavani.errorNotFound" }
+    }
+
+    revalidateAccounts(orgSlug)
     return { status: "ok", message: "zadavani.okDeleted" }
   })
 }

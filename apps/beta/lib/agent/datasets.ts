@@ -34,9 +34,5 @@ export const AGENT_DATASETS: readonly AgentDataset[] = Object.freeze([
     implemented: false,
     note: "PR 27 ships partner + partner_saldo",
   },
-  {
-    path: "account-balance-map",
-    implemented: false,
-    note: "PR 26 ships account_balance_map",
-  },
+  { path: "account-balance-map", implemented: true },
 ])

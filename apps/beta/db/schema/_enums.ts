@@ -381,3 +381,31 @@ export type BetaPayrollContractType =
 export const betaChatRole = pgEnum("beta_chat_role", ["user", "assistant"])
 
 export type BetaChatRole = (typeof betaChatRole.enumValues)[number]
+
+/**
+ * Mirrors: 0014_account_balance_map.sql — CREATE TYPE beta_account_kind.
+ *
+ * Spec §4, verbatim: "kind bank|cash". Two values and no third — §7 rejects
+ * bank feeds and per-partner bank accounts, so a `card` or `crypto` value would
+ * be a claim about a surface this product does not have.
+ */
+export const betaAccountKind = pgEnum("beta_account_kind", ["bank", "cash"])
+
+export type BetaAccountKind = (typeof betaAccountKind.enumValues)[number]
+
+/**
+ * Mirrors: 0014_account_balance_map.sql — CREATE TYPE beta_account_match_kind.
+ *
+ * How an `account_balance_map` entry is matched against
+ * `trial_balance_line.account_code`: `exact` claims the one účet it names,
+ * `prefix` claims every účet whose code starts with it (221 → 221.01, 221.02).
+ * A real analytic účtový rozvrh needs the second mode; `exact` is the default
+ * because it is the one that cannot surprise anybody.
+ */
+export const betaAccountMatchKind = pgEnum("beta_account_match_kind", [
+  "exact",
+  "prefix",
+])
+
+export type BetaAccountMatchKind =
+  (typeof betaAccountMatchKind.enumValues)[number]

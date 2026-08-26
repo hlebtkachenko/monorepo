@@ -12,5 +12,8 @@ export {
   magicLinkEmail,
   inviteEmail,
   accountDangerOtpEmail,
+  betaDocumentAttentionEmail,
+  betaClientTaskEmail,
+  betaPeriodPublishedEmail,
 } from "./templates"
 export { escapeHtml } from "./html"

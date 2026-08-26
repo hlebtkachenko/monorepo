@@ -14,8 +14,15 @@ import {
   type BetaImportStatus,
   type BetaStatementKind,
 } from "@/db/schema"
+import { formatReportingPeriodLabel } from "@/lib/format/period-label"
+import {
+  DATASET_LABELS_CS,
+  notifyPeriodPublished,
+} from "@/lib/notifications/events"
 import { isUniqueViolation } from "@/lib/pg-error"
 
+import { notifiableOrgMembers } from "./notification-prefs"
+import { organizationForScope } from "./organizations"
 import {
   importBatchView,
   officeImportBatchRow,
@@ -811,8 +818,14 @@ export async function publishBatch(
   scope: OwnerScope,
   batchId: string,
 ): Promise<PublishOutcome> {
+  let outcome: PublishOutcome & {
+    // Internal-only, present on every `ok: true` branch, stripped before this
+    // function's own return — see the notification dispatch below for why.
+    dataset?: BetaImportDataset
+    periodId?: string
+  }
   try {
-    return await betaDb().transaction(async (tx) => {
+    outcome = await betaDb().transaction(async (tx) => {
       // Pre-lock read, safe only because `import_batch_freeze_identity` makes
       // (period_id, dataset) immutable: the coordinates this lock is taken on
       // cannot change under it.
@@ -853,6 +866,8 @@ export async function publishBatch(
           batchId: target.id,
           supersededBatchId: null,
           alreadyPublished: true,
+          dataset: target.dataset,
+          periodId: target.period_id,
         }
       }
       if (current.status === "superseded") {
@@ -900,6 +915,8 @@ export async function publishBatch(
         batchId: target.id,
         supersededBatchId: incumbent?.id ?? null,
         alreadyPublished: false,
+        dataset: target.dataset,
+        periodId: target.period_id,
       }
     })
   } catch (error) {
@@ -908,6 +925,72 @@ export async function publishBatch(
     }
     throw error
   }
+
+  // Post-commit notification (spec §2.11 event 3) — fired only for a GENUINE
+  // publish, not the idempotent re-publish case (`alreadyPublished: true`,
+  // nothing changed), and only AFTER `betaDb().transaction(...)` above has
+  // resolved (i.e. after commit), never from inside that callback. A first
+  // publish and a supersession replace both count: either way the client's
+  // Výkazy now show a number they have not seen before.
+  if (outcome.ok && !outcome.alreadyPublished) {
+    void dispatchPeriodPublishedNotification(
+      scope,
+      outcome.dataset!,
+      outcome.periodId!,
+    ).catch((error: unknown) => {
+      console.error(
+        "[beta:notifications] period-published dispatch failed",
+        error,
+      )
+    })
+  }
+
+  if (!outcome.ok) return outcome
+  return {
+    ok: true,
+    batchId: outcome.batchId,
+    supersededBatchId: outcome.supersededBatchId,
+    alreadyPublished: outcome.alreadyPublished,
+  }
+}
+
+/**
+ * Resolve the period label, org identity and recipients, then send — the part
+ * of the spec §2.11 event-3 notification that needs the database.
+ */
+async function dispatchPeriodPublishedNotification(
+  scope: OwnerScope,
+  dataset: BetaImportDataset,
+  periodId: string,
+): Promise<void> {
+  const [periodRow] = await betaDb()
+    .select(PERIOD_COLUMNS)
+    .from(reporting_period)
+    .where(eq(reporting_period.id, periodId))
+    .limit(1)
+  if (!periodRow) return
+
+  const [recipients, org] = await Promise.all([
+    notifiableOrgMembers(scope.organizationId),
+    organizationForScope(scope),
+  ])
+
+  await notifyPeriodPublished(recipients, {
+    orgSlug: scope.organizationSlug,
+    organizationName: org.legalName,
+    datasetLabel: DATASET_LABELS_CS[dataset],
+    periodLabel: formatReportingPeriodLabel(
+      reportingPeriodView({
+        id: periodRow.period_id,
+        period_kind: periodRow.period_kind,
+        year: periodRow.period_year,
+        month: periodRow.period_month,
+        quarter: periodRow.period_quarter,
+        starts_on: periodRow.period_starts_on,
+        ends_on: periodRow.period_ends_on,
+      }),
+    ),
+  })
 }
 
 export type RollbackOutcome =

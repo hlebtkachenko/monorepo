@@ -16,6 +16,9 @@
  *     row — a leaver still needs their last payslip (spec §2.6.1). The trigger
  *     `app_user_owner_guard` refuses to deactivate an org's last owner.
  *   - `locale` defaults to 'cs': beta ships Czech-only for now (plan Part 3).
+ *   - `email_notifications_enabled` is the Nastavení › Účet toggle (spec §2.10,
+ *     §2.11 — migration 0012). Defaults true; self-service, unlike `is_staff` /
+ *     `disabled_at` / `two_factor_enabled`.
  */
 import {
   boolean,
@@ -38,6 +41,9 @@ export const app_user = pgTable("app_user", {
   is_staff: boolean("is_staff").notNull().default(false),
   two_factor_enabled: boolean("two_factor_enabled").notNull().default(false),
   locale: varchar("locale", { length: 10 }).notNull().default("cs"),
+  email_notifications_enabled: boolean("email_notifications_enabled")
+    .notNull()
+    .default(true),
   disabled_at: timestamp("disabled_at", { withTimezone: true }),
   created_at: timestamp("created_at", { withTimezone: true })
     .notNull()

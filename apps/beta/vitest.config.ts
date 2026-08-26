@@ -56,6 +56,14 @@ export default defineConfig({
           // is the same kind of thing — an enum-to-catalog map checked against
           // the pgEnum's declared values and the JSON, neither of which needs a
           // running database.
+          //
+          // `lib/notifications/**` (PR 15) is the same shape again: dispatch
+          // takes an already-resolved recipient list and mocks
+          // `@workspace/email`'s `sendEmail`, so it is pure orchestration with
+          // no query of its own. `lib/data/notification-prefs.ts` — the part
+          // that DOES query Postgres (the toggle, the recipient resolution) —
+          // stays in the `db` project below with every other `lib/data/**`
+          // module.
           include: [
             "app/**/*.test.ts",
             // Component render tests (PR 12): they render a Client Component
@@ -85,6 +93,7 @@ export default defineConfig({
             // threshold) must be cheap enough to assert exhaustively.
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
+            "lib/notifications/**/*.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -140,6 +149,7 @@ export default defineConfig({
             "lib/obligation-labels.test.ts",
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
+            "lib/notifications/**/*.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

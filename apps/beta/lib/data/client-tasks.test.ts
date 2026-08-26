@@ -6,7 +6,15 @@
  * reaches through `requireOwner`, and the sessions are genuine Better Auth
  * sessions (`next/headers` mocked, no real HTTP request in a test runner).
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 import postgres from "postgres"
 
 import {
@@ -23,6 +31,35 @@ const request = vi.hoisted(() => ({ headers: new Headers() }))
 
 vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
+}))
+
+// spec §2.11 event 2 — `createClientTask` fires a notification through
+// `@workspace/email`. Mocked so the tests below can assert who it was sent
+// to, and that `createMonthlyTaskSet`'s bulk generation does NOT fire it.
+const sendEmail = vi.hoisted(() =>
+  vi.fn(async (_message: { to: string }) => {}),
+)
+
+vi.mock("@workspace/email", () => ({
+  sendEmail,
+  betaDocumentAttentionEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "doc",
+    html: "<html/>",
+    text: "doc",
+  }),
+  betaClientTaskEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "task",
+    html: "<html/>",
+    text: "task",
+  }),
+  betaPeriodPublishedEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "period",
+    html: "<html/>",
+    text: "period",
+  }),
 }))
 
 const { requireScope, requireOwner, resolveOrgScope } = await import("./scope")
@@ -296,6 +333,91 @@ describe("createClientTask / updateClientTask / deleteClientTask", () => {
       const scope = await resolveOrgScope(org.slug)
       await expect404(() => requireOwner(scope!), `${role} must not write`)
     }
+  })
+})
+
+describe("spec §2.11 event 2 — the client-task-created notification", () => {
+  beforeEach(() => {
+    sendEmail.mockClear()
+  })
+
+  it("fires on createClientTask, to every notifiable recipient — never the owner", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+
+    const created = await createClientTask(owner, {
+      title: "Nahrát bankovní výpis",
+      dueDate: "2026-04-10",
+    })
+    expect(created.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    const recipients = sendEmail.mock.calls
+      .map(([m]) => (m as { to: string }).to)
+      .sort()
+    expect(recipients).toEqual(
+      [
+        org.members.admin.email,
+        org.members.member.email,
+        org.members.guest.email,
+      ].sort(),
+    )
+    expect(recipients).not.toContain(org.members.owner.email)
+  })
+
+  it("does NOT fire on updateClientTask or setClientTaskDone", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const created = await createClientTask(owner, {
+      title: "Nahrát výpis",
+      dueDate: "2026-04-10",
+    })
+    if (!created.ok) throw new Error("unreachable")
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    sendEmail.mockClear()
+
+    await updateClientTask(owner, created.id, { title: "Přejmenováno" })
+    await setClientTaskDone(owner, created.id, true)
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("does NOT fire from createMonthlyTaskSet's bulk generation", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    await createClientTaskTemplateRow(org.organizationId, {
+      title: "Doklady za měsíc",
+      templateDueDay: 5,
+    })
+    await createClientTaskTemplateRow(org.organizationId, {
+      title: "Bankovní výpis",
+      templateDueDay: 10,
+    })
+
+    const outcome = await createMonthlyTaskSet(owner, { year: 2026, month: 9 })
+    expect(outcome.ok && outcome.result.created).toBe(2)
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("respects the per-user toggle and excludes a disabled account", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    await sql`UPDATE app_user SET email_notifications_enabled = false WHERE id = ${org.members.member.userId}`
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${org.members.guest.userId}`
+
+    const created = await createClientTask(owner, {
+      title: "Nahrát výpis",
+      dueDate: "2026-04-10",
+    })
+    expect(created.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(1))
+    expect(sendEmail.mock.calls[0]?.[0]).toMatchObject({
+      to: org.members.admin.email,
+    })
   })
 })
 

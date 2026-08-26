@@ -41,10 +41,14 @@ function renderShell(opts: {
   contentHtml: string
   text: string
   brandName?: string
+  /** Defaults to the main product's login. A sibling product with its own
+   * sign-in host (e.g. the beta portal) overrides it so the footer link
+   * lands where the recipient can actually sign in. */
+  loginUrl?: string
 }): EmailMessage {
   const brand = escapeHtml(opts.brandName ?? BRAND_NAME)
   const logoUrl = escapeHtml(`${BRAND_APP_URL}/icon-512.png`)
-  const loginUrl = escapeHtml(`${BRAND_APP_URL}/auth/login`)
+  const loginUrl = escapeHtml(opts.loginUrl ?? `${BRAND_APP_URL}/auth/login`)
   const year = new Date().getFullYear()
   // Logo cell left padding is 23px (= 32 - 9): the icon-512 PNG carries ~9px of
   // transparent inset at 48px, so 23 aligns the visible mark with the 32px
@@ -277,6 +281,130 @@ export function inviteEmail(input: {
     contentHtml: content,
     text,
     brandName: input.brandName,
+  })
+}
+
+/**
+ * Beta portal notifications (Afframe Beta — `apps/beta`, spec §2.11: "Notifikace
+ * (email only, 3 events)"). Additive to this shared package rather than
+ * hand-rolled in `apps/beta`, per the repo-wide rule above ("All transactional
+ * emails live in `packages/email/src/templates.ts`"): `sendEmail` accepting an
+ * arbitrary `EmailMessage` is an internal escape hatch for this package's own
+ * tests, not an invitation for a consuming app to build its own `<html>`
+ * document. Beta has no `@workspace/email` dependency of its own beyond this —
+ * this package still holds no DB/auth import, so nothing about beta's schema or
+ * tenancy leaks in here; every function below takes plain strings.
+ *
+ * `loginUrl` is threaded through to `renderShell` on all three: beta's users
+ * sign in at `beta.afframe.com`, never at the main product's `app.afframe.com`
+ * the shell defaults to, so the footer's "Login instead" link is derived from
+ * the caller's own `url` origin rather than left on the default.
+ *
+ * Dates and period labels arrive PRE-FORMATTED (`dueDateLabel`, `periodLabel`)
+ * rather than as `Date`/ISO values this package would format itself — beta owns
+ * its own cs-CZ, Europe/Prague formatter (`lib/format/date.ts`,
+ * `lib/format/period-label.ts`) and this package must not grow a second one
+ * just for beta's benefit.
+ */
+
+/** `document` → `returned`, or a new `office_message` on any status (spec
+ * §2.11 event 1) — Pro účetní wrote something the client needs to read. */
+export function betaDocumentAttentionEmail(input: {
+  to: string
+  organizationName: string
+  filename: string
+  officeMessage: string
+  url: string
+}): EmailMessage {
+  const subject = `Doklad „${input.filename}“ vyžaduje pozornost`
+  const organizationName = escapeHtml(input.organizationName)
+  const filename = escapeHtml(input.filename)
+  const officeMessage = escapeHtml(input.officeMessage)
+  const content = [
+    headingRow(
+      `              <h1 style="${H1_STYLE}">Doklad vyžaduje pozornost</h1>
+              <p style="${BODY_STYLE}">Účetní vám k dokladu <strong>${filename}</strong> (${organizationName}) napsala zprávu:</p>
+              <p style="${BODY_LAST_STYLE}">„${officeMessage}“</p>`,
+    ),
+    buttonRow(input.url, "Otevřít Dokumenty"),
+    fallbackRow(input.url),
+  ].join("\n")
+  const text = `Doklad "${input.filename}" vyžaduje pozornost (${input.organizationName}).\n\n${input.officeMessage}\n\nOtevřít Dokumenty: ${input.url}`
+  return renderShell({
+    to: input.to,
+    subject,
+    preheader: `Zpráva od účetní k dokladu ${input.filename}.`,
+    contentHtml: content,
+    text,
+    loginUrl: `${new URL(input.url).origin}/sign-in`,
+  })
+}
+
+/** A new `client_task` (spec §2.11 event 2) — the office is asking the client
+ * to do something. */
+export function betaClientTaskEmail(input: {
+  to: string
+  organizationName: string
+  title: string
+  /** Pre-formatted (`DD.MM.YYYY`) — see the section header above. */
+  dueDateLabel: string
+  url: string
+}): EmailMessage {
+  const subject = `Nový úkol: ${input.title}`
+  const organizationName = escapeHtml(input.organizationName)
+  const title = escapeHtml(input.title)
+  const dueDateLabel = escapeHtml(input.dueDateLabel)
+  const content = [
+    headingRow(
+      `              <h1 style="${H1_STYLE}">Nový úkol od účetní</h1>
+              <p style="${BODY_STYLE}">Účetní pro vás (${organizationName}) vytvořila nový úkol:</p>
+              <p style="${BODY_LAST_STYLE}"><strong>${title}</strong><br>Termín: ${dueDateLabel}</p>`,
+    ),
+    buttonRow(input.url, "Zobrazit úkoly"),
+    fallbackRow(input.url),
+  ].join("\n")
+  const text = `Nový úkol (${input.organizationName}): ${input.title}\nTermín: ${input.dueDateLabel}\n\nZobrazit úkoly: ${input.url}`
+  return renderShell({
+    to: input.to,
+    subject,
+    preheader: `Nový úkol od účetní — termín ${input.dueDateLabel}.`,
+    contentHtml: content,
+    text,
+    loginUrl: `${new URL(input.url).origin}/sign-in`,
+  })
+}
+
+/** A new period published (spec §2.11 event 3) — an import batch went live, so
+ * the client's Výkazy now show a number they have not seen before. */
+export function betaPeriodPublishedEmail(input: {
+  to: string
+  organizationName: string
+  /** e.g. "Rozvaha" — see the section header above. */
+  datasetLabel: string
+  /** Pre-formatted (`07/2026`, `Q3 2026`, `2026`) — see the section header above. */
+  periodLabel: string
+  url: string
+}): EmailMessage {
+  const subject = `Nová data ve výkazech: ${input.datasetLabel} za ${input.periodLabel}`
+  const organizationName = escapeHtml(input.organizationName)
+  const datasetLabel = escapeHtml(input.datasetLabel)
+  const periodLabel = escapeHtml(input.periodLabel)
+  const content = [
+    headingRow(
+      `              <h1 style="${H1_STYLE}">Nová data ve výkazech</h1>
+              <p style="${BODY_LAST_STYLE}">Účetní zveřejnila nová data pro ${organizationName}: <strong>${datasetLabel}</strong> za období <strong>${periodLabel}</strong>.</p>`,
+    ),
+    buttonRow(input.url, "Zobrazit výkazy"),
+    fallbackRow(input.url),
+  ].join("\n")
+  const text = `Nová data ve výkazech (${input.organizationName}): ${input.datasetLabel} za ${input.periodLabel}.\n\nZobrazit výkazy: ${input.url}`
+  return renderShell({
+    to: input.to,
+    subject,
+    preheader: `Účetní zveřejnila nová data (${input.datasetLabel}, ${input.periodLabel}).`,
+    contentHtml: content,
+    text,
+    loginUrl: `${new URL(input.url).origin}/sign-in`,
   })
 }
 

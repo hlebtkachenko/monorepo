@@ -4,7 +4,11 @@ import { and, asc, desc, eq, sql } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import { client_task, type BetaClientTaskLinkKind } from "@/db/schema"
+import { formatBetaDate } from "@/lib/format/date"
+import { notifyClientTaskCreated } from "@/lib/notifications/events"
 
+import { notifiableOrgMembers } from "./notification-prefs"
+import { organizationForScope } from "./organizations"
 import { ensureReportingPeriod } from "./reporting-periods"
 import {
   clientTaskView,
@@ -171,6 +175,27 @@ function validateTaskInput(input: {
   return null
 }
 
+/**
+ * Resolve recipients and org identity, then send — the part of the spec
+ * §2.11 event-2 notification that needs the database.
+ */
+async function dispatchClientTaskNotification(
+  owner: OwnerScope,
+  title: string,
+  dueDate: string,
+): Promise<void> {
+  const [recipients, org] = await Promise.all([
+    notifiableOrgMembers(owner.organizationId),
+    organizationForScope(owner),
+  ])
+  await notifyClientTaskCreated(recipients, {
+    orgSlug: owner.organizationSlug,
+    organizationName: org.legalName,
+    title,
+    dueDateLabel: formatBetaDate(dueDate),
+  })
+}
+
 /** Create a real task (`is_template = false`). */
 export async function createClientTask(
   owner: OwnerScope,
@@ -179,12 +204,14 @@ export async function createClientTask(
   const refusal = validateTaskInput(input)
   if (refusal) return { ok: false, reason: refusal }
 
+  const title = normalizeText(input.title)!
+
   const [row] = await betaDb()
     .insert(client_task)
     .values({
       organization_id: owner.organizationId,
       is_template: false,
-      title: normalizeText(input.title)!,
+      title,
       description: normalizeText(input.description ?? null),
       due_date: input.dueDate,
       link_kind: input.linkKind ?? "none",
@@ -193,6 +220,20 @@ export async function createClientTask(
     .returning({ id: client_task.id })
 
   if (!row) throw new Error("client_task insert returned no row")
+
+  // Post-commit notification (spec §2.11 event 2). The INSERT above is a
+  // single Postgres statement, so it has already committed by the time
+  // `.returning()` resolves. NOT fired from `createMonthlyTaskSet` below —
+  // see that function's own note.
+  void dispatchClientTaskNotification(owner, title, input.dueDate).catch(
+    (error: unknown) => {
+      console.error(
+        "[beta:notifications] client-task-created dispatch failed",
+        error,
+      )
+    },
+  )
+
   return { ok: true, id: row.id }
 }
 
@@ -461,6 +502,16 @@ export type MonthlySetOutcome =
  * A template deleted between the two runs simply stops being a candidate —
  * this reads active templates fresh, every time, off `client_task` itself
  * rather than off a value captured earlier.
+ *
+ * NO spec §2.11 EVENT-2 NOTIFICATION FIRES HERE, DELIBERATELY. `createClientTask`
+ * above fires one per ad-hoc task — "a new client_task" in the singular the
+ * spec names. This function can mint one row per active template in the SAME
+ * click ("30 seconds instead of 10×2 min" is the whole point), so notifying
+ * per generated row would turn one office click into a mail blast at the
+ * client, which is a worse notification experience than the feature this
+ * button replaces. A single "your monthly tasks are ready" digest is a
+ * plausible future addition; it is not spec §2.11's literal 3rd item and is
+ * out of this PR's scope.
  */
 export async function createMonthlyTaskSet(
   owner: OwnerScope,

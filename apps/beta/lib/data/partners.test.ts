@@ -59,7 +59,10 @@ afterAll(async () => {
   await endFixtures()
 })
 
-async function scopeFor(target: TestOrganization, role: "owner" | "admin") {
+async function scopeFor(
+  target: TestOrganization,
+  role: "owner" | "admin" | "member" | "guest",
+) {
   as(target.members[role].headers)
   return requireScope(target.slug)
 }

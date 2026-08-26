@@ -54,5 +54,11 @@ export async function loadZadavani(orgSlug: string): Promise<{
     partnersForOwner(owner),
   ])
 
-  return { orgSlug: owner.organizationSlug, filings, liabilities, accounts, partners }
+  return {
+    orgSlug: owner.organizationSlug,
+    filings,
+    liabilities,
+    accounts,
+    partners,
+  }
 }

@@ -66,7 +66,7 @@ describe("partnerAresSuggestions — a blank create form", () => {
 
   it("never offers `ico` — it is the lookup key, not a suggestion", () => {
     const suggestions = partnerAresSuggestions(EMPTY_CURRENT, profile())
-    expect(suggestions.some((s) => s.field === "ico")).toBe(false)
+    expect(suggestions.some((s) => (s.field as string) === "ico")).toBe(false)
   })
 })
 

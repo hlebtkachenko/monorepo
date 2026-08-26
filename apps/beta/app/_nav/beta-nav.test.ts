@@ -152,4 +152,54 @@ describe("beta rail nav", () => {
     expect(hrefs.every((href) => href?.startsWith("/acme-sro"))).toBe(true)
     expect(new Set(hrefs).size).toBe(hrefs.length)
   })
+
+  /**
+   * The employee seat (spec §2.6.1, PR 33): "renders a narrowed rail: Přehled
+   * (personal) · Dokumenty (own) · Moje mzda".
+   *
+   * It REPLACES the list rather than filtering it, so the assertions are about
+   * the exact three entries — a filter that happened to produce three today
+   * would silently grow a fourth the next time a module lands, which is the
+   * failure this shape exists to prevent.
+   */
+  it("gives the employee seat exactly three entries and nothing else", () => {
+    const seat = betaRailNav("acme-sro", { isEmployeeSeat: true })
+
+    expect(seat).not.toContain("separator")
+    expect(items(seat).map((item) => item.labelKey)).toEqual([
+      "prehled",
+      "dokumenty",
+      "mojeMzda",
+    ])
+    expect(items(seat).map((item) => item.href)).toEqual([
+      "/acme-sro",
+      "/acme-sro/dokumenty",
+      "/acme-sro/mzdy/moje-mzda",
+    ])
+    for (const item of items(seat)) {
+      expect(betaCs.nav).toHaveProperty(item.labelKey)
+    }
+  })
+
+  it("ignores isOwner and isManagement for a seat — replacement, not a filter", () => {
+    // Belt AND braces: if a future change ever made a seat look like management
+    // to the caller, the rail must still be the three entries.
+    const seat = betaRailNav("acme-sro", {
+      isEmployeeSeat: true,
+      isOwner: true,
+      isManagement: true,
+    })
+    expect(items(seat)).toHaveLength(3)
+    expect(items(seat).some((item) => item.labelKey === "ucetni")).toBe(false)
+    expect(items(seat).some((item) => item.labelKey === "mzdy")).toBe(false)
+  })
+
+  it("never gives a seat the company modules", () => {
+    const seat = items(betaRailNav("acme-sro", { isEmployeeSeat: true })).map(
+      (item) => item.labelKey,
+    )
+    for (const hidden of ["dane", "finance", "vykazy", "majetek"] as const) {
+      expect(seat).not.toContain(hidden)
+    }
+  })
 })

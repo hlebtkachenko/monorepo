@@ -194,13 +194,13 @@ function issueErrorKey(reason: IssueSetupTokenRejection): BetaMessageKey {
       return "nastaveni.errorNotAllowed"
     case "organization_archived":
       return "nastaveni.errorOrganizationArchived"
+    // `employee_binding_not_allowed` is unreachable from THIS form — Lidé never
+    // sends a `payrollEmployeeId`, and the seat invite lives in Mzdy ›
+    // Zaměstnanci (spec §2.10). Mapped rather than left to the exhaustiveness
+    // error, because the honest answer for a shape this form cannot produce is
+    // the same generic "invalid input" the other two structural refusals get.
     case "purpose_not_allowed":
     case "scope_mismatch":
-    // Unreachable from THIS form — Lidé never sends a `payrollEmployeeId`, and
-    // the seat invite lives in Mzdy › Zaměstnanci (spec §2.10). Mapped rather
-    // than left to the exhaustiveness error, because the honest answer for a
-    // shape this form cannot produce is the same generic "invalid input" the
-    // other two structural refusals get.
     case "employee_binding_not_allowed":
       return "nastaveni.errorInvalidInput"
     case "rejected":

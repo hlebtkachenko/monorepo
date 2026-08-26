@@ -33,6 +33,8 @@ import {
 } from "../../tests/memory-document-store"
 import { REAL_HEIC_BYTES } from "../../tests/heic-fixture"
 import {
+  createDocumentRow,
+  createPartnerRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -1967,5 +1969,81 @@ describe("uploadDocument — the client downscale changes nothing about the serv
     const result = await upload(scope, ZIP_BYTES, { filename: "IMG_0421.jpg" })
     expect(result).toEqual({ ok: false, reason: "unsupported_type" })
     expect(fake.keys()).toEqual([])
+  })
+})
+
+/**
+ * `documentsForPartner` — the Partneři detail's "linked documents" (spec §2.4,
+ * PR 29). It reuses `visibleDocuments` whole, so the same four filters that
+ * gate every other read here gate this one too; what is worth asserting is
+ * only the fifth one this function adds — the `partner_id` match.
+ */
+describe("documentsForPartner", () => {
+  it("returns only the documents linked to this partner", async () => {
+    const org = await seedOrganization()
+    const partnerA = await createPartnerRow(org.organizationId, {
+      name: "Partner A",
+    })
+    const partnerB = await createPartnerRow(org.organizationId, {
+      name: "Partner B",
+    })
+    await createDocumentRow(org.organizationId, { partnerId: partnerA })
+    await createDocumentRow(org.organizationId, { partnerId: partnerB })
+    await createDocumentRow(org.organizationId) // no partner at all
+
+    const scope = await scopeFor(org, "admin")
+    const rows = await documents.documentsForPartner(scope, partnerA)
+    expect(rows).toHaveLength(1)
+  })
+
+  it("respects visible_to_client — a hidden document is invisible to a client here too", async () => {
+    const org = await seedOrganization()
+    const partner = await createPartnerRow(org.organizationId)
+    await createDocumentRow(org.organizationId, {
+      partnerId: partner,
+      visibleToClient: false,
+    })
+
+    const ownerRows = await documents.documentsForPartner(
+      await scopeFor(org, "owner"),
+      partner,
+    )
+    expect(ownerRows).toHaveLength(1)
+
+    const memberRows = await documents.documentsForPartner(
+      await scopeFor(org, "member"),
+      partner,
+    )
+    expect(memberRows).toHaveLength(0)
+  })
+
+  it("excludes a soft-deleted document", async () => {
+    const org = await seedOrganization()
+    const partner = await createPartnerRow(org.organizationId)
+    await createDocumentRow(org.organizationId, {
+      partnerId: partner,
+      deleted: true,
+    })
+
+    const rows = await documents.documentsForPartner(
+      await scopeFor(org, "admin"),
+      partner,
+    )
+    expect(rows).toHaveLength(0)
+  })
+
+  it("never crosses into another organization's documents", async () => {
+    const foreign = await seedOrganization()
+    const foreignPartner = await createPartnerRow(foreign.organizationId)
+    await createDocumentRow(foreign.organizationId, {
+      partnerId: foreignPartner,
+    })
+
+    const target = await seedOrganization()
+    const rows = await documents.documentsForPartner(
+      await scopeFor(target, "admin"),
+      foreignPartner,
+    )
+    expect(rows).toHaveLength(0)
   })
 })

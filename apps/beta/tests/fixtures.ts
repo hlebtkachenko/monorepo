@@ -403,6 +403,8 @@ export async function createDocumentRow(
     deleted?: boolean
     payslipPeriodId?: string | null
     payslipEmployeeId?: string | null
+    /** Protistrana (spec §4, PR 29) — a partner id already in this book. */
+    partnerId?: string | null
   } = {},
 ): Promise<string> {
   const sql = db()
@@ -410,7 +412,7 @@ export async function createDocumentRow(
     INSERT INTO document (
       organization_id, doc_type, original_filename, storage_key,
       content_type, extension, byte_size, sha256, visible_to_client,
-      payslip_period_id, payslip_employee_id, deleted_at
+      payslip_period_id, payslip_employee_id, partner_id, deleted_at
     )
     VALUES (
       ${organizationId},
@@ -424,6 +426,7 @@ export async function createDocumentRow(
       ${values.visibleToClient ?? true},
       ${values.payslipPeriodId ?? null},
       ${values.payslipEmployeeId ?? null},
+      ${values.partnerId ?? null},
       ${values.deleted ? sql`now()` : null}
     )
     RETURNING id

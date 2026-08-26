@@ -27,6 +27,7 @@ import {
 import postgres from "postgres"
 
 import {
+  createPartnerRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -390,6 +391,58 @@ describe("saveDocumentOffice — field edits", () => {
     })
     expect(result.ok).toBe(true)
     expect(result.ok && result.document.siteRef?.length).toBe(120)
+  })
+})
+
+describe("saveDocumentOffice — protistrana (partnerId, PR 29)", () => {
+  it("links a document to a partner of the same book", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org)
+    const partnerId = await createPartnerRow(org.organizationId)
+
+    const result = await office.saveDocumentOffice(owner, id, { partnerId })
+    expect(result.ok).toBe(true)
+    expect(result.ok && result.document.partnerId).toBe(partnerId)
+  })
+
+  it("clears the link with an explicit null", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const partnerId = await createPartnerRow(org.organizationId)
+    const id = await insertDocument(org)
+    await office.saveDocumentOffice(owner, id, { partnerId })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      partnerId: null,
+    })
+    expect(result.ok && result.document.partnerId).toBeNull()
+  })
+
+  it("refuses a partner id from another organization's book", async () => {
+    const foreign = await seedOrganization()
+    const foreignPartnerId = await createPartnerRow(foreign.organizationId)
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org)
+
+    expect(
+      await office.saveDocumentOffice(owner, id, {
+        partnerId: foreignPartnerId,
+      }),
+    ).toEqual({ ok: false, reason: "invalid_partner" })
+  })
+
+  it("refuses a partner id that names no row at all", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org)
+
+    expect(
+      await office.saveDocumentOffice(owner, id, {
+        partnerId: "00000000-0000-0000-0000-000000000000",
+      }),
+    ).toEqual({ ok: false, reason: "invalid_partner" })
   })
 })
 

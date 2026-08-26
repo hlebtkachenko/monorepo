@@ -22,6 +22,7 @@ import {
   createFilingRow,
   createLiabilityRow,
   createMonthPeriod,
+  createPartnerRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -124,6 +125,21 @@ describe("loadZadavani — what the owner gets", () => {
     ])
   })
 
+  it("returns this book's partners, note_internal included (PR 29)", async () => {
+    const target = await seedOrganization()
+    await createPartnerRow(target.organizationId, {
+      name: "Stavebniny Novak s.r.o.",
+      noteInternal: "Neplatic, hlidat.",
+    })
+
+    as(target.members.owner.headers)
+    const data = await loadZadavani(target.slug)
+
+    expect(data.partners).toHaveLength(1)
+    expect(data.partners[0]!.name).toBe("Stavebniny Novak s.r.o.")
+    expect(data.partners[0]!.noteInternal).toBe("Neplatic, hlidat.")
+  })
+
   it("never carries another book's rows", async () => {
     const foreign = await seedOrganization()
     const foreignPeriod = await createMonthPeriod(foreign.organizationId)
@@ -159,9 +175,13 @@ describe("loadZadavani — what the owner gets", () => {
     const data = await loadZadavani(target.slug)
 
     // The OWNER is the accountant and may read the internal layer — but not
-    // through THIS surface: `note_internal` is on CLIENT_FORBIDDEN_COLUMNS and
-    // neither projection selects it, so a row can never reach a client bundle
-    // by way of a page that happened to be owner-only.
+    // through the FILING/LIABILITY projections: `note_internal` is on
+    // CLIENT_FORBIDDEN_COLUMNS and neither selects it, so a row can never
+    // reach a client bundle by way of a page that happened to be owner-only.
+    // `partners` is the one deliberate exception (PR 29's own `noteInternal`,
+    // same reasoning `documents-office.ts`'s `OwnerDocumentDetail` already
+    // established for Zpracování) — this test creates no partner row, so
+    // there is nothing here for it to carry.
     expect(forbiddenClientKeys(data)).toEqual([])
     expect(JSON.stringify(data)).not.toContain("Interni")
   })
@@ -175,6 +195,7 @@ describe("loadZadavani — what the owner gets", () => {
       filings: [],
       liabilities: [],
       accounts: [],
+      partners: [],
     })
   })
 })

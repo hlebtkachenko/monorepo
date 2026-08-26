@@ -44,6 +44,25 @@ COPY --from=deps /repo /repo
 COPY --from=pruner /repo/out/full/ ./
 RUN pnpm --filter beta build
 
+# Stage the migration runner as a self-contained /migrate tree. It cannot ride
+# along inside the Next.js standalone output: `next build` only traces modules
+# reachable from a route, and the entrypoint has to migrate BEFORE the server
+# starts.
+#
+# `apps/beta/node_modules/postgres` is the pnpm symlink for beta's own declared
+# dependency, so `cp -RL` copies exactly the version the lockfile pinned — no
+# store path and no version string is written into this file. `postgres`
+# (porsager) has zero dependencies, so that one directory is a complete install.
+# The `{"type":"module"}` manifest makes /migrate an ESM scope of its own,
+# independent of whatever the standalone output puts at /app/package.json.
+RUN mkdir -p /migrate/node_modules \
+    && cp -RL /repo/apps/beta/node_modules/postgres /migrate/node_modules/postgres \
+    && cp /repo/apps/beta/db/migrate.mjs /migrate/migrate.mjs \
+    && cp -R /repo/apps/beta/db/migrations /migrate/migrations \
+    && printf '{"type":"module"}\n' > /migrate/package.json \
+    && node --check /migrate/migrate.mjs \
+    && cd /migrate && node --input-type=module -e "await import('postgres')"
+
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
 ARG BUILD_SHA=unknown
@@ -87,15 +106,24 @@ WORKDIR /app
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/beta/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /repo/apps/beta/.next/static ./apps/beta/.next/static
 
+# Migration runner + the SQL it applies. The entrypoint runs this before the
+# server binds; see apps/beta/entrypoint.sh and the task-definition contract in
+# infra/cdk/lib/beta-app-stack.ts.
+COPY --from=builder --chown=nextjs:nodejs /migrate ./migrate
+COPY --chown=nextjs:nodejs apps/beta/entrypoint.sh /app/entrypoint.sh
+RUN chmod 0755 /app/entrypoint.sh
+
 USER nextjs:nodejs
 EXPOSE 3200
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:3200/healthz',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})" || exit 1
 
-# Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
-# overrides our ENV HOSTNAME with the container's auto-assigned hostname
-# (like ip-10-42-x-x), and Next.js standalone server binds to that non-
-# loopback interface only. The cloudflared sidecar reaching localhost:3200
-# then gets connection refused.
-CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/beta/server.js"]
+# entrypoint.sh migrates, then execs the standalone server with
+# HOSTNAME=0.0.0.0 forced (Fargate overrides the image ENV with the container's
+# auto-assigned hostname, and the standalone server would then bind only that
+# interface — cloudflared reaching localhost:$PORT gets connection refused).
+# The task definition overrides this with `sh -c 'export DATABASE_URL=… && exec
+# /app/entrypoint.sh'`; keeping the same script as the image CMD means a local
+# `docker run` follows the identical startup path.
+CMD ["/app/entrypoint.sh"]

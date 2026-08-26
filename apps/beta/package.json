@@ -10,18 +10,25 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "node db/migrate.mjs",
+    "db:generate": "node -e \"console.error('drizzle-kit generate is forbidden in this repo. Beta migrations are handwritten SQL in apps/beta/db/migrations/. See ADR-0009.'); process.exit(1)\"",
+    "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm --filter beta db:migrate. See ADR-0009.'); process.exit(1)\""
   },
   "dependencies": {
     "@workspace/i18n": "workspace:*",
     "@workspace/ui": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "next": "16.2.10",
     "next-intl": "^4.13.1",
+    "postgres": "^3.4.7",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.2",
+    "@testcontainers/postgresql": "^12.0.4",
     "@types/node": "^26.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

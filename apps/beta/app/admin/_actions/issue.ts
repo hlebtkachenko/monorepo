@@ -84,6 +84,11 @@ function issueErrorKey(reason: IssueSetupTokenRejection): BetaMessageKey {
       return "admin.errorOrganizationArchived"
     case "purpose_not_allowed":
     case "scope_mismatch":
+    // /admin issues office and org links, never a pre-bound employee seat: the
+    // seat is invited from the client's own Mzdy › Zaměstnanci row (spec
+    // §2.6.1), which is the only surface that knows which `payroll_employee`
+    // is meant. Unreachable here; mapped to the same generic refusal.
+    case "employee_binding_not_allowed":
       return "admin.errorInvalidInput"
     case "rejected":
       return "admin.errorRejected"

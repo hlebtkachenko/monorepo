@@ -203,6 +203,40 @@ export function mayDeactivate(
 }
 
 /**
+ * May this issuer hand out an EMPLOYEE SEAT invite (spec §2.6.1, §2.10
+ * "employee-seat invites from Mzdy")?
+ *
+ * IT IS `managesPeople`, NOT A NEW CEILING, and stating that as its own function
+ * is the point: a seat invite IS an org invite (`org_invite`, granting `guest`,
+ * migration 0019 pins it to exactly that shape), so anyone who may invite a
+ * `guest` may invite a seat. Owner and admin qualify; `member` does not, even
+ * though a member is a management seat that reads all payroll — reading the
+ * register and handing out access to it are different acts, and only the second
+ * one is people management.
+ *
+ * WHY THE EXTRA POWER IS NOT AN ESCALATION. A company `admin` can bind an
+ * address they control to any employee row in their own book, and thereby read
+ * that employee's payslips. That is not a privilege gain: an admin is a
+ * management seat and ALREADY sees every payslip in the book (spec §5,
+ * `payrollScope` → `all`). The act is visible in `user_setup_token`'s issuance
+ * forensics, and the DB floors it independently — `beta_setup_token_issuer_guard`
+ * refuses any org-scoped issuance from someone without an active owner|admin
+ * membership in that very organization, and migration 0019's composite FK
+ * refuses an employee row from a different book.
+ *
+ * WHAT IT WOULD BE IF THE SEAT WERE A ROLE. Then this same act would be
+ * reachable through `changeMemberRole` — an admin could re-point an EXISTING
+ * account (a colleague's, not one they control) at a chosen payroll row without
+ * anyone consuming a link. The link is the only writer of
+ * `payroll_employee.app_user_id` precisely so that binding an account to a person
+ * always costs a fresh, forensically-stamped, one-time credential delivered to a
+ * named address.
+ */
+export function mayInviteEmployeeSeat(issuer: InviteIssuer): boolean {
+  return managesPeople(issuer)
+}
+
+/**
  * REACTIVATION never raises a role, so it needs no separate ceiling beyond
  * `mayDeactivate`'s: the row keeps whatever role it was deactivated with, and
  * `resolveReactivationRole` (`setup-token.ts`) is what stops a link from

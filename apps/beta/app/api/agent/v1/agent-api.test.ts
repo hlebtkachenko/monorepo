@@ -56,6 +56,10 @@ const ROUTES: Record<string, () => Promise<{ POST: Handler }>> = {
     import("./orgs/[orgSlug]/client-tasks/route") as Promise<{
       POST: Handler
     }>,
+  accountBalanceMap: () =>
+    import("./orgs/[orgSlug]/account-balance-map/route") as Promise<{
+      POST: Handler
+    }>,
 }
 
 const ENDPOINT = "https://beta.afframe.com/api/agent/v1"
@@ -930,6 +934,225 @@ describe("registry upserts are matched on externalRef", () => {
     const asset = await assetForScope(owner, assetId)
     expect(asset?.status).toBe("disposed")
     expect(asset?.disposedOn).toBe("2026-05-31")
+  })
+})
+
+/**
+ * The account map arm (spec §3.2's `account_balance_map`, PR 27).
+ *
+ * ITS UPSERT KEY IS `accountCode`, NOT AN `externalRef`, which is why it gets
+ * its own block rather than a row in the one above: the account code IS the
+ * row's identity (migration 0014 makes it unique per book), so there is no
+ * `external_ref` column here for a second key to disagree with.
+ */
+describe("the account map is upserted on the account code", () => {
+  const mapBody = (
+    items: Record<string, unknown>[],
+  ): { items: Record<string, unknown>[] } => ({ items })
+
+  /**
+   * ITS OWN KEY, NOT `globalKey`.
+   *
+   * The limiters are process-wide and per KEY
+   * (`BETA_AGENT_KEY_RATE_LIMIT.max`), so every block that spends `globalKey`'s
+   * minute takes budget away from every block after it — and the failure lands
+   * on whichever assertion happens to be last, as a 429 where a 400 was
+   * expected. A block with its own credential cannot starve a sibling, which is
+   * the same reasoning the rate-limiting block at the bottom of this file
+   * already applies to itself.
+   */
+  let mapKey: { id: string; secret: string }
+
+  beforeAll(async () => {
+    mapKey = await createAgentKeyRow({
+      actingUserId: acme.members.owner.userId,
+      label: "Účty a hotovost",
+    })
+  })
+
+  it("creates once and updates thereafter, feeding Účty a hotovost", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const created = (await (
+      await post(
+        "accountBalanceMap",
+        org.slug,
+        mapBody([
+          { accountCode: "221", label: "Bankovní účty", kind: "bank" },
+          { accountCode: "211", label: "Pokladna", kind: "cash" },
+        ]),
+        { secret: mapKey.secret },
+      )
+    ).json()) as {
+      status: string
+      summary: { created: number; items: { accountCode: string }[] }
+    }
+    expect(created.status).toBe("applied")
+    expect(created.summary.created).toBe(2)
+
+    const relabelled = (await (
+      await post(
+        "accountBalanceMap",
+        org.slug,
+        mapBody([
+          {
+            accountCode: "221",
+            label: "Fio běžný účet",
+            kind: "bank",
+            matchKind: "prefix",
+            sortOrder: 2,
+          },
+        ]),
+        { secret: mapKey.secret },
+      )
+    ).json()) as { summary: { updated: number } }
+    expect(relabelled.summary.updated).toBe(1)
+
+    // Read back through the function the client page calls.
+    const { accountMappingsForScope } =
+      await import("@/lib/data/account-balances")
+    const owner = await ownerScopeFor(mapKey.secret, org.slug)
+    const rows = await accountMappingsForScope(owner)
+    expect(rows.map((row) => row.accountCode)).toEqual(["211", "221"])
+    expect(rows.find((row) => row.accountCode === "221")).toMatchObject({
+      label: "Fio běžný účet",
+      matchKind: "prefix",
+      sortOrder: 2,
+    })
+  })
+
+  it("retires an entry rather than deleting it", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "accountBalanceMap",
+      org.slug,
+      mapBody([{ accountCode: "221", label: "Banka", kind: "bank" }]),
+      { secret: mapKey.secret },
+    )
+    await post(
+      "accountBalanceMap",
+      org.slug,
+      mapBody([
+        { accountCode: "221", label: "Banka", kind: "bank", active: false },
+      ]),
+      { secret: mapKey.secret },
+    )
+
+    const { accountMappingsForScope } =
+      await import("@/lib/data/account-balances")
+    const owner = await ownerScopeFor(mapKey.secret, org.slug)
+    expect(await accountMappingsForScope(owner)).toHaveLength(0)
+    expect(
+      await accountMappingsForScope(owner, { includeInactive: true }),
+    ).toHaveLength(1)
+  })
+
+  it("refuses an overlap and writes nothing at all", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "accountBalanceMap",
+      org.slug,
+      mapBody([{ accountCode: "221.01", label: "Fio", kind: "bank" }]),
+      { secret: mapKey.secret },
+    )
+    const before = (await readActivityLog(org.organizationId)).length
+
+    const response = await post(
+      "accountBalanceMap",
+      org.slug,
+      mapBody([
+        {
+          accountCode: "221",
+          matchKind: "prefix",
+          label: "Vše",
+          kind: "bank",
+        },
+        { accountCode: "211", label: "Pokladna", kind: "cash" },
+      ]),
+      { secret: mapKey.secret },
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: "conflict" })
+
+    // Rolled back whole: no log row, and the second (perfectly valid) item of
+    // the same call was not written either.
+    expect((await readActivityLog(org.organizationId)).length).toBe(before)
+    const { accountMappingsForScope } =
+      await import("@/lib/data/account-balances")
+    const owner = await ownerScopeFor(mapKey.secret, org.slug)
+    expect(
+      (await accountMappingsForScope(owner)).map((row) => row.accountCode),
+    ).toEqual(["221.01"])
+  })
+
+  it("refuses a payload the schema does not accept", async () => {
+    for (const item of [
+      // No `externalRef` on this endpoint — the account code is the key.
+      { accountCode: "221", label: "Banka", kind: "bank", externalRef: "x" },
+      { accountCode: " 221 ", label: "Banka", kind: "bank" },
+      { accountCode: "221", label: "   ", kind: "bank" },
+      { accountCode: "221", label: "Banka", kind: "crypto" },
+      { accountCode: "221", label: "Banka", kind: "bank", matchKind: "regex" },
+      { accountCode: "2".repeat(21), label: "Banka", kind: "bank" },
+      { accountCode: "221", label: "Banka", kind: "bank", sortOrder: 1000 },
+      { label: "Banka", kind: "bank" },
+    ]) {
+      const response = await post(
+        "accountBalanceMap",
+        acme.slug,
+        mapBody([item]),
+        {
+          secret: mapKey.secret,
+        },
+      )
+      expect(response.status, JSON.stringify(item)).toBe(400)
+    }
+  })
+
+  it("records the write as an agent act", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "accountBalanceMap",
+      org.slug,
+      mapBody([{ accountCode: "221", label: "Banka", kind: "bank" }]),
+      { secret: mapKey.secret },
+    )
+
+    const rows = await readActivityLog(org.organizationId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      action: "account_map.upsert",
+      entity_kind: "account_balance_map",
+      actor_kind: "agent",
+      agent_key_id: mapKey.id,
+    })
+    expect(rows[0]?.summary["created"]).toBe(1)
+  })
+
+  it("is confined by the key's own scope, like every other arm", async () => {
+    const response = await post(
+      "accountBalanceMap",
+      other.slug,
+      mapBody([{ accountCode: "221", label: "Banka", kind: "bank" }]),
+      { secret: scopedKey.secret },
+    )
+    expect(response.status).toBe(404)
+  })
+
+  it("is advertised as implemented by the handshake", async () => {
+    const body = (await (await meta(mapKey.secret)).json()) as {
+      datasets: { path: string; implemented: boolean }[]
+    }
+    expect(
+      body.datasets.find((dataset) => dataset.path === "account-balance-map"),
+    ).toEqual({ path: "account-balance-map", implemented: true })
   })
 })
 

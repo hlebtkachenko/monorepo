@@ -84,6 +84,11 @@ export default defineConfig({
             // commas in one amount is refused" is a suite that gets skipped.
             "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
+            // `lib/account-labels.test.ts` (PR 27) is the same shape as
+            // `lib/obligation-labels.test.ts` one line up: two enum-to-catalog
+            // maps checked against the pgEnums' declared values and the JSON,
+            // neither of which needs a running database.
+            "lib/account-labels.test.ts",
             // Same rule as `lib/obligation-labels.test.ts` above, for PR 20's
             // two pure helpers: `lib/freshness.ts` is calendar-index
             // arithmetic over a period and a date string, `lib/turnover.ts`
@@ -179,6 +184,7 @@ export default defineConfig({
             "lib/format/**/*.test.ts",
             "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
+            "lib/account-labels.test.ts",
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
             "lib/notifications/**/*.test.ts",

@@ -22,6 +22,7 @@
  * database layer into its bundle.
  */
 import type {
+  account_balance_map,
   app_user,
   asset,
   asset_event,
@@ -40,6 +41,8 @@ import type {
   reporting_period,
   statement_line,
   trial_balance_line,
+  BetaAccountKind,
+  BetaAccountMatchKind,
   BetaAssetCategory,
   BetaAssetEventKind,
   BetaAssetStatus,
@@ -59,6 +62,7 @@ import type {
   BetaStatementKind,
 } from "@/db/schema"
 
+type AccountBalanceMapRow = typeof account_balance_map.$inferSelect
 type AppUserRow = typeof app_user.$inferSelect
 type DocumentRow = typeof document.$inferSelect
 type OrganizationRow = typeof organization.$inferSelect
@@ -1023,6 +1027,65 @@ export function liabilityView(
     variableSymbol: row.variable_symbol,
     noteClient: row.note_client,
     overdue: row.overdue,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Account balance map — Finance › Účty a hotovost (spec §2.4, §4)
+// ---------------------------------------------------------------------------
+
+/**
+ * One `account_balance_map` entry as Zadávání dat renders it (spec §3.3).
+ *
+ * IT CARRIES NO BALANCE, because the table holds none: the figures come from
+ * `trial_balance_line` through this map (`lib/data/account-balances.ts`). What
+ * is here is the naming — which účet, matched how, called what, in which order,
+ * live or retired.
+ *
+ * `organization_id` is absent because the reader already holds the scope that
+ * produced the row, and `created_at` because the freshness stamp of a curated
+ * list is its last edit, not its birth.
+ *
+ * There is no `external_ref` field for the simple reason that there is no such
+ * COLUMN: `accountCode` is this row's natural key and the ingestion API's upsert
+ * key (migration 0014).
+ */
+export type AccountBalanceMappingView = {
+  id: string
+  /** The účet as the office's rozvrh spells it: "221", "221.01", "211100". */
+  accountCode: string
+  matchKind: BetaAccountMatchKind
+  /** What the client calls it. */
+  label: string
+  kind: BetaAccountKind
+  sortOrder: number
+  active: boolean
+  /** The §0.4 stamp: when the office last curated this entry. */
+  updatedAt: string
+}
+
+export function accountBalanceMappingView(
+  row: Pick<
+    AccountBalanceMapRow,
+    | "id"
+    | "account_code"
+    | "match_kind"
+    | "friendly_label"
+    | "kind"
+    | "sort_order"
+    | "active"
+    | "updated_at"
+  >,
+): AccountBalanceMappingView {
+  return {
+    id: row.id,
+    accountCode: row.account_code,
+    matchKind: row.match_kind,
+    label: row.friendly_label,
+    kind: row.kind,
+    sortOrder: row.sort_order,
+    active: row.active,
     updatedAt: row.updated_at.toISOString(),
   }
 }

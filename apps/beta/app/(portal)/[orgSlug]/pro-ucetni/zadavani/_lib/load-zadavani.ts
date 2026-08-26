@@ -1,8 +1,13 @@
 import "server-only"
 
+import { accountMappingsForScope } from "@/lib/data/account-balances"
 import { filingsForScope } from "@/lib/data/filings"
 import { liabilitiesForScope } from "@/lib/data/liabilities"
-import type { FilingView, LiabilityView } from "@/lib/data/projections"
+import type {
+  AccountBalanceMappingView,
+  FilingView,
+  LiabilityView,
+} from "@/lib/data/projections"
 import { requireOwner } from "@/lib/data/scope"
 
 import { resolveOrgScope } from "../../../_lib/org-scope"
@@ -25,22 +30,25 @@ import { resolveOrgScope } from "../../../_lib/org-scope"
  * file rather than trusting the layout's is what makes `owner` a proven handle
  * HERE, the same discipline `zpracovani/page.tsx` follows.
  *
- * PAID ROWS ARE INCLUDED. Dluhy a platby is a list of debts and hides them;
- * this is the editing surface, and an accountant who mis-keyed a payment has to
- * be able to find the row again.
+ * PAID AND RETIRED ROWS ARE INCLUDED. Dluhy a platby is a list of debts and
+ * hides paid ones; Účty a hotovost shows live accounts and hides retired ones.
+ * This is the editing surface for both, and an accountant who mis-keyed a
+ * payment — or retired the wrong account — has to be able to find the row again.
  */
 export async function loadZadavani(orgSlug: string): Promise<{
   orgSlug: string
   filings: FilingView[]
   liabilities: LiabilityView[]
+  accounts: AccountBalanceMappingView[]
 }> {
   const scope = await resolveOrgScope(orgSlug)
   const owner = requireOwner(scope)
 
-  const [filings, liabilities] = await Promise.all([
+  const [filings, liabilities, accounts] = await Promise.all([
     filingsForScope(owner),
     liabilitiesForScope(owner, { includePaid: true }),
+    accountMappingsForScope(owner, { includeInactive: true }),
   ])
 
-  return { orgSlug: owner.organizationSlug, filings, liabilities }
+  return { orgSlug: owner.organizationSlug, filings, liabilities, accounts }
 }

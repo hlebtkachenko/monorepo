@@ -529,6 +529,63 @@ export const clientTasksUpsertSchema = z
   })
   .strict()
 
+/**
+ * Upsert the account map — which účet is a bank account, which is the pokladna
+ * (spec §3.2's `account_balance_map` endpoint, §2.4).
+ *
+ * NO `externalRef`, AND THAT IS NOT AN OVERSIGHT. Every other registry on this
+ * API carries one because it has no natural key: two identical-looking DPH
+ * advances can both be real, so an incoming row can only be matched on the id
+ * its own source holds. An account map entry is the opposite case —
+ * `accountCode` IS the identity, it is what the office's účtový rozvrh calls
+ * the row, and migration 0014 makes it unique within the book. Adding a second
+ * match key would let a re-sent entry match on one key and collide on the
+ * other, which is the duplicate-or-lose failure `externalRef` exists to prevent
+ * rather than to cause.
+ *
+ * THE MATCH KIND IS PART OF THE PAYLOAD, not inferred from the code's shape. An
+ * office publishing `221` may mean "the syntetický účet 221 exactly" or "every
+ * analytika under 221", and guessing from whether the code carries a separator
+ * would be this product deciding what a client's rozvrh means. `exact` is the
+ * default at the database, so an agent that says nothing claims one účet.
+ *
+ * `active: false` RETIRES AN ENTRY; there is no delete on this endpoint. A
+ * closed account's balances still exist in every past předvaha, and dropping
+ * the entry would silently remove that account from the client's history — so
+ * the destructive act stays in the office's own hands (Zadávání dat).
+ */
+export const accountBalanceMapUpsertSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            // `trial_balance_line.account_code`'s own shape: free text, up to
+            // 20 characters, no digit rule (a Czech rozvrh carries "343.01",
+            // "311100", "221_02"). The one rule added here is the one the
+            // matching depends on — no leading or trailing whitespace, because
+            // the code is used as a literal PREFIX and a stray space would make
+            // an entry match nothing while looking correct everywhere.
+            accountCode: z
+              .string()
+              .max(20)
+              .regex(
+                /^\S(?:.*\S)?$/,
+                "expected an account code with no padding",
+              ),
+            matchKind: z.enum(["exact", "prefix"]).optional(),
+            label: text(120).regex(/\S/, "expected a non-blank label"),
+            kind: z.enum(["bank", "cash"]),
+            sortOrder: z.int().min(0).max(999).optional(),
+            active: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_ITEMS),
+  })
+  .strict()
+
 export type PublishStatementsInput = z.infer<typeof publishStatementsSchema>
 export type PublishTrialBalanceInput = z.infer<typeof publishTrialBalanceSchema>
 export type PublishPayrollInput = z.infer<typeof publishPayrollSchema>
@@ -536,3 +593,6 @@ export type FilingsUpsertInput = z.infer<typeof filingsUpsertSchema>
 export type LiabilitiesUpsertInput = z.infer<typeof liabilitiesUpsertSchema>
 export type AssetsUpsertInput = z.infer<typeof assetsUpsertSchema>
 export type ClientTasksUpsertInput = z.infer<typeof clientTasksUpsertSchema>
+export type AccountBalanceMapUpsertInput = z.infer<
+  typeof accountBalanceMapUpsertSchema
+>

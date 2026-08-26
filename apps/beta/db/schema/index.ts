@@ -8,6 +8,7 @@
  * applies the migrations, and fails when the two disagree.
  */
 export * from "./_enums"
+export * from "./account_balance_map"
 export * from "./activity_log"
 export * from "./agent_key"
 export * from "./app_user"

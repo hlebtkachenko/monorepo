@@ -2,6 +2,7 @@ import "server-only"
 
 import { betaDb, type BetaTx } from "@/db/client"
 import type {
+  AccountBalanceMapUpsertInput,
   AssetsUpsertInput,
   ClientTasksUpsertInput,
   FilingsUpsertInput,
@@ -10,8 +11,13 @@ import type {
   PublishStatementsInput,
   PublishTrialBalanceInput,
 } from "@/lib/agent/schemas"
-import { isUniqueViolation } from "@/lib/pg-error"
+import { isCheckViolation, isUniqueViolation } from "@/lib/pg-error"
 
+import {
+  accountMappingIdByCode,
+  createAccountMapping,
+  updateAccountMapping,
+} from "./account-balances"
 import { recordAgentActivity, agentActivityByRequestId } from "./activity-log"
 import {
   assetByExternalRef,
@@ -713,6 +719,99 @@ export async function ingestAssets(
       return {
         entityId: items.length === 1 ? (items[0]?.id ?? null) : null,
         summary: upsertSummary(items),
+      }
+    },
+  )
+}
+
+/**
+ * Upsert the account balance map — spec §3.2's `account_balance_map` endpoint,
+ * the feeder of Finance › Účty a hotovost (§2.4).
+ *
+ * MATCHED ON `accountCode`, NOT ON AN `externalRef`, and this is the one
+ * registry on this API where that is the right key rather than a shortcut: the
+ * account code IS the row's identity (it is what the office's own účtový rozvrh
+ * calls it), migration 0014 makes it unique within the book, and there is no
+ * `external_ref` column here to disagree with it. See `accountMappingIdByCode`.
+ *
+ * WHAT IT CANNOT DO: delete. `active: false` retires an entry and leaves it
+ * findable; removing it outright would drop the account out of every past
+ * card, which is a destructive act on the client's HISTORY and stays in the
+ * office's own hands (Zadávání dat).
+ *
+ * A CHECK VIOLATION IS A REFUSAL, NOT A 500. The overlap trigger
+ * (`account_balance_map_no_overlap`) is the rule that makes the page's "celkem"
+ * a sum over disjoint sets: an agent that maps prefix `221` while exact `221.01`
+ * already exists is stating a map in which one účet would be counted twice.
+ * That is "your request is well-formed and the current state will not accept
+ * it" — a 409 `conflict`, the same answer a raced unique key gets, and the
+ * whole call rolls back so a partly-applied map is not representable.
+ */
+export async function ingestAccountBalanceMap(
+  ctx: IngestContext,
+  input: AccountBalanceMapUpsertInput,
+): Promise<IngestOutcome> {
+  return ingest(
+    ctx,
+    { action: "account_map.upsert", entityKind: "account_balance_map" },
+    async (tx) => {
+      const items: {
+        accountCode: string
+        id: string
+        action: "created" | "updated"
+      }[] = []
+
+      try {
+        for (const item of input.items) {
+          const fields = {
+            matchKind: item.matchKind ?? "exact",
+            label: item.label,
+            kind: item.kind,
+            ...(item.sortOrder === undefined
+              ? {}
+              : { sortOrder: item.sortOrder }),
+            ...(item.active === undefined ? {} : { active: item.active }),
+          } as const
+
+          const existingId = await accountMappingIdByCode(
+            ctx.owner,
+            item.accountCode,
+            tx,
+          )
+
+          if (existingId) {
+            await updateAccountMapping(ctx.owner, existingId, fields, tx)
+            items.push({
+              accountCode: item.accountCode,
+              id: existingId,
+              action: "updated",
+            })
+            continue
+          }
+
+          const created = await createAccountMapping(
+            ctx.owner,
+            { ...fields, accountCode: item.accountCode },
+            tx,
+          )
+          items.push({
+            accountCode: item.accountCode,
+            id: created.id,
+            action: "created",
+          })
+        }
+      } catch (error) {
+        if (isCheckViolation(error)) throw new IngestRefused("conflict")
+        throw error
+      }
+
+      return {
+        entityId: items.length === 1 ? (items[0]?.id ?? null) : null,
+        summary: {
+          items,
+          created: items.filter((item) => item.action === "created").length,
+          updated: items.filter((item) => item.action === "updated").length,
+        },
       }
     },
   )

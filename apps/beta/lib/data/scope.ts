@@ -12,6 +12,8 @@ import {
 } from "@/db/schema"
 import { getBetaSession } from "@/lib/auth/session"
 
+import { isValidOrgSlugFormat } from "./org-slug"
+
 /**
  * The tenancy seam — the inner wall.
  *
@@ -56,10 +58,6 @@ import { getBetaSession } from "@/lib/auth/session"
  * change for that to land — which is why the handle carries resolved facts
  * rather than a role string callers re-interpret.
  */
-
-/** Mirrors the `organization_slug_format` CHECK in 0000_init.sql. */
-const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
-const SLUG_MAX_LENGTH = 64
 
 const orgScopeBrand = Symbol("beta.OrgScope")
 const officeScopeBrand = Symbol("beta.OfficeScope")
@@ -108,10 +106,10 @@ export async function requireScope(orgSlug: string): Promise<OrgScope> {
 
   // A slug that cannot exist is answered without a round trip. The DB CHECK
   // means a non-matching string can never be stored, so this is a shortcut and
-  // not a second, weaker validation.
-  if (orgSlug.length > SLUG_MAX_LENGTH || !SLUG_PATTERN.test(orgSlug)) {
-    notFound()
-  }
+  // not a second, weaker validation. The rule itself lives in `org-slug.ts`,
+  // shared with the /admin create form so the two cannot disagree about what a
+  // slug is.
+  if (!isValidOrgSlugFormat(orgSlug)) notFound()
 
   const [row] = await betaDb()
     .select({

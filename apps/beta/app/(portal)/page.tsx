@@ -1,7 +1,7 @@
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { requireBetaSession } from "@/lib/auth/session"
 
-import { SignOutButton } from "./_components/sign-out-button"
+import { SignOutButton } from "../_components/sign-out-button"
 
 /**
  * Portal root. Still a landing card: org routing ("one active membership →

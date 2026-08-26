@@ -15,7 +15,14 @@ import {
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
 import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
+import { isCheckViolation } from "@/lib/pg-error"
 
+import {
+  mayGrantRole,
+  mayIssuePurpose,
+  type InviteIssuer,
+} from "./invite-policy"
+import { BETA_SETUP_LINK_TTL_HOURS } from "./policy"
 import { betaAuth } from "./server"
 
 /**
@@ -173,6 +180,210 @@ export function hashSetupToken(rawToken: string): string {
 /** 256 bits of CSPRNG, url-safe. Used by the issuing side (/admin, PR 08). */
 export function generateSetupToken(): string {
   return randomBytes(32).toString("base64url")
+}
+
+// ---------------------------------------------------------------------------
+// Issuance — the other half of the link's life
+// ---------------------------------------------------------------------------
+
+/**
+ * Who is handing out the link, as the calling door already proved it.
+ *
+ * `office` comes from a resolved `OfficeScope` (/admin, PR 08); `organization`
+ * from a resolved `OrgScope` (Nastavení › Lidé, PR 22). The two share this one
+ * function so the invite matrix cannot drift between them, and neither of them
+ * can name an issuer id that is not their own signed-in user.
+ */
+type SetupLinkIssuer =
+  | { readonly kind: "office"; readonly userId: string }
+  | {
+      readonly kind: "organization"
+      readonly userId: string
+      readonly organizationId: string
+      readonly role: BetaOrgRole
+    }
+
+export type IssueSetupTokenInput = {
+  readonly purpose: BetaSetupTokenPurpose
+  readonly email: string
+  readonly organizationId?: string | null
+  readonly grantedRole?: BetaOrgRole | null
+  readonly issuer: SetupLinkIssuer
+  readonly ip: string | null
+  readonly userAgent: string | null
+}
+
+/**
+ * THE ONLY TIME THE RAW SECRET EXISTS OUTSIDE THE LINK.
+ *
+ * `token` is returned to the caller once, travels to the office user's screen
+ * once, and is never persisted, never logged and never re-derivable: the table
+ * holds `sha256(token)` and nothing else. `listSetupLinks` (the /admin
+ * registry) has no field for it, by construction rather than by omission — see
+ * `officeSetupLinkSummary` in `lib/data/projections.ts`.
+ */
+export type IssuedSetupLink = {
+  readonly id: string
+  readonly token: string
+  readonly purpose: BetaSetupTokenPurpose
+  readonly email: string
+  readonly expiresAt: Date
+}
+
+export type IssueSetupTokenRejection =
+  /** Not a usable address — checked before anything is generated. */
+  | "invalid_email"
+  /** This issuer may not mint this kind of link at all. */
+  | "purpose_not_allowed"
+  /** This issuer may not grant this role (admin → owner is the live case). */
+  | "role_not_allowed"
+  /** Organization + role pairing wrong, or an org issuer aiming elsewhere. */
+  | "scope_mismatch"
+  /** A database guard refused it. The floor did its job; say no, quietly. */
+  | "rejected"
+
+export type IssueSetupTokenResult =
+  | { ok: true; link: IssuedSetupLink }
+  | { ok: false; reason: IssueSetupTokenRejection }
+
+/**
+ * Deliberately loose. The address is a routing fact the office types in, not a
+ * credential, and an over-clever pattern rejects legitimate mail more often
+ * than it catches a typo. The DB column is `varchar(320)`; the lowercasing is
+ * done by trigger as well, and repeated here so the value this function
+ * RETURNS matches the value it stored.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@.]+(?:\.[^\s@.]+)+$/
+const EMAIL_MAX_LENGTH = 320
+
+function normalizeEmail(raw: string): string | null {
+  const email = raw.trim().toLowerCase()
+  if (email.length === 0 || email.length > EMAIL_MAX_LENGTH) return null
+  return EMAIL_PATTERN.test(email) ? email : null
+}
+
+/**
+ * Mint a one-time link.
+ *
+ * FOUR GATES, IN THIS ORDER, AND ALL OF THEM BEFORE THE SECRET IS GENERATED:
+ *
+ *   1. the address parses;
+ *   2. this issuer may mint this PURPOSE (`invite-policy.ts`);
+ *   3. this issuer may grant this ROLE — the admin-never-owner rule;
+ *   4. the purpose, the organization and the role are a coherent triple, and an
+ *      organization issuer is aiming at their OWN organization.
+ *
+ * Then the database re-checks 2-4 from its own side
+ * (`beta_setup_token_issuer_guard`, the `user_setup_token_*` CHECKs), which is
+ * why a `check_violation` here is answered as a plain refusal rather than
+ * raised: the floor catching something the gates let through is a refusal, not
+ * a fault, and the caller must not be able to tell the two apart.
+ *
+ * The TTL is fixed at {@link BETA_SETUP_LINK_TTL_HOURS} and is not a parameter.
+ * A caller-supplied lifetime is a knob whose only interesting value is "longer",
+ * and the 72h ceiling is a DB CHECK, so the useful range is one number.
+ */
+export async function issueSetupToken(
+  input: IssueSetupTokenInput,
+): Promise<IssueSetupTokenResult> {
+  const email = normalizeEmail(input.email)
+  if (!email) return { ok: false, reason: "invalid_email" }
+
+  const issuer: InviteIssuer =
+    input.issuer.kind === "office"
+      ? { kind: "office" }
+      : { kind: "organization", role: input.issuer.role }
+
+  if (!mayIssuePurpose(issuer, input.purpose)) {
+    return { ok: false, reason: "purpose_not_allowed" }
+  }
+
+  const organizationId = input.organizationId ?? null
+  const grantedRole = input.grantedRole ?? null
+
+  if (grantedRole !== null && !mayGrantRole(issuer, grantedRole)) {
+    return { ok: false, reason: "role_not_allowed" }
+  }
+
+  // Mirrors the CHECK constraints so the caller gets a named reason instead of
+  // a constraint name, and so an incoherent triple never reaches the database.
+  if ((organizationId === null) !== (grantedRole === null)) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (input.purpose === "password_reset" && organizationId !== null) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (input.purpose === "org_invite" && organizationId === null) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+  if (
+    input.issuer.kind === "organization" &&
+    organizationId !== input.issuer.organizationId
+  ) {
+    return { ok: false, reason: "scope_mismatch" }
+  }
+
+  const token = generateSetupToken()
+
+  try {
+    const [row] = await betaDb()
+      .insert(user_setup_token)
+      .values({
+        purpose: input.purpose,
+        token_hash: hashSetupToken(token),
+        email,
+        organization_id: organizationId,
+        granted_role: grantedRole,
+        issued_by_user_id: input.issuer.userId,
+        issued_ip: input.ip,
+        issued_user_agent: input.userAgent,
+        expires_at: sql`now() + ${`${BETA_SETUP_LINK_TTL_HOURS} hours`}::interval`,
+      })
+      .returning({
+        id: user_setup_token.id,
+        expiresAt: user_setup_token.expires_at,
+      })
+
+    if (!row) return { ok: false, reason: "rejected" }
+
+    return {
+      ok: true,
+      link: {
+        id: row.id,
+        token,
+        purpose: input.purpose,
+        email,
+        expiresAt: row.expiresAt,
+      },
+    }
+  } catch (error) {
+    if (isCheckViolation(error)) return { ok: false, reason: "rejected" }
+    throw error
+  }
+}
+
+/**
+ * Where a link points.
+ *
+ * ENV-FIRST, never request-derived: behind the Cloudflare Tunnel a request's
+ * own URL is the container listener, so an origin built from it would produce a
+ * link to an address that does not exist off-box (ADR-0008 amendment 2, and the
+ * same reason `server.ts` reads `BETTER_AUTH_URL` for `baseURL`). With no base
+ * configured — local development — the result is a root-relative path, which is
+ * still correct against whatever host the operator is using.
+ */
+function setupLinkPath(
+  link: Pick<IssuedSetupLink, "purpose" | "token">,
+): string {
+  const segment = link.purpose === "password_reset" ? "reset" : "setup"
+  return `/${segment}/${encodeURIComponent(link.token)}`
+}
+
+export function setupLinkUrl(
+  link: Pick<IssuedSetupLink, "purpose" | "token">,
+): string {
+  const base = process.env["BETTER_AUTH_URL"]?.trim().replace(/\/+$/, "") ?? ""
+  return `${base}${setupLinkPath(link)}`
 }
 
 /**
@@ -496,31 +707,4 @@ async function grantMembership(
       .set({ active: true, role: values.role })
       .where(eq(organization_membership.id, existing.id))
   }
-}
-
-/**
- * Postgres `check_violation` — the class every guard in the migrations raises
- * (owner ⇒ is_staff, last-owner protection, the token CHECKs).
- *
- * The cause chain matters: Drizzle wraps the driver error in a
- * `DrizzleQueryError` that carries no `code` of its own, so reading the top
- * level alone would let a legitimate refusal escape as a 500.
- */
-function isCheckViolation(error: unknown): boolean {
-  let current: unknown = error
-  for (
-    let depth = 0;
-    current !== null && current !== undefined && depth < 5;
-    depth++
-  ) {
-    if (
-      typeof current === "object" &&
-      "code" in current &&
-      (current as { code?: unknown }).code === "23514"
-    ) {
-      return true
-    }
-    current = (current as { cause?: unknown }).cause
-  }
-  return false
 }

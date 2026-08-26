@@ -840,5 +840,9 @@
     "csvIssueColumnShape": "řádek má sloupce z druhé strany výkazu",
     "csvIssueDuplicateRow": "stejný řádek je v souboru dvakrát",
     "csvIssueRaggedRow": "řádek má víc hodnot než sloupců v hlavičce"
+  },
+  "notifications": {
+    "toggleLabel": "E-mailové notifikace",
+    "toggleHint": "Dostávejte e-mail, když se vrátí doklad, přibude nový úkol nebo se zveřejní nová data ve výkazech."
   }
 }

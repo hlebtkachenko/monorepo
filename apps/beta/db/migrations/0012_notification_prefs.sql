@@ -1,0 +1,32 @@
+-- Migration 0012: notification_prefs — the per-user email notification toggle
+-- (spec `.context/beta-afframe/40-beta-structure.md` §2.10 "e-mail notifikace
+-- toggle", §2.11 "Notifikace (email only, 3 events) ... Per-user toggle").
+--
+-- ONE COLUMN ON `app_user`, NOT A SEPARATE TABLE. Spec §2.11 states the toggle
+-- singular ("Per-user toggle", not "per-event toggles"), and §2.10 places it in
+-- Nastavení › Účet — an ACCOUNT setting, not an organization one. `app_user` is
+-- already the one row-per-person identity every membership hangs off
+-- (`0000_init.sql`), so a boolean there is the whole mechanism: no join, no
+-- second table whose only content is a single flag, and the toggle reads the
+-- same for every organization a person belongs to (an office `owner` account
+-- holds one preference, not one per client book).
+--
+-- DEFAULT true. Spec does not ask for an opt-in — the notifications exist so a
+-- client learns about a returned document, a new task or newly published
+-- figures without having to check the portal, and an unread mailbox is a worse
+-- failure mode than an unwanted email. Nastavení › Účet (PR 21/22) is where a
+-- user turns it off.
+--
+-- NOT ON `CLIENT_FORBIDDEN_COLUMNS` (`lib/data/projections.ts`) and NOT on the
+-- app_user-writes boundary's `FORBIDDEN_COLUMNS` (`lib/auth/app-user-writes.
+-- boundary.test.ts`) — unlike `is_staff` / `disabled_at` / `two_factor_enabled`
+-- (privileged, or gated behind an enrolment flow that does not exist yet), this
+-- column is the user's OWN preference about their own inbox with no
+-- precondition to protect, so the self-service write in
+-- `lib/data/notification-prefs.ts` may set it with a plain literal Drizzle
+-- payload rather than needing an audited payload builder.
+--
+-- NO `BEGIN;` / `COMMIT;` in this file — see the header of 0000_init.sql.
+
+ALTER TABLE app_user
+  ADD COLUMN email_notifications_enabled boolean NOT NULL DEFAULT true;

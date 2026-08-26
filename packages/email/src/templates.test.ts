@@ -5,6 +5,9 @@ import { describe, expect, it } from "vitest"
 
 import {
   accountDangerOtpEmail,
+  betaClientTaskEmail,
+  betaDocumentAttentionEmail,
+  betaPeriodPublishedEmail,
   inviteEmail,
   magicLinkEmail,
   passwordResetEmail,
@@ -115,6 +118,81 @@ describe("account danger OTP email", () => {
     // Migrated onto the shared shell during merge — verify it routes through it.
     expect(message.replyTo).toBe("support@afframe.com")
     expect(message.html).toContain("https://app.afframe.com/icon-512.png")
+  })
+})
+
+describe("beta portal notifications", () => {
+  const BETA_URL = "https://beta.afframe.com/acme-sro/dokumenty"
+
+  it("betaDocumentAttentionEmail names the doklad and quotes the office message", () => {
+    const m = betaDocumentAttentionEmail({
+      to: "owner@example.com",
+      organizationName: "Acme s.r.o.",
+      filename: "faktura-2026-08.pdf",
+      officeMessage: "Chybí variabilní symbol.",
+      url: BETA_URL,
+    })
+    expect(m.subject).toBe("Doklad „faktura-2026-08.pdf“ vyžaduje pozornost")
+    expect(m.html).toContain("faktura-2026-08.pdf")
+    expect(m.html).toContain("Acme s.r.o.")
+    expect(m.html).toContain("Chybí variabilní symbol.")
+    expect(m.html).toContain("Otevřít Dokumenty")
+    expect(m.replyTo).toBe("support@afframe.com")
+  })
+
+  it("betaClientTaskEmail names the task and the due date", () => {
+    const m = betaClientTaskEmail({
+      to: "admin@example.com",
+      organizationName: "Acme s.r.o.",
+      title: "Nahrát bankovní výpis",
+      dueDateLabel: "25.03.2026",
+      url: BETA_URL,
+    })
+    expect(m.subject).toBe("Nový úkol: Nahrát bankovní výpis")
+    expect(m.html).toContain("Nahrát bankovní výpis")
+    expect(m.html).toContain("25.03.2026")
+    expect(m.html).toContain("Zobrazit úkoly")
+  })
+
+  it("betaPeriodPublishedEmail names the dataset and the period", () => {
+    const m = betaPeriodPublishedEmail({
+      to: "member@example.com",
+      organizationName: "Acme s.r.o.",
+      datasetLabel: "Rozvaha",
+      periodLabel: "07/2026",
+      url: BETA_URL,
+    })
+    expect(m.subject).toBe("Nová data ve výkazech: Rozvaha za 07/2026")
+    expect(m.html).toContain("Rozvaha")
+    expect(m.html).toContain("07/2026")
+    expect(m.html).toContain("Zobrazit výkazy")
+  })
+
+  it("overrides the shell's login link to the beta portal, not the main app", () => {
+    const m = betaDocumentAttentionEmail({
+      to: "owner@example.com",
+      organizationName: "Acme s.r.o.",
+      filename: "f.pdf",
+      officeMessage: "x",
+      url: BETA_URL,
+    })
+    expect(m.html).toContain("https://beta.afframe.com/sign-in")
+    // The brand mark still hosts on the main app's domain (beta has no
+    // separate one) — only the LOGIN link is overridden.
+    expect(m.html).not.toContain("https://app.afframe.com/auth/login")
+  })
+
+  it("still shares the cross-client shell (brand mark, footer, reply-to)", () => {
+    const m = betaClientTaskEmail({
+      to: "admin@example.com",
+      organizationName: "Acme s.r.o.",
+      title: "x",
+      dueDateLabel: "01.01.2026",
+      url: BETA_URL,
+    })
+    expect(m.html).toContain("https://app.afframe.com/icon-512.png")
+    expect(m.html).toContain("max-width:560px")
+    expect(m.html).toContain("<!--[if mso]>")
   })
 })
 

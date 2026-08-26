@@ -27,9 +27,15 @@ import {
   type BetaClientDocumentType,
   type BetaDocumentStatus,
 } from "@/db/schema"
+import {
+  documentAttentionTrigger,
+  notifyDocumentAttention,
+} from "@/lib/notifications/events"
 import { isCheckViolation } from "@/lib/pg-error"
 
 import { normalizeSiteRef } from "./documents"
+import { notifiableOrgMembers } from "./notification-prefs"
+import { organizationForScope } from "./organizations"
 import { ownerDocumentDetail, type OwnerDocumentDetail } from "./projections"
 import type { OwnerScope } from "./scope"
 
@@ -228,6 +234,29 @@ export type DocumentOfficeResult =
   | { ok: true; document: OwnerDocumentDetail }
   | { ok: false; reason: DocumentOfficeRefusal }
 
+/**
+ * Resolve recipients and org identity, then send — the part of the spec
+ * §2.11 event-1 notification that needs the database. `documentAttentionTrigger`
+ * (pure, `lib/notifications/events.ts`) already decided this should fire;
+ * this function's only job is fetching who "the client" is right now.
+ */
+async function dispatchDocumentAttentionNotification(
+  owner: OwnerScope,
+  detail: OwnerDocumentDetail,
+): Promise<void> {
+  if (detail.officeMessage === null) return
+  const [recipients, org] = await Promise.all([
+    notifiableOrgMembers(owner.organizationId),
+    organizationForScope(owner),
+  ])
+  await notifyDocumentAttention(recipients, {
+    orgSlug: owner.organizationSlug,
+    organizationName: org.legalName,
+    filename: detail.filename,
+    officeMessage: detail.officeMessage,
+  })
+}
+
 export async function saveDocumentOffice(
   owner: OwnerScope,
   documentId: string,
@@ -334,7 +363,32 @@ export async function saveDocumentOffice(
 
     const [row] = updated
     if (!row) return { ok: false, reason: "conflict" }
-    return { ok: true, document: ownerDocumentDetail(row) }
+    const detail = ownerDocumentDetail(row)
+
+    // Post-commit notification (spec §2.11 event 1). The UPDATE above already
+    // committed — this function opens no explicit transaction, so a single
+    // Postgres statement IS the commit — and `documentAttentionTrigger`
+    // compares the row read BEFORE the write against the row this UPDATE
+    // actually returned, never the caller's patch. Fire-and-forget: `void`
+    // plus a `.catch` so a transport failure is logged, never thrown into
+    // this write's own caller.
+    if (
+      documentAttentionTrigger(
+        { status: current.status, officeMessage: current.office_message },
+        { status: detail.status, officeMessage: detail.officeMessage },
+      )
+    ) {
+      void dispatchDocumentAttentionNotification(owner, detail).catch(
+        (error: unknown) => {
+          console.error(
+            "[beta:notifications] document-attention dispatch failed",
+            error,
+          )
+        },
+      )
+    }
+
+    return { ok: true, document: detail }
   } catch (error) {
     // The DB CHECK (`document_returned_requires_message`) is the backstop for
     // the one case the pre-check above cannot see: another write clears the

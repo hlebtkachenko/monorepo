@@ -10,8 +10,15 @@
  * triggers) is `db/import-spine.test.ts`. What is tested here is the RITUAL:
  * publish, supersede, rollback, idempotency, and who is allowed to see a draft.
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
-
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 import {
   createImportBatchRow,
   createMonthPeriod,
@@ -36,6 +43,37 @@ const request = vi.hoisted(() => ({ headers: new Headers() }))
 
 vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
+}))
+
+// spec §2.11 event 3 — `publishBatch` fires a notification through
+// `@workspace/email`, and ONLY for a genuine publish (never the idempotent
+// re-publish case). Mocked so the tests below can assert who it was sent to,
+// and — the send-after-commit contract — that the row is already visible as
+// `published` to a FRESH read at the moment it fires.
+const sendEmail = vi.hoisted(() =>
+  vi.fn(async (_message: { to: string }) => {}),
+)
+
+vi.mock("@workspace/email", () => ({
+  sendEmail,
+  betaDocumentAttentionEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "doc",
+    html: "<html/>",
+    text: "doc",
+  }),
+  betaClientTaskEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "task",
+    html: "<html/>",
+    text: "task",
+  }),
+  betaPeriodPublishedEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "period",
+    html: "<html/>",
+    text: "period",
+  }),
 }))
 
 const { requireOwner, requireScope } = await import("./scope")
@@ -511,6 +549,156 @@ describe("publishBatch — the flip", () => {
 
     const history = await batchHistoryForScope(scope, { periodId })
     expect(history.filter((b) => b.status === "published")).toHaveLength(1)
+  })
+})
+
+describe("spec §2.11 event 3 — the period-published notification", () => {
+  beforeEach(() => {
+    sendEmail.mockClear()
+  })
+
+  it("fires on a genuine publish, to every notifiable recipient — never the owner", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "predvaha",
+      source: "manual",
+      filename: "predvaha-2026-07.csv",
+      trialBalanceLines: PREDVAHA_LINES,
+    })
+    const outcome = await publishBatch(scope, batch.id)
+    expect(outcome.ok && !outcome.alreadyPublished).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    const recipients = sendEmail.mock.calls
+      .map(([m]) => (m as { to: string }).to)
+      .sort()
+    expect(recipients).toEqual(
+      [
+        org.members.admin.email,
+        org.members.member.email,
+        org.members.guest.email,
+      ].sort(),
+    )
+    expect(recipients).not.toContain(org.members.owner.email)
+  })
+
+  it("does NOT fire on the idempotent re-publish (alreadyPublished: true)", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "vzz",
+      source: "agent",
+      statementLines: VZZ_LINES,
+    })
+    await publishBatch(scope, batch.id)
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    sendEmail.mockClear()
+
+    const second = await publishBatch(scope, batch.id)
+    expect(second).toMatchObject({ ok: true, alreadyPublished: true })
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("fires again on a supersession replace — new numbers, a second event", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const first = await createDraftBatch(scope, {
+      periodId,
+      dataset: "rozvaha",
+      source: "agent",
+      statementLines: ROZVAHA_LINES,
+    })
+    await publishBatch(scope, first.id)
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+    sendEmail.mockClear()
+
+    const second = await createDraftBatch(scope, {
+      periodId,
+      dataset: "rozvaha",
+      source: "agent",
+      statementLines: ROZVAHA_LINES.map((line) => ({
+        ...line,
+        minule: line.minule ?? null,
+      })),
+    })
+    const outcome = await publishBatch(scope, second.id)
+    expect(outcome.ok && !outcome.alreadyPublished).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+  })
+
+  it("does NOT fire on a refused publish (unknown batch)", async () => {
+    const org = await seedOrganization()
+    const scope = await ownerScope(org)
+
+    const outcome = await publishBatch(scope, crypto.randomUUID())
+    expect(outcome).toEqual<{ ok: false; reason: PublishRefusal }>({
+      ok: false,
+      reason: "unknown_batch",
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("respects the per-user toggle and excludes a disabled account", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+    // Reaching the app_user row through the fixtures' own DB handle would need
+    // a second postgres client; `readImportBatchRow`'s pattern of a fresh read
+    // is enough elsewhere in this file, so the toggle write goes through the
+    // audited, ungated data-layer function instead of raw SQL here.
+    const { setEmailNotificationsEnabled } =
+      await import("./notification-prefs")
+    await setEmailNotificationsEnabled(org.members.member.userId, false)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "predvaha",
+      source: "manual",
+      trialBalanceLines: PREDVAHA_LINES,
+    })
+    await publishBatch(scope, batch.id)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(2))
+    const recipients = sendEmail.mock.calls.map(
+      ([m]) => (m as { to: string }).to,
+    )
+    expect(recipients).not.toContain(org.members.member.email)
+  })
+
+  it("sends after the row is already committed — a fresh read sees it published", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "predvaha",
+      source: "manual",
+      trialBalanceLines: PREDVAHA_LINES,
+    })
+
+    sendEmail.mockImplementationOnce(async () => {
+      const row = await readImportBatchRow(batch.id)
+      expect(row.status).toBe("published")
+      expect(row.published_at).not.toBeNull()
+    })
+
+    await publishBatch(scope, batch.id)
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalled())
   })
 })
 

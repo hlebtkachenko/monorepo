@@ -91,6 +91,7 @@ describe("beta migration runner", () => {
           "0008_assets.sql",
           "0009_client_tasks.sql",
           "0010_document_preview.sql",
+          "0012_notification_prefs.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 

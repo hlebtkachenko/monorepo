@@ -15,7 +15,15 @@
  *      call these functions accept, because there is no `OwnerScope` for it
  *      to be).
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest"
 import postgres from "postgres"
 
 import {
@@ -29,6 +37,35 @@ const request = vi.hoisted(() => ({ headers: new Headers() }))
 
 vi.mock("next/headers", () => ({
   headers: () => Promise.resolve(request.headers),
+}))
+
+// spec §2.11 event 1 — `saveDocumentOffice` fires a notification through
+// `@workspace/email`. Mocked here (not a console-transport wait) so the tests
+// below can assert WHO it was sent to and WHEN, against real rows.
+const sendEmail = vi.hoisted(() =>
+  vi.fn(async (_message: { to: string }) => {}),
+)
+
+vi.mock("@workspace/email", () => ({
+  sendEmail,
+  betaDocumentAttentionEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "doc",
+    html: "<html/>",
+    text: "doc",
+  }),
+  betaClientTaskEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "task",
+    html: "<html/>",
+    text: "task",
+  }),
+  betaPeriodPublishedEmail: (input: { to: string }) => ({
+    to: input.to,
+    subject: "period",
+    html: "<html/>",
+    text: "period",
+  }),
 }))
 
 type DocumentsModule = typeof import("./documents")
@@ -509,5 +546,121 @@ describe("the visible_to_client toggle's real effect on client reads (spec §2.2
 
     expect((await documents.listDocuments(guest)).documents).toHaveLength(1)
     expect(await documents.documentForScope(guest, id)).not.toBeNull()
+  })
+})
+
+describe("spec §2.11 event 1 — the document-attention notification", () => {
+  beforeEach(() => {
+    sendEmail.mockClear()
+  })
+
+  it("fires on a real transition into returned, to every notifiable recipient — never the owner", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org, { status: "received" })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      status: "returned",
+      officeMessage: "Chybí variabilní symbol.",
+    })
+    expect(result.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalled())
+    const recipients = sendEmail.mock.calls
+      .map(([m]) => (m as { to: string }).to)
+      .sort()
+    expect(recipients).toEqual(
+      [
+        org.members.admin.email,
+        org.members.member.email,
+        org.members.guest.email,
+      ].sort(),
+    )
+    expect(recipients).not.toContain(org.members.owner.email)
+  })
+
+  it("fires when only the office message changes, on an unrelated status", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org, {
+      status: "in_processing",
+      officeMessage: null,
+    })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      officeMessage: "Ještě prosím doplňte přílohu.",
+    })
+    expect(result.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(3))
+  })
+
+  it("does NOT fire on a status change that carries no message change", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org, { status: "received" })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      status: "in_processing",
+    })
+    expect(result.ok).toBe(true)
+
+    // Give any (wrongly) fired dispatch a chance to land before asserting
+    // absence — `vi.waitFor` only proves a positive; a fixed settle is the
+    // honest way to assert a negative against async fire-and-forget code.
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("does NOT fire on a no-op save (nothing changed)", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org, { status: "received" })
+
+    const result = await office.saveDocumentOffice(owner, id, {})
+    expect(result.ok).toBe(true)
+
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("respects the per-user toggle and excludes a disabled account", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    await sql`UPDATE app_user SET email_notifications_enabled = false WHERE id = ${org.members.admin.userId}`
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${org.members.member.userId}`
+    const id = await insertDocument(org, { status: "received" })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      status: "returned",
+      officeMessage: "Chybí VS.",
+    })
+    expect(result.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(1))
+    expect(sendEmail.mock.calls[0]?.[0]).toMatchObject({
+      to: org.members.guest.email,
+    })
+  })
+
+  it("sends after the row is already committed — a fresh read sees the new status", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+    const id = await insertDocument(org, { status: "received" })
+
+    sendEmail.mockImplementationOnce(async () => {
+      const [row] = await sql<{ status: string }[]>`
+        SELECT status FROM document WHERE id = ${id}
+      `
+      expect(row?.status).toBe("returned")
+    })
+
+    const result = await office.saveDocumentOffice(owner, id, {
+      status: "returned",
+      officeMessage: "Chybí VS.",
+    })
+    expect(result.ok).toBe(true)
+
+    await vi.waitFor(() => expect(sendEmail).toHaveBeenCalled())
   })
 })

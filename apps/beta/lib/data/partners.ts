@@ -130,6 +130,27 @@ export async function partnersForScope(
   return rows.map(partnerView)
 }
 
+/**
+ * The registry, WITH each partner's office-only note — Zadávání dat's own
+ * read (spec §3.3's editing home for `partner`). `OwnerScope`, not `OrgScope`:
+ * the gate is the parameter type, the same discipline `documents-office.ts`
+ * uses, so this cannot be reached with a client's handle even by mistake.
+ */
+export async function partnersForOwner(
+  owner: OwnerScope,
+): Promise<(PartnerView & { readonly noteInternal: string })[]> {
+  const rows = await betaDb()
+    .select(PARTNER_DETAIL_COLUMNS)
+    .from(partner)
+    .where(eq(partner.organization_id, owner.organizationId))
+    .orderBy(asc(partner.name), asc(partner.id))
+
+  return rows.map((row) => ({
+    ...partnerView(row),
+    noteInternal: row.note_internal ?? "",
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // Reads — the saldokonto
 // ---------------------------------------------------------------------------

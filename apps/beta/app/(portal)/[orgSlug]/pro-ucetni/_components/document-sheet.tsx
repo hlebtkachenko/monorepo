@@ -23,7 +23,7 @@ import {
 import { Textarea } from "@workspace/ui/components/textarea"
 
 import { useBetaTranslations } from "@/i18n/translations"
-import type { OwnerDocumentDetail } from "@/lib/data/projections"
+import type { OwnerDocumentDetail, PartnerView } from "@/lib/data/projections"
 
 import { saveDocumentOfficeAction } from "../_actions/documents"
 import { PRO_UCETNI_ACTION_IDLE } from "../_actions/state"
@@ -50,9 +50,12 @@ import {
 export function DocumentSheet({
   document,
   orgSlug,
+  partners,
 }: {
   document: OwnerDocumentDetail
   orgSlug: string
+  /** The org's registry (spec §2.4), for the protistrana select. */
+  partners: readonly PartnerView[]
 }) {
   const t = useBetaTranslations()
   const [open, setOpen] = React.useState(false)
@@ -149,6 +152,25 @@ export function DocumentSheet({
               name="siteRef"
               defaultValue={document.siteRef ?? ""}
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="partnerId">{t("ucetni.fieldPartner")}</Label>
+            <NativeSelect
+              id="partnerId"
+              name="partnerId"
+              defaultValue={document.partnerId ?? ""}
+              className="w-full"
+            >
+              <NativeSelectOption value="">
+                {t("ucetni.fieldPartnerNone")}
+              </NativeSelectOption>
+              {partners.map((p) => (
+                <NativeSelectOption key={p.id} value={p.id}>
+                  {p.name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           </div>
 
           <div className="grid gap-2">

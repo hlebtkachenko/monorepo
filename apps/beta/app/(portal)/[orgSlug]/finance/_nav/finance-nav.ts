@@ -32,6 +32,7 @@ export const FINANCE_NAV: readonly FinanceNavItem[] = [
   { labelKey: "finance.navDluhy", slug: "dluhy-a-platby" },
   { labelKey: "finance.navUcty", slug: "ucty-a-hotovost" },
   { labelKey: "finance.navPohledavky", slug: "pohledavky-a-zavazky" },
+  { labelKey: "finance.navPartneri", slug: "partneri" },
   { labelKey: "finance.navUvery", slug: "uvery" },
 ]
 

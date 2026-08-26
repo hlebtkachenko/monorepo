@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { Badge } from "@workspace/ui/components/badge"
 import {
   Table,
@@ -48,8 +50,11 @@ const AGING_VARIANT = {
 
 export async function PartnerSaldoTable({
   rows,
+  orgSlug,
 }: {
   rows: readonly PartnerSaldoView[]
+  /** Builds each row's drill-through to the Partneři detail (spec §2.4). */
+  orgSlug: string
 }) {
   const t = await getBetaTranslations()
 
@@ -73,7 +78,14 @@ export async function PartnerSaldoTable({
       <TableBody>
         {rows.map((row) => (
           <TableRow key={row.id}>
-            <TableCell className="font-medium">{row.partnerName}</TableCell>
+            <TableCell className="font-medium">
+              <Link
+                href={`/${orgSlug}/finance/partneri/${row.partnerId}`}
+                className="hover:underline"
+              >
+                {row.partnerName}
+              </Link>
+            </TableCell>
             <TableCell className="text-muted-foreground tabular-nums">
               {row.partnerIco ?? "—"}
             </TableCell>

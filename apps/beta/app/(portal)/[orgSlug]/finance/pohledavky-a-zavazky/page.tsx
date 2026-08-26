@@ -127,7 +127,7 @@ export default async function PohledavkyAZavazkyPage({
               {t("finance.pohledavkyNoRows")}
             </p>
           ) : (
-            <PartnerSaldoTable rows={view.rows} />
+            <PartnerSaldoTable rows={view.rows} orgSlug={orgSlug} />
           )}
         </>
       )}

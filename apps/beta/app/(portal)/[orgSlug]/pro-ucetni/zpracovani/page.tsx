@@ -13,6 +13,7 @@ import {
 
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { listQueueDocuments } from "@/lib/data/documents-office"
+import { partnersForScope } from "@/lib/data/partners"
 import { requireOwner } from "@/lib/data/scope"
 
 import { PageHeader } from "../../../../_components/page-header"
@@ -54,9 +55,10 @@ export default async function ZpracovaniPage({
   const owner = requireOwner(scope)
   const showAll = zobrazit === "vse"
 
-  const [t, documents] = await Promise.all([
+  const [t, documents, partners] = await Promise.all([
     getBetaTranslations(),
     listQueueDocuments(owner, showAll ? { statuses: ALL_STATUSES } : undefined),
+    partnersForScope(owner),
   ])
 
   return (
@@ -116,7 +118,11 @@ export default async function ZpracovaniPage({
                   {doc.officeMessage ?? "—"}
                 </TableCell>
                 <TableCell>
-                  <DocumentSheet document={doc} orgSlug={orgSlug} />
+                  <DocumentSheet
+                    document={doc}
+                    orgSlug={orgSlug}
+                    partners={partners}
+                  />
                 </TableCell>
               </TableRow>
             ))}

@@ -1,4 +1,5 @@
 import type { BetaPartnerRole } from "@/db/schema"
+import type { PartnerAresField } from "@/lib/ares/partner-suggestions"
 import type { PartnerAging } from "@/lib/data/projections"
 import type { BetaMessageKey } from "@/i18n/messages"
 
@@ -26,6 +27,39 @@ export const PARTNER_ROLE_LABEL_KEY = {
   both: "finance.roleBoth",
   other: "finance.roleOther",
 } as const satisfies Record<BetaPartnerRole, BetaMessageKey>
+
+/**
+ * Written out by hand rather than read off `betaPartnerRole.enumValues`
+ * (same call `MANUAL_OBLIGATION_GROUPS` makes): this module imports no
+ * runtime value from `@/db/schema`, only the TYPE, so a Client Component
+ * (Zadávání dat's Partneři form) can render a role `<select>` without pulling
+ * Drizzle into its bundle. Totality against the pgEnum is asserted in this
+ * file's own test.
+ */
+export const PARTNER_ROLE_OPTIONS: readonly BetaPartnerRole[] = [
+  "supplier",
+  "customer",
+  "both",
+  "other",
+]
+
+/**
+ * Czech labels for the ARES-reachable fields (`lib/ares/partner-suggestions.ts`),
+ * for the "ARES navrhuje" suggestion list — the partner-shaped twin of
+ * `nastaveni/_components/labels.ts`'s `IDENTITY_FIELD_LABEL`.
+ */
+export const PARTNER_ARES_FIELD_LABEL = {
+  name: "zadavani.fieldPartnerName",
+  dic: "zadavani.fieldDic",
+  street: "zadavani.fieldStreet",
+  houseNumber: "zadavani.fieldHouseNumber",
+  orientationNumber: "zadavani.fieldOrientationNumber",
+  city: "zadavani.fieldCity",
+  postalCode: "zadavani.fieldPostalCode",
+  countryCode: "zadavani.fieldCountryCode",
+  legalFormCsuCode: "zadavani.fieldLegalFormCsuCode",
+  registryFileNumber: "zadavani.fieldRegistryFileNumber",
+} as const satisfies Record<PartnerAresField, BetaMessageKey>
 
 /**
  * Spec §2.4's "aging signal", as the four bands a Czech saldokonto is read in

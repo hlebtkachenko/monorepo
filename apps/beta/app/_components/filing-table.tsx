@@ -32,6 +32,13 @@ import { formatReportingPeriodLabel } from "@/lib/format/period-label"
  * `showFamily` is on for every cross-family view (Souhrn) and off for a
  * single-family page, where the column would repeat the same badge on every
  * row.
+ *
+ * PROMOTED HERE FROM `dane/_components/` (PR 31) when Mzdy › Platby a termíny
+ * became a SECOND module rendering `mzdove_odvody` filings — the same table,
+ * a different family value. Its `dane.*` i18n keys stayed put: the strings
+ * they hold ("Podání", "Termín", "Stav", …) are the words for a filing row
+ * anywhere it renders, not Daně-specific copy, so renaming them would be
+ * churn with no reader-facing change.
  */
 export async function FilingTable({
   orgSlug,

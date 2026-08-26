@@ -12,10 +12,10 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import type { BetaMessageKey } from "@/i18n/messages"
 import { filingsForScope } from "@/lib/data/filings"
 
+import { FilingTable } from "@/app/_components/filing-table"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { resolveVisibleFilingFamilies } from "../_lib/dane-scope"
-
-import { FilingTable } from "./filing-table"
 
 /**
  * The body every §2.3 family page shares — DPH, Daň z příjmů, Mzdové odvody a

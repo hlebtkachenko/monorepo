@@ -31,7 +31,8 @@ import type {
   ObligationSourceFreshness,
 } from "@/lib/data/obligations"
 
-import { ObligationGroupCard } from "./obligation-group-card"
+import { ObligationGroupCard } from "@/app/_components/obligation-group-card"
+
 import { SourceFreshness } from "./source-freshness"
 
 function render(node: React.ReactElement): string {

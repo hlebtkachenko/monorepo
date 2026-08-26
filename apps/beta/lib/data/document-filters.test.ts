@@ -23,6 +23,7 @@ import {
   documentListSearchParams,
   hasActiveFilters,
   parseDocumentListQuery,
+  PAYROLL_SUPPORTING_DOCUMENT_TYPES,
   EMPTY_DOCUMENT_LIST_FILTERS,
 } from "./document-filters"
 
@@ -176,6 +177,25 @@ describe("COMPANY_DOCUMENT_TYPES", () => {
 
   it("is a subset of the filterable document types", () => {
     for (const value of COMPANY_DOCUMENT_TYPES) {
+      expect(DOCUMENT_TYPE_VALUES).toContain(value)
+    }
+  })
+})
+
+/**
+ * Mzdy › Podklady (spec §2.6, PR 31). See `PAYROLL_SUPPORTING_DOCUMENT_TYPES`'s
+ * own header comment for why `attendance` + `hr` is the mapping.
+ */
+describe("PAYROLL_SUPPORTING_DOCUMENT_TYPES", () => {
+  it("is exactly attendance and hr", () => {
+    expect([...PAYROLL_SUPPORTING_DOCUMENT_TYPES].sort()).toEqual([
+      "attendance",
+      "hr",
+    ])
+  })
+
+  it("is a subset of the filterable document types", () => {
+    for (const value of PAYROLL_SUPPORTING_DOCUMENT_TYPES) {
       expect(DOCUMENT_TYPE_VALUES).toContain(value)
     }
   })

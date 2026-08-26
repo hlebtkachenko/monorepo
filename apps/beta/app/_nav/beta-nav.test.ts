@@ -108,6 +108,27 @@ describe("beta rail nav", () => {
     }
   })
 
+  it("hides Mzdy from a viewer with no management seat", () => {
+    expect(entries).toEqual(betaRailNav("acme-sro", { isManagement: false }))
+    expect(items(entries).some((item) => item.labelKey === "mzdy")).toBe(false)
+  })
+
+  it("shows Mzdy, between Výkazy and Majetek, for a management seat", () => {
+    const managed = betaRailNav("acme-sro", { isManagement: true })
+    const labels = items(managed).map((item) => item.labelKey)
+    expect(labels.indexOf("mzdy")).toBe(labels.indexOf("vykazy") + 1)
+    expect(labels.indexOf("majetek")).toBe(labels.indexOf("mzdy") + 1)
+
+    const mzdy = items(managed).find((item) => item.labelKey === "mzdy")
+    expect(mzdy?.href).toBe("/acme-sro/mzdy")
+    expect(mzdy?.icon).toBe("Users")
+
+    // Every href stays absolute, unique and org-scoped with the extra entry.
+    const hrefs = items(managed).map((item) => item.href)
+    expect(hrefs.every((href) => href?.startsWith("/acme-sro"))).toBe(true)
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+  })
+
   it("hides Pro účetní from every non-owner viewer", () => {
     expect(entries).toEqual(betaRailNav("acme-sro", { isOwner: false }))
     expect(items(entries).some((item) => item.labelKey === "ucetni")).toBe(

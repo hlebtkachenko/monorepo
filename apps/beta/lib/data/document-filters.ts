@@ -70,6 +70,19 @@ export const COMPANY_DOCUMENT_TYPES = [
   "other",
 ] as const satisfies readonly BetaClientDocumentType[]
 
+/**
+ * Mzdy › Podklady (spec §2.6, PR 31): "docházka upload ... nástup ... ukončení
+ * ... nemocenská flag" — every one of those is an attendance record or an
+ * HR document, and the `doc_type` enum already names both exactly:
+ * `attendance` and `hr`. `lib/data/documents.ts`'s `listPayrollSupportingDocuments`
+ * is the one reader of this constant, the same relationship
+ * `COMPANY_DOCUMENT_TYPES` has with `listCompanyDocuments`.
+ */
+export const PAYROLL_SUPPORTING_DOCUMENT_TYPES = [
+  "attendance",
+  "hr",
+] as const satisfies readonly BetaClientDocumentType[]
+
 /** Rows per page. Beta books hold hundreds of documents, not millions. */
 export const DOCUMENT_LIST_PAGE_SIZE = 25
 

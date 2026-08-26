@@ -10,9 +10,10 @@ import { formatAmount } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { obligationsForScope } from "@/lib/data/obligations"
 
+import { ObligationGroupCard } from "@/app/_components/obligation-group-card"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 
-import { ObligationGroupCard } from "./_components/obligation-group-card"
 import { SourceFreshness } from "./_components/source-freshness"
 
 /**

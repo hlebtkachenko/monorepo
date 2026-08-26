@@ -98,6 +98,7 @@ import {
   COMPANY_DOCUMENT_TYPES,
   DOCUMENT_LIST_PAGE_SIZE,
   EMPTY_DOCUMENT_LIST_FILTERS,
+  PAYROLL_SUPPORTING_DOCUMENT_TYPES,
   type DocumentListFilters,
 } from "./document-filters"
 import { documentSummary, type DocumentSummary } from "./projections"
@@ -360,6 +361,31 @@ export async function listCompanyDocuments(
   return paginatedDocumentList(
     and(
       inArray(document.doc_type, COMPANY_DOCUMENT_TYPES),
+      listConditions(scope, filters),
+    ),
+    options.page ?? 1,
+  )
+}
+
+/**
+ * Mzdy › Podklady (spec §2.6, PR 31): the same list machinery, narrowed to
+ * `PAYROLL_SUPPORTING_DOCUMENT_TYPES` — exactly the relationship
+ * `listCompanyDocuments` has with `COMPANY_DOCUMENT_TYPES`, including the
+ * "a caller-supplied filter outside the narrowed set answers an empty page,
+ * never the unfiltered set" property that comment explains.
+ *
+ * `listConditions` still runs `visibleDocuments(scope)` underneath, so the
+ * payslip exclusion applies here too even though these two doc types could
+ * never collide with it — no read of `document` in this file skips that gate.
+ */
+export async function listPayrollSupportingDocuments(
+  scope: OrgScope,
+  options: { filters?: DocumentListFilters; page?: number } = {},
+): Promise<DocumentListPage> {
+  const filters = options.filters ?? EMPTY_DOCUMENT_LIST_FILTERS
+  return paginatedDocumentList(
+    and(
+      inArray(document.doc_type, PAYROLL_SUPPORTING_DOCUMENT_TYPES),
       listConditions(scope, filters),
     ),
     options.page ?? 1,

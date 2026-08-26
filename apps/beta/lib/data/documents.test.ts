@@ -1225,6 +1225,107 @@ describe("listCompanyDocuments — Doklady firmy (spec §2.2, PR 13)", () => {
 })
 
 /**
+ * Mzdy › Podklady (spec §2.6, PR 31) — the same `listCompanyDocuments`
+ * contract, narrowed to `attendance` + `hr` instead of `contract` + `other`.
+ * The visibility-filter and AND-not-OR cases above already prove those
+ * properties belong to `listConditions`/`paginatedDocumentList`, shared by
+ * both readers, so this block only proves the one thing that differs: which
+ * doc types are IN the narrowed set.
+ */
+describe("listPayrollSupportingDocuments — Podklady (spec §2.6, PR 31)", () => {
+  async function seedRow(
+    organizationId: string,
+    row: { filename: string; docType: string; visible?: boolean },
+  ): Promise<string> {
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO document (
+        organization_id, original_filename, storage_key, content_type,
+        extension, byte_size, sha256, doc_type, visible_to_client
+      ) VALUES (
+        ${organizationId}, ${row.filename},
+        ${`org/${organizationId}/${crypto.randomUUID()}.pdf`},
+        'application/pdf', 'pdf', 1024,
+        ${crypto.randomUUID().replace(/-/g, "").padEnd(64, "0")},
+        ${row.docType}::beta_document_type,
+        ${row.visible ?? true}
+      )
+      RETURNING id
+    `
+    return inserted!.id
+  }
+
+  it("narrows to attendance and hr, excluding every other client type", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "dochazka-07.pdf",
+      docType: "attendance",
+    })
+    await seedRow(org.organizationId, {
+      filename: "dotaznik.pdf",
+      docType: "hr",
+    })
+    await seedRow(org.organizationId, {
+      filename: "smlouva.pdf",
+      docType: "contract",
+    })
+    await seedRow(org.organizationId, {
+      filename: "faktura.pdf",
+      docType: "invoice_in",
+    })
+
+    const page = await documents.listPayrollSupportingDocuments(scope)
+    expect(page.documents.map((d) => d.filename).sort()).toEqual([
+      "dochazka-07.pdf",
+      "dotaznik.pdf",
+    ])
+  })
+
+  it("never widens past the payroll set for a hand-edited ?type=", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "dochazka-07.pdf",
+      docType: "attendance",
+    })
+
+    const page = await documents.listPayrollSupportingDocuments(scope, {
+      filters: { ...EMPTY_DOCUMENT_LIST_FILTERS, docType: "invoice_in" },
+    })
+    expect(page.documents).toEqual([])
+  })
+
+  it("still applies the four visibility filters — hidden, soft-deleted, cross-org", async () => {
+    const org = await seedOrganization()
+    const other = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    const owner = await scopeFor(org, "owner")
+
+    await seedRow(org.organizationId, {
+      filename: "hidden.pdf",
+      docType: "hr",
+      visible: false,
+    })
+    await seedRow(other.organizationId, {
+      filename: "cizi.pdf",
+      docType: "attendance",
+    })
+    const softDeletedId = await seedRow(org.organizationId, {
+      filename: "smazana.pdf",
+      docType: "attendance",
+    })
+    await documents.softDeleteDocument(owner, softDeletedId)
+
+    expect(await documents.listPayrollSupportingDocuments(scope)).toMatchObject(
+      { documents: [], total: 0 },
+    )
+
+    const ownerPage = await documents.listPayrollSupportingDocuments(owner)
+    expect(ownerPage.documents.map((d) => d.filename)).toEqual(["hidden.pdf"])
+  })
+})
+
+/**
  * "Stavby" (spec §2.2, PR 13): the per-site grouping. `listDocumentSiteSummaries`
  * reuses `visibleDocuments` exactly as every other read in this module does, so
  * the cases below focus on what is NEW — the grouping, the SQL-side sum, the

@@ -21,6 +21,7 @@ import {
   clientTasksUpsertSchema,
   filingsUpsertSchema,
   liabilitiesUpsertSchema,
+  publishPayrollSchema,
   publishStatementsSchema,
   publishTrialBalanceSchema,
   tenancyKeysIn,
@@ -146,6 +147,133 @@ describe("publishTrialBalanceSchema", () => {
       ],
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe("publishPayrollSchema", () => {
+  const payrollBody = {
+    period,
+    summary: {
+      grossTotal: "420000.00",
+      employerSocial: "104160.00",
+      employerHealth: "37800.00",
+      employerCostTotal: "561960.00",
+      employeeWithholdingsTotal: "48720.00",
+      incomeTaxAdvance: "63000.00",
+      netPaidTotal: "308280.00",
+      paymentDueDate: "2026-04-12",
+      headcountHpp: 4,
+      headcountDpc: 1,
+      headcountDpp: 2,
+    },
+    employees: [
+      {
+        externalRef: "money-s3:employee:88",
+        fullName: "Jan Novák",
+        contractType: "hpp",
+        startedOn: "2024-02-01",
+        gross: "60000.00",
+        deductionsTotal: "6960.00",
+        net: "44040.00",
+        employerCost: "80280.00",
+      },
+    ],
+  }
+
+  it("accepts a payroll run", () => {
+    expect(publishPayrollSchema.safeParse(payrollBody).success).toBe(true)
+  })
+
+  it("accepts totals with no per-employee breakdown", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("refuses an employee with no externalRef — matching a NAME would merge two people", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [{ fullName: "Jan Novák", contractType: "hpp" }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("refuses the same externalRef twice, naming which entry is the duplicate", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [payrollBody.employees[0], payrollBody.employees[0]],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual([
+      "employees",
+      1,
+      "externalRef",
+    ])
+  })
+
+  it("refuses an employment that ends before it begins", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [
+        {
+          ...payrollBody.employees[0],
+          startedOn: "2026-03-01",
+          endedOn: "2026-02-01",
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(["employees", 0, "endedOn"])
+  })
+
+  it("refuses an unknown contract type", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [{ ...payrollBody.employees[0], contractType: "brigada" }],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("refuses a summary figure that is a number rather than a numeric string", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      summary: { ...payrollBody.summary, grossTotal: 420000 },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("refuses a negative headcount", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      summary: { ...payrollBody.summary, headcountHpp: -1 },
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("requires the summary — lines with no totals would split §2.6 in half", () => {
+    const { summary: _dropped, ...withoutSummary } = payrollBody
+    expect(publishPayrollSchema.safeParse(withoutSummary).success).toBe(false)
+  })
+
+  it("has no appUserId field — binding an account is not an agent's to write", () => {
+    const result = publishPayrollSchema.safeParse({
+      ...payrollBody,
+      employees: [
+        {
+          ...payrollBody.employees[0],
+          appUserId: "00000000-0000-7000-8000-000000000000",
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("refuses a body naming a tenant, like every other dataset", () => {
+    expect(tenancyKeysIn({ ...payrollBody, organizationId: "x" })).toEqual([
+      "organizationId",
+    ])
   })
 })
 

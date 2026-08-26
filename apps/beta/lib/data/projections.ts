@@ -32,6 +32,9 @@ import type {
   liability,
   organization,
   organization_membership,
+  payroll_employee,
+  payroll_employee_line,
+  payroll_summary,
   reporting_period,
   statement_line,
   trial_balance_line,
@@ -47,6 +50,7 @@ import type {
   BetaImportSource,
   BetaImportStatus,
   BetaObligationGroup,
+  BetaPayrollContractType,
   BetaPeriodKind,
   BetaSetupTokenPurpose,
   BetaStatementKind,
@@ -65,6 +69,9 @@ type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
 type AssetRow = typeof asset.$inferSelect
 type AssetEventRow = typeof asset_event.$inferSelect
 type ClientTaskRow = typeof client_task.$inferSelect
+type PayrollEmployeeRow = typeof payroll_employee.$inferSelect
+type PayrollSummaryRow = typeof payroll_summary.$inferSelect
+type PayrollEmployeeLineRow = typeof payroll_employee_line.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -1427,6 +1434,174 @@ export function ownerClientTaskDetail(
     generatedFromTemplate: row.source_template_id !== null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Payroll — Mzdy (spec §2.6, §2.6.1, §5)
+// ---------------------------------------------------------------------------
+
+/**
+ * One employee as the Zaměstnanci register renders them (spec §2.6).
+ *
+ * WHAT IS DELIBERATELY NOT HERE. `app_user_id` — the employee seat's link — is
+ * reported as the derived boolean `hasPortalAccount`, never as the id itself.
+ * The register needs to show that a person can sign in (and, with `endedOn`, the
+ * Pro účetní warning "Zaměstnanec ukončen, účet aktivní"); nothing on that
+ * surface needs to ADDRESS that account, and an id in a payload is an invitation
+ * for the next feature to accept one back — the same reasoning `FilingView`'s
+ * `hasAttachment` and `OwnerClientTaskDetail`'s `generatedFromTemplate` already
+ * apply. `external_ref` is absent for the same reason it is absent everywhere
+ * else: it is on `CLIENT_FORBIDDEN_COLUMNS`.
+ *
+ * `endedOn` and `active` both ship, because they are different facts and the
+ * register shows both — see the schema header for why neither is derived from
+ * the other.
+ */
+export type PayrollEmployeeView = {
+  id: string
+  fullName: string
+  contractType: BetaPayrollContractType
+  startedOn: string | null
+  endedOn: string | null
+  active: boolean
+  /** Derived — `app_user_id !== null`. The id itself never leaves the server. */
+  hasPortalAccount: boolean
+  updatedAt: string
+}
+
+export function payrollEmployeeView(
+  row: Pick<
+    PayrollEmployeeRow,
+    | "id"
+    | "full_name"
+    | "contract_type"
+    | "started_on"
+    | "ended_on"
+    | "active"
+    | "app_user_id"
+    | "updated_at"
+  >,
+): PayrollEmployeeView {
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    contractType: row.contract_type,
+    startedOn: row.started_on,
+    endedOn: row.ended_on,
+    active: row.active,
+    hasPortalAccount: row.app_user_id !== null,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+/**
+ * One period's payroll totals as Přehled mezd renders them (spec §2.6).
+ *
+ * READ AS STORED. Nothing here is computed from anything else here: this
+ * projection copies eleven office-provided values and adds no twelfth. A NULL
+ * stays NULL all the way to the screen, where §0.4 makes it "neuvedeno" rather
+ * than "0 Kč" — a zero would be a claim about the client's obligations that
+ * nobody made.
+ *
+ * `employerCostTotal` is spec §2.6's "celkové náklady na zaměstnance". It is
+ * never called "superhrubá mzda".
+ */
+export type PayrollSummaryView = {
+  id: string
+  periodId: string
+  grossTotal: string | null
+  employerSocial: string | null
+  employerHealth: string | null
+  employerCostTotal: string | null
+  employeeWithholdingsTotal: string | null
+  incomeTaxAdvance: string | null
+  /** Čistá vyplacená celkem (Advisor F14). */
+  netPaidTotal: string | null
+  paymentDueDate: string | null
+  headcountHpp: number | null
+  headcountDpc: number | null
+  headcountDpp: number | null
+  noteClient: string | null
+}
+
+export function payrollSummaryView(
+  row: Pick<
+    PayrollSummaryRow,
+    | "id"
+    | "period_id"
+    | "gross_total"
+    | "employer_social"
+    | "employer_health"
+    | "employer_cost_total"
+    | "employee_withholdings_total"
+    | "income_tax_advance"
+    | "net_paid_total"
+    | "payment_due_date"
+    | "headcount_hpp"
+    | "headcount_dpc"
+    | "headcount_dpp"
+    | "note_client"
+  >,
+): PayrollSummaryView {
+  return {
+    id: row.id,
+    periodId: row.period_id,
+    grossTotal: row.gross_total,
+    employerSocial: row.employer_social,
+    employerHealth: row.employer_health,
+    employerCostTotal: row.employer_cost_total,
+    employeeWithholdingsTotal: row.employee_withholdings_total,
+    incomeTaxAdvance: row.income_tax_advance,
+    netPaidTotal: row.net_paid_total,
+    paymentDueDate: row.payment_due_date,
+    headcountHpp: row.headcount_hpp,
+    headcountDpc: row.headcount_dpc,
+    headcountDpp: row.headcount_dpp,
+    noteClient: row.note_client,
+  }
+}
+
+/**
+ * One employee's figures for one period (spec §2.6: "hrubá, srážky, čistá,
+ * náklad").
+ *
+ * Carries the employee's NAME as well as their id, because both readings of this
+ * row need it — the month view lists people, and the per-person history is
+ * headed by one. `net` is stored, never `gross − deductionsTotal`.
+ */
+export type PayrollEmployeeLineView = {
+  id: string
+  employeeId: string
+  employeeName: string
+  periodId: string
+  gross: string | null
+  deductionsTotal: string | null
+  net: string | null
+  employerCost: string | null
+}
+
+export function payrollEmployeeLineView(
+  row: Pick<
+    PayrollEmployeeLineRow,
+    | "id"
+    | "payroll_employee_id"
+    | "period_id"
+    | "gross"
+    | "deductions_total"
+    | "net"
+    | "employer_cost"
+  > & { full_name: string },
+): PayrollEmployeeLineView {
+  return {
+    id: row.id,
+    employeeId: row.payroll_employee_id,
+    employeeName: row.full_name,
+    periodId: row.period_id,
+    gross: row.gross,
+    deductionsTotal: row.deductions_total,
+    net: row.net,
+    employerCost: row.employer_cost,
   }
 }
 

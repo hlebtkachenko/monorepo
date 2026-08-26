@@ -42,6 +42,10 @@ const ROUTES: Record<string, () => Promise<{ POST: Handler }>> = {
     import("./orgs/[orgSlug]/publish/trial-balance/route") as Promise<{
       POST: Handler
     }>,
+  payroll: () =>
+    import("./orgs/[orgSlug]/publish/payroll/route") as Promise<{
+      POST: Handler
+    }>,
   filings: () =>
     import("./orgs/[orgSlug]/filings/route") as Promise<{ POST: Handler }>,
   liabilities: () =>
@@ -482,6 +486,282 @@ describe("publishing a dataset", () => {
       summary: { batchId: string; dataset: string }
     }
     expect(body.summary.dataset).toBe("predvaha")
+  })
+})
+
+describe("publishing payroll (spec 2.6, 3.2)", () => {
+  const payrollBody = (employees: unknown[]) => ({
+    period: march,
+    summary: {
+      grossTotal: "420000.00",
+      employerSocial: "104160.00",
+      employerHealth: "37800.00",
+      // Deliberately NOT the sum of the three above: if anything in this stack
+      // ever starts computing a payroll figure instead of storing it, the
+      // read-back below stops matching.
+      employerCostTotal: "999111.00",
+      employeeWithholdingsTotal: "48720.00",
+      incomeTaxAdvance: "63000.00",
+      netPaidTotal: "111222.00",
+      paymentDueDate: "2026-04-12",
+      headcountHpp: 2,
+      headcountDpc: 0,
+      headcountDpp: 1,
+    },
+    employees,
+  })
+
+  const employee = (externalRef: string, fullName: string) => ({
+    externalRef,
+    fullName,
+    contractType: "hpp",
+    startedOn: "2024-02-01",
+    gross: "60000.00",
+    deductionsTotal: "6960.00",
+    net: "44040.00",
+    employerCost: "80280.00",
+  })
+
+  it("lands as a published batch the payroll reads serve, end to end", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "payroll",
+      org.slug,
+      payrollBody([
+        employee("money:emp:1", "Alena Dvorakova"),
+        employee("money:emp:2", "Bohumil Kral"),
+      ]),
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as {
+      status: string
+      summary: {
+        batchId: string
+        periodId: string
+        rowCount: number
+        employeesCreated: number
+        employeesUpdated: number
+      }
+    }
+    expect(body.status).toBe("applied")
+    expect(body.summary.employeesCreated).toBe(2)
+    // Two lines plus the summary - `row_count` counts payload ROWS written.
+    expect(body.summary.rowCount).toBe(3)
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const {
+      payrollSummaryForPeriod,
+      payrollLinesForPeriod,
+      payrollEmployeesForScope,
+    } = await import("@/lib/data/payroll")
+
+    const summary = await payrollSummaryForPeriod(owner, body.summary.periodId)
+    expect(summary).toMatchObject({
+      grossTotal: "420000.00",
+      employerCostTotal: "999111.00",
+      netPaidTotal: "111222.00",
+      paymentDueDate: "2026-04-12",
+      headcountHpp: 2,
+      headcountDpc: 0,
+      headcountDpp: 1,
+    })
+
+    const lines = await payrollLinesForPeriod(owner, body.summary.periodId)
+    expect(lines.map((line) => line.employeeName)).toEqual([
+      "Alena Dvorakova",
+      "Bohumil Kral",
+    ])
+    expect(lines[0]?.net).toBe("44040.00")
+
+    const register = await payrollEmployeesForScope(owner)
+    expect(register).toHaveLength(2)
+    expect(register[0]).toMatchObject({
+      contractType: "hpp",
+      active: true,
+      hasPortalAccount: false,
+    })
+  })
+
+  it("flips the completeness matrix cell to a published payroll batch", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+
+    const { loadUzaverka } =
+      await import("@/app/(portal)/[orgSlug]/pro-ucetni/uzaverka/_lib/load-uzaverka")
+
+    const before = await loadUzaverka(owner, undefined)
+    const beforeCell = before.cells.find((cell) => cell.dataset === "payroll")
+    // Wired the moment `IMPORT_DATASETS` says so - the office's gap, not the
+    // build's (spec 0.4: the two are different gaps and read differently).
+    expect(beforeCell?.implemented).toBe(true)
+    expect(beforeCell?.published).toBeNull()
+
+    const body = (await (
+      await post("payroll", org.slug, payrollBody([]), {
+        secret: globalKey.secret,
+      })
+    ).json()) as { summary: { batchId: string; periodId: string } }
+
+    const after = await loadUzaverka(owner, body.summary.periodId)
+    const afterCell = after.cells.find((cell) => cell.dataset === "payroll")
+    expect(afterCell?.published?.id).toBe(body.summary.batchId)
+    expect(afterCell?.published?.source).toBe("agent")
+  })
+
+  it("updates an employee on the second run rather than duplicating them", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "payroll",
+      org.slug,
+      payrollBody([employee("money:emp:9", "Jan Novak")]),
+      { secret: globalKey.secret },
+    )
+
+    // Same ref, new name and a contract change - the SAME person, so the
+    // register is patched. Matching on the name instead would have created a
+    // second Jan Novak the moment he married.
+    const second = (await (
+      await post(
+        "payroll",
+        org.slug,
+        payrollBody([
+          {
+            ...employee("money:emp:9", "Jan Novacek"),
+            contractType: "dpc",
+            endedOn: "2026-03-31",
+          },
+        ]),
+        { secret: globalKey.secret },
+      )
+    ).json()) as {
+      summary: { employeesCreated: number; employeesUpdated: number }
+    }
+
+    expect(second.summary.employeesCreated).toBe(0)
+    expect(second.summary.employeesUpdated).toBe(1)
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { payrollEmployeesForScope } = await import("@/lib/data/payroll")
+    const register = await payrollEmployeesForScope(owner)
+    expect(register).toHaveLength(1)
+    expect(register[0]).toMatchObject({
+      fullName: "Jan Novacek",
+      contractType: "dpc",
+      endedOn: "2026-03-31",
+      // `ended_on` set and STILL active - spec 2.6.1's "never automatic".
+      active: true,
+    })
+  })
+
+  it("republishing supersedes the batch and leaves the register alone", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const first = (await (
+      await post(
+        "payroll",
+        org.slug,
+        payrollBody([employee("money:emp:5", "Jan Novak")]),
+        { secret: globalKey.secret },
+      )
+    ).json()) as { summary: { batchId: string } }
+
+    const second = (await (
+      await post(
+        "payroll",
+        org.slug,
+        payrollBody([employee("money:emp:5", "Jan Novak")]),
+        { secret: globalKey.secret },
+      )
+    ).json()) as {
+      summary: { batchId: string; supersededBatchId: string | null }
+    }
+
+    expect(second.summary.supersededBatchId).toBe(first.summary.batchId)
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { payrollEmployeesForScope } = await import("@/lib/data/payroll")
+    // A person is not period-versioned: the register is upserted, not
+    // superseded, so a re-publish leaves exactly one Jan Novak.
+    expect(await payrollEmployeesForScope(owner)).toHaveLength(1)
+  })
+
+  it("records the act with external refs and NO employee names", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "payroll",
+      org.slug,
+      payrollBody([employee("money:emp:7", "Jan Novak")]),
+      { secret: globalKey.secret },
+    )
+
+    const [entry] = await readActivityLog(org.organizationId)
+    expect(entry).toMatchObject({
+      actor_kind: "agent",
+      action: "payroll.publish",
+      entity_kind: "import_batch",
+    })
+    // The log answers WHAT the call did with the office's own ids. A payload of
+    // full names would put personal data into an append-only table no surface
+    // needs it in.
+    const serialized = JSON.stringify(entry!.summary)
+    expect(serialized).toContain("money:emp:7")
+    expect(serialized).not.toContain("Jan Novak")
+  })
+
+  it("writes nothing at all when the payload is refused", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "payroll",
+      org.slug,
+      payrollBody([
+        employee("money:emp:dup", "Jan Novak"),
+        employee("money:emp:dup", "Jan Novak"),
+      ]),
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(400)
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { payrollEmployeesForScope } = await import("@/lib/data/payroll")
+    expect(await payrollEmployeesForScope(owner)).toEqual([])
+    expect(await readActivityLog(org.organizationId)).toEqual([])
+  })
+
+  it("refuses a payload that names a tenant, like every other dataset", async () => {
+    const response = await post(
+      "payroll",
+      acme.slug,
+      { ...payrollBody([]), organizationId: other.organizationId },
+      { secret: globalKey.secret },
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it("cannot be reached by an org-scoped key aimed at another book", async () => {
+    const response = await post("payroll", other.slug, payrollBody([]), {
+      secret: scopedKey.secret,
+    })
+    expect(response.status).toBe(404)
+  })
+
+  it("advertises itself as implemented on /meta", async () => {
+    const body = (await (await meta(globalKey.secret)).json()) as {
+      datasets: { path: string; implemented: boolean }[]
+    }
+    expect(
+      body.datasets.find((dataset) => dataset.path === "publish/payroll"),
+    ).toEqual({ path: "publish/payroll", implemented: true })
   })
 })
 

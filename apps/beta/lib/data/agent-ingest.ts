@@ -6,6 +6,7 @@ import type {
   ClientTasksUpsertInput,
   FilingsUpsertInput,
   LiabilitiesUpsertInput,
+  PublishPayrollInput,
   PublishStatementsInput,
   PublishTrialBalanceInput,
 } from "@/lib/agent/schemas"
@@ -25,12 +26,22 @@ import {
   updateClientTask,
 } from "./client-tasks"
 import { createFiling, filingByExternalRef, updateFiling } from "./filings"
-import { createDraftBatch, publishBatch } from "./imports"
+import {
+  createDraftBatch,
+  publishBatch,
+  type PayrollLineInput,
+  type PayrollSummaryInput,
+} from "./imports"
 import {
   createLiability,
   liabilityIdByExternalRef,
   updateLiability,
 } from "./liabilities"
+import {
+  createPayrollEmployee,
+  payrollEmployeeByExternalRef,
+  updatePayrollEmployee,
+} from "./payroll"
 import { ensureReportingPeriod } from "./reporting-periods"
 import type { AgentScope, OwnerScope } from "./scope"
 
@@ -298,6 +309,160 @@ export async function ingestTrialBalance(
           rowCount: batch.rowCount,
           supersededBatchId: published.supersededBatchId,
           alreadyPublished: published.alreadyPublished,
+        },
+      }
+    },
+  )
+}
+
+/**
+ * Publish one period's payroll: the employee register, the totals and the
+ * per-employee lines (spec §3.2, §2.6).
+ *
+ * THREE WRITES, ONE TRANSACTION, IN THIS ORDER, and the order is the design:
+ *
+ *   1. UPSERT THE REGISTER. `payroll_employee` is not period-versioned — a
+ *      person is on the books across months — so it is matched on
+ *      `externalRef` exactly as `filing` and `asset` are, and it is written
+ *      FIRST because a line has to name an employee row that exists.
+ *   2. CREATE THE DRAFT BATCH with the summary and the lines as its payload.
+ *   3. PUBLISH IT, which supersedes whatever this period had before.
+ *
+ * A refusal at any step rolls all three back, register included — so a payroll
+ * run that fails half way does not leave new people in the register with no
+ * figures against them.
+ *
+ * THE PAYLOAD IS THE WHOLE EMPLOYEE ROW, not a patch. An omitted `endedOn` is
+ * not "leave it as it was", it is "the office's source no longer states one" —
+ * the same full-state semantics `ingestFilings` and `ingestAssets` already have,
+ * and the property that makes re-sending last month's file idempotent instead of
+ * accumulating stale fields.
+ *
+ * `app_user_id` IS NEVER TOUCHED. `updatePayrollEmployee` has no parameter for
+ * it (see `lib/data/payroll.ts`), so an office agent cannot bind — or unbind —
+ * a portal account to a person. That is the employee seat's identity act, not an
+ * accounting fact.
+ *
+ * REPUBLISHING IS A SUPERSESSION, exactly as for a rozvaha: the period ends with
+ * one published payroll batch, the newer one, and the older recorded as
+ * superseded. The register is upserted rather than superseded, because it is a
+ * registry and not a period snapshot — a person who left in March is still the
+ * person the March lines point at.
+ */
+export async function ingestPayroll(
+  ctx: IngestContext,
+  input: PublishPayrollInput,
+): Promise<IngestOutcome> {
+  return ingest(
+    ctx,
+    { action: "payroll.publish", entityKind: "import_batch" },
+    async (tx) => {
+      const period = await ensureReportingPeriod(ctx.owner, input.period, tx)
+
+      const employees: UpsertedItem[] = []
+      const lines: PayrollLineInput[] = []
+
+      for (const item of input.employees) {
+        const fields = {
+          fullName: item.fullName,
+          contractType: item.contractType,
+          startedOn: item.startedOn ?? null,
+          endedOn: item.endedOn ?? null,
+          active: item.active ?? true,
+        } as const
+
+        const existing = await payrollEmployeeByExternalRef(
+          ctx.owner,
+          item.externalRef,
+          tx,
+        )
+
+        let employeeId: string
+        if (existing) {
+          await updatePayrollEmployee(ctx.owner, existing.id, fields, tx)
+          employeeId = existing.id
+          employees.push({
+            externalRef: item.externalRef,
+            id: employeeId,
+            action: "updated",
+          })
+        } else {
+          const created = await createPayrollEmployee(
+            ctx.owner,
+            { ...fields, externalRef: item.externalRef },
+            tx,
+          )
+          employeeId = created.id
+          employees.push({
+            externalRef: item.externalRef,
+            id: employeeId,
+            action: "created",
+          })
+        }
+
+        lines.push({
+          payrollEmployeeId: employeeId,
+          gross: item.gross ?? null,
+          deductionsTotal: item.deductionsTotal ?? null,
+          net: item.net ?? null,
+          employerCost: item.employerCost ?? null,
+        })
+      }
+
+      // Twelve office-stated figures, copied one by one. No total is footed
+      // from the others here or anywhere below it (spec §0.2).
+      const summary: PayrollSummaryInput = {
+        grossTotal: input.summary.grossTotal ?? null,
+        employerSocial: input.summary.employerSocial ?? null,
+        employerHealth: input.summary.employerHealth ?? null,
+        employerCostTotal: input.summary.employerCostTotal ?? null,
+        employeeWithholdingsTotal:
+          input.summary.employeeWithholdingsTotal ?? null,
+        incomeTaxAdvance: input.summary.incomeTaxAdvance ?? null,
+        netPaidTotal: input.summary.netPaidTotal ?? null,
+        paymentDueDate: input.summary.paymentDueDate ?? null,
+        headcountHpp: input.summary.headcountHpp ?? null,
+        headcountDpc: input.summary.headcountDpc ?? null,
+        headcountDpp: input.summary.headcountDpp ?? null,
+        noteClient: input.summary.noteClient ?? null,
+      }
+
+      const batch = await createDraftBatch(
+        ctx.owner,
+        {
+          dataset: "payroll",
+          periodId: period.id,
+          source: "agent",
+          noteInternal: input.noteInternal ?? null,
+          payrollSummary: summary,
+          payrollLines: lines,
+        },
+        tx,
+      )
+
+      const published = await publishBatch(ctx.owner, batch.id, tx)
+      if (!published.ok) throw new IngestRefused("conflict")
+
+      return {
+        entityId: batch.id,
+        summary: {
+          dataset: "payroll",
+          periodId: period.id,
+          batchId: batch.id,
+          rowCount: batch.rowCount,
+          supersededBatchId: published.supersededBatchId,
+          alreadyPublished: published.alreadyPublished,
+          // NAMES DO NOT GO IN THE LOG. `activity_log.summary` is read by the
+          // office to see WHAT a call did, and the office's own employee ids
+          // answer that; a payload of full names would put personal data into an
+          // append-only table with no surface that needs it (spec §4's rule that
+          // the summary carries "counts, external refs and ids", read together
+          // with migration 0016's personal-data minimum).
+          employees,
+          employeesCreated: employees.filter((e) => e.action === "created")
+            .length,
+          employeesUpdated: employees.filter((e) => e.action === "updated")
+            .length,
         },
       }
     },

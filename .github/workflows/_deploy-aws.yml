@@ -272,7 +272,9 @@ jobs:
       last_deploy_sha: ${{ steps.decide.outputs.last_deploy_sha }}
       # Per-service build decision. JSON array of services to build (e.g.
       # ["web","admin"]). Build-images matrix consumes via fromJSON().
-      # New apps/<name>/Dockerfile is auto-discovered — no workflow edit.
+      # Service list is the explicit `all_services` set below — a new
+      # apps/<name>/Dockerfile does NOT auto-join the production build
+      # matrix; add it to that list deliberately when it should.
       services_to_build: ${{ steps.decide.outputs.services_to_build }}
       # Per-service image tag. Built services → sha-<git>. Skipped services
       # → last-deploy tag for that service (or legacy fallback). Deploy
@@ -336,17 +338,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Discover all deployable services. Convention: a directory
-          # apps/<name>/ with a Dockerfile means "this is a containerized
-          # service the deploy workflow knows how to build". New service
-          # added → auto-included (no workflow edit needed).
-          all_services=()
-          for d in apps/*/; do
-            if [ -f "${d}Dockerfile" ]; then
-              all_services+=("$(basename "$d")")
-            fi
-          done
-          echo "Deployable services discovered: ${all_services[*]}"
+          # Explicit deployable-service set. Deliberately NOT a glob over
+          # apps/*/Dockerfile: this list drives the production build
+          # matrix's fail-fast CVE cancellation and the image_tag_override
+          # verify/rollback path, so a new app (e.g. apps/beta) must never
+          # silently join it. Add a service here only when it is meant to
+          # ship through this pipeline.
+          all_services=(web api admin)
+          echo "Deployable services: ${all_services[*]}"
 
           # Per-service last-deploy SSM tag lookup. New per-service key
           # `/monorepo/<env>/last-deploy/image-tag-<svc>`. Falls back to
@@ -725,8 +724,9 @@ jobs:
     # `services_to_build` is a JSON array from detect-changes. Empty array
     # means no service needs a rebuild (e.g. docs-only PR landed on top of
     # the last good image set) — the whole matrix expansion is then empty
-    # and this job no-ops. New apps/<x>/Dockerfile auto-flows through the
-    # turbo-driven detection in detect-changes; no edit here required.
+    # and this job no-ops. Service set is the explicit `all_services` list
+    # in detect-changes (web/api/admin) — a new apps/<x>/Dockerfile does
+    # not auto-join; add it there deliberately.
     if: |
       needs.guard.outputs.go == 'true' &&
       inputs.stack != 'infra-only' &&
@@ -1203,21 +1203,16 @@ jobs:
       # service image is missing — otherwise the App stack will deploy and
       # ECS will start crash-looping on `ImagePullFailure` ~5 min from now.
       #
-      # Service list is discovered from apps/*/Dockerfile (mirrors the
-      # turbo-driven detect-changes job) so adding apps/foo/Dockerfile
-      # auto-flows through here. No hardcoded triple.
+      # Explicit deployable-service set — same `all_services` list as
+      # detect-changes above. Deliberately NOT a glob over
+      # apps/*/Dockerfile: image_tag_override pins a specific rollback
+      # tag, and a stray apps/beta/Dockerfile must never be silently
+      # required (or silently skipped) here.
       - name: Verify override images exist in ECR
         if: inputs.image_tag_override != '' && env.STACK_SCOPE != 'infra-only'
         run: |
           set -euo pipefail
-          all_services=()
-          for d in apps/*/; do
-            [ -f "${d}Dockerfile" ] && all_services+=("$(basename "$d")")
-          done
-          if [ "${#all_services[@]}" -eq 0 ]; then
-            echo "::error::no apps/*/Dockerfile found — repo layout changed?"
-            exit 1
-          fi
+          all_services=(web api admin)
           missing=0
           for svc in "${all_services[@]}"; do
             repo="monorepo-${ENV_NAME}-${svc}"

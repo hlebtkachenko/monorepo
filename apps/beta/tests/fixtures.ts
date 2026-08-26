@@ -15,7 +15,14 @@
  */
 import postgres from "postgres"
 
-import type { BetaOrgRole } from "@/db/schema"
+import type {
+  BetaDocumentType,
+  BetaFilingKind,
+  BetaFilingStatus,
+  BetaOrgRole,
+  BetaPeriodKind,
+  BetaVatRegime,
+} from "@/db/schema"
 
 import { sharedDatabaseUrl, unique } from "./scratch-db"
 
@@ -119,16 +126,22 @@ export function sessionTokenOf(headers: Headers): string {
 }
 
 export async function createOrganization(
-  options: { slug?: string; archived?: boolean; isDemo?: boolean } = {},
+  options: {
+    slug?: string
+    archived?: boolean
+    isDemo?: boolean
+    vatRegime?: BetaVatRegime
+  } = {},
 ): Promise<{ organizationId: string; slug: string }> {
   const sql = db()
   const slug = options.slug ?? unique("org-")
   const [row] = await sql<{ id: string }[]>`
-    INSERT INTO organization (slug, legal_name, is_demo, archived_at)
+    INSERT INTO organization (slug, legal_name, is_demo, vat_regime, archived_at)
     VALUES (
       ${slug},
       'Testovací s.r.o.',
       ${options.isDemo ?? false},
+      ${options.vatRegime ?? "neplatce"},
       ${options.archived ? sql`now()` : null}
     )
     RETURNING id
@@ -157,7 +170,7 @@ export async function addMembership(
  * for anyone else — owner-ness can only originate from the office.
  */
 export async function seedOrganization(
-  options: { slug?: string } = {},
+  options: { slug?: string; vatRegime?: BetaVatRegime } = {},
 ): Promise<TestOrganization> {
   const { organizationId, slug } = await createOrganization(options)
 
@@ -203,4 +216,160 @@ export async function setStaff(
   isStaff: boolean,
 ): Promise<void> {
   await db()`UPDATE app_user SET is_staff = ${isStaff} WHERE id = ${userId}`
+}
+
+// ---------------------------------------------------------------------------
+// Filing registry (PR 16) — periods and filings, written as raw SQL
+// ---------------------------------------------------------------------------
+//
+// Deliberately NOT routed through `lib/data/reporting-periods.ts` /
+// `lib/data/filings.ts`. Those are the office write path and they are
+// owner-gated; a fixture that used them could not seed a world for a test whose
+// subject IS the gate, and every read test would then be asserting against rows
+// its own subject wrote. Raw SQL seeds the world; the modules are what is under
+// test.
+
+export async function createReportingPeriod(
+  organizationId: string,
+  period: {
+    kind: BetaPeriodKind
+    year: number
+    month?: number | null
+    quarter?: number | null
+  },
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO reporting_period (organization_id, period_kind, year, month, quarter)
+    VALUES (
+      ${organizationId},
+      ${period.kind},
+      ${period.year},
+      ${period.month ?? null},
+      ${period.quarter ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/** A month period for the organization, unique per call so seeds never collide. */
+let periodMonth = 0
+export async function createMonthPeriod(
+  organizationId: string,
+  year = 2026,
+): Promise<string> {
+  periodMonth = (periodMonth % 12) + 1
+  return createReportingPeriod(organizationId, {
+    kind: "month",
+    year,
+    month: periodMonth,
+  })
+}
+
+/**
+ * A `document` row, written straight to SQL.
+ *
+ * The upload path (`lib/data/documents.ts`) is PR 10's and needs an S3 store;
+ * the filing suite only ever needs a row to point at, so it writes one. The
+ * storage key is composed in SQL because `document_storage_key_shape` requires
+ * it to be two UUIDs AND to start with this organization's own id.
+ */
+export async function createDocumentRow(
+  organizationId: string,
+  values: {
+    docType?: BetaDocumentType
+    visibleToClient?: boolean
+    deleted?: boolean
+    payslipPeriodId?: string | null
+  } = {},
+): Promise<string> {
+  const sql = db()
+  const [row] = await sql<{ id: string }[]>`
+    INSERT INTO document (
+      organization_id, doc_type, original_filename, storage_key,
+      content_type, extension, byte_size, sha256, visible_to_client,
+      payslip_period_id, deleted_at
+    )
+    VALUES (
+      ${organizationId},
+      ${values.docType ?? "other"},
+      'potvrzeni.pdf',
+      'org/' || ${organizationId}::text || '/' || gen_random_uuid()::text || '.pdf',
+      'application/pdf',
+      'pdf',
+      1024,
+      md5(random()::text) || md5(random()::text),
+      ${values.visibleToClient ?? true},
+      ${values.payslipPeriodId ?? null},
+      ${values.deleted ? sql`now()` : null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/** Hard-delete a document row, as PR 37's retention purge eventually will. */
+export async function hardDeleteDocument(documentId: string): Promise<void> {
+  await db()`DELETE FROM document WHERE id = ${documentId}`
+}
+
+/** Soft-delete a document row, as the office's own delete does. */
+export async function softDeleteDocument(documentId: string): Promise<void> {
+  await db()`UPDATE document SET deleted_at = now() WHERE id = ${documentId}`
+}
+
+export async function attachDocumentToFiling(
+  filingId: string,
+  documentId: string | null,
+): Promise<void> {
+  await db()`UPDATE filing SET document_id = ${documentId} WHERE id = ${filingId}`
+}
+
+export async function createFilingRow(
+  organizationId: string,
+  periodId: string,
+  values: {
+    kind?: BetaFilingKind
+    status?: BetaFilingStatus
+    /** ISO date, or a signed day offset from today (negative = already overdue). */
+    dueOn?: string
+    dueInDays?: number
+    filedOn?: string | null
+    amountDue?: string | null
+    paidAt?: Date | null
+    variableSymbol?: string | null
+    noteClient?: string | null
+    noteInternal?: string | null
+  } = {},
+): Promise<string> {
+  const sql = db()
+  const dueOn =
+    values.dueOn ??
+    (values.dueInDays === undefined
+      ? "2026-03-25"
+      : new Date(Date.now() + values.dueInDays * 86_400_000)
+          .toISOString()
+          .slice(0, 10))
+
+  const [row] = await sql<{ id: string }[]>`
+    INSERT INTO filing (
+      organization_id, kind, period_id, due_on, status, filed_on,
+      amount_due, paid_at, variable_symbol, note_client, note_internal
+    )
+    VALUES (
+      ${organizationId},
+      ${values.kind ?? "dph_priznani"},
+      ${periodId},
+      ${dueOn},
+      ${values.status ?? "planned"},
+      ${values.filedOn ?? null},
+      ${values.amountDue ?? null},
+      ${values.paidAt ?? null},
+      ${values.variableSymbol ?? null},
+      ${values.noteClient ?? null},
+      ${values.noteInternal ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
 }

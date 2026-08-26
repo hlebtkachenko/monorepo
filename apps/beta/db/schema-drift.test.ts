@@ -20,12 +20,19 @@ import {
   auth_verification,
   betaDocumentStatus,
   betaDocumentType,
+  betaFilingFamily,
+  betaFilingKind,
+  betaFilingStatus,
+  betaObligationGroup,
   betaOrgRole,
+  betaPeriodKind,
   betaSetupTokenPurpose,
   betaVatRegime,
   document,
+  filing,
   organization,
   organization_membership,
+  reporting_period,
   two_factor,
   user_setup_token,
 } from "./schema"
@@ -43,8 +50,10 @@ const tables: PgTable[] = [
   auth_session,
   auth_verification,
   document,
+  filing,
   organization,
   organization_membership,
+  reporting_period,
   two_factor,
   user_setup_token,
 ]
@@ -108,9 +117,44 @@ describe("drizzle schema mirrors the migrations", () => {
     ).toEqual({
       beta_document_status: [...betaDocumentStatus.enumValues],
       beta_document_type: [...betaDocumentType.enumValues],
+      beta_filing_family: [...betaFilingFamily.enumValues],
+      beta_filing_kind: [...betaFilingKind.enumValues],
+      beta_filing_status: [...betaFilingStatus.enumValues],
+      beta_obligation_group: [...betaObligationGroup.enumValues],
       beta_org_role: [...betaOrgRole.enumValues],
+      beta_period_kind: [...betaPeriodKind.enumValues],
       beta_setup_token_purpose: [...betaSetupTokenPurpose.enumValues],
       beta_vat_regime: [...betaVatRegime.enumValues],
     })
+  })
+
+  /**
+   * The DSL cannot express "this column is computed by the database", beyond
+   * excluding it from the insert type — so the one thing that would silently
+   * turn a generated column into an ordinary nullable one (dropping
+   * `GENERATED ALWAYS AS ... STORED` from a future migration while the DSL keeps
+   * `.generatedAlwaysAs`) is invisible to the column comparison above. Both
+   * halves are asserted here: the database agrees these two are generated, and
+   * the DSL agrees they are not writable.
+   */
+  it("keeps reporting_period's derived boundaries generated on both sides", async () => {
+    const actual = await sql<{ column_name: string; is_generated: string }[]>`
+      SELECT column_name, is_generated
+        FROM information_schema.columns
+       WHERE table_schema = 'public'
+         AND table_name = 'reporting_period'
+         AND column_name IN ('starts_on', 'ends_on')
+       ORDER BY column_name
+    `
+    expect(actual).toEqual([
+      { column_name: "ends_on", is_generated: "ALWAYS" },
+      { column_name: "starts_on", is_generated: "ALWAYS" },
+    ])
+
+    const generated = getTableConfig(reporting_period)
+      .columns.filter((column) => column.generated !== undefined)
+      .map((column) => column.name)
+      .sort()
+    expect(generated).toEqual(["ends_on", "starts_on"])
   })
 })

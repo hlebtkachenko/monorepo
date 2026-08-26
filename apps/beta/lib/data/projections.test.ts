@@ -17,10 +17,12 @@ import { sharedDatabaseUrl, unique } from "../../tests/scratch-db"
 
 import {
   CLIENT_FORBIDDEN_COLUMNS,
+  filingView,
   forbiddenClientKeys,
   membershipSummary,
   organizationSummary,
   orgMemberSummary,
+  reportingPeriodView,
   setupInviteView,
   viewerProfile,
 } from "./projections"
@@ -163,6 +165,144 @@ describe("orgMemberSummary", () => {
   })
 })
 
+describe("reportingPeriodView", () => {
+  it("is an explicit pick, and ships no label", () => {
+    const view = reportingPeriodView({
+      id: "0199a0b1-0000-7000-8000-000000000003",
+      period_kind: "quarter",
+      year: 2026,
+      month: null,
+      quarter: 3,
+      starts_on: "2026-07-01",
+      ends_on: "2026-09-30",
+      // Everything else `SELECT *` would hand you.
+      organization_id: "0199a0b1-0000-7000-8000-000000000002",
+      created_at: now,
+    } as Parameters<typeof reportingPeriodView>[0])
+
+    expect(Object.keys(view).sort()).toEqual([
+      "endsOn",
+      "id",
+      "kind",
+      "month",
+      "quarter",
+      "startsOn",
+      "year",
+    ])
+    // A period renders as "Q3 2026" or "07/2026" or "2026" depending on kind,
+    // and that formatting is i18n's job — a Czech string built here would be
+    // untranslatable.
+    expect(view).not.toHaveProperty("label")
+    expect(view).not.toHaveProperty("organization_id")
+    expect(view).not.toHaveProperty("created_at")
+  })
+})
+
+describe("filingView", () => {
+  /** Everything `SELECT *` on filing would hand you, internal note included. */
+  const hostileFilingRow = {
+    id: "0199a0b1-0000-7000-8000-000000000004",
+    organization_id: "0199a0b1-0000-7000-8000-000000000002",
+    kind: "dph_priznani" as const,
+    period_id: "0199a0b1-0000-7000-8000-000000000003",
+    due_on: "2026-04-27",
+    status: "filed" as const,
+    filed_on: "2026-04-25",
+    amount_due: "31200.00",
+    paid_at: new Date("2026-04-26T09:00:00Z"),
+    variable_symbol: "12345678",
+    document_id: "0199a0b1-0000-7000-8000-000000000005",
+    note_client: "Zaplaťte prosím do 25.",
+    note_internal: "Klient neposlal podklady, urgovat 20.",
+    created_at: now,
+    updated_at: new Date("2026-04-26T10:00:00Z"),
+  }
+
+  const period = reportingPeriodView({
+    id: "0199a0b1-0000-7000-8000-000000000003",
+    period_kind: "month",
+    year: 2026,
+    month: 3,
+    quarter: null,
+    starts_on: "2026-03-01",
+    ends_on: "2026-03-31",
+  } as Parameters<typeof reportingPeriodView>[0])
+
+  it("keeps the client allowlist and drops the office's own note", () => {
+    const view = filingView({
+      ...hostileFilingRow,
+      family: "dph",
+      overdue: false,
+      hasAttachment: true,
+      period,
+    })
+
+    expect(Object.keys(view).sort()).toEqual([
+      "amountDue",
+      "dueOn",
+      "family",
+      "filedOn",
+      "hasAttachment",
+      "id",
+      "kind",
+      "noteClient",
+      "overdue",
+      "paidAt",
+      "period",
+      "status",
+      "updatedAt",
+      "variableSymbol",
+    ])
+    expect(forbiddenClientKeys(view)).toEqual([])
+    expect(JSON.stringify(view)).not.toContain("urgovat")
+    // The tenant id and the document id are both absent: an id the reader
+    // cannot use is only useful for guessing at others.
+    expect(view).not.toHaveProperty("organizationId")
+    expect(view).not.toHaveProperty("documentId")
+    // The attachment is a boolean the CALLER resolved. This projection never
+    // sees `document_id` — the hostile row above carries one, and it does not
+    // reach the output under any name — so it cannot mistake "a link exists"
+    // for "a link this reader may follow".
+    expect(view.hasAttachment).toBe(true)
+    expect(JSON.stringify(view)).not.toContain(hostileFilingRow.document_id)
+  })
+
+  it("carries money as a string and instants as ISO", () => {
+    const view = filingView({
+      ...hostileFilingRow,
+      family: "dph",
+      overdue: true,
+      hasAttachment: true,
+      period,
+    })
+
+    expect(view.amountDue).toBe("31200.00")
+    expect(typeof view.amountDue).toBe("string")
+    expect(view.paidAt).toBe("2026-04-26T09:00:00.000Z")
+    expect(view.updatedAt).toBe("2026-04-26T10:00:00.000Z")
+    expect(view.overdue).toBe(true)
+  })
+
+  it("keeps an unpaid, unstated filing null rather than zero", () => {
+    const view = filingView({
+      ...hostileFilingRow,
+      amount_due: null,
+      paid_at: null,
+      family: "dph",
+      overdue: false,
+      // The row still carries a `document_id` — the caller resolved it against
+      // the document filters and got nothing (soft-deleted, hidden, or purged).
+      hasAttachment: false,
+      period,
+    })
+
+    // "The office has not stated an amount" is not "the amount is zero" (§0.4).
+    expect(view.amountDue).toBeNull()
+    expect(view.paidAt).toBeNull()
+    expect(view.hasAttachment).toBe(false)
+  })
+})
+
 describe("forbiddenClientKeys", () => {
   it("catches a forbidden column renamed to camelCase", () => {
     expect(forbiddenClientKeys({ isStaff: true })).toEqual(["isStaff"])
@@ -189,6 +329,18 @@ describe("forbiddenClientKeys", () => {
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("is_staff")
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("disabled_at")
     expect(CLIENT_FORBIDDEN_COLUMNS).toContain("token_hash")
+    expect(CLIENT_FORBIDDEN_COLUMNS).toContain("note_internal")
+  })
+
+  it("catches the office's own note under either spelling", () => {
+    expect(forbiddenClientKeys({ note_internal: "urgovat" })).toEqual([
+      "note_internal",
+    ])
+    expect(forbiddenClientKeys({ noteInternal: "urgovat" })).toEqual([
+      "noteInternal",
+    ])
+    // The client-facing half of the same pair stays allowed.
+    expect(forbiddenClientKeys({ noteClient: "Zaplaťte prosím" })).toEqual([])
   })
 })
 

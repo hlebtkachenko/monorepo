@@ -103,7 +103,17 @@ export function BetaShell({
       contentHeader={<ContentHeader title={orgLegalName} />}
       logoHref={`/${orgSlug}`}
     >
-      {children}
+      {/* THE PORTAL'S SCROLL REGION, AND IT HAS TO BE HERE.
+          `AppShell` deliberately does NOT scroll its body — the org app fills
+          that slot with `ContentPanel` archetypes that pin their own chrome and
+          scroll an inner region instead (`app-body.tsx`, "the panel body ...
+          does NOT scroll as a whole"). Beta has no such surfaces: every page is
+          a plain column of cards handed straight to `children`, so without a
+          scroll region of its own everything past the fold was clipped by that
+          `overflow-hidden` and unreachable — no page scrolled at all.
+          `h-full` (not `min-h-full`) so the box takes the parent's fixed height
+          and overflows INSIDE it rather than growing and being cut off again. */}
+      <div className="h-full overflow-y-auto">{children}</div>
     </AppShell>
   )
 }

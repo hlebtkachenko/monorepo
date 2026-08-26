@@ -61,6 +61,7 @@ import { isValidOrgSlugFormat } from "./org-slug"
 
 const orgScopeBrand = Symbol("beta.OrgScope")
 const officeScopeBrand = Symbol("beta.OfficeScope")
+const ownerScopeBrand = Symbol("beta.OwnerScope")
 
 /**
  * Proof that a specific user holds a specific active membership in a specific
@@ -216,4 +217,46 @@ export async function requireOffice(): Promise<OfficeScope> {
  */
 export function assertOwner(scope: OrgScope): void {
   if (scope.role !== "owner") notFound()
+}
+
+/**
+ * Proof that a specific `OrgScope` also holds the `owner` role — the office
+ * side's write handle (PR 14, Pro účetní › Zpracování). Everything `OrgScope`
+ * proves still holds (an `OwnerScope` is one, structurally: every field is
+ * still there, plus the second brand), so a function that used to take
+ * `OrgScope` keeps working unchanged if it is ever handed one.
+ *
+ * WHY A SECOND BRAND AND NOT JUST `assertOwner` EVERYWHERE. `assertOwner` is a
+ * plain `void` function, not a TypeScript assertion signature (`asserts scope
+ * is ...`), because `OrgScope.role` is a plain string field the compiler
+ * cannot narrow through a function call — so every caller re-proves "is this
+ * the owner" only by convention, at the top of every write, and a write added
+ * later that forgets the call still type-checks. `requireOwner` moves that
+ * proof into the TYPE: a data function that declares its first parameter as
+ * `OwnerScope` cannot be called with a bare `OrgScope` at all, so "this write
+ * is owner-only" becomes a compile error to get wrong, the same way `OrgScope`
+ * itself already makes "this read is tenant-scoped" one. `lib/data/documents-
+ * office.ts` is the first, and so far only, consumer.
+ *
+ * NOT A REPLACEMENT FOR `assertOwner`. Pages still gate with `assertOwner` (or
+ * this) directly against a freshly resolved `OrgScope` — there is no
+ * `requireOwner(orgSlug)` shorthand, on purpose: minting the handle from an
+ * already-resolved scope keeps `requireScope` the only function that ever
+ * touches the database for tenancy, exactly as `requireOffice` does not
+ * re-derive a session either.
+ */
+export type OwnerScope = OrgScope & {
+  readonly [ownerScopeBrand]: true
+  readonly role: "owner"
+}
+
+export function requireOwner(scope: OrgScope): OwnerScope {
+  if (scope.role !== "owner") notFound()
+
+  const owner: OwnerScope = {
+    ...scope,
+    [ownerScopeBrand]: true,
+    role: "owner",
+  }
+  return Object.freeze(owner)
 }

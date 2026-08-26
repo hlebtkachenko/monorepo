@@ -29,8 +29,8 @@ import { describe, expect, it } from "vitest"
 
 const BETA_ROOT = resolve(__dirname, "..", "..")
 
-/** The two brands, and the one file allowed to name them in an assertion. */
-const BRANDED_TYPES = ["OrgScope", "OfficeScope"]
+/** The three brands, and the one file allowed to name them in an assertion. */
+const BRANDED_TYPES = ["OrgScope", "OfficeScope", "OwnerScope"]
 const BRAND_HOME = "lib/data/scope.ts"
 
 const SKIP_DIRS = new Set([
@@ -131,6 +131,8 @@ describe("scope brand fence", () => {
       `const c = rows.map((r) => r as OrgScope)`,
       `const d = value as Readonly<OrgScope>`,
       `const e = value as OrgScope & { extra: true }`,
+      `const f = orgScope as OwnerScope`,
+      `const g = input as unknown as OwnerScope`,
     ].join("\n")
 
     const findings = brandAssertions(parse(hostile, "hostile.ts"), "hostile.ts")
@@ -140,6 +142,8 @@ describe("scope brand fence", () => {
       "asserts OrgScope",
       "asserts OrgScope",
       "asserts OrgScope",
+      "asserts OwnerScope",
+      "asserts OwnerScope",
     ])
   })
 

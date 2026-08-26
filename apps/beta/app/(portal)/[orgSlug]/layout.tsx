@@ -50,6 +50,7 @@ export default async function OrgLayout({
       orgSlug={scope.organizationSlug}
       orgLegalName={org.legalName}
       switcher={switcher}
+      isOwner={scope.role === "owner"}
     >
       {children}
     </BetaShell>

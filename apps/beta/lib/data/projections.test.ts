@@ -236,11 +236,13 @@ describe("filingView", () => {
       family: "dph",
       overdue: false,
       hasAttachment: true,
+      attachmentDocumentId: hostileFilingRow.document_id,
       period,
     })
 
     expect(Object.keys(view).sort()).toEqual([
       "amountDue",
+      "attachmentDocumentId",
       "dueOn",
       "family",
       "filedOn",
@@ -257,16 +259,18 @@ describe("filingView", () => {
     ])
     expect(forbiddenClientKeys(view)).toEqual([])
     expect(JSON.stringify(view)).not.toContain("urgovat")
-    // The tenant id and the document id are both absent: an id the reader
-    // cannot use is only useful for guessing at others.
+    // The tenant id is absent: an id the reader cannot use is only useful for
+    // guessing at others. `documentId` (the raw `filing.document_id` spelling)
+    // is absent too — only the CALLER-VALIDATED `attachmentDocumentId` ships,
+    // never the unfiltered column.
     expect(view).not.toHaveProperty("organizationId")
     expect(view).not.toHaveProperty("documentId")
-    // The attachment is a boolean the CALLER resolved. This projection never
-    // sees `document_id` — the hostile row above carries one, and it does not
-    // reach the output under any name — so it cannot mistake "a link exists"
-    // for "a link this reader may follow".
+    // The attachment is a boolean AND an id the CALLER resolved — both read
+    // back off the same filtered join (`lib/data/filings.ts`'s
+    // `visibleAttachment()`), so a hasAttachment:true row's id is exactly the
+    // document this reader may open.
     expect(view.hasAttachment).toBe(true)
-    expect(JSON.stringify(view)).not.toContain(hostileFilingRow.document_id)
+    expect(view.attachmentDocumentId).toBe(hostileFilingRow.document_id)
   })
 
   it("carries money as a string and instants as ISO", () => {
@@ -275,6 +279,7 @@ describe("filingView", () => {
       family: "dph",
       overdue: true,
       hasAttachment: true,
+      attachmentDocumentId: hostileFilingRow.document_id,
       period,
     })
 
@@ -285,16 +290,19 @@ describe("filingView", () => {
     expect(view.overdue).toBe(true)
   })
 
-  it("keeps an unpaid, unstated filing null rather than zero", () => {
+  it("keeps an unpaid, unstated filing null rather than zero — and never leaks an id the caller says is absent", () => {
     const view = filingView({
       ...hostileFilingRow,
       amount_due: null,
       paid_at: null,
       family: "dph",
       overdue: false,
-      // The row still carries a `document_id` — the caller resolved it against
-      // the document filters and got nothing (soft-deleted, hidden, or purged).
+      // The row still carries a raw `document_id` — the caller resolved it
+      // against the document filters and got nothing (soft-deleted, hidden, or
+      // purged), so it hands filingView `hasAttachment: false` and
+      // `attachmentDocumentId: null` regardless of what the raw column says.
       hasAttachment: false,
+      attachmentDocumentId: null,
       period,
     })
 
@@ -302,6 +310,10 @@ describe("filingView", () => {
     expect(view.amountDue).toBeNull()
     expect(view.paidAt).toBeNull()
     expect(view.hasAttachment).toBe(false)
+    expect(view.attachmentDocumentId).toBeNull()
+    // The raw document id from the hostile row must not leak under any name
+    // when the caller has already decided this reader may not have it.
+    expect(JSON.stringify(view)).not.toContain(hostileFilingRow.document_id)
   })
 })
 

@@ -25,7 +25,7 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * one entry gated on the caller's OWN role rather than on which routes exist,
  * which is why it takes a parameter instead of joining the static list above.
  */
-type BetaNavLabelKey = "prehled" | "ucetni"
+type BetaNavLabelKey = "prehled" | "dane" | "ucetni"
 
 export type BetaRailItem =
   (Omit<RailMenuItem, "label"> & { labelKey: BetaNavLabelKey }) | "separator"
@@ -39,6 +39,11 @@ export function betaRailNav(
     // closed union and does not carry it yet, so the root uses Home until the
     // real Přehled module lands and extends the icon packs (all packs, parity).
     { labelKey: "prehled", icon: "Home", href: `/${orgSlug}` },
+    // The structure spec names Landmark for Daně a podání (§1); same gap as
+    // above — Banknote is the closest already-registered icon, used
+    // unconditionally rather than only visible to a DPH gate that lives one
+    // level down (spec §2.3: the four-family sidebar, not this rail entry).
+    { labelKey: "dane", icon: "Banknote", href: `/${orgSlug}/dane` },
   ]
 
   if (options.isOwner) {

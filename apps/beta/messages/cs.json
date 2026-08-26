@@ -10,6 +10,7 @@
   },
   "nav": {
     "prehled": "Přehled",
+    "dane": "Daně a podání",
     "ucetni": "Pro účetní"
   },
   "landing": {
@@ -291,5 +292,65 @@
     "errorInvalidDate": "Neplatné datum.",
     "errorInvalidAmount": "Neplatná částka.",
     "errorConflict": "Doklad mezitím změnil někdo jiný. Zkuste to prosím znovu."
+  },
+
+  "dane": {
+    "navLabel": "Agendy daní a podání",
+    "navSouhrn": "Souhrn",
+    "navDph": "DPH",
+    "navDanZPrijmu": "Daň z příjmů",
+    "navMzdoveOdvody": "Mzdové odvody a hlášení",
+    "navOstatni": "Ostatní",
+
+    "souhrnUnpaidTitle": "Neuhrazeno",
+    "souhrnUnpaidOverdue": "z toho po splatnosti",
+    "souhrnFreshnessTitle": "Údaje k",
+    "souhrnFreshnessEmpty": "Zatím žádný záznam.",
+    "souhrnUpcomingTitle": "Nejbližší termíny",
+    "souhrnUpcomingEmpty": "Žádná blížící se podání.",
+    "souhrnYtdTitle": "Uhrazeno od začátku roku",
+    "souhrnYtdEmpty": "Zatím nic uhrazeno nebylo.",
+    "souhrnTimelineTitle": "Podání v tomto roce",
+    "souhrnTimelineEmpty": "Pro letošní rok zatím nejsou evidovaná žádná podání.",
+
+    "familyEmpty": "Zatím nebylo nahráno.",
+
+    "columnFiling": "Podání",
+    "columnFamily": "Agenda",
+    "columnPeriod": "Období",
+    "columnDue": "Termín",
+    "columnFiled": "Podáno",
+    "columnAmount": "Částka",
+    "columnStatus": "Stav",
+    "columnAttachment": "Příloha",
+
+    "attachmentOpen": "Otevřít přílohu",
+    "attachmentNone": "—",
+    "notFiledYet": "—",
+    "amountNotStated": "Neuvedeno",
+
+    "statusPlanned": "Plánováno",
+    "statusFiled": "Podáno",
+    "statusConfirmed": "Potvrzeno",
+    "statusCorrective": "Opravné",
+    "overdueBadge": "Po splatnosti",
+
+    "familyDph": "DPH",
+    "familyDanZPrijmu": "Daň z příjmů",
+    "familyMzdoveOdvody": "Mzdové odvody a hlášení",
+    "familyOstatni": "Ostatní",
+
+    "kindDphPriznani": "Přiznání k DPH",
+    "kindDphKontrolniHlaseni": "Kontrolní hlášení",
+    "kindDphSouhrnneHlaseni": "Souhrnné hlášení",
+    "kindDppoPriznani": "Přiznání k DPPO",
+    "kindDppoZaloha": "Záloha na DPPO",
+    "kindUcetniZaverka": "Účetní závěrka",
+    "kindVyuctovaniDane": "Vyúčtování daně",
+    "kindPrehledCssz": "Přehled ČSSZ",
+    "kindPrehledZp": "Přehled ZP",
+    "kindJmhz": "JMHZ",
+    "kindSilnicniDan": "Silniční daň",
+    "kindOstatni": "Ostatní"
   }
 }

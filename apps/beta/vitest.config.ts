@@ -35,16 +35,28 @@ export default defineConfig({
           // they are the pieces most worth testing adversarially — a suite that
           // needs Docker to assert "a ZIP renamed to .pdf is refused" is a
           // suite that gets skipped.
+          //
+          // `lib/format/**` joins for the same reason (PR 17): cs-CZ date,
+          // money and period-label formatting are pure `Intl` wrappers with no
+          // database underneath them.
           include: [
             "app/**/*.test.ts",
             "i18n/**/*.test.ts",
             "lib/**/*.boundary.test.ts",
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
+            "lib/format/**/*.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
-          // they belong to the `db` project below.
-          exclude: ["app/api/orgs/**", "**/node_modules/**"],
+          // they belong to the `db` project below — as does Daně a podání's
+          // `dane-scope` gate, which resolves a real membership and a real
+          // `vat_regime` (PR 17). `**/dane/**` rather than the literal
+          // `app/(portal)/[orgSlug]/dane/**`: `[orgSlug]` is a glob BRACKET
+          // EXPRESSION (matches one char of "orgSlug"), not the literal
+          // directory name, so a literal path silently failed to exclude
+          // anything — `**` swallows the route-group and dynamic-segment
+          // folders regardless of their punctuation.
+          exclude: ["app/api/orgs/**", "app/**/dane/**", "**/node_modules/**"],
         },
       },
       {
@@ -60,11 +72,13 @@ export default defineConfig({
             "db/**/*.test.ts",
             "lib/**/*.test.ts",
             "app/api/orgs/**/*.test.ts",
+            "app/**/dane/**/*.test.ts",
           ],
           exclude: [
             "lib/**/*.boundary.test.ts",
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
+            "lib/format/**/*.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

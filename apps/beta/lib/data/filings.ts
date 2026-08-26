@@ -63,6 +63,11 @@ const FILING_FAMILY = sql<BetaFilingFamily>`beta_filing_family(${filing.kind})`
  * attachment that is somehow a payslip must read as absent here, because §2.2
  * excludes payslips from every non-payroll surface server-side and a filing is
  * not a payroll surface. Fail closed.
+ *
+ * PR 17 reads `document.id` back off this same join as
+ * `FilingView.attachmentDocumentId`, for the Daně a podání download link. That
+ * is safe precisely BECAUSE the id only ever exists here after these four
+ * filters already ran — see the field's own doc comment in `projections.ts`.
  */
 function visibleAttachment(scope: OrgScope) {
   return and(
@@ -135,6 +140,7 @@ function toFilingView(row: {
   return filingView({
     ...row,
     hasAttachment: row.attachment_id !== null,
+    attachmentDocumentId: row.attachment_id,
     period: reportingPeriodView({
       id: row.period_id,
       period_kind: row.period_kind,
@@ -150,6 +156,64 @@ function toFilingView(row: {
 export type FilingFilter = {
   readonly family?: BetaFilingFamily
   readonly periodId?: string
+}
+
+/**
+ * Souhrn's "YTD paid per family" (spec §2.3) — how much of each family's
+ * filings this organization has actually PAID so far in the current calendar
+ * year.
+ *
+ * SUMMED IN SQL, AGAINST `CURRENT_DATE`'s OWN YEAR — never in JavaScript, and
+ * never against a year the caller supplies (there is no year parameter: a
+ * client-suppliable year would let this answer a question about a year that
+ * is not actually "now"). Mirrors `IS_OVERDUE` above in using bare
+ * `CURRENT_DATE` rather than an explicit `AT TIME ZONE` conversion, for the
+ * same reason: nothing else in this module does either, and Prague-local
+ * "what year is it" is a Part 3 formatting concern, not a query one.
+ *
+ * ALL FOUR FAMILIES ARE ALWAYS PRESENT, at `"0.00"` when a family paid
+ * nothing this year — built from `betaFilingFamily.enumValues`, the same
+ * technique `OBLIGATION_SOURCES` in `lib/data/obligations.ts` uses, so the
+ * Souhrn page can render "0 Kč" for a family with real history but no
+ * payments yet without confusing it with a family that has no rows at all.
+ *
+ * THIS FUNCTION HAS NO OPINION ON VISIBILITY. The DPH gate
+ * (`visibleFilingFamiliesForScope`) is a separate concern the CALLER applies —
+ * a neplátce with no DPH history still gets a `"0.00"` row back here, and
+ * Souhrn's page component is the one that drops it before rendering.
+ */
+export type FilingFamilyPaidTotal = {
+  family: BetaFilingFamily
+  /** `numeric(14,2)` as a string, SQL-summed (spec §0.2). Never negative: a
+   * refund is never "paid". */
+  paidTotal: string
+}
+
+export async function filingYtdPaidByFamily(
+  scope: OrgScope,
+): Promise<FilingFamilyPaidTotal[]> {
+  const rows = await betaDb().execute(sql`
+    SELECT
+      beta_filing_family(f.kind) AS family,
+      COALESCE(SUM(f.amount_due), 0) AS paid_total
+    FROM filing f
+    WHERE f.organization_id = ${scope.organizationId}
+      AND f.paid_at IS NOT NULL
+      AND f.paid_at >= date_trunc('year', CURRENT_DATE)
+      AND f.paid_at < date_trunc('year', CURRENT_DATE) + interval '1 year'
+    GROUP BY beta_filing_family(f.kind)
+  `)
+
+  const byFamily = new Map(
+    (rows as unknown as { family: BetaFilingFamily; paid_total: string }[]).map(
+      (row) => [row.family, row.paid_total],
+    ),
+  )
+
+  return betaFilingFamily.enumValues.map((family) => ({
+    family,
+    paidTotal: byFamily.get(family) ?? "0.00",
+  }))
 }
 
 /**

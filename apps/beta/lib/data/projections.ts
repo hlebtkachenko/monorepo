@@ -414,16 +414,37 @@ export type FilingView = {
   paidAt: string | null
   variableSymbol: string | null
   /**
-   * Whether an attachment exists THAT THIS READER MAY OPEN — never the id.
+   * Whether an attachment exists THAT THIS READER MAY OPEN.
    *
    * Not `document_id !== null`: a document is soft-deleted rather than removed,
    * and the office can mark one hidden, so a filing can hold a valid id for a
-   * row `lib/data/documents.ts` refuses to serve. The caller resolves this
+   * row `lib/data/documents.ts` refuses to serve. The caller computes this
    * against the same four filters that module applies (`visibleAttachment` in
-   * `lib/data/filings.ts`) and hands the answer in; this projection does not
-   * see `document_id` at all, so it cannot get the question wrong.
+   * `lib/data/filings.ts`), so it cannot get the question wrong.
    */
   hasAttachment: boolean
+  /**
+   * The attachment's document id — present IF AND ONLY IF `hasAttachment` is
+   * true (spec §2.3: "attachments (p7s/PDF/XML)", PR 17's download link).
+   *
+   * THIS IS NOT `filing.document_id`. It is the id read back off the SAME
+   * filtered LEFT JOIN that produces `hasAttachment` — `visibleAttachment()`'s
+   * four filters (tenancy, soft delete, the payslip exclusion, the hidden
+   * class) have already run before this value exists at all. A soft-deleted or
+   * office-hidden attachment's row never joins, so its id is null here exactly
+   * when `hasAttachment` is false — the two can never disagree, because they
+   * are the same column read twice: once through `!== null` and once as-is.
+   * `lib/data/filings.test.ts` asserts they always agree.
+   *
+   * Handing the client this id is not a new capability. The download route
+   * (`GET /api/orgs/[orgSlug]/documents/[documentId]/file`) re-resolves it
+   * through `openDocumentFile`, which re-applies `visibleDocuments()` — the
+   * identical four filters — independently of anything this projection
+   * claims. So even a forged or stale id here opens nothing it should not;
+   * this field only ever saves the reader a 404 they would otherwise cause by
+   * guessing.
+   */
+  attachmentDocumentId: string | null
   noteClient: string | null
   overdue: boolean
   /** The §2.4 freshness stamp: when the office last edited this row. */
@@ -447,6 +468,7 @@ export function filingView(
     family: BetaFilingFamily
     overdue: boolean
     hasAttachment: boolean
+    attachmentDocumentId: string | null
     period: ReportingPeriodView
   },
 ): FilingView {
@@ -462,6 +484,7 @@ export function filingView(
     paidAt: row.paid_at === null ? null : row.paid_at.toISOString(),
     variableSymbol: row.variable_symbol,
     hasAttachment: row.hasAttachment,
+    attachmentDocumentId: row.attachmentDocumentId,
     noteClient: row.note_client,
     overdue: row.overdue,
     updatedAt: row.updated_at.toISOString(),

@@ -26,6 +26,7 @@
  */
 import { NextResponse } from "next/server"
 
+import { parseDocumentListQuery } from "@/lib/data/document-filters"
 import {
   listDocuments,
   uploadDocument,
@@ -128,13 +129,27 @@ export async function POST(
   })
 }
 
+/**
+ * The Dokumenty list (spec §2.2 "Vše").
+ *
+ * The filters and the page number ride in the query string and are parsed by
+ * `parseDocumentListQuery`, the SAME function the page uses — one place decides
+ * what `?status=` may say, so the API and the rendered table can never disagree
+ * about which rows a URL means. Every filter is applied in SQL; the response is
+ * one page plus the totals its pager needs, never the whole book.
+ *
+ * An unrecognised filter value is IGNORED rather than refused. This is a GET a
+ * client reaches by following a link — a stale bookmark should show the
+ * unfiltered list, not an error.
+ */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RouteContext,
 ): Promise<NextResponse> {
   const { orgSlug } = await context.params
   const scope = await resolveOrgScope(orgSlug)
   if (!scope) return json(404, { error: "not_found" })
 
-  return json(200, { documents: await listDocuments(scope) })
+  const query = parseDocumentListQuery(new URL(request.url).searchParams)
+  return json(200, await listDocuments(scope, query))
 }

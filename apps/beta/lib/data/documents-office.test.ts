@@ -479,7 +479,7 @@ describe("the visible_to_client toggle's real effect on client reads (spec §2.2
     const member = await orgScopeFor(org, "member")
     const id = await insertDocument(org, { visibleToClient: true })
 
-    expect(await documents.listDocuments(member)).toHaveLength(1)
+    expect((await documents.listDocuments(member)).documents).toHaveLength(1)
     expect(await documents.documentForScope(member, id)).not.toBeNull()
 
     const hidden = await office.saveDocumentOffice(owner, id, {
@@ -487,11 +487,11 @@ describe("the visible_to_client toggle's real effect on client reads (spec §2.2
     })
     expect(hidden.ok && hidden.document.clientVisible).toBe(false)
 
-    expect(await documents.listDocuments(member)).toEqual([])
+    expect((await documents.listDocuments(member)).documents).toEqual([])
     expect(await documents.documentForScope(member, id)).toBeNull()
 
     // The owner still sees it, hidden layer and all.
-    expect(await documents.listDocuments(owner)).toHaveLength(1)
+    expect((await documents.listDocuments(owner)).documents).toHaveLength(1)
   })
 
   it("flips back to visible and the client can read it again", async () => {
@@ -500,14 +500,14 @@ describe("the visible_to_client toggle's real effect on client reads (spec §2.2
     const guest = await orgScopeFor(org, "guest")
     const id = await insertDocument(org, { visibleToClient: false })
 
-    expect(await documents.listDocuments(guest)).toEqual([])
+    expect((await documents.listDocuments(guest)).documents).toEqual([])
 
     const shown = await office.saveDocumentOffice(owner, id, {
       clientVisible: true,
     })
     expect(shown.ok && shown.document.clientVisible).toBe(true)
 
-    expect(await documents.listDocuments(guest)).toHaveLength(1)
+    expect((await documents.listDocuments(guest)).documents).toHaveLength(1)
     expect(await documents.documentForScope(guest, id)).not.toBeNull()
   })
 })

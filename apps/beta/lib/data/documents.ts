@@ -58,7 +58,18 @@ import "server-only"
  */
 import type { Readable } from "node:stream"
 
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  isNull,
+  lt,
+  ne,
+  sql,
+} from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import {
@@ -67,7 +78,10 @@ import {
   type BetaClientDocumentType,
   type BetaDocumentType,
 } from "@/db/schema"
-import { isInlineSafeContentType } from "@/lib/storage/content-type"
+import {
+  isFramePreviewableContentType,
+  isInlineSafeContentType,
+} from "@/lib/storage/content-type"
 import { baseFilename } from "@/lib/storage/content-disposition"
 import { documentStore } from "@/lib/storage/store"
 import {
@@ -77,6 +91,11 @@ import {
 } from "@/lib/storage/upload-stream"
 import { isDeadlock, isUniqueViolation } from "@/lib/pg-error"
 
+import {
+  DOCUMENT_LIST_PAGE_SIZE,
+  EMPTY_DOCUMENT_LIST_FILTERS,
+  type DocumentListFilters,
+} from "./document-filters"
 import { documentSummary, type DocumentSummary } from "./projections"
 import type { OrgScope } from "./scope"
 
@@ -96,9 +115,15 @@ export const ORGANIZATION_QUOTA_BYTES = 5 * 1024 * 1024 * 1024
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Default page size for the Dokumenty list. PR 12 adds real pagination. */
-const DEFAULT_LIST_LIMIT = 100
-const MAX_LIST_LIMIT = 500
+/**
+ * Highest page the list will serve.
+ *
+ * At 25 rows a page this is 250 000 documents — orders of magnitude past what a
+ * small s.r.o.'s book will ever hold, and the point of the ceiling is not the
+ * row count: `OFFSET` makes Postgres walk every skipped row, so an unbounded
+ * `?page=` is a free way to make one request scan the whole index.
+ */
+const MAX_LIST_PAGE = 10_000
 
 const MAX_FILENAME_LENGTH = 255
 const MAX_SITE_REF_LENGTH = 120
@@ -177,26 +202,141 @@ function duplicateTwinVisibleTo(
 // ---------------------------------------------------------------------------
 
 /**
- * The Dokumenty list, newest first. Deliberately minimal — PR 12 adds the
- * status / typ / období / stavba filters and the search on top of this.
+ * Czech accounting deadlines — and therefore Czech calendar days — are read in
+ * Prague local time (`i18n/formats.ts`). `created_at` is a `timestamptz`, so a
+ * day boundary is only a day boundary once it is anchored to a zone: without
+ * this, "od 1. 3." would start at 01:00 Prague in summer and quietly drop an
+ * hour of the client's own uploads.
+ */
+const PRAGUE = sql`'Europe/Prague'`
+
+/**
+ * Escape the LIKE metacharacters in a user's search string.
+ *
+ * Drizzle parameterises the pattern, so this is not about injection — it is
+ * about meaning. Unescaped, a client typing `%` matches every row and a client
+ * searching for `faktura_03` silently matches `faktura-03` too. Backslash is the
+ * default LIKE escape character in Postgres, so it has to be escaped first.
+ */
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`)
+}
+
+/**
+ * The four visibility filters, plus the user's own narrowing (spec §2.2:
+ * "Filters status/typ/období/stavba; ilike search").
+ *
+ * EVERY FILTER IS SQL-SIDE. Fetching the page and filtering in the component
+ * would be wrong twice over: the page would be a page of the UNFILTERED list
+ * (so the pager would lie), and rows the client narrowed away would still have
+ * crossed the wire.
+ *
+ * The values arriving here are already closed sets — `parseDocumentListQuery`
+ * validated them against the enum and against a real calendar day — so this
+ * function shapes a query, it does not re-validate one.
+ */
+function listConditions(scope: OrgScope, filters: DocumentListFilters) {
+  return and(
+    visibleDocuments(scope),
+    filters.status ? eq(document.status, filters.status) : undefined,
+    filters.docType ? eq(document.doc_type, filters.docType) : undefined,
+    filters.siteRef ? eq(document.site_ref, filters.siteRef) : undefined,
+    // Inclusive on both ends: `to` is turned into "before the next day starts",
+    // so a range of a single day contains that whole day.
+    filters.from
+      ? gte(
+          document.created_at,
+          sql`(${filters.from}::date)::timestamp at time zone ${PRAGUE}`,
+        )
+      : undefined,
+    filters.to
+      ? lt(
+          document.created_at,
+          sql`((${filters.to}::date + 1))::timestamp at time zone ${PRAGUE}`,
+        )
+      : undefined,
+    filters.search
+      ? ilike(
+          document.original_filename,
+          sql`${`%${escapeLikePattern(filters.search)}%`}`,
+        )
+      : undefined,
+  )
+}
+
+/** One page of the Dokumenty table, and everything the pager needs. */
+export type DocumentListPage = {
+  documents: DocumentSummary[]
+  /** Rows matching the filters, across all pages. */
+  total: number
+  /** The page actually served, 1-based. */
+  page: number
+  pageSize: number
+  pageCount: number
+}
+
+/**
+ * The Dokumenty list (spec §2.2 "Vše"), newest first, filtered and paged.
+ *
+ * ONE ROUND TRIP, NOT TWO. `count(*) over ()` rides along on the same statement
+ * as the rows, so the total the pager renders is the total of the very query
+ * that produced those rows. A separate `SELECT count(*)` would be a second
+ * snapshot: an upload landing between the two calls makes the pager disagree
+ * with the table it is paging, which is exactly the kind of small lie that
+ * costs an office a support call.
  */
 export async function listDocuments(
   scope: OrgScope,
-  options: { limit?: number } = {},
-): Promise<DocumentSummary[]> {
-  const limit = Math.min(
-    Math.max(options.limit ?? DEFAULT_LIST_LIMIT, 1),
-    MAX_LIST_LIMIT,
-  )
+  options: { filters?: DocumentListFilters; page?: number } = {},
+): Promise<DocumentListPage> {
+  const filters = options.filters ?? EMPTY_DOCUMENT_LIST_FILTERS
+  const pageSize = DOCUMENT_LIST_PAGE_SIZE
+  const page = Math.min(Math.max(options.page ?? 1, 1), MAX_LIST_PAGE)
 
   const rows = await betaDb()
-    .select(summaryColumns)
+    .select({ ...summaryColumns, total: sql<string>`count(*) over ()` })
     .from(document)
-    .where(visibleDocuments(scope))
-    .orderBy(desc(document.created_at))
-    .limit(limit)
+    .where(listConditions(scope, filters))
+    // `created_at` alone is not a total order — two uploads in the same
+    // transaction share a timestamp, and a tie broken differently between two
+    // pages either repeats a row or drops one. `id` is uuidv7, so it is itself
+    // time-ordered and the tiebreak agrees with the sort.
+    .orderBy(desc(document.created_at), desc(document.id))
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
 
-  return rows.map(documentSummary)
+  const total = Number(rows[0]?.total ?? 0)
+
+  return {
+    documents: rows.map(documentSummary),
+    total,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(total / pageSize)),
+  }
+}
+
+/**
+ * The distinct `stavba` values on this book, for the site filter's options.
+ *
+ * Same four visibility filters as the list itself — a site that only appears on
+ * documents the office has hidden is not an option this caller may be offered,
+ * because choosing it would render an empty table and thereby confirm the
+ * hidden row exists.
+ *
+ * Deliberately NOT the Stavby grouping page (spec §2.2, PR 13): this is a list
+ * of strings for a `<select>`, with no counts and no sums.
+ */
+export async function listDocumentSites(scope: OrgScope): Promise<string[]> {
+  const rows = await betaDb()
+    .selectDistinct({ site_ref: document.site_ref })
+    .from(document)
+    .where(and(visibleDocuments(scope), sql`${document.site_ref} is not null`))
+    .orderBy(asc(document.site_ref))
+
+  return rows
+    .map((row) => row.site_ref)
+    .filter((value): value is string => value !== null)
 }
 
 /** One document, or null. Null is what the routes turn into a 404. */
@@ -223,6 +363,11 @@ export type DocumentFileHandle = {
   document: DocumentSummary
   /** Whether the download route may honour a request for `inline`. */
   inlineAllowed: boolean
+  /**
+   * Whether the route may honour a request for `preview` — the row sheet's
+   * sandboxed frame. Images plus PDF; see `isFramePreviewableContentType`.
+   */
+  previewAllowed: boolean
   body: Readable
 }
 
@@ -251,6 +396,7 @@ export async function openDocumentFile(
   return {
     document: documentSummary(row),
     inlineAllowed: isInlineSafeContentType(row.content_type),
+    previewAllowed: isFramePreviewableContentType(row.content_type),
     body,
   }
 }

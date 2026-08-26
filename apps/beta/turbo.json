@@ -18,6 +18,7 @@
         "BETTER_AUTH_URL",
         "BETTER_AUTH_TRUSTED_ORIGINS",
         "NEXT_PHASE",
+        "BETA_DIST_DIR",
         "AWS_REGION",
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
@@ -29,6 +30,7 @@
         "BETTER_AUTH_URL",
         "BETTER_AUTH_TRUSTED_ORIGINS",
         "NEXT_PHASE",
+        "BETA_DIST_DIR",
         "AWS_REGION",
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
@@ -40,6 +42,7 @@
         "BETTER_AUTH_URL",
         "BETTER_AUTH_TRUSTED_ORIGINS",
         "NEXT_PHASE",
+        "BETA_DIST_DIR",
         "AWS_REGION",
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
@@ -50,12 +53,18 @@
       // DATABASE_URL is set by tests/global-setup.ts after the Postgres 18
       // testcontainer boots (and read by db/client.ts); SKIP_TESTCONTAINER is
       // the escape hatch that reuses an externally-provided database instead.
+      //
+      // BETA_DIST_DIR is set BY the suite, not read from it: the real-HTTP
+      // header check boots its own `next dev` into an isolated build directory
+      // (see next.config.mjs). Declared so the value cannot silently change a
+      // cached result.
       "env": [
         "DATABASE_URL",
         "SKIP_TESTCONTAINER",
         "BETTER_AUTH_URL",
         "BETTER_AUTH_TRUSTED_ORIGINS",
-        "NEXT_PHASE"
+        "NEXT_PHASE",
+        "BETA_DIST_DIR"
       ]
     }
   }

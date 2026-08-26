@@ -8,6 +8,23 @@ const withNextIntl = createNextIntlPlugin("./i18n/request.ts")
 // image build).
 const isDev = process.env.NODE_ENV === "development"
 
+/**
+ * An alternative build directory, for the automated header check only.
+ *
+ * `document-file-headers.test.ts` runs a real `next build` + `next start` and
+ * curls the result, because that is the ONLY way to see the headers a browser
+ * receives (see the note on DOCUMENT_FILE_CSP below). Pointing that build at
+ * its own directory keeps it from clobbering the `.next` a developer's dev
+ * server is serving from, and keeps its artefacts out of the one the Docker
+ * image copies.
+ *
+ * UNSET IN EVERY REAL BUILD. `apps/beta/Dockerfile` does not set it, so the
+ * image build writes `.next` and copies `.next/standalone` as before; if
+ * someone ever did set it there, the COPY would fail loudly rather than
+ * producing a subtly wrong image.
+ */
+const distDir = process.env.BETA_DIST_DIR
+
 // Beta has no S3 previews and no Sentry client yet, so every fetch axis stays
 // on 'self'. Widen a directive only when the feature that needs it lands.
 const contentSecurityPolicy = [
@@ -30,6 +47,35 @@ const contentSecurityPolicy = [
   ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ")
 
+/**
+ * The ONE route whose CSP differs, and the policy it gets.
+ *
+ * `/api/orgs/:orgSlug/documents/:documentId/file` streams a client's own
+ * document, and the Dokumenty row sheet renders PDFs by framing that URL
+ * (spec §2.2 "sandboxed preview"). The site-wide policy above carries
+ * `frame-ancestors 'none'`, which forbids framing by ANY page — our own
+ * included — so the preview cannot exist without this override.
+ *
+ * WHY THE OVERRIDE LIVES HERE AND NOT IN THE ROUTE HANDLER. Measured on a
+ * running server, not assumed: a `content-security-policy` set on the Response
+ * a route handler returns is silently REPLACED by the `/(.*)` entry above, so
+ * the route's own header never reaches the client (an unrelated header set by
+ * the same handler did survive — it is specifically the same-key collision that
+ * the config wins). A second, more specific `headers()` entry listed AFTER the
+ * site-wide one replaces that single key for the matching path and leaves every
+ * other site-wide header — nosniff, Referrer-Policy, Permissions-Policy, HSTS,
+ * X-Robots-Tag — untouched. That is the mechanism used here, and it is the
+ * reason nothing else in the app is weakened: every other path, including the
+ * sibling `/api/orgs/:orgSlug/documents` list route, keeps `'none'`.
+ *
+ * The value is duplicated from `DOCUMENT_FILE_CSP` in that route module — a
+ * .mjs config cannot import a TS module — and
+ * `app/api/orgs/[orgSlug]/documents/[documentId]/file/document-file-headers.test.ts`
+ * boots this app over real HTTP and fails if the two ever drift.
+ */
+const DOCUMENT_FILE_PATH = "/api/orgs/:orgSlug/documents/:documentId/file"
+const DOCUMENT_FILE_CSP = "default-src 'none'; sandbox; frame-ancestors 'self'"
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // @workspace/ui and @workspace/i18n export raw .ts/.tsx (source-first, no
@@ -37,6 +83,7 @@ const nextConfig = {
   transpilePackages: ["@workspace/ui", "@workspace/i18n", "@workspace/shared"],
   output: "standalone",
   poweredByHeader: false,
+  ...(distDir ? { distDir } : {}),
   // Site-wide security headers. Referrer-Policy is `no-referrer` everywhere:
   // beta's login/setup-link flows carry tokens in the URL, and the portal has
   // no cross-origin analytics that needs a referrer. The X-Robots-Tag rides
@@ -68,6 +115,12 @@ const nextConfig = {
           { key: "Content-Security-Policy", value: contentSecurityPolicy },
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
+      },
+      // MUST stay last: order is what makes this an override rather than a
+      // no-op. See the note on DOCUMENT_FILE_CSP above.
+      {
+        source: DOCUMENT_FILE_PATH,
+        headers: [{ key: "Content-Security-Policy", value: DOCUMENT_FILE_CSP }],
       },
     ]
   },

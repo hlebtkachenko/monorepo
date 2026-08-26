@@ -356,11 +356,28 @@ describe("POST — refusals", () => {
 })
 
 describe("GET /api/orgs/[orgSlug]/documents", () => {
-  async function get(as: Headers, slug: string): Promise<Response> {
+  type ListPayload = {
+    documents: { id: string; filename: string; status: string }[]
+    total: number
+    page: number
+    pageSize: number
+    pageCount: number
+  }
+
+  async function get(as: Headers, slug: string, query = ""): Promise<Response> {
     request.headers = as
-    return route.GET(new Request(`${ORIGIN}/api/orgs/${slug}/documents`), {
-      params: Promise.resolve({ orgSlug: slug }),
-    })
+    return route.GET(
+      new Request(`${ORIGIN}/api/orgs/${slug}/documents${query}`),
+      { params: Promise.resolve({ orgSlug: slug }) },
+    )
+  }
+
+  async function list(
+    as: Headers,
+    slug: string,
+    query = "",
+  ): Promise<ListPayload> {
+    return (await (await get(as, slug, query)).json()) as ListPayload
   }
 
   it("lists only the caller's own organization", async () => {
@@ -369,15 +386,92 @@ describe("GET /api/orgs/[orgSlug]/documents", () => {
       filename: "jen-a.pdf",
     })
 
-    const mine = (await (
-      await get(orgA.members.member.headers, orgA.slug)
-    ).json()) as { documents: { filename: string }[] }
+    const mine = await list(orgA.members.member.headers, orgA.slug)
     expect(mine.documents.some((d) => d.filename === "jen-a.pdf")).toBe(true)
 
-    const theirs = (await (
-      await get(orgB.members.member.headers, orgB.slug)
-    ).json()) as { documents: { filename: string }[] }
+    const theirs = await list(orgB.members.member.headers, orgB.slug)
     expect(theirs.documents.some((d) => d.filename === "jen-a.pdf")).toBe(false)
+  })
+
+  it("answers with a page envelope the caller can page through", async () => {
+    useStore()
+    await post(orgA.members.member.headers, orgA.slug, fresh(PDF_BYTES), {
+      filename: "obalka.pdf",
+    })
+
+    const payload = await list(orgA.members.member.headers, orgA.slug)
+    expect(payload.page).toBe(1)
+    expect(payload.pageSize).toBe(25)
+    expect(payload.pageCount).toBeGreaterThanOrEqual(1)
+    expect(payload.total).toBe(payload.total)
+    expect(Array.isArray(payload.documents)).toBe(true)
+  })
+
+  it("applies the filters from the query string, in SQL", async () => {
+    useStore()
+    const created = await post(
+      orgB.members.member.headers,
+      orgB.slug,
+      fresh(PDF_BYTES),
+      { filename: "vracena-faktura.pdf" },
+    )
+    const { document: row } = (await created.json()) as {
+      document: { id: string }
+    }
+    await sql`
+      UPDATE document
+         SET status = 'returned', office_message = 'Chybí druhá strana'
+       WHERE id = ${row.id}
+    `
+
+    const returned = await list(
+      orgB.members.member.headers,
+      orgB.slug,
+      "?status=returned",
+    )
+    expect(returned.documents.map((d) => d.id)).toContain(row.id)
+    expect(returned.documents.every((d) => d.status === "returned")).toBe(true)
+
+    // The narrowed total is the total of the FILTERED set, so a client paging
+    // a filter is not paging the whole book.
+    const all = await list(orgB.members.member.headers, orgB.slug)
+    expect(returned.total).toBeLessThanOrEqual(all.total)
+
+    const processed = await list(
+      orgB.members.member.headers,
+      orgB.slug,
+      "?status=processed",
+    )
+    expect(processed.documents.map((d) => d.id)).not.toContain(row.id)
+
+    const searched = await list(
+      orgB.members.member.headers,
+      orgB.slug,
+      "?q=vracena",
+    )
+    expect(searched.documents.map((d) => d.id)).toContain(row.id)
+  })
+
+  it("ignores a filter value it does not recognise rather than refusing", async () => {
+    useStore()
+    // A stale bookmark or a hand-edited URL shows the unfiltered list; an error
+    // page for a GET the client reached by clicking a link would be worse.
+    const response = await get(
+      orgA.members.member.headers,
+      orgA.slug,
+      "?status=schvaleno&type=payslip&from=vcera&page=-3",
+    )
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as ListPayload
+    expect(payload.page).toBe(1)
+  })
+
+  it("never serialises a forbidden column", async () => {
+    useStore()
+    const { forbiddenClientKeys } = await import("@/lib/data/projections")
+    const payload = await list(orgA.members.member.headers, orgA.slug)
+    expect(forbiddenClientKeys(payload)).toEqual([])
+    expect(JSON.stringify(payload)).not.toContain("org/")
   })
 
   it("answers 404 for another organization's slug", async () => {
@@ -387,6 +481,12 @@ describe("GET /api/orgs/[orgSlug]/documents", () => {
   it("answers 404 for a slug that cannot exist", async () => {
     expect(
       (await get(orgA.members.owner.headers, "../../etc/passwd")).status,
+    ).toBe(404)
+  })
+
+  it("answers 404 for a signed-out visitor, filters and all", async () => {
+    expect(
+      (await get(anonymousHeaders(), orgA.slug, "?status=processed")).status,
     ).toBe(404)
   })
 })

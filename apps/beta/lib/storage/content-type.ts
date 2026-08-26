@@ -180,3 +180,30 @@ export function sniffDocumentType(
 export function isInlineSafeContentType(contentType: string): boolean {
   return contentType === "image/png" || contentType === "image/jpeg"
 }
+
+/**
+ * Whether a STORED document may be served for the row sheet's framed preview
+ * (spec §2.2 "Row sheet: sandboxed preview").
+ *
+ * THE SUPERSET OF `isInlineSafeContentType`, BY EXACTLY ONE TYPE: PDF. The two
+ * predicates answer different questions and that is why there are two.
+ *
+ *   `isInlineSafeContentType` — may this render as a bare `<img>` on a page of
+ *   ours, inside OUR document context, under OUR CSP? PNG and JPEG only. A PDF
+ *   there would be a plugin-rendered document sharing this origin.
+ *
+ *   this one — may this be the src of the preview frame, whose response carries
+ *   `default-src 'none'; sandbox` and is therefore its own opaque origin with no
+ *   scripting and no subresource loads of any kind? PDF qualifies: the sandbox
+ *   directive is what confines it, and it confines it identically whether the
+ *   frame is reached from our sheet or by typing the URL.
+ *
+ * HEIC stays out of both. No non-Apple browser renders it, so an inline HEIC is
+ * a broken frame rather than a preview; PR 11 generates the JPEG derivative that
+ * makes those rows previewable.
+ */
+export function isFramePreviewableContentType(contentType: string): boolean {
+  return (
+    isInlineSafeContentType(contentType) || contentType === "application/pdf"
+  )
+}

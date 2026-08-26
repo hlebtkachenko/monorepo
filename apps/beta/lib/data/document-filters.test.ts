@@ -17,6 +17,7 @@ import { describe, expect, it } from "vitest"
 import { betaDocumentStatus, betaDocumentType } from "@/db/schema"
 
 import {
+  COMPANY_DOCUMENT_TYPES,
   DOCUMENT_STATUS_VALUES,
   DOCUMENT_TYPE_VALUES,
   documentListSearchParams,
@@ -160,5 +161,22 @@ describe("the allowed-value arrays have not drifted from the enums", () => {
     expect([...DOCUMENT_TYPE_VALUES].sort()).toEqual(
       betaDocumentType.enumValues.filter((value) => value !== "payslip").sort(),
     )
+  })
+})
+
+/**
+ * "Doklady firmy" (spec §2.2, PR 13). See `COMPANY_DOCUMENT_TYPES`'s own
+ * header comment for why `contract` + `other` is the mapping — this is the
+ * drift guard: both values must stay real, filterable client document types.
+ */
+describe("COMPANY_DOCUMENT_TYPES", () => {
+  it("is exactly contract and other", () => {
+    expect([...COMPANY_DOCUMENT_TYPES].sort()).toEqual(["contract", "other"])
+  })
+
+  it("is a subset of the filterable document types", () => {
+    for (const value of COMPANY_DOCUMENT_TYPES) {
+      expect(DOCUMENT_TYPE_VALUES).toContain(value)
+    }
   })
 })

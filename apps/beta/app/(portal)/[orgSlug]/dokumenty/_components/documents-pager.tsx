@@ -22,6 +22,9 @@ import {
  *
  * Renders nothing at all when everything fits on one page — a pager that says
  * "Strana 1 z 1" is noise on the surface a client visits most.
+ *
+ * `basePath` (PR 13): defaults to Vše's own route; "Doklady firmy" passes
+ * `/dokumenty/firma` so its own pager links stay on its own tab.
  */
 export async function DocumentsPager({
   orgSlug,
@@ -29,20 +32,23 @@ export async function DocumentsPager({
   page,
   pageCount,
   total,
+  basePath,
 }: {
   orgSlug: string
   filters: DocumentListFilters
   page: number
   pageCount: number
   total: number
+  basePath?: string
 }) {
   const t = await getBetaTranslations()
   if (pageCount <= 1) return null
 
+  const path = basePath ?? `/${orgSlug}/dokumenty`
   const href = (target: number): string => {
     const params = documentListSearchParams({ filters, page: target })
     const query = params.toString()
-    return query ? `/${orgSlug}/dokumenty?${query}` : `/${orgSlug}/dokumenty`
+    return query ? `${path}?${query}` : path
   }
 
   return (

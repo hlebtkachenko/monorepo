@@ -1097,6 +1097,319 @@ describe("listDocuments — filters (spec §2.2)", () => {
   })
 })
 
+/**
+ * "Doklady firmy" (spec §2.2, PR 13). `listCompanyDocuments` is `listDocuments`
+ * narrowed to `COMPANY_DOCUMENT_TYPES` — its own suite above already proves the
+ * shared filter machinery (status/období/search, the pagination contract, the
+ * four visibility filters); what is worth proving HERE is the one thing that
+ * differs: the type narrowing itself, and that it composes with — rather than
+ * bypasses — those same visibility filters.
+ */
+describe("listCompanyDocuments — Doklady firmy (spec §2.2, PR 13)", () => {
+  async function seedRow(
+    organizationId: string,
+    row: { filename: string; docType: string; visible?: boolean },
+  ): Promise<string> {
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO document (
+        organization_id, original_filename, storage_key, content_type,
+        extension, byte_size, sha256, doc_type, visible_to_client
+      ) VALUES (
+        ${organizationId}, ${row.filename},
+        ${`org/${organizationId}/${crypto.randomUUID()}.pdf`},
+        'application/pdf', 'pdf', 1024,
+        ${crypto.randomUUID().replace(/-/g, "").padEnd(64, "0")},
+        ${row.docType}::beta_document_type,
+        ${row.visible ?? true}
+      )
+      RETURNING id
+    `
+    return inserted!.id
+  }
+
+  it("narrows to contract and other, excluding every other client type", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "smlouva.pdf",
+      docType: "contract",
+    })
+    await seedRow(org.organizationId, {
+      filename: "ostatni.pdf",
+      docType: "other",
+    })
+    await seedRow(org.organizationId, {
+      filename: "faktura.pdf",
+      docType: "invoice_in",
+    })
+    await seedRow(org.organizationId, {
+      filename: "vypis.pdf",
+      docType: "bank_statement",
+    })
+
+    const page = await documents.listCompanyDocuments(scope)
+    expect(page.documents.map((d) => d.filename).sort()).toEqual([
+      "ostatni.pdf",
+      "smlouva.pdf",
+    ])
+  })
+
+  it("still applies the four visibility filters — hidden, soft-deleted, cross-org", async () => {
+    const org = await seedOrganization()
+    const other = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    const owner = await scopeFor(org, "owner")
+
+    await seedRow(org.organizationId, {
+      filename: "hidden.pdf",
+      docType: "contract",
+      visible: false,
+    })
+    await seedRow(other.organizationId, {
+      filename: "cizi.pdf",
+      docType: "contract",
+    })
+    const softDeletedId = await seedRow(org.organizationId, {
+      filename: "smazana.pdf",
+      docType: "other",
+    })
+    await documents.softDeleteDocument(owner, softDeletedId)
+
+    expect(await documents.listCompanyDocuments(scope)).toMatchObject({
+      documents: [],
+      total: 0,
+    })
+
+    // owner IS the accountant and sees the hidden one — never the soft-deleted
+    // row, never the other book's row.
+    const ownerPage = await documents.listCompanyDocuments(owner)
+    expect(ownerPage.documents.map((d) => d.filename)).toEqual(["hidden.pdf"])
+  })
+
+  it("never widens past the company set for a hand-edited ?type=", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "smlouva.pdf",
+      docType: "contract",
+    })
+
+    // The two conditions are ANDed, not OR'd — a caller cannot escape the
+    // company-doc restriction by supplying a `docType` outside it.
+    const page = await documents.listCompanyDocuments(scope, {
+      filters: { ...EMPTY_DOCUMENT_LIST_FILTERS, docType: "invoice_in" },
+    })
+    expect(page.documents).toEqual([])
+  })
+
+  it("still applies the caller's own search narrowing on top of the type restriction", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "Smlouva o dilo.pdf",
+      docType: "contract",
+    })
+    await seedRow(org.organizationId, {
+      filename: "Plna moc.pdf",
+      docType: "other",
+    })
+
+    const page = await documents.listCompanyDocuments(scope, {
+      filters: { ...EMPTY_DOCUMENT_LIST_FILTERS, search: "dilo" },
+    })
+    expect(page.documents.map((d) => d.filename)).toEqual([
+      "Smlouva o dilo.pdf",
+    ])
+  })
+})
+
+/**
+ * "Stavby" (spec §2.2, PR 13): the per-site grouping. `listDocumentSiteSummaries`
+ * reuses `visibleDocuments` exactly as every other read in this module does, so
+ * the cases below focus on what is NEW — the grouping, the SQL-side sum, the
+ * null bucket, and the ordering — while still proving the visibility filters
+ * were not accidentally left off the one query that groups instead of lists.
+ */
+describe("listDocumentSiteSummaries — Stavby (spec §2.2, PR 13)", () => {
+  async function seedRow(
+    organizationId: string,
+    row: {
+      filename: string
+      siteRef?: string | null
+      amount?: string | null
+      docType?: string
+      visible?: boolean
+    },
+  ): Promise<string> {
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO document (
+        organization_id, original_filename, storage_key, content_type,
+        extension, byte_size, sha256, site_ref, amount, doc_type,
+        visible_to_client
+      ) VALUES (
+        ${organizationId}, ${row.filename},
+        ${`org/${organizationId}/${crypto.randomUUID()}.pdf`},
+        'application/pdf', 'pdf', 1024,
+        ${crypto.randomUUID().replace(/-/g, "").padEnd(64, "0")},
+        ${row.siteRef ?? null}, ${row.amount ?? null},
+        ${row.docType ?? "other"}::beta_document_type,
+        ${row.visible ?? true}
+      )
+      RETURNING id
+    `
+    return inserted!.id
+  }
+
+  it("groups by site, counting and SQL-summing each group", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "a.pdf",
+      siteRef: "Vinohrady",
+      amount: "1000.50",
+    })
+    await seedRow(org.organizationId, {
+      filename: "b.pdf",
+      siteRef: "Vinohrady",
+      amount: "250.25",
+    })
+    await seedRow(org.organizationId, {
+      filename: "c.pdf",
+      siteRef: "Smíchov",
+      amount: "99.99",
+    })
+
+    const rows = await documents.listDocumentSiteSummaries(scope)
+    expect(rows.find((r) => r.siteRef === "Vinohrady")).toEqual({
+      siteRef: "Vinohrady",
+      documentCount: 2,
+      amountTotal: "1250.75",
+    })
+    expect(rows.find((r) => r.siteRef === "Smíchov")).toEqual({
+      siteRef: "Smíchov",
+      documentCount: 1,
+      amountTotal: "99.99",
+    })
+  })
+
+  it("sums money exactly in SQL — no JavaScript float rounding", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    // The classic 0.1 + 0.2 !== 0.3 float trap: `Number("0.10") +
+    // Number("0.20") === 0.30000000000000004` in JavaScript. This sum must
+    // never touch that path.
+    await seedRow(org.organizationId, {
+      filename: "a.pdf",
+      siteRef: "Zličín",
+      amount: "0.10",
+    })
+    await seedRow(org.organizationId, {
+      filename: "b.pdf",
+      siteRef: "Zličín",
+      amount: "0.20",
+    })
+
+    const rows = await documents.listDocumentSiteSummaries(scope)
+    expect(rows.find((r) => r.siteRef === "Zličín")?.amountTotal).toBe("0.30")
+  })
+
+  it("groups every document with no site into one null bucket, treating an unstated amount as zero", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "a.pdf", siteRef: null })
+    await seedRow(org.organizationId, {
+      filename: "b.pdf",
+      siteRef: null,
+      amount: "50.00",
+    })
+
+    const rows = await documents.listDocumentSiteSummaries(scope)
+    expect(rows).toEqual([
+      { siteRef: null, documentCount: 2, amountTotal: "50.00" },
+    ])
+  })
+
+  it("excludes hidden, payslip and soft-deleted rows from every group's count and sum", async () => {
+    const org = await seedOrganization()
+    const owner = await scopeFor(org, "owner")
+    const member = await scopeFor(org, "member")
+
+    await seedRow(org.organizationId, {
+      filename: "visible.pdf",
+      siteRef: "Vinohrady",
+      amount: "100.00",
+    })
+    await seedRow(org.organizationId, {
+      filename: "hidden.pdf",
+      siteRef: "Vinohrady",
+      amount: "999.00",
+      visible: false,
+    })
+    await seedRow(org.organizationId, {
+      filename: "vyplatnice.pdf",
+      siteRef: "Vinohrady",
+      amount: "999.00",
+      docType: "payslip",
+    })
+    const softDeletedId = await seedRow(org.organizationId, {
+      filename: "smazana.pdf",
+      siteRef: "Vinohrady",
+      amount: "999.00",
+    })
+    await documents.softDeleteDocument(owner, softDeletedId)
+
+    // member: only the plainly-visible row counts.
+    expect(await documents.listDocumentSiteSummaries(member)).toEqual([
+      { siteRef: "Vinohrady", documentCount: 1, amountTotal: "100.00" },
+    ])
+
+    // owner also sees the hidden row — never the payslip, never the
+    // soft-deleted row; the gate is role-aware, not a blanket blindfold.
+    expect(await documents.listDocumentSiteSummaries(owner)).toEqual([
+      { siteRef: "Vinohrady", documentCount: 2, amountTotal: "1099.00" },
+    ])
+  })
+
+  it("never sums another organization's documents into this book's totals", async () => {
+    const org = await seedOrganization()
+    const other = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+
+    await seedRow(org.organizationId, {
+      filename: "mine.pdf",
+      siteRef: "Anděl",
+      amount: "10.00",
+    })
+    await seedRow(other.organizationId, {
+      filename: "cizi.pdf",
+      siteRef: "Anděl",
+      amount: "999999.00",
+    })
+
+    const rows = await documents.listDocumentSiteSummaries(scope)
+    expect(rows).toEqual([
+      { siteRef: "Anděl", documentCount: 1, amountTotal: "10.00" },
+    ])
+  })
+
+  it("reports an empty book as no groups at all — the Stavby empty state", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    expect(await documents.listDocumentSiteSummaries(scope)).toEqual([])
+  })
+
+  it("orders named sites alphabetically with the unassigned bucket last", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "a.pdf", siteRef: null })
+    await seedRow(org.organizationId, { filename: "b.pdf", siteRef: "Zličín" })
+    await seedRow(org.organizationId, { filename: "c.pdf", siteRef: "Anděl" })
+
+    const rows = await documents.listDocumentSiteSummaries(scope)
+    expect(rows.map((r) => r.siteRef)).toEqual(["Anděl", "Zličín", null])
+  })
+})
+
 describe("listDocuments — the pagination contract", () => {
   /** `count` rows on one book, each one second apart so the order is total. */
   async function seedMany(

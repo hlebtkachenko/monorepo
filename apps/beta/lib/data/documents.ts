@@ -65,10 +65,12 @@ import {
   eq,
   gte,
   ilike,
+  inArray,
   isNull,
   lt,
   ne,
   sql,
+  type SQL,
 } from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
@@ -92,6 +94,7 @@ import {
 import { isDeadlock, isUniqueViolation } from "@/lib/pg-error"
 
 import {
+  COMPANY_DOCUMENT_TYPES,
   DOCUMENT_LIST_PAGE_SIZE,
   EMPTY_DOCUMENT_LIST_FILTERS,
   type DocumentListFilters,
@@ -276,7 +279,8 @@ export type DocumentListPage = {
 }
 
 /**
- * The Dokumenty list (spec §2.2 "Vše"), newest first, filtered and paged.
+ * One filtered, paged page of `document`, given a WHERE condition that has
+ * already applied `visibleDocuments` (and whatever else a caller ANDs on top).
  *
  * ONE ROUND TRIP, NOT TWO. `count(*) over ()` rides along on the same statement
  * as the rows, so the total the pager renders is the total of the very query
@@ -284,36 +288,78 @@ export type DocumentListPage = {
  * snapshot: an upload landing between the two calls makes the pager disagree
  * with the table it is paging, which is exactly the kind of small lie that
  * costs an office a support call.
+ *
+ * SHARED BY `listDocuments` (spec §2.2 "Vše") AND `listCompanyDocuments`
+ * (§2.2 "Doklady firmy", PR 13) — the paging, ordering and count-in-one-round-
+ * trip contract is identical between the two; only the WHERE condition differs.
  */
-export async function listDocuments(
-  scope: OrgScope,
-  options: { filters?: DocumentListFilters; page?: number } = {},
+async function paginatedDocumentList(
+  condition: SQL | undefined,
+  page: number,
 ): Promise<DocumentListPage> {
-  const filters = options.filters ?? EMPTY_DOCUMENT_LIST_FILTERS
   const pageSize = DOCUMENT_LIST_PAGE_SIZE
-  const page = Math.min(Math.max(options.page ?? 1, 1), MAX_LIST_PAGE)
+  const clampedPage = Math.min(Math.max(page, 1), MAX_LIST_PAGE)
 
   const rows = await betaDb()
     .select({ ...summaryColumns, total: sql<string>`count(*) over ()` })
     .from(document)
-    .where(listConditions(scope, filters))
+    .where(condition)
     // `created_at` alone is not a total order — two uploads in the same
     // transaction share a timestamp, and a tie broken differently between two
     // pages either repeats a row or drops one. `id` is uuidv7, so it is itself
     // time-ordered and the tiebreak agrees with the sort.
     .orderBy(desc(document.created_at), desc(document.id))
     .limit(pageSize)
-    .offset((page - 1) * pageSize)
+    .offset((clampedPage - 1) * pageSize)
 
   const total = Number(rows[0]?.total ?? 0)
 
   return {
     documents: rows.map(documentSummary),
     total,
-    page,
+    page: clampedPage,
     pageSize,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
   }
+}
+
+/** The Dokumenty list (spec §2.2 "Vše"), newest first, filtered and paged. */
+export async function listDocuments(
+  scope: OrgScope,
+  options: { filters?: DocumentListFilters; page?: number } = {},
+): Promise<DocumentListPage> {
+  const filters = options.filters ?? EMPTY_DOCUMENT_LIST_FILTERS
+  return paginatedDocumentList(
+    listConditions(scope, filters),
+    options.page ?? 1,
+  )
+}
+
+/**
+ * "Doklady firmy" (spec §2.2, PR 13): the same list machinery as `listDocuments`,
+ * narrowed to `COMPANY_DOCUMENT_TYPES`. The type restriction is ANDed onto the
+ * SAME `listConditions` the "Vše" view uses, so this view carries every one of
+ * `visibleDocuments`'s four filters plus the caller's own status/období/search
+ * narrowing — nothing about tenancy, soft delete, the payslip exclusion or the
+ * hidden class is re-implemented here.
+ *
+ * A caller-supplied `filters.docType` outside `COMPANY_DOCUMENT_TYPES` (for
+ * instance a hand-edited `?type=invoice_in`) is not a leak: the two conditions
+ * are ANDed together, so they simply cannot both be satisfied and the query
+ * answers an empty page rather than falling back to the unfiltered company set.
+ */
+export async function listCompanyDocuments(
+  scope: OrgScope,
+  options: { filters?: DocumentListFilters; page?: number } = {},
+): Promise<DocumentListPage> {
+  const filters = options.filters ?? EMPTY_DOCUMENT_LIST_FILTERS
+  return paginatedDocumentList(
+    and(
+      inArray(document.doc_type, COMPANY_DOCUMENT_TYPES),
+      listConditions(scope, filters),
+    ),
+    options.page ?? 1,
+  )
 }
 
 /**
@@ -337,6 +383,56 @@ export async function listDocumentSites(scope: OrgScope): Promise<string[]> {
   return rows
     .map((row) => row.site_ref)
     .filter((value): value is string => value !== null)
+}
+
+/** One row of the Stavby grouping (spec §2.2, PR 13). */
+export type DocumentSiteSummary = {
+  /** `null` is the "bez stavby" bucket — every visible document with no site. */
+  siteRef: string | null
+  documentCount: number
+  /** `numeric(14,2)` as a string, SQL-summed — see the function's own header. */
+  amountTotal: string
+}
+
+/**
+ * "Stavby" (spec §2.2, PR 13): one row per `site_ref`, with the count and the
+ * `SUM(amount)` of every document on it — SQL-side, never JavaScript addition
+ * (spec §0.2, §0.7). Reuses `visibleDocuments`, so a site whose only documents
+ * are hidden, a payslip, or soft-deleted contributes NOTHING to its count or
+ * sum — the same guarantee `listDocumentSites`'s options list already gives the
+ * "Vše" filter bar, extended to the numbers this grouping adds.
+ *
+ * `GROUP BY site_ref` puts every row with a `NULL` site into ONE group rather
+ * than dropping them, because Postgres treats `NULL` as a single group for
+ * `GROUP BY` — so the "bez přiřazené stavby" bucket the spec calls for falls
+ * out of the query for free, as `{ siteRef: null, ... }`, rather than needing a
+ * second query or a `COALESCE` that would make a real site literally named
+ * "(no site)" collide with it.
+ *
+ * `ORDER BY site_ref ASC` sorts every named site alphabetically with the
+ * `NULL` bucket last (Postgres's default `NULLS LAST` for ascending order) —
+ * the named construction sites read as the primary list, with the catch-all
+ * bucket trailing them.
+ */
+export async function listDocumentSiteSummaries(
+  scope: OrgScope,
+): Promise<DocumentSiteSummary[]> {
+  const rows = await betaDb()
+    .select({
+      site_ref: document.site_ref,
+      document_count: sql<string>`count(*)`,
+      amount_total: sql<string>`coalesce(sum(${document.amount}), 0)`,
+    })
+    .from(document)
+    .where(visibleDocuments(scope))
+    .groupBy(document.site_ref)
+    .orderBy(asc(document.site_ref))
+
+  return rows.map((row) => ({
+    siteRef: row.site_ref,
+    documentCount: Number(row.document_count),
+    amountTotal: row.amount_total,
+  }))
 }
 
 /** One document, or null. Null is what the routes turn into a 404. */

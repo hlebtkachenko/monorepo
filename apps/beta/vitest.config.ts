@@ -69,6 +69,15 @@ export default defineConfig({
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
             "lib/obligation-labels.test.ts",
+            // Same rule as `lib/obligation-labels.test.ts` above, for PR 20's
+            // two pure helpers: `lib/freshness.ts` is calendar-index
+            // arithmetic over a period and a date string, `lib/turnover.ts`
+            // is a threshold comparison in exact minor units. Neither has a
+            // database underneath it, and both are exactly the kind of thing
+            // whose boundary cases (a month end, a figure landing ON a
+            // threshold) must be cheap enough to assert exhaustively.
+            "lib/freshness.test.ts",
+            "lib/turnover.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -121,6 +130,8 @@ export default defineConfig({
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
             "lib/obligation-labels.test.ts",
+            "lib/freshness.test.ts",
+            "lib/turnover.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

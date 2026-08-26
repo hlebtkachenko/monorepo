@@ -236,23 +236,33 @@ type ObligationRow = {
 }
 
 /**
- * The union.
+ * The union itself, as a composable SQL fragment: every row of money this
+ * organization currently owes, whichever source states it.
  *
  * Raw SQL rather than the query builder, because a `UNION ALL` of
  * differently-shaped sources reads as what it is here and does not in Drizzle's
- * combinator form — and because the next two arms are meant to be appended by
- * someone reading the first one. The only interpolated value is the scope's own
+ * combinator form — and because the next arm is meant to be appended by someone
+ * reading the first one. The only interpolated value is the scope's own
  * organization id, which `postgres` parameterizes.
  *
- * The totals ride along as window functions rather than a second round trip.
- * `SUM(...) OVER ()` is computed once per query, in the database, over exactly
- * the rows being returned — which is the §0.2 rule ("presentation-level SQL over
- * provided rows ... allowed") satisfied without ever holding a money value in
- * JavaScript arithmetic.
+ * EXPORTED SO THE UNION HAS EXACTLY ONE DEFINITION. `lib/data/deadlines.ts` —
+ * §2.1's unified Nejbližší termíny — needs these same rows under a different
+ * ordering, next to two sources that are not obligations at all. Re-typing the
+ * two arms there would put the anti-triple-entry rules (`amount_due > 0`
+ * excluding a nadměrný odpočet; a liability that cannot name a filing) in two
+ * places, and the day PR 28 appends the partner_saldo arm it would land in only
+ * one of them. A caller wraps this in its own CTE and names its own columns:
+ *
+ *     WITH obligation AS (${obligationUnionSql(organizationId)}) SELECT ...
+ *
+ * The COLUMN LIST IS THE CONTRACT — source, source_id, "group", filing_kind,
+ * label, amount, due_on, variable_symbol, as_of, and the seven period columns,
+ * in that order. Both consumers select by name, so an arm added below has to
+ * produce all of them (which the `UNION ALL` enforces anyway) and neither
+ * consumer changes.
  */
-function obligationRowsQuery(organizationId: string) {
-  return sql<ObligationRow>`
-    WITH obligation AS (
+export function obligationUnionSql(organizationId: string) {
+  return sql`
       -- SOURCE 1/3: unpaid filings (spec §2.4, groups FÚ / ČSSZ a ZP).
       --
       -- amount_due > 0 is three exclusions in one predicate: NULL (the office
@@ -331,7 +341,21 @@ function obligationRowsQuery(organizationId: string) {
       FROM liability l
       WHERE l.organization_id = ${organizationId}
         AND l.paid_at IS NULL
-    )
+  `
+}
+
+/**
+ * Dluhy a platby's own read of the union: every row, plus the §2.4 totals.
+ *
+ * The totals ride along as window functions rather than a second round trip.
+ * `SUM(...) OVER ()` is computed once per query, in the database, over exactly
+ * the rows being returned — which is the §0.2 rule ("presentation-level SQL over
+ * provided rows ... allowed") satisfied without ever holding a money value in
+ * JavaScript arithmetic.
+ */
+function obligationRowsQuery(organizationId: string) {
+  return sql<ObligationRow>`
+    WITH obligation AS (${obligationUnionSql(organizationId)})
     SELECT
       o.source, o.source_id, o."group", o.filing_kind, o.label, o.amount,
       o.due_on::text                                   AS due_on,

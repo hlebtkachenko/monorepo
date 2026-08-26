@@ -129,6 +129,79 @@ export async function assetsForScope(
   }
 }
 
+/**
+ * Přehled's "zůstatková hodnota majetku" KPI tile (spec §2.1 item 3), as ONE
+ * row: the sum, the stamp behind it, and the two counts that say whether the sum
+ * is the whole story.
+ *
+ * THE TWO COUNTS ARE THE POINT. `assetsForScope`'s footer SUM is over whatever
+ * rows the page is showing, and `SUM` skips NULLs — so a book where the office
+ * has provided oprávky for three of ten assets footers a number that is true of
+ * three assets and reads as true of ten. On a table under a visible list of rows
+ * that is fine; on a dashboard tile with nothing around it, it is a confidently
+ * wrong number of exactly the kind §0.4 exists to prevent. The tile renders the
+ * value only when `depreciatedCount === inUseCount`, and this shape is what lets
+ * it ask.
+ *
+ * DISPOSED ASSETS ARE OUT of both counts and the sum. A vyřazený asset has no
+ * residual value TO THIS COMPANY, whatever its accumulated depreciation says, so
+ * including it would inflate the tile with property the client no longer owns.
+ *
+ * `depreciationAsOf` is the newest stamp among the rows summed — spec §2.7 /
+ * Advisor F15: oprávky are provided as of a date and this product NEVER
+ * interpolates them to today. The tile prints that date next to the value.
+ */
+export type AssetResidualSummary = {
+  /** Assets still in use. */
+  inUseCount: number
+  /** How many of those carry an office-provided oprávky figure. */
+  depreciatedCount: number
+  /** SQL sum over exactly those rows, or null when none carries one. */
+  residualTotal: string | null
+  /** Newest `depreciation_as_of` behind the sum. Null iff `residualTotal` is. */
+  depreciationAsOf: string | null
+}
+
+export async function assetResidualSummaryForScope(
+  scope: OrgScope,
+): Promise<AssetResidualSummary> {
+  const rows = await betaDb().execute(sql`
+    SELECT
+      count(*) FILTER (WHERE a.status = 'in_use')::int
+        AS in_use_count,
+      count(*) FILTER (
+        WHERE a.status = 'in_use' AND a.accumulated_depreciation IS NOT NULL
+      )::int
+        AS depreciated_count,
+      SUM(a.acquisition_cost - a.accumulated_depreciation) FILTER (
+        WHERE a.status = 'in_use' AND a.accumulated_depreciation IS NOT NULL
+      )
+        AS residual_total,
+      max(a.depreciation_as_of) FILTER (
+        WHERE a.status = 'in_use' AND a.accumulated_depreciation IS NOT NULL
+      )::text
+        AS depreciation_as_of
+    FROM asset a
+    WHERE a.organization_id = ${scope.organizationId}
+  `)
+
+  const row = (
+    rows as unknown as {
+      in_use_count: number
+      depreciated_count: number
+      residual_total: string | null
+      depreciation_as_of: string | null
+    }[]
+  )[0]
+
+  return {
+    inUseCount: Number(row?.in_use_count ?? 0),
+    depreciatedCount: Number(row?.depreciated_count ?? 0),
+    residualTotal: row?.residual_total ?? null,
+    depreciationAsOf: row?.depreciation_as_of ?? null,
+  }
+}
+
 /** One asset for the Karta, or null — what the page turns into a 404. */
 export async function assetForScope(
   scope: OrgScope,

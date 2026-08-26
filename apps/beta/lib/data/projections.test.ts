@@ -21,6 +21,7 @@ import {
   filingView,
   forbiddenClientKeys,
   membershipSummary,
+  organizationCard,
   organizationSummary,
   ownerDocumentDetail,
   orgMemberSummary,
@@ -120,6 +121,54 @@ describe("organizationSummary", () => {
     expect(summary).not.toHaveProperty("archived_at")
     expect(summary).not.toHaveProperty("archivedAt")
     expect(forbiddenClientKeys(summary)).toEqual([])
+  })
+})
+
+describe("organizationCard", () => {
+  it("carries the identity card of §2.1 item 5 and stops there", () => {
+    const card = organizationCard(hostileOrganizationRow)
+
+    expect(Object.keys(card).sort()).toEqual([
+      "aresFetchedAt",
+      "bankAccountNumber",
+      "bankAccountPrefix",
+      "bankCode",
+      "bic",
+      "courtFileNumber",
+      "dataBoxId",
+      "dic",
+      "iban",
+      "ico",
+      "id",
+      "isDemo",
+      "legalName",
+      "registeredCity",
+      "registeredCountryCode",
+      "registeredHouseNumber",
+      "registeredOrientationNumber",
+      "registeredPostalCode",
+      "registeredStreet",
+      "slug",
+      "taxOfficeCode",
+      "vatRegime",
+      "vatRegisteredFrom",
+    ])
+    // Wider than `organizationSummary`, and still an explicit pick: the three
+    // columns below are on the row and are not the client's business.
+    expect(card).not.toHaveProperty("archivedAt")
+    expect(card).not.toHaveProperty("contactEmail")
+    expect(card).not.toHaveProperty("contactPhone")
+    expect(forbiddenClientKeys(card)).toEqual([])
+  })
+
+  it("renders the ARES stamp as an ISO instant rather than a Date", () => {
+    expect(organizationCard(hostileOrganizationRow).aresFetchedAt).toBe(
+      now.toISOString(),
+    )
+    expect(
+      organizationCard({ ...hostileOrganizationRow, ares_fetched_at: null })
+        .aresFetchedAt,
+    ).toBeNull()
   })
 })
 

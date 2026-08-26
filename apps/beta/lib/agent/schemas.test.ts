@@ -232,6 +232,32 @@ describe("assetsUpsertSchema", () => {
       }).success,
     ).toBe(false)
   })
+
+  /**
+   * The reverse half, and the one that used to slip through: a `disposedOn`
+   * with no `status` parsed cleanly and was then DISCARDED by the ingest, so the
+   * office got a 200 for a disposal the portal never recorded.
+   */
+  it("refuses a disposal date with no disposal", () => {
+    expect(
+      assetsUpsertSchema.safeParse({
+        items: [{ ...item, disposedOn: "2026-05-31" }],
+      }).success,
+    ).toBe(false)
+    expect(
+      assetsUpsertSchema.safeParse({
+        items: [{ ...item, status: "in_use", disposedOn: "2026-05-31" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("still accepts a coherent disposal", () => {
+    expect(
+      assetsUpsertSchema.safeParse({
+        items: [{ ...item, status: "disposed", disposedOn: "2026-05-31" }],
+      }).success,
+    ).toBe(true)
+  })
 })
 
 describe("clientTasksUpsertSchema", () => {

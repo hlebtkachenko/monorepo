@@ -341,11 +341,19 @@ export const assetsUpsertSchema = z
                 message: "accumulatedDepreciation and depreciationAsOf pair",
               })
             }
-            if (value.status === "disposed" && value.disposedOn == null) {
+            // BOTH DIRECTIONS, mirroring `asset_dispose_coherence`'s own
+            // `(status = 'disposed') = (disposed_on IS NOT NULL)`. The reverse
+            // half is the one worth stating out loud: a `disposedOn` with no
+            // `status` used to parse cleanly and then be DISCARDED by the ingest
+            // (which only disposes when the payload says `disposed`), so an
+            // office whose source marked an asset sold would get a 200, see
+            // `updated`, and keep showing the asset in use. Silent discard of a
+            // stated accounting fact is exactly what §0.2 forbids.
+            if ((value.status === "disposed") !== (value.disposedOn != null)) {
               ctx.addIssue({
                 code: "custom",
                 path: ["disposedOn"],
-                message: "required when status is disposed",
+                message: "status 'disposed' and disposedOn pair",
               })
             }
           }),

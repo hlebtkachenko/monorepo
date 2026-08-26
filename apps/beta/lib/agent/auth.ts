@@ -79,7 +79,7 @@ export async function authenticateAgent(request: Request): Promise<AgentAuth> {
 }
 
 /**
- * The caller's `Idempotency-Key`, or null.
+ * The caller's `Idempotency-Key`, or the refusal for a malformed one.
  *
  * OPTIONAL, AND WORTH SENDING. With one, a retried call is replayed from
  * `activity_log` instead of applied twice (the unique index over
@@ -88,16 +88,35 @@ export async function authenticateAgent(request: Request): Promise<AgentAuth> {
  * publish means one more superseded batch, and for an upsert means nothing at
  * all, since `externalRef` already makes those idempotent by key.
  *
- * The character class is deliberately narrow: this value is stored, listed in
- * /admin and compared, and a header is the one input an operator cannot
- * sanitise.
+ * ABSENT AND MALFORMED ARE NOT THE SAME ANSWER, and conflating them is how a
+ * safety mechanism turns into a hazard. An earlier draft returned `null` for
+ * both: a caller whose id carried a stray space or a UTF-8 dash would have its
+ * header quietly ignored, the call would run WITHOUT idempotency protection, and
+ * the 200 it got back would look identical to a protected one. The retry it then
+ * performed in good faith would publish a second batch. So a header that is
+ * present and does not parse is a 400 — the caller asked for a guarantee this
+ * server cannot give under that name, and it has to hear so.
+ *
+ * The character class is deliberately narrow: this value is stored, compared and
+ * read by an operator, and a header is the one input nobody can sanitise.
  */
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,200}$/
 
-export function requestId(request: Request): string | null {
-  const value = request.headers.get("idempotency-key")?.trim()
-  if (!value) return null
-  return REQUEST_ID.test(value) ? value : null
+export type RequestIdResult =
+  | { readonly ok: true; readonly value: string | null }
+  | { readonly ok: false; readonly response: Response }
+
+export function requestId(request: Request): RequestIdResult {
+  const raw = request.headers.get("idempotency-key")
+  if (raw === null) return { ok: true, value: null }
+
+  const value = raw.trim()
+  // A header present but empty is as malformed as one full of spaces: the caller
+  // meant to send an id and sent nothing, which is not the same as not asking.
+  if (!REQUEST_ID.test(value)) {
+    return { ok: false, response: agentError(400, "invalid_idempotency_key") }
+  }
+  return { ok: true, value }
 }
 
 /**

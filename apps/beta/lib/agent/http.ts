@@ -19,10 +19,12 @@ export type AgentErrorCode =
   | "invalid_json"
   | "invalid_body"
   | "tenancy_key_in_payload"
+  | "invalid_idempotency_key"
   | "payload_too_large"
   | "unsupported_media_type"
   | "conflict"
   | "identity_changed"
+  | "idempotency_key_reused"
 
 const HEADERS = {
   "content-type": "application/json; charset=utf-8",

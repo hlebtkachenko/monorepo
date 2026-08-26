@@ -718,6 +718,110 @@ describe("the activity log", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.request_id).toBe(requestId)
   })
+
+  /**
+   * A REPLAY IS ONLY A REPLAY IF IT IS THE SAME ACT.
+   *
+   * The unique index is on (agent_key_id, request_id) and spans every endpoint
+   * and every book, so an agent that mints ONE id per run — the natural shape
+   * for a month-end script, and therefore what PR 25 will do — spends it on the
+   * first call and then sends it to the next. Matching only on the id would
+   * answer that with the FIRST act's summary and a 200, reporting success for a
+   * write that never happened. Both directions are asserted, and each also
+   * asserts that nothing was written.
+   */
+  it("refuses a request id reused on a different endpoint", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+    const requestId = "run-42"
+
+    const first = await post("statements", org.slug, rozvahaBody, {
+      secret: globalKey.secret,
+      requestId,
+    })
+    expect(first.status).toBe(200)
+
+    const reused = await post(
+      "filings",
+      org.slug,
+      filingBody("reuse-endpoint"),
+      { secret: globalKey.secret, requestId },
+    )
+    expect(reused.status).toBe(409)
+    expect(await reused.json()).toEqual({ error: "idempotency_key_reused" })
+
+    // Refused, not replayed and not applied: still one act, and the filing the
+    // second call carried does not exist.
+    const rows = await readActivityLog(org.organizationId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.action).toBe("statements.publish")
+
+    const owner = await ownerScopeFor(globalKey.secret, org.slug)
+    const { filingByExternalRef } = await import("@/lib/data/filings")
+    expect(await filingByExternalRef(owner, "reuse-endpoint")).toBeNull()
+  })
+
+  it("refuses a request id reused against a different organization", async () => {
+    const first = await seedOrganization()
+    const second = await seedOrganization()
+    for (const org of [first, second]) {
+      await addMembership(
+        org.organizationId,
+        acme.members.owner.userId,
+        "owner",
+      )
+    }
+    const requestId = "run-43"
+
+    expect(
+      (
+        await post("filings", first.slug, filingBody("reuse-org-1"), {
+          secret: globalKey.secret,
+          requestId,
+        })
+      ).status,
+    ).toBe(200)
+
+    const reused = await post(
+      "filings",
+      second.slug,
+      filingBody("reuse-org-2"),
+      { secret: globalKey.secret, requestId },
+    )
+    expect(reused.status).toBe(409)
+    expect(await reused.json()).toEqual({ error: "idempotency_key_reused" })
+
+    // The second book saw nothing at all — no log row, no filing.
+    expect(await readActivityLog(second.organizationId)).toHaveLength(0)
+    const owner = await ownerScopeFor(globalKey.secret, second.slug)
+    const { filingByExternalRef } = await import("@/lib/data/filings")
+    expect(await filingByExternalRef(owner, "reuse-org-2")).toBeNull()
+  })
+
+  /**
+   * A header that is present and does not parse must never be treated as absent:
+   * the call would run UNPROTECTED and its 200 would be indistinguishable from a
+   * protected one, so the good-faith retry that followed would publish twice.
+   */
+  it("refuses a malformed Idempotency-Key rather than ignoring it", async () => {
+    for (const header of ["run 42", "run/42", "  ", "x".repeat(201)]) {
+      const response = await post(
+        "filings",
+        acme.slug,
+        filingBody(`malformed-${header.length}`),
+        { secret: globalKey.secret, requestId: header },
+      )
+      expect(response.status, header).toBe(400)
+      expect(await response.json()).toEqual({
+        error: "invalid_idempotency_key",
+      })
+    }
+
+    // Refused before the write: none of those filings exist.
+    const owner = await ownerScopeFor(globalKey.secret, acme.slug)
+    const { filingByExternalRef } = await import("@/lib/data/filings")
+    expect(await filingByExternalRef(owner, "malformed-6")).toBeNull()
+  })
 })
 
 /**

@@ -71,6 +71,12 @@ type IngestRefusal =
   | "identity_changed"
   /** The import spine refused the publish, or two calls raced on a unique key. */
   | "conflict"
+  /**
+   * This `Idempotency-Key` was already spent on a DIFFERENT act — another
+   * endpoint, or another book. It is refused rather than replayed: see the
+   * catch block below.
+   */
+  | "idempotency_key_reused"
 
 export type IngestOutcome =
   | {
@@ -126,7 +132,22 @@ async function ingest(
       // caller should retry rather than a 500.
       if (ctx.requestId) {
         const prior = await agentActivityByRequestId(ctx.agent, ctx.requestId)
-        if (prior) return { status: "replayed", summary: prior.summary }
+        if (prior) {
+          // A REPLAY IS ONLY A REPLAY IF IT IS THE SAME ACT. The unique index is
+          // on (key, request id) and spans every endpoint and every book, so an
+          // agent that mints one id per RUN — the natural shape for a month-end
+          // script — spends `run-42` on `filings` and then sends it to `assets`.
+          // Answering that with the filings summary would report a 200 for a
+          // write that never happened, which is the one failure this whole
+          // mechanism exists to prevent. The mismatch is the caller's bug, and
+          // it is told so.
+          const sameAct =
+            prior.action === entry.action &&
+            prior.organizationId === ctx.owner.organizationId
+          return sameAct
+            ? { status: "replayed", summary: prior.summary }
+            : { status: "refused", reason: "idempotency_key_reused" }
+        }
       }
       return { status: "refused", reason: "conflict" }
     }

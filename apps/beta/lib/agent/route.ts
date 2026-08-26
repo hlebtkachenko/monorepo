@@ -11,16 +11,19 @@ import { agentError, agentJson } from "./http"
 /**
  * The one pipeline every `/api/agent/v1/orgs/{orgSlug}/*` write runs.
  *
- * FIVE STEPS, ALWAYS IN THIS ORDER, AND NEVER RE-IMPLEMENTED PER ROUTE:
+ * SIX STEPS, ALWAYS IN THIS ORDER, AND NEVER RE-IMPLEMENTED PER ROUTE:
  *
  *   1. authenticate the key (rate limits, uniform 401)
  *   2. resolve the ORGANIZATION FROM THE URL against the key's scope
- *   3. read + validate the body (media type, size, tenancy keys, schema)
- *   4. run the ingest inside one transaction with its activity_log row
- *   5. map the outcome to a status code
+ *   3. read the `Idempotency-Key`, refusing a malformed one
+ *   4. read + validate the body (media type, size, tenancy keys, schema)
+ *   5. run the ingest inside one transaction with its activity_log row
+ *   6. map the outcome to a status code
  *
- * Steps 2 and 3 are in that order deliberately: a caller who may not touch this
- * book learns nothing about the schema, and a 404 costs no parsing.
+ * The order is deliberate: a caller who may not touch this book learns nothing
+ * about the schema, and a 404 costs no parsing. Step 3 sits above the body for
+ * the same reason — a call whose idempotency guarantee cannot be honoured must
+ * be refused before it can write anything, not after.
  *
  * THE 404 IN STEP 2 IS THE SAME 404 A BROWSER GETS. An org-scoped key naming
  * another book, an office-global key naming a book its accountant is not the
@@ -48,18 +51,23 @@ export async function handleAgentIngest<T>(
   const owner = await resolveAgentOwnerScope(auth.agent, orgSlug)
   if (!owner) return agentError(404, "not_found")
 
+  const idempotency = requestId(request)
+  if (!idempotency.ok) return idempotency.response
+
   const body = await readAgentBody(request, schema)
   if (!body.ok) return body.response
 
   const outcome = await run(
-    { owner, agent: auth.agent, requestId: requestId(request) },
+    { owner, agent: auth.agent, requestId: idempotency.value },
     body.value,
   )
 
   if (outcome.status === "refused") {
-    // 409 for both: each says "your request is well-formed and the current state
-    // will not accept it", which is the caller's cue to re-read and retry rather
-    // than to change the payload's shape.
+    // 409 for all three: each says "your request is well-formed and the current
+    // state will not accept it", which is the caller's cue to re-read and retry
+    // rather than to change the payload's shape. `idempotency_key_reused` is a
+    // conflict with the caller's OWN earlier act rather than with a row, and it
+    // belongs here for the same reason.
     return agentError(409, outcome.reason)
   }
 

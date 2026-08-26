@@ -79,15 +79,31 @@ export async function recordAgentActivity(
  * the retry's own write is gone, and this is the surviving record of what the
  * first call did. Keyed on (key, request id), the same pair the unique index is
  * on, so it can only ever return this key's own act.
+ *
+ * IT RETURNS THE ACT'S IDENTITY, NOT JUST ITS RESULT, and that is the whole
+ * point of the two extra columns. The unique index spans the KEY, so one request
+ * id is spent across every endpoint and every book — an agent that generates one
+ * id per RUN (the natural shape for a month-end script) would send `run-42` to
+ * `filings` and then to `assets`, and a replay that only looked up the summary
+ * would answer the second call with the first one's result: a 200, a plausible
+ * body, and a write that silently never happened. So the caller compares
+ * `action` and `organizationId` before it is allowed to call anything a replay.
  */
 export async function agentActivityByRequestId(
   agent: AgentScope,
   requestId: string,
-): Promise<{ summary: ActivitySummary; entityId: string | null } | null> {
+): Promise<{
+  summary: ActivitySummary
+  entityId: string | null
+  action: string
+  organizationId: string
+} | null> {
   const [row] = await betaDb()
     .select({
       summary: activity_log.summary,
       entityId: activity_log.entity_id,
+      action: activity_log.action,
+      organizationId: activity_log.organization_id,
     })
     .from(activity_log)
     .where(
@@ -99,7 +115,12 @@ export async function agentActivityByRequestId(
     .limit(1)
 
   if (!row) return null
-  return { summary: asSummary(row.summary), entityId: row.entityId }
+  return {
+    summary: asSummary(row.summary),
+    entityId: row.entityId,
+    action: row.action,
+    organizationId: row.organizationId,
+  }
 }
 
 /**

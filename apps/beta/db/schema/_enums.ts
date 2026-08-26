@@ -56,3 +56,52 @@ export const betaSetupTokenPurpose = pgEnum("beta_setup_token_purpose", [
 
 export type BetaSetupTokenPurpose =
   (typeof betaSetupTokenPurpose.enumValues)[number]
+
+/**
+ * Mirrors: 0004_documents.sql — CREATE TYPE beta_document_status.
+ *
+ * Spec §2.2: Přijato / Zpracovává se / Zpracováno / Vráceno. `returned` is not
+ * "rejected" — the document comes back for a fix — and a returned row must
+ * carry an `office_message` (DB CHECK).
+ */
+export const betaDocumentStatus = pgEnum("beta_document_status", [
+  "received",
+  "in_processing",
+  "processed",
+  "returned",
+])
+
+export type BetaDocumentStatus = (typeof betaDocumentStatus.enumValues)[number]
+
+/** Mirrors: 0004_documents.sql — CREATE TYPE beta_document_type. */
+export const betaDocumentType = pgEnum("beta_document_type", [
+  "invoice_in",
+  "invoice_out",
+  "receipt",
+  "bank_statement",
+  "contract",
+  "payroll",
+  "attendance",
+  "hr",
+  "payslip",
+  "other",
+])
+
+export type BetaDocumentType = (typeof betaDocumentType.enumValues)[number]
+
+/**
+ * The document kinds a CLIENT-FACING upload may declare.
+ *
+ * `payslip` is excluded at the TYPE level, not by a runtime `if`. Payslips are
+ * office-produced payroll artefacts (spec §2.6 Výplatnice, PR 31): they are
+ * excluded from every Dokumenty view server-side, so a row a client could label
+ * `payslip` would be a row that client can no longer see. Making it
+ * unrepresentable in the upload API's input type means no route can grow that
+ * hole by forgetting a check.
+ */
+export type BetaClientDocumentType = Exclude<BetaDocumentType, "payslip">
+
+export const BETA_CLIENT_DOCUMENT_TYPES: readonly BetaClientDocumentType[] =
+  betaDocumentType.enumValues.filter(
+    (value): value is BetaClientDocumentType => value !== "payslip",
+  )

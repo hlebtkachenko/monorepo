@@ -84,6 +84,7 @@ describe("beta migration runner", () => {
           "0001_setup_token_guards.sql",
           "0002_ownership_locks_and_offboarding.sql",
           "0003_offboarding_completeness.sql",
+          "0004_documents.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
@@ -98,6 +99,7 @@ describe("beta migration runner", () => {
           "auth_account",
           "auth_session",
           "auth_verification",
+          "document",
           "organization",
           "organization_membership",
           "two_factor",

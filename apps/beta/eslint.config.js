@@ -47,6 +47,33 @@ const DB_CLIENT_ALLOWED = [
   "lib/auth/setup-token.ts",
 ]
 
+/**
+ * The S3 handle is fenced for the same reason the Drizzle handle is.
+ *
+ * `lib/storage/document-store-s3.ts` builds an `S3Client` scoped to the whole
+ * documents bucket — every organization's files. Reached from a route it is a
+ * bucket-wide handle with no `OrgScope` anywhere in the call, which is exactly
+ * the seam bypass the DB fence exists to prevent, with a longer tail: a
+ * mis-scoped row renders one wrong page, a mis-scoped object hands over a file.
+ *
+ * `lib/storage/store.ts` (the process-wide resolver) is on the allowlist so the
+ * data layer imports the seam, never the implementation. Same severity caveat
+ * as the DB fence: `eslint-plugin-only-warn` makes this advisory, and
+ * `lib/storage/s3-fence.boundary.test.ts` is the blocking half.
+ */
+const RAW_S3_CLIENT = {
+  group: [
+    "@/lib/storage/document-store-s3",
+    "**/lib/storage/document-store-s3",
+    "@aws-sdk/client-s3",
+    "@aws-sdk/lib-storage",
+  ],
+  message:
+    "The S3 client is fenced to lib/storage/**. Data modules take the seam from lib/storage/store.ts (documentStore()); routes take neither — they call lib/data/documents.ts. See apps/beta/lib/storage/document-store.ts.",
+}
+
+const S3_CLIENT_ALLOWED = ["lib/storage/**/*.{ts,tsx}"]
+
 /** @type {import("eslint").Linter.Config[]} */
 export default [
   ...nextJsConfig,
@@ -55,14 +82,26 @@ export default [
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [UI_BLOCK_INTERNALS, RAW_DB_CLIENT] },
+        { patterns: [UI_BLOCK_INTERNALS, RAW_DB_CLIENT, RAW_S3_CLIENT] },
       ],
     },
   },
   {
     files: DB_CLIENT_ALLOWED,
     rules: {
-      "no-restricted-imports": ["error", { patterns: [UI_BLOCK_INTERNALS] }],
+      "no-restricted-imports": [
+        "error",
+        { patterns: [UI_BLOCK_INTERNALS, RAW_S3_CLIENT] },
+      ],
+    },
+  },
+  {
+    files: S3_CLIENT_ALLOWED,
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: [UI_BLOCK_INTERNALS, RAW_DB_CLIENT] },
+      ],
     },
   },
 ]

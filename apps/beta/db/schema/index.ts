@@ -10,6 +10,7 @@
 export * from "./_enums"
 export * from "./app_user"
 export * from "./auth"
+export * from "./document"
 export * from "./organization"
 export * from "./organization_membership"
 export * from "./user_setup_token"

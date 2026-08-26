@@ -52,7 +52,10 @@ export default defineConfig({
           //
           // `lib/format/**` joins for the same reason (PR 17): cs-CZ date,
           // money and period-label formatting are pure `Intl` wrappers with no
-          // database underneath them.
+          // database underneath them. `lib/obligation-labels.test.ts` (PR 18)
+          // is the same kind of thing — an enum-to-catalog map checked against
+          // the pgEnum's declared values and the JSON, neither of which needs a
+          // running database.
           include: [
             "app/**/*.test.ts",
             // Component render tests (PR 12): they render a Client Component
@@ -65,6 +68,7 @@ export default defineConfig({
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            "lib/obligation-labels.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -75,7 +79,18 @@ export default defineConfig({
           // directory name, so a literal path silently failed to exclude
           // anything — `**` swallows the route-group and dynamic-segment
           // folders regardless of their punctuation.
-          exclude: ["app/api/orgs/**", "app/**/dane/**", "**/node_modules/**"],
+          //
+          // `**/*.db.test.ts` (PR 18) is the same rule stated by SUFFIX rather
+          // than by path: a Server Action's authz matrix and a page loader's
+          // owner gate need real rows wherever in `app/` they live, and naming
+          // the file is more durable than remembering to add each new folder
+          // here. Everything else under `app/` stays a pure unit.
+          exclude: [
+            "app/api/orgs/**",
+            "app/**/dane/**",
+            "**/*.db.test.ts",
+            "**/node_modules/**",
+          ],
         },
       },
       {
@@ -92,12 +107,16 @@ export default defineConfig({
             "lib/**/*.test.ts",
             "app/api/orgs/**/*.test.ts",
             "app/**/dane/**/*.test.ts",
+            // Server Actions and page loaders that need real rows — see the
+            // `pure` project's exclude for why the suffix rather than a path.
+            "app/**/*.db.test.ts",
           ],
           exclude: [
             "lib/**/*.boundary.test.ts",
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",
+            "lib/obligation-labels.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

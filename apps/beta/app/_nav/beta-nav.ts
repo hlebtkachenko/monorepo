@@ -25,7 +25,7 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * one entry gated on the caller's OWN role rather than on which routes exist,
  * which is why it takes a parameter instead of joining the static list above.
  */
-type BetaNavLabelKey = "prehled" | "dokumenty" | "dane" | "ucetni"
+type BetaNavLabelKey = "prehled" | "dokumenty" | "dane" | "finance" | "ucetni"
 
 export type BetaRailItem =
   (Omit<RailMenuItem, "label"> & { labelKey: BetaNavLabelKey }) | "separator"
@@ -47,18 +47,27 @@ export function betaRailNav(
     // unconditionally rather than only visible to a DPH gate that lives one
     // level down (spec §2.3: the four-family sidebar, not this rail entry).
     { labelKey: "dane", icon: "Banknote", href: `/${orgSlug}/dane` },
+    // Finance (spec §2.4). The spec names Wallet; `IconName` does not carry it
+    // either, and Banknote is taken by Daně one line up, so CreditCard until
+    // the icon packs gain a Wallet (all packs, parity). The href is the MODULE
+    // root rather than its one built leaf, so `AppRail`'s longest-prefix match
+    // keeps the entry active across every Finance page as the other four
+    // sidebar leaves land (PRs 26-28); `finance/page.tsx` redirects to Dluhy a
+    // platby, so it is a live route, not a landing stub.
+    { labelKey: "finance", icon: "CreditCard", href: `/${orgSlug}/finance` },
   ]
 
   if (options.isOwner) {
-    // Only Zpracování exists so far (PR 14 of spec §3's four sidebar items);
-    // the entry links straight at it rather than at an `/pro-ucetni` landing
-    // page nothing has built yet — the same "no dead link" rule the module
-    // comment above states for the rail as a whole.
+    // Two of spec §3's four sidebar items exist (Zpracování, PR 14; Zadávání
+    // dat, PR 18), so the entry points at the SECTION and `pro-ucetni/page.tsx`
+    // sends the visitor to the first one — the same "no dead link" rule the
+    // module comment above states for the rail as a whole, now that there is
+    // more than one leaf for a bare section link to be ambiguous about.
     items.push("separator")
     items.push({
       labelKey: "ucetni",
       icon: "Briefcase",
-      href: `/${orgSlug}/pro-ucetni/zpracovani`,
+      href: `/${orgSlug}/pro-ucetni`,
     })
   }
 

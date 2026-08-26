@@ -25,12 +25,14 @@ import type {
   app_user,
   document,
   filing,
+  liability,
   organization,
   organization_membership,
   reporting_period,
   BetaFilingFamily,
   BetaFilingKind,
   BetaFilingStatus,
+  BetaObligationGroup,
   BetaPeriodKind,
   BetaSetupTokenPurpose,
 } from "@/db/schema"
@@ -41,6 +43,7 @@ type OrganizationRow = typeof organization.$inferSelect
 type MembershipRow = typeof organization_membership.$inferSelect
 type ReportingPeriodRow = typeof reporting_period.$inferSelect
 type FilingRow = typeof filing.$inferSelect
+type LiabilityRow = typeof liability.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -566,6 +569,76 @@ export function ownerDocumentDetail(
     officeMessage: row.office_message,
     note: row.internal_note,
     clientVisible: row.visible_to_client,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Liability — the manual residue behind Finance › Dluhy a platby
+// ---------------------------------------------------------------------------
+
+/**
+ * One manual liability as Zadávání dat edits it (spec §3.3).
+ *
+ * NOT the shape Dluhy a platby renders. That surface reads `Obligation` from
+ * `lib/data/obligations.ts` — the union row shared by all three sources — and
+ * never learns which table a row came from beyond the `source` discriminator.
+ * This projection exists for the EDITING surface, which does know, and which
+ * needs the fields the union deliberately drops: `paidAt` (an obligation is by
+ * definition unpaid, so the union has no column for it) and `noteClient`.
+ *
+ * `note_internal` is absent — office-only (§3.1), on `CLIENT_FORBIDDEN_COLUMNS`,
+ * and not selected by any query in `lib/data/liabilities.ts` either, so it
+ * cannot leak even by accident. `organization_id` is absent because the reader
+ * already holds the scope that produced the row. `created_at` is absent because
+ * §2.4 stamps the source's last edit, not its birth.
+ *
+ * `amount` is a STRING, at `numeric(14,2)` scale, all the way to the formatter
+ * (spec §0.7 — parsing it into a JavaScript number is how a haléř goes missing,
+ * and nothing in this application does arithmetic on it anyway).
+ *
+ * `overdue` is DERIVED in SQL against `CURRENT_DATE` (spec §2.4) and must never
+ * become a stored column.
+ */
+export type LiabilityView = {
+  id: string
+  group: BetaObligationGroup
+  label: string
+  /** `numeric(14,2)` as a string. Always strictly positive (DB CHECK). */
+  amount: string
+  dueOn: string
+  paidAt: string | null
+  variableSymbol: string | null
+  noteClient: string | null
+  overdue: boolean
+  /** The §2.4 freshness stamp: when the office last edited this row. */
+  updatedAt: string
+}
+
+export function liabilityView(
+  row: Pick<
+    LiabilityRow,
+    | "id"
+    | "creditor_group"
+    | "label"
+    | "amount"
+    | "due_on"
+    | "paid_at"
+    | "variable_symbol"
+    | "note_client"
+    | "updated_at"
+  > & { overdue: boolean },
+): LiabilityView {
+  return {
+    id: row.id,
+    group: row.creditor_group,
+    label: row.label,
+    amount: row.amount,
+    dueOn: row.due_on,
+    paidAt: row.paid_at === null ? null : row.paid_at.toISOString(),
+    variableSymbol: row.variable_symbol,
+    noteClient: row.note_client,
+    overdue: row.overdue,
+    updatedAt: row.updated_at.toISOString(),
   }
 }
 

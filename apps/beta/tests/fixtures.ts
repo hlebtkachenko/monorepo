@@ -19,6 +19,7 @@ import type {
   BetaDocumentType,
   BetaFilingKind,
   BetaFilingStatus,
+  BetaObligationGroup,
   BetaOrgRole,
   BetaPeriodKind,
   BetaVatRegime,
@@ -364,6 +365,58 @@ export async function createFilingRow(
       ${values.status ?? "planned"},
       ${values.filedOn ?? null},
       ${values.amountDue ?? null},
+      ${values.paidAt ?? null},
+      ${values.variableSymbol ?? null},
+      ${values.noteClient ?? null},
+      ${values.noteInternal ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+// ---------------------------------------------------------------------------
+// Manual liabilities (PR 18) — the obligations read model's third source
+// ---------------------------------------------------------------------------
+//
+// Raw SQL for the same reason `createFilingRow` is: `lib/data/liabilities.ts` is
+// the owner-gated write path, and a fixture that used it could not seed a world
+// for the tests whose subject IS the gate.
+
+export async function createLiabilityRow(
+  organizationId: string,
+  values: {
+    group?: BetaObligationGroup
+    label?: string
+    amount?: string
+    /** ISO date, or a signed day offset from today (negative = already overdue). */
+    dueOn?: string
+    dueInDays?: number
+    paidAt?: Date | null
+    variableSymbol?: string | null
+    noteClient?: string | null
+    noteInternal?: string | null
+  } = {},
+): Promise<string> {
+  const dueOn =
+    values.dueOn ??
+    (values.dueInDays === undefined
+      ? "2026-03-31"
+      : new Date(Date.now() + values.dueInDays * 86_400_000)
+          .toISOString()
+          .slice(0, 10))
+
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO liability (
+      organization_id, creditor_group, label, amount, due_on,
+      paid_at, variable_symbol, note_client, note_internal
+    )
+    VALUES (
+      ${organizationId},
+      ${values.group ?? "ostatni"},
+      ${values.label ?? "Zbytkovy zavazek"},
+      ${values.amount ?? "1000.00"},
+      ${dueOn},
       ${values.paidAt ?? null},
       ${values.variableSymbol ?? null},
       ${values.noteClient ?? null},

@@ -16,6 +16,8 @@
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm --filter beta db:migrate. See ADR-0009.'); process.exit(1)\""
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@aws-sdk/lib-storage": "^3.1085.0",
     "@workspace/i18n": "workspace:*",
     "@workspace/shared": "workspace:*",
     "@workspace/ui": "workspace:*",

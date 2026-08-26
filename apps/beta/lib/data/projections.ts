@@ -23,12 +23,14 @@
  */
 import type {
   app_user,
+  document,
   organization,
   organization_membership,
   BetaSetupTokenPurpose,
 } from "@/db/schema"
 
 type AppUserRow = typeof app_user.$inferSelect
+type DocumentRow = typeof document.$inferSelect
 type OrganizationRow = typeof organization.$inferSelect
 type MembershipRow = typeof organization_membership.$inferSelect
 
@@ -55,6 +57,26 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   "consumed_user_id",
   "revoked_at",
   "granted_role",
+  // document — the office-internal layer and the storage identity.
+  //
+  // `internal_note` is the office's own note about a client's document
+  // (spec §3.1), so it is office-only in the same way `is_staff` is.
+  //
+  // `storage_key` and `sha256` are not secrets in the "if leaked, game over"
+  // sense — the key alone gets nobody bytes, because the route resolves the row
+  // from a document id and the store refuses a key outside the caller's own
+  // prefix. They are forbidden because SHIPPING THEM CREATES THE TEMPTATION: a
+  // key in a client payload invites the next feature to accept one back, and
+  // that route ("here is a key, give me the file") is the one shape of this API
+  // that cannot be made safe. The client never learns that S3 exists.
+  //
+  // `visible_to_client` is the hidden-class flag itself. A row that reached a
+  // client tier has already been filtered on it; echoing it would tell that
+  // client the mechanism exists and invite a UI to branch on it.
+  "internal_note",
+  "storage_key",
+  "sha256",
+  "visible_to_client",
 ])
 
 const normalize = (key: string): string =>
@@ -180,6 +202,80 @@ export function orgMemberSummary(
     email: row.email,
     role: row.role,
     active: row.active,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Document — one row of Dokumenty
+// ---------------------------------------------------------------------------
+
+/**
+ * A document as the Dokumenty table, the row sheet and the download route see
+ * it (spec §2.2: soubor, nahráno, typ, protistrana, částka, stavba, status,
+ * zpráva od účetní).
+ *
+ * FOUR COLUMNS OF `document` ARE ABSENT, and each absence is a decision:
+ *
+ *   - `storage_key` and `sha256` — the client never learns that S3 exists
+ *     (see `CLIENT_FORBIDDEN_COLUMNS`);
+ *   - `internal_note` — the office's own layer;
+ *   - `visible_to_client` — the filter, not a field.
+ *
+ * `contentType` and `byteSize` ARE here: the download route reads this
+ * projection to build its response headers, and PR 12's sheet needs the type to
+ * decide between an image and a sandboxed PDF frame. Neither is a secret — the
+ * client uploaded the file.
+ *
+ * `amount` is a STRING, not a number. Beta stores money as `numeric(14,2)` and
+ * never computes on it (spec §0.7); the driver hands back the exact decimal
+ * text, and turning it into a float here would be the one place a rounding
+ * error could enter a system that has no arithmetic in it at all.
+ *
+ * `protistrana` is not here yet: spec §4 gives `document.partner_id` to the
+ * partner PR (27), which introduces the table.
+ */
+export type DocumentSummary = {
+  id: string
+  filename: string
+  docType: DocumentRow["doc_type"]
+  status: DocumentRow["status"]
+  contentType: string
+  byteSize: number
+  uploadedAt: string
+  documentDate: string | null
+  amount: string | null
+  siteRef: string | null
+  officeMessage: string | null
+}
+
+export function documentSummary(
+  row: Pick<
+    DocumentRow,
+    | "id"
+    | "original_filename"
+    | "doc_type"
+    | "status"
+    | "content_type"
+    | "byte_size"
+    | "created_at"
+    | "document_date"
+    | "amount"
+    | "site_ref"
+    | "office_message"
+  >,
+): DocumentSummary {
+  return {
+    id: row.id,
+    filename: row.original_filename,
+    docType: row.doc_type,
+    status: row.status,
+    contentType: row.content_type,
+    byteSize: row.byte_size,
+    uploadedAt: row.created_at.toISOString(),
+    documentDate: row.document_date,
+    amount: row.amount,
+    siteRef: row.site_ref,
+    officeMessage: row.office_message,
   }
 }
 

@@ -101,15 +101,40 @@ export type OfficeScope = {
  * archived organization, no membership, inactive membership, deactivated user.
  */
 export async function requireScope(orgSlug: string): Promise<OrgScope> {
+  const scope = await resolveOrgScope(orgSlug)
+  if (!scope) notFound()
+  return scope
+}
+
+/**
+ * The same resolution, expressed as `null` instead of a thrown 404.
+ *
+ * ONE DOOR, TWO FAILURE EXPRESSIONS — not a second door. Everything below this
+ * line used to be the body of `requireScope`, which now calls it; there is
+ * still exactly one query, one set of six conditions and one place a brand is
+ * minted.
+ *
+ * ROUTE HANDLERS ARE THE REASON. `notFound()` works by throwing a Next-internal
+ * error that the RENDERER catches to swap in the 404 page. A Route Handler has
+ * no renderer: the throw escapes as a 500 in some paths, and — worse for a
+ * security seam — a test that calls the exported handler directly sees an
+ * exception rather than a response, so "cross-org access answers 404" becomes
+ * an assertion about an error object instead of about the thing the client
+ * receives. Pages keep using `requireScope`; the two file routes use this and
+ * return a real `404` Response.
+ */
+export async function resolveOrgScope(
+  orgSlug: string,
+): Promise<OrgScope | null> {
   const session = await getBetaSession()
-  if (!session) notFound()
+  if (!session) return null
 
   // A slug that cannot exist is answered without a round trip. The DB CHECK
   // means a non-matching string can never be stored, so this is a shortcut and
   // not a second, weaker validation. The rule itself lives in `org-slug.ts`,
   // shared with the /admin create form so the two cannot disagree about what a
   // slug is.
-  if (!isValidOrgSlugFormat(orgSlug)) notFound()
+  if (!isValidOrgSlugFormat(orgSlug)) return null
 
   const [row] = await betaDb()
     .select({
@@ -144,7 +169,7 @@ export async function requireScope(orgSlug: string): Promise<OrgScope> {
     )
     .limit(1)
 
-  if (!row) notFound()
+  if (!row) return null
 
   const scope: OrgScope = {
     [orgScopeBrand]: true,

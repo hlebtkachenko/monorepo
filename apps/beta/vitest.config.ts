@@ -28,11 +28,23 @@ export default defineConfig({
           // `*.boundary.test.ts` are the source-tree fences (import fence,
           // app_user write allowlist): they parse files with the TypeScript AST
           // and must not pay for a Postgres boot.
+          //
+          // `lib/storage/**` and `lib/http/**` join them: the magic-byte
+          // sniffer, the streaming size cap, the RFC 5987 header and the
+          // cross-site guard are pure functions over bytes and strings, and
+          // they are the pieces most worth testing adversarially — a suite that
+          // needs Docker to assert "a ZIP renamed to .pdf is refused" is a
+          // suite that gets skipped.
           include: [
             "app/**/*.test.ts",
             "i18n/**/*.test.ts",
             "lib/**/*.boundary.test.ts",
+            "lib/storage/**/*.test.ts",
+            "lib/http/**/*.test.ts",
           ],
+          // The document API's tests need real rows and a real transaction, so
+          // they belong to the `db` project below.
+          exclude: ["app/api/orgs/**", "**/node_modules/**"],
         },
       },
       {
@@ -40,11 +52,21 @@ export default defineConfig({
         test: {
           name: "db",
           environment: "node",
-          // `lib/auth` and `lib/data` join this project rather than `pure`: the
-          // consume flow, the trigger guards, the tenancy seam and Better
-          // Auth's own storage only mean anything against a real Postgres.
-          include: ["db/**/*.test.ts", "lib/**/*.test.ts"],
-          exclude: ["lib/**/*.boundary.test.ts", "**/node_modules/**"],
+          // `lib/auth`, `lib/data` and the document API join this project
+          // rather than `pure`: the consume flow, the trigger guards, the
+          // tenancy seam, the quota transaction and Better Auth's own storage
+          // only mean anything against a real Postgres.
+          include: [
+            "db/**/*.test.ts",
+            "lib/**/*.test.ts",
+            "app/api/orgs/**/*.test.ts",
+          ],
+          exclude: [
+            "lib/**/*.boundary.test.ts",
+            "lib/storage/**/*.test.ts",
+            "lib/http/**/*.test.ts",
+            "**/node_modules/**",
+          ],
           globalSetup: ["./tests/global-setup.ts"],
           testTimeout: 60_000,
           hookTimeout: 120_000,

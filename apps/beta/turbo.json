@@ -9,13 +9,42 @@
       // NODE_ENV already live in the root globalEnv. NEXT_PHASE is set by Next
       // itself during `next build`; the auth module keys its build placeholder
       // on it.
-      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
+      //
+      // The DOCUMENTS_* / AWS_* four are the same story for the S3 store
+      // (lib/storage/document-store-s3.ts): read lazily at request time, set on
+      // the task definition by infra/cdk/lib/beta-app-stack.ts, declared here so
+      // the turbo lint rule and the cache key both see them.
+      "env": [
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_TRUSTED_ORIGINS",
+        "NEXT_PHASE",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+        "DOCUMENTS_BUCKET",
+        "DOCUMENTS_KMS_KEY_ID"
+      ]
     },
     "typecheck": {
-      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
+      "env": [
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_TRUSTED_ORIGINS",
+        "NEXT_PHASE",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+        "DOCUMENTS_BUCKET",
+        "DOCUMENTS_KMS_KEY_ID"
+      ]
     },
     "lint": {
-      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
+      "env": [
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_TRUSTED_ORIGINS",
+        "NEXT_PHASE",
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+        "DOCUMENTS_BUCKET",
+        "DOCUMENTS_KMS_KEY_ID"
+      ]
     },
     "test": {
       // DATABASE_URL is set by tests/global-setup.ts after the Postgres 18

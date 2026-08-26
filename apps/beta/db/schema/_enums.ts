@@ -105,3 +105,97 @@ export const BETA_CLIENT_DOCUMENT_TYPES: readonly BetaClientDocumentType[] =
   betaDocumentType.enumValues.filter(
     (value): value is BetaClientDocumentType => value !== "payslip",
   )
+
+/**
+ * Mirrors: 0005_filings.sql — CREATE TYPE beta_period_kind.
+ *
+ * Spec §4 names `month|year`; `quarter` is required by §2.3 twice over (DPH is
+ * filed quarterly by small plátci, and the DPPO záloha schedule is quarterly
+ * above 150 000 Kč of prior tax). See the migration for the full note.
+ */
+export const betaPeriodKind = pgEnum("beta_period_kind", [
+  "month",
+  "quarter",
+  "year",
+])
+
+export type BetaPeriodKind = (typeof betaPeriodKind.enumValues)[number]
+
+/**
+ * Mirrors: 0005_filings.sql — CREATE TYPE beta_filing_kind.
+ *
+ * Every filing type the beta scope covers (spec §2.3 + `11-product-research.md`),
+ * spelled as the Czech form's own name. Czech here and English for
+ * `betaFilingStatus` below is deliberate: these are the legal names of
+ * documents, the way `platce` / `neplatce` are the legal names of a VAT regime,
+ * whereas a status is a workflow state this application invented.
+ */
+export const betaFilingKind = pgEnum("beta_filing_kind", [
+  "dph_priznani",
+  "dph_kontrolni_hlaseni",
+  "dph_souhrnne_hlaseni",
+  "dppo_priznani",
+  "dppo_zaloha",
+  "ucetni_zaverka",
+  "vyuctovani_dane",
+  "prehled_cssz",
+  "prehled_zp",
+  "jmhz",
+  "silnicni_dan",
+  "ostatni",
+])
+
+export type BetaFilingKind = (typeof betaFilingKind.enumValues)[number]
+
+/**
+ * Mirrors: 0005_filings.sql — CREATE TYPE beta_filing_family.
+ *
+ * The four Daně a podání families (spec §2.3). `Souhrn` is NOT a value: it is
+ * the cross-family rollup view, not a bucket a filing can belong to.
+ *
+ * A filing does NOT carry its family as a column. The mapping lives once, in the
+ * SQL function `beta_filing_family(kind)`, and `lib/data/filings.ts` selects it
+ * back off the row — see the migration's section 4.
+ */
+export const betaFilingFamily = pgEnum("beta_filing_family", [
+  "dph",
+  "dan_z_prijmu",
+  "mzdove_odvody",
+  "ostatni",
+])
+
+export type BetaFilingFamily = (typeof betaFilingFamily.enumValues)[number]
+
+/**
+ * Mirrors: 0005_filings.sql — CREATE TYPE beta_filing_status.
+ *
+ * `overdue` is deliberately absent: spec §2.4 makes "Po splatnosti" a DERIVED
+ * fact (`due_on < CURRENT_DATE`), and a stored overdue flag is a value that goes
+ * wrong every night at midnight.
+ */
+export const betaFilingStatus = pgEnum("beta_filing_status", [
+  "planned",
+  "filed",
+  "confirmed",
+  "corrective",
+])
+
+export type BetaFilingStatus = (typeof betaFilingStatus.enumValues)[number]
+
+/**
+ * Mirrors: 0005_filings.sql — CREATE TYPE beta_obligation_group.
+ *
+ * Creditor grouping for the derived obligations read model (spec §2.4).
+ * `dodavatele` is produced by the partner_saldo source (PR 28) — no filing kind
+ * maps to it and none ever will; it is declared now so the union contract in
+ * `lib/data/obligations.ts` is complete before the second source arrives.
+ */
+export const betaObligationGroup = pgEnum("beta_obligation_group", [
+  "fu",
+  "cssz_zp",
+  "dodavatele",
+  "ostatni",
+])
+
+export type BetaObligationGroup =
+  (typeof betaObligationGroup.enumValues)[number]

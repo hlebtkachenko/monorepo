@@ -24,8 +24,14 @@
 import type {
   app_user,
   document,
+  filing,
   organization,
   organization_membership,
+  reporting_period,
+  BetaFilingFamily,
+  BetaFilingKind,
+  BetaFilingStatus,
+  BetaPeriodKind,
   BetaSetupTokenPurpose,
 } from "@/db/schema"
 
@@ -33,6 +39,8 @@ type AppUserRow = typeof app_user.$inferSelect
 type DocumentRow = typeof document.$inferSelect
 type OrganizationRow = typeof organization.$inferSelect
 type MembershipRow = typeof organization_membership.$inferSelect
+type ReportingPeriodRow = typeof reporting_period.$inferSelect
+type FilingRow = typeof filing.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -77,6 +85,11 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   "storage_key",
   "sha256",
   "visible_to_client",
+  // filing — the office's own working note about a client's tax affairs, which
+  // has never been written to be read by that client. Spelled `note_internal`
+  // rather than document's `internal_note`, so BOTH spellings are listed: the
+  // normalizer above collapses separators and case, not word order.
+  "note_internal",
 ])
 
 const normalize = (key: string): string =>
@@ -309,6 +322,149 @@ export function documentSummary(
     amount: row.amount,
     siteRef: row.site_ref,
     officeMessage: row.office_message,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reporting period — the period identity every stamped dataset points at
+// ---------------------------------------------------------------------------
+
+/**
+ * One reporting period as a surface renders it (spec §4).
+ *
+ * `startsOn` / `endsOn` come across as ISO date strings because the database
+ * computes them (generated columns) and nothing above the data layer should
+ * recompute a period boundary from a year and a month — §2.4 / §2.5 stamp
+ * balances "k <period-end>", and two implementations of that date is one too
+ * many.
+ *
+ * There is no label. A period renders as "07/2026" or "Q3 2026" or "2026"
+ * depending on `kind`, and that formatting is i18n's job (PR 17), not the data
+ * layer's — a Czech string built here would be untranslatable and untestable.
+ */
+export type ReportingPeriodView = {
+  id: string
+  kind: BetaPeriodKind
+  year: number
+  month: number | null
+  quarter: number | null
+  startsOn: string
+  endsOn: string
+}
+
+export function reportingPeriodView(
+  row: Pick<
+    ReportingPeriodRow,
+    | "id"
+    | "period_kind"
+    | "year"
+    | "month"
+    | "quarter"
+    | "starts_on"
+    | "ends_on"
+  >,
+): ReportingPeriodView {
+  return {
+    id: row.id,
+    kind: row.period_kind,
+    year: row.year,
+    month: row.month,
+    quarter: row.quarter,
+    startsOn: row.starts_on,
+    endsOn: row.ends_on,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Filing — one row of the registry behind all five Daně a podání families
+// ---------------------------------------------------------------------------
+
+/**
+ * One filing as the portal renders it (spec §2.3).
+ *
+ * WHAT IS ABSENT, AND WHY EACH ONE. `note_internal` is the office's working note
+ * and is on `CLIENT_FORBIDDEN_COLUMNS`, so a `{ ...row }` projection would be
+ * caught by `forbiddenClientKeys` rather than shipped. `organization_id` is
+ * absent because the reader already holds the scope that produced the row and an
+ * id they cannot use is only useful for guessing at others. `created_at` is
+ * absent because §2.4 stamps the SOURCE's last edit, not its birth.
+ *
+ * `family` is not a column — it is `beta_filing_family(kind)`, read back off the
+ * query. Carrying it here means the five sidebar views bucket rows without a
+ * second copy of the mapping in TypeScript.
+ *
+ * `amountDue` is a STRING. It is `numeric(14,2)` in Postgres and stays a string
+ * all the way to the formatter: parsing it into a JavaScript number is how a
+ * cent goes missing, and this application never does arithmetic on it anyway
+ * (spec §0.2 — every sum is SQL-side).
+ *
+ * `overdue` is DERIVED, in SQL, against `CURRENT_DATE` (spec §2.4). It is not a
+ * stored column and must never become one.
+ */
+export type FilingView = {
+  id: string
+  kind: BetaFilingKind
+  family: BetaFilingFamily
+  status: BetaFilingStatus
+  period: ReportingPeriodView
+  dueOn: string
+  filedOn: string | null
+  /** `numeric(14,2)` as a string. Positive = owed by the client; negative = refund. */
+  amountDue: string | null
+  paidAt: string | null
+  variableSymbol: string | null
+  /**
+   * Whether an attachment exists THAT THIS READER MAY OPEN — never the id.
+   *
+   * Not `document_id !== null`: a document is soft-deleted rather than removed,
+   * and the office can mark one hidden, so a filing can hold a valid id for a
+   * row `lib/data/documents.ts` refuses to serve. The caller resolves this
+   * against the same four filters that module applies (`visibleAttachment` in
+   * `lib/data/filings.ts`) and hands the answer in; this projection does not
+   * see `document_id` at all, so it cannot get the question wrong.
+   */
+  hasAttachment: boolean
+  noteClient: string | null
+  overdue: boolean
+  /** The §2.4 freshness stamp: when the office last edited this row. */
+  updatedAt: string
+}
+
+export function filingView(
+  row: Pick<
+    FilingRow,
+    | "id"
+    | "kind"
+    | "status"
+    | "due_on"
+    | "filed_on"
+    | "amount_due"
+    | "paid_at"
+    | "variable_symbol"
+    | "note_client"
+    | "updated_at"
+  > & {
+    family: BetaFilingFamily
+    overdue: boolean
+    hasAttachment: boolean
+    period: ReportingPeriodView
+  },
+): FilingView {
+  return {
+    id: row.id,
+    kind: row.kind,
+    family: row.family,
+    status: row.status,
+    period: row.period,
+    dueOn: row.due_on,
+    filedOn: row.filed_on,
+    amountDue: row.amount_due,
+    paidAt: row.paid_at === null ? null : row.paid_at.toISOString(),
+    variableSymbol: row.variable_symbol,
+    hasAttachment: row.hasAttachment,
+    noteClient: row.note_client,
+    overdue: row.overdue,
+    updatedAt: row.updated_at.toISOString(),
   }
 }
 

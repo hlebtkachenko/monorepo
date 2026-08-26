@@ -55,6 +55,12 @@ export const client_task = pgTable(
      */
     source_template_id: uuid("source_template_id"),
     source_period_id: uuid("source_period_id"),
+    /**
+     * Agent upsert match key — see `filing.external_ref` (migration 0011).
+     * Unique per (organization, is_template) when set: a template and the task
+     * it instantiates may legitimately carry the same source id.
+     */
+    external_ref: text("external_ref"),
     created_by: uuid("created_by").references(() => app_user.id, {
       onDelete: "set null",
     }),

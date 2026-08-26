@@ -8,7 +8,11 @@
  * as children of `/admin`, which is itself the reserved top-level segment.
  */
 type AdminNavLabelKey =
-  "navOrganizations" | "navUsers" | "navSetupLinks" | "navOperations"
+  | "navOrganizations"
+  | "navUsers"
+  | "navSetupLinks"
+  | "navAgentKeys"
+  | "navOperations"
 
 export type AdminNavItem = {
   readonly labelKey: AdminNavLabelKey
@@ -19,6 +23,7 @@ export const adminNav: readonly AdminNavItem[] = [
   { labelKey: "navOrganizations", href: "/admin" },
   { labelKey: "navUsers", href: "/admin/uzivatele" },
   { labelKey: "navSetupLinks", href: "/admin/odkazy" },
+  { labelKey: "navAgentKeys", href: "/admin/agentni-klice" },
   { labelKey: "navOperations", href: "/admin/provoz" },
 ]
 

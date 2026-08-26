@@ -61,3 +61,23 @@ export function betaDb(): BetaDatabase {
   cached ??= createBetaDb(readDatabaseUrl())
   return cached
 }
+
+/** The transaction handle Drizzle hands a `db.transaction(...)` callback. */
+export type BetaTx = Parameters<Parameters<BetaDatabase["transaction"]>[0]>[0]
+
+/**
+ * "A place to run a statement": the pooled handle, or an open transaction.
+ *
+ * WHY WRITES TAKE ONE. The agent ingestion API (PR 24) has to write its
+ * `activity_log` row in the SAME transaction as the mutation it describes — a
+ * rolled-back write must leave no log row, and a log row must be proof the write
+ * committed. A data function that reaches for `betaDb()` internally is on its own
+ * connection and cannot participate in a caller's transaction, so the executor
+ * is threaded instead of duplicating each write behind the seam.
+ *
+ * It defaults to `betaDb()` at every call site, so this is invisible to the
+ * Server Actions that predate it, and it grants NOTHING: an executor is a
+ * connection, not an authority. Every one of these functions still takes an
+ * `OrgScope` / `OwnerScope` first, and still filters on `scope.organizationId`.
+ */
+export type BetaExecutor = BetaDatabase | BetaTx

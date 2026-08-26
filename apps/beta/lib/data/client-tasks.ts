@@ -2,7 +2,7 @@ import "server-only"
 
 import { and, asc, desc, eq, sql } from "drizzle-orm"
 
-import { betaDb } from "@/db/client"
+import { betaDb, type BetaExecutor } from "@/db/client"
 import { client_task, type BetaClientTaskLinkKind } from "@/db/schema"
 import { formatBetaDate } from "@/lib/format/date"
 import { notifyClientTaskCreated } from "@/lib/notifications/events"
@@ -159,6 +159,33 @@ export type ClientTaskWriteInput = {
   /** ISO date (`YYYY-MM-DD`). */
   readonly dueDate: string
   readonly linkKind?: BetaClientTaskLinkKind
+  /**
+   * The source system's own id (migration 0011) — the agent ingestion API's
+   * upsert match key. Office-typed tasks leave it NULL and are never
+   * overwritten by an agent run.
+   */
+  readonly externalRef?: string | null
+}
+
+/** The task an agent's `externalRef` names. Real tasks only, never templates. */
+export async function clientTaskIdByExternalRef(
+  owner: OwnerScope,
+  externalRef: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<string | null> {
+  const [row] = await executor
+    .select({ id: client_task.id })
+    .from(client_task)
+    .where(
+      and(
+        eq(client_task.organization_id, owner.organizationId),
+        eq(client_task.is_template, false),
+        eq(client_task.external_ref, externalRef),
+      ),
+    )
+    .limit(1)
+
+  return row?.id ?? null
 }
 
 type ClientTaskRefusal = "invalid_title" | "invalid_date" | "not_found"
@@ -200,13 +227,14 @@ async function dispatchClientTaskNotification(
 export async function createClientTask(
   owner: OwnerScope,
   input: ClientTaskWriteInput,
+  executor: BetaExecutor = betaDb(),
 ): Promise<ClientTaskResult> {
   const refusal = validateTaskInput(input)
   if (refusal) return { ok: false, reason: refusal }
 
   const title = normalizeText(input.title)!
 
-  const [row] = await betaDb()
+  const [row] = await executor
     .insert(client_task)
     .values({
       organization_id: owner.organizationId,
@@ -215,6 +243,7 @@ export async function createClientTask(
       description: normalizeText(input.description ?? null),
       due_date: input.dueDate,
       link_kind: input.linkKind ?? "none",
+      external_ref: input.externalRef ?? null,
       created_by: owner.userId,
     })
     .returning({ id: client_task.id })
@@ -253,6 +282,7 @@ export async function updateClientTask(
   owner: OwnerScope,
   taskId: string,
   patch: ClientTaskPatch,
+  executor: BetaExecutor = betaDb(),
 ): Promise<ClientTaskResult> {
   if (!UUID.test(taskId)) return { ok: false, reason: "not_found" }
   if (patch.title !== undefined && normalizeText(patch.title) === null) {
@@ -274,7 +304,7 @@ export async function updateClientTask(
   }
   if (Object.keys(values).length === 0) return { ok: true, id: taskId }
 
-  const [row] = await betaDb()
+  const [row] = await executor
     .update(client_task)
     .set(values)
     .where(
@@ -299,10 +329,11 @@ export async function setClientTaskDone(
   owner: OwnerScope,
   taskId: string,
   done: boolean,
+  executor: BetaExecutor = betaDb(),
 ): Promise<boolean> {
   if (!UUID.test(taskId)) return false
 
-  const updated = await betaDb()
+  const updated = await executor
     .update(client_task)
     .set({
       status: done ? "done" : "open",

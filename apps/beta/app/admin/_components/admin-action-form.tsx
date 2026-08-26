@@ -10,6 +10,7 @@ import { useBetaTranslations } from "@/i18n/translations"
 
 import { ADMIN_ACTION_IDLE, type AdminAction } from "../_actions/state"
 
+import { IssuedAgentKey } from "./issued-key"
 import { IssuedLink } from "./issued-link"
 
 /**
@@ -87,6 +88,12 @@ export function AdminActionForm({
             email={state.email}
             expiresAt={state.expiresAt}
           />
+        </div>
+      ) : null}
+
+      {state.status === "issuedKey" ? (
+        <div className="col-span-full">
+          <IssuedAgentKey secret={state.secret} label={state.label} />
         </div>
       ) : null}
     </form>

@@ -225,6 +225,70 @@ export async function setStaff(
 }
 
 // ---------------------------------------------------------------------------
+// Agent ingestion (PR 24) — keys and the activity log, written as raw SQL
+// ---------------------------------------------------------------------------
+//
+// Raw SQL for the same reason every other seed here is: `lib/data/office/
+// agent-keys.ts` is the issuance path and it is `OfficeScope`-gated, so a
+// fixture that used it could not seed a world for the tests whose subject IS the
+// gate — and it cannot seed a REVOKED key at all without performing two acts the
+// test would then be asserting against its own writes.
+//
+// The raw secret is generated per call and returned; nothing in this repository
+// contains a committed key.
+
+export async function createAgentKeyRow(values: {
+  actingUserId: string
+  organizationId?: string | null
+  label?: string
+  revoked?: boolean
+}): Promise<{ id: string; secret: string }> {
+  const { generateAgentKey, hashAgentKey } = await import("@/lib/agent/key")
+  const sql = db()
+  const secret = generateAgentKey()
+
+  const [row] = await sql<{ id: string }[]>`
+    INSERT INTO agent_key (
+      organization_id, label, key_hash, acting_user_id, created_by_user_id,
+      revoked_at
+    )
+    VALUES (
+      ${values.organizationId ?? null},
+      ${values.label ?? "Testovací agent"},
+      ${hashAgentKey(secret)},
+      ${values.actingUserId},
+      ${values.actingUserId},
+      ${values.revoked ? sql`now()` : null}
+    )
+    RETURNING id
+  `
+  return { id: row!.id, secret }
+}
+
+export type ActivityLogRow = {
+  actor_kind: string
+  actor_user_id: string | null
+  agent_key_id: string | null
+  action: string
+  entity_kind: string
+  entity_id: string | null
+  request_id: string | null
+  summary: Record<string, unknown>
+}
+
+export async function readActivityLog(
+  organizationId: string,
+): Promise<ActivityLogRow[]> {
+  return db()<ActivityLogRow[]>`
+    SELECT actor_kind, actor_user_id, agent_key_id, action, entity_kind,
+           entity_id, request_id, summary
+      FROM activity_log
+     WHERE organization_id = ${organizationId}
+     ORDER BY created_at
+  `
+}
+
+// ---------------------------------------------------------------------------
 // Filing registry (PR 16) — periods and filings, written as raw SQL
 // ---------------------------------------------------------------------------
 //

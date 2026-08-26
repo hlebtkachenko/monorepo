@@ -120,6 +120,17 @@ export const CLIENT_FORBIDDEN_COLUMNS = Object.freeze([
   // rather than document's `internal_note`, so BOTH spellings are listed: the
   // normalizer above collapses separators and case, not word order.
   "note_internal",
+  // filing / liability / asset — the source system's own id for the row
+  // (migration 0011). Not a secret in the "if leaked, game over" sense, and
+  // forbidden for the same reason `storage_key` is: shipping it would invite the
+  // next feature to accept one BACK from a browser, and "here is the office's
+  // internal id, act on it" is a shape the client tier must never learn exists.
+  "external_ref",
+  // agent_key — the credential hash and the account it acts as. No client-facing
+  // surface reads this table at all; listing them means a future projection
+  // cannot start.
+  "key_hash",
+  "acting_user_id",
 ])
 
 const normalize = (key: string): string =>
@@ -1391,6 +1402,45 @@ function setupLinkStatus(
   if (row.consumedAt !== null) return "consumed"
   if (row.revokedAt !== null) return "revoked"
   return row.expiresAt.getTime() <= now.getTime() ? "expired" : "live"
+}
+
+/**
+ * One row of the /admin agent-key registry (spec §3.2 "issued/revoked in
+ * /admin"). Carries no part of the secret, by construction: only `key_hash` is
+ * stored and this shape has no field to put one in — the same property
+ * `OfficeSetupLinkRow` has, for the same reason.
+ */
+export type OfficeAgentKeyRow = {
+  id: string
+  label: string
+  /** The book it is confined to, or null for an office-global key. */
+  organizationName: string | null
+  actingUserEmail: string | null
+  createdAt: string
+  lastUsedAt: string | null
+  revokedAt: string | null
+  revoked: boolean
+}
+
+export function officeAgentKeyRow(row: {
+  id: string
+  label: string
+  organizationName: string | null
+  actingUserEmail: string | null
+  createdAt: Date
+  lastUsedAt: Date | null
+  revokedAt: Date | null
+}): OfficeAgentKeyRow {
+  return {
+    id: row.id,
+    label: row.label,
+    organizationName: row.organizationName,
+    actingUserEmail: row.actingUserEmail,
+    createdAt: row.createdAt.toISOString(),
+    lastUsedAt: row.lastUsedAt?.toISOString() ?? null,
+    revokedAt: row.revokedAt?.toISOString() ?? null,
+    revoked: row.revokedAt !== null,
+  }
 }
 
 /** One row of the /admin setup-link registry. Carries no secret of any kind. */

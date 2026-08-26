@@ -95,6 +95,8 @@ export const asset = pgTable(
      * already on `CLIENT_FORBIDDEN_COLUMNS` (shared with `filing.note_internal`).
      */
     note_internal: text("note_internal"),
+    /** Agent upsert match key — see `filing.external_ref` (migration 0011). */
+    external_ref: text("external_ref"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

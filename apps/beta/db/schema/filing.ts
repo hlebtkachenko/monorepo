@@ -87,6 +87,13 @@ export const filing = pgTable(
      * `CLIENT_FORBIDDEN_COLUMNS` and no projection carries it.
      */
     note_internal: text("note_internal"),
+    /**
+     * The source system's own id, added by 0011 so the agent ingestion API can
+     * UPSERT rather than duplicate. NULL on every office-typed row; unique per
+     * organization when set (`filing_external_ref_idx`). Office-internal, and on
+     * `CLIENT_FORBIDDEN_COLUMNS`.
+     */
+    external_ref: text("external_ref"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

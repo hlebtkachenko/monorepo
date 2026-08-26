@@ -29,8 +29,15 @@ import { describe, expect, it } from "vitest"
 
 const BETA_ROOT = resolve(__dirname, "..", "..")
 
-/** The three brands, and the one file allowed to name them in an assertion. */
-const BRANDED_TYPES = ["OrgScope", "OfficeScope", "OwnerScope"]
+/**
+ * The four brands, and the one file allowed to name them in an assertion.
+ *
+ * `AgentScope` (PR 24) is on the list for the same reason the other three are,
+ * and its minting lives in the SAME file on purpose: a second brand home would
+ * be a second place to audit, and the whole value of this fence is that there is
+ * exactly one.
+ */
+const BRANDED_TYPES = ["OrgScope", "OfficeScope", "OwnerScope", "AgentScope"]
 const BRAND_HOME = "lib/data/scope.ts"
 
 const SKIP_DIRS = new Set([
@@ -133,6 +140,7 @@ describe("scope brand fence", () => {
       `const e = value as OrgScope & { extra: true }`,
       `const f = orgScope as OwnerScope`,
       `const g = input as unknown as OwnerScope`,
+      `const h = {} as AgentScope`,
     ].join("\n")
 
     const findings = brandAssertions(parse(hostile, "hostile.ts"), "hostile.ts")
@@ -144,6 +152,7 @@ describe("scope brand fence", () => {
       "asserts OrgScope",
       "asserts OwnerScope",
       "asserts OwnerScope",
+      "asserts AgentScope",
     ])
   })
 

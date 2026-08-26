@@ -59,6 +59,10 @@ const config: KnipConfig = {
       // (a runtime PostCSS config ref), not a static import knip can follow.
       ignoreDependencies: ["@tailwindcss/postcss"],
     },
+    "apps/beta": {
+      // Same @workspace/ui/postcss.config re-export indirection as apps/admin.
+      ignoreDependencies: ["@tailwindcss/postcss"],
+    },
     "apps/web": {
       // Same @workspace/ui/postcss.config re-export indirection as apps/admin.
       ignoreDependencies: ["@tailwindcss/postcss"],

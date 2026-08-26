@@ -1,0 +1,101 @@
+# syntax=docker/dockerfile:1.10
+
+ARG NODE_VERSION=24
+ARG PNPM_VERSION=11.9.0
+
+# ---------- pruner ----------
+# turbo prune emits a minimal subtree: out/json (manifests + lockfile, for a
+# stable install layer) and out/full (source of beta + its workspace deps
+# only). node_modules is excluded from the build context by .dockerignore,
+# so the pruned tree is clean. Keep turbo pinned to the root devDependency.
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS pruner
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY . .
+RUN TURBO_VERSION="$(node -p "require('./package.json').devDependencies.turbo.replace(/^[~^]/, '')")" \
+    && pnpm dlx "turbo@${TURBO_VERSION}" prune beta --docker
+
+# ---------- deps ----------
+# Debian-slim (glibc) chosen over alpine to avoid musl-binding compatibility
+# issues with native modules (unrs-resolver, etc).
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY --from=pruner /repo/out/json/ ./
+RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
+    pnpm fetch --frozen-lockfile && \
+    pnpm install --frozen-lockfile --filter=beta... --filter=@workspace/ui...
+
+# ---------- builder ----------
+FROM --platform=$BUILDPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS builder
+ARG BUILD_SHA=unknown
+ARG BUILD_TIME=unknown
+ARG BUILD_VERSION=0.0.0
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    BUILD_SHA=$BUILD_SHA \
+    BUILD_TIME=$BUILD_TIME \
+    BUILD_VERSION=$BUILD_VERSION
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+COPY --from=deps /repo /repo
+COPY --from=pruner /repo/out/full/ ./
+RUN pnpm --filter beta build
+
+# ---------- runner ----------
+FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
+ARG BUILD_SHA=unknown
+ARG BUILD_TIME=unknown
+ARG BUILD_VERSION=0.0.0
+ARG SOURCE_REPOSITORY_URL=
+
+LABEL org.opencontainers.image.title="monorepo-beta" \
+      org.opencontainers.image.source="$SOURCE_REPOSITORY_URL" \
+      org.opencontainers.image.revision="$BUILD_SHA" \
+      org.opencontainers.image.created="$BUILD_TIME" \
+      org.opencontainers.image.version="$BUILD_VERSION" \
+      org.opencontainers.image.licenses="UNLICENSED"
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3200 \
+    HOSTNAME=0.0.0.0 \
+    BUILD_SHA=$BUILD_SHA \
+    BUILD_TIME=$BUILD_TIME \
+    BUILD_VERSION=$BUILD_VERSION
+
+# apt-get upgrade pulls Debian-Security point releases for base packages,
+# patching base-image CVEs at the source instead of allowlisting them.
+# Residual no-upstream-fix CVEs live in .github/security/cve-allowlist.txt.
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/false nextjs \
+    && apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Strip npm + npx + corepack from the runner. Next.js standalone server.js
+# does not need them, and the bundled npm ships an older node-gyp/cacache
+# tar copies that trip Trivy HIGH/CRITICAL CVEs. Removing kills the alerts
+# at the source.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx \
+           /usr/local/bin/corepack
+
+WORKDIR /app
+
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/beta/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /repo/apps/beta/.next/static ./apps/beta/.next/static
+
+USER nextjs:nodejs
+EXPOSE 3200
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:3200/healthz',{timeout:2000},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1)).on('timeout',function(){this.destroy();process.exit(1)})" || exit 1
+
+# Force HOSTNAME=0.0.0.0 at exec time. Without this, Fargate/Docker runtime
+# overrides our ENV HOSTNAME with the container's auto-assigned hostname
+# (like ip-10-42-x-x), and Next.js standalone server binds to that non-
+# loopback interface only. The cloudflared sidecar reaching localhost:3200
+# then gets connection refused.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/beta/server.js"]

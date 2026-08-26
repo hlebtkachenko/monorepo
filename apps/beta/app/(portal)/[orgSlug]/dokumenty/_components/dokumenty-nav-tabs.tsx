@@ -8,9 +8,9 @@ import { cn } from "@workspace/ui/lib/utils"
 import { useBetaTranslations } from "@/i18n/translations"
 
 import {
-  DOKUMENTY_NAV,
   dokumentyHref,
   isActiveDokumentyNav,
+  type DokumentyNavItem,
 } from "../_nav/dokumenty-nav"
 
 /**
@@ -23,7 +23,14 @@ import {
  * `sidebar` prop yet). No family-style visibility gate here: see
  * `DOKUMENTY_NAV`'s own header comment on why all three tabs are always shown.
  */
-export function DokumentyNavTabs({ orgSlug }: { orgSlug: string }) {
+export function DokumentyNavTabs({
+  orgSlug,
+  items,
+}: {
+  orgSlug: string
+  /** Which tabs this viewer gets — see `DOKUMENTY_SEAT_NAV` (PR 33). */
+  items: readonly DokumentyNavItem[]
+}) {
   const pathname = usePathname() ?? ""
   const t = useBetaTranslations()
 
@@ -32,7 +39,7 @@ export function DokumentyNavTabs({ orgSlug }: { orgSlug: string }) {
       aria-label={t("dokumenty.navLabel")}
       className="flex flex-wrap gap-1 border-b border-border-subtle px-6 pt-3 pb-2"
     >
-      {DOKUMENTY_NAV.map((item) => {
+      {items.map((item) => {
         const href = dokumentyHref(orgSlug, item.slug)
         const active = isActiveDokumentyNav(item, orgSlug, pathname)
         return (

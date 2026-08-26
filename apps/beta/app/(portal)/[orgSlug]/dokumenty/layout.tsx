@@ -2,11 +2,14 @@ import type { ReactNode } from "react"
 
 import { getBetaTranslations } from "@/i18n/translations-server"
 
+import { isEmployeeSeat } from "@/lib/data/scope"
+
 import { PageHeader } from "../../../_components/page-header"
 
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { DokumentyNavTabs } from "./_components/dokumenty-nav-tabs"
+import { DOKUMENTY_NAV, DOKUMENTY_SEAT_NAV } from "./_nav/dokumenty-nav"
 
 /**
  * The Dokumenty tree (spec §2.2, PR 13): the module title, then a tab row
@@ -31,8 +34,14 @@ export default async function DokumentyLayout({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug } = await params
-  await resolveOrgScope(orgSlug)
+  const scope = await resolveOrgScope(orgSlug)
   const t = await getBetaTranslations()
+  // THE EMPLOYEE SEAT KEEPS THIS MODULE (spec §2.6.1 gives it "Dokumenty (own)"
+  // as one of its three rail entries) — it is the one org-tier module that is
+  // NOT gated by `assertNotEmployeeSeat`, because the data layer narrows it
+  // instead: filter 5 of `visibleDocuments` restricts every read here to rows
+  // the viewer uploaded themselves. What varies is the tab row.
+  const seat = isEmployeeSeat(scope)
 
   return (
     <div className="flex flex-col">
@@ -41,7 +50,10 @@ export default async function DokumentyLayout({
         title={t("dokumenty.title")}
         intro={t("dokumenty.intro")}
       />
-      <DokumentyNavTabs orgSlug={orgSlug} />
+      <DokumentyNavTabs
+        orgSlug={orgSlug}
+        items={seat ? DOKUMENTY_SEAT_NAV : DOKUMENTY_NAV}
+      />
       <div className="grid gap-6 p-6">{children}</div>
     </div>
   )

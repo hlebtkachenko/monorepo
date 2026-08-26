@@ -15,6 +15,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { listQueueDocuments } from "@/lib/data/documents-office"
 import { requireOwner } from "@/lib/data/scope"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { DocumentSheet } from "../_components/document-sheet"
 import { DOC_TYPE_LABEL_KEY, STATUS_LABEL_KEY } from "../_components/labels"
@@ -59,12 +61,10 @@ export default async function ZpracovaniPage({
 
   return (
     <div className="grid gap-4 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("ucetni.queueTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("ucetni.queueHint")}</p>
-      </header>
+      <PageHeader
+        title={t("ucetni.queueTitle")}
+        intro={t("ucetni.queueHint")}
+      />
 
       <div className="flex gap-2">
         <Button asChild variant={showAll ? "outline" : "default"} size="sm">

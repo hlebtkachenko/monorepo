@@ -81,7 +81,7 @@ export function AresPanel({
   return (
     <section className="grid gap-4 rounded-lg border border-border-subtle p-4">
       <div className="grid gap-1">
-        <h3 className="text-sm font-medium text-foreground">
+        <h3 className="font-sans text-sm font-semibold text-foreground">
           {t("nastaveni.aresTitle")}
         </h3>
         <p className="text-xs text-muted-foreground">

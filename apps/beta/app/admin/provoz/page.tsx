@@ -16,6 +16,8 @@ import {
 } from "@/lib/data/office/operations"
 import { requireOffice } from "@/lib/data/scope"
 
+import { PageHeader } from "../../_components/page-header"
+
 /**
  * Provoz — what the deployment currently holds, and whether it is configured
  * (spec §3.5: "healthz, env, seed non-prod").
@@ -54,14 +56,10 @@ export default async function AdminOperationsPage() {
 
   return (
     <div className="grid gap-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("admin.operationsTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("admin.operationsHint")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("admin.operationsTitle")}
+        intro={t("admin.operationsHint")}
+      />
 
       <Card>
         <CardHeader>

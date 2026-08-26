@@ -11,6 +11,8 @@ import type { BetaMessageKey } from "@/i18n/messages"
 import { formatBetaAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import type { DatasetView } from "../_lib/load-dataset"
 import type { StatementHighlight } from "../_lib/highlights"
 import { PERIOD_PARAM, isStale } from "../_lib/period-selection"
@@ -46,25 +48,27 @@ export async function DatasetHeader({
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-heading text-lg font-semibold">{t(titleKey)}</h1>
-        {batch ? (
-          <p className="text-xs text-muted-foreground">
-            {/*
-              THE SOURCE IS PART OF THE STAMP, not decoration. An agent-fed
-              batch and a manual CSV drop fail in different ways (spec §3.2
-              records them apart for exactly that reason), and a client asking
-              "why is this number odd" is better served by knowing which.
-            */}
-            {t("vykazy.publishedAt")} {formatDateTime(batch.publishedAt)} ·{" "}
-            {t(
-              batch.source === "agent"
-                ? "vykazy.sourceAgent"
-                : "vykazy.sourceManual",
-            )}
-          </p>
-        ) : null}
-      </div>
+      <PageHeader
+        title={t(titleKey)}
+        actions={
+          batch ? (
+            <p className="text-xs text-muted-foreground">
+              {/*
+                THE SOURCE IS PART OF THE STAMP, not decoration. An agent-fed
+                batch and a manual CSV drop fail in different ways (spec §3.2
+                records them apart for exactly that reason), and a client asking
+                "why is this number odd" is better served by knowing which.
+              */}
+              {t("vykazy.publishedAt")} {formatDateTime(batch.publishedAt)} ·{" "}
+              {t(
+                batch.source === "agent"
+                  ? "vykazy.sourceAgent"
+                  : "vykazy.sourceManual",
+              )}
+            </p>
+          ) : null
+        }
+      />
 
       {periods.length > 0 ? (
         <nav

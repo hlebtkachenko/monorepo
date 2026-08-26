@@ -108,7 +108,9 @@ export default async function MajetekDetailPage({
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-2">
           <div>
-            <CardTitle className="font-heading text-xl">{item.name}</CardTitle>
+            <CardTitle className="font-heading text-base">
+              {item.name}
+            </CardTitle>
           </div>
           <div className="flex items-center gap-2">
             {item.isMinor ? (

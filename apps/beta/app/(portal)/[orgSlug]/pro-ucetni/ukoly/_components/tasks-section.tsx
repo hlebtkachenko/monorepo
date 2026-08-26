@@ -33,6 +33,8 @@ import {
 } from "@/lib/client-task-labels"
 import type { OwnerClientTaskDetail } from "@/lib/data/projections"
 
+import { SectionTitle } from "../../../../../_components/page-header"
+
 import {
   createClientTaskAction,
   deleteClientTaskAction,
@@ -110,9 +112,7 @@ export function TasksSection({
         </CardContent>
       </Card>
 
-      <h2 className="font-heading text-base font-semibold">
-        {t("ukoly.tasksTitle")}
-      </h2>
+      <SectionTitle>{t("ukoly.tasksTitle")}</SectionTitle>
 
       {tasks.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("ukoly.noRows")}</p>

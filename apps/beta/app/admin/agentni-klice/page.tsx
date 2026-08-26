@@ -26,6 +26,8 @@ import { listAgentKeys } from "@/lib/data/office/agent-keys"
 import { listOfficeOrganizations } from "@/lib/data/office/organizations"
 import { requireOffice } from "@/lib/data/scope"
 
+import { SectionTitle } from "../../_components/page-header"
+
 import {
   issueAgentKeyAction,
   revokeAgentKeyAction,
@@ -98,9 +100,7 @@ export default async function AdminAgentKeysPage() {
       </Card>
 
       <section className="grid gap-3">
-        <h2 className="font-heading text-base font-semibold">
-          {t("admin.agentKeysTitle")}
-        </h2>
+        <SectionTitle>{t("admin.agentKeysTitle")}</SectionTitle>
         {keys.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("admin.noRows")}</p>
         ) : (

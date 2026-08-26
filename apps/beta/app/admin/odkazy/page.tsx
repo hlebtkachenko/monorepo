@@ -12,6 +12,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { listSetupLinks } from "@/lib/data/office/setup-links"
 import { requireOffice } from "@/lib/data/scope"
 
+import { PageHeader } from "../../_components/page-header"
+
 import { revokeSetupLinkAction } from "../_actions/setup-links"
 import { AdminActionForm } from "../_components/admin-action-form"
 import {
@@ -44,14 +46,10 @@ export default async function AdminSetupLinksPage() {
 
   return (
     <div className="grid gap-4">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("admin.setupLinksTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("admin.setupLinksHint")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("admin.setupLinksTitle")}
+        intro={t("admin.setupLinksHint")}
+      />
 
       {links.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("admin.noRows")}</p>

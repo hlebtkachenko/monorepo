@@ -1,5 +1,7 @@
 import { getBetaTranslations } from "@/i18n/translations-server"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { TasksSection } from "./_components/tasks-section"
 import { TemplatesSection } from "./_components/templates-section"
 import { loadUkoly } from "./_lib/load-ukoly"
@@ -24,12 +26,7 @@ export default async function UkolyPage({
 
   return (
     <div className="grid gap-8 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("ukoly.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("ukoly.intro")}</p>
-      </header>
+      <PageHeader title={t("ukoly.title")} intro={t("ukoly.intro")} />
 
       <TasksSection tasks={tasks} orgSlug={orgSlug} />
       <TemplatesSection templates={templates} orgSlug={orgSlug} />

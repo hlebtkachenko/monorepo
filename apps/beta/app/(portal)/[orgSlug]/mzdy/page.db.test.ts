@@ -70,16 +70,19 @@ function as(headers: Headers): void {
  */
 async function render(tree: ReactNode): Promise<string> {
   const stream = await renderToReadableStream(
-    createElement(
-      NextIntlClientProvider,
-      {
-        locale: BETA_LOCALE,
-        timeZone: BETA_TIME_ZONE,
-        formats: betaFormats,
-        messages: betaMessages as never,
-      },
-      tree,
-    ),
+    // `children` inside the props object, not `createElement`'s 3rd
+    // positional argument: `NextIntlClientProvider`'s prop type makes
+    // `children` required, and TS's `createElement` overload set does not
+    // attribute a 3rd positional argument to a required `children` prop on an
+    // intersection type like this component's — passing it explicitly is the
+    // form every overload actually matches.
+    createElement(NextIntlClientProvider, {
+      locale: BETA_LOCALE,
+      timeZone: BETA_TIME_ZONE,
+      formats: betaFormats,
+      messages: betaMessages as never,
+      children: tree,
+    }),
   )
   await stream.allReady
   return new Response(stream).text()

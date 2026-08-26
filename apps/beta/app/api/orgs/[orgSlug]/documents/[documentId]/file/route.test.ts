@@ -106,6 +106,9 @@ async function seedDocument(
     source: source(),
   })
   if (!result.ok) throw new Error(`fixture upload refused: ${result.reason}`)
+  // The salt guarantees this is a new file, so it is never a duplicate and the
+  // row is always present. A missing one is a broken fixture, not a null case.
+  if (!result.document) throw new Error("fixture upload carried no row")
   return result.document.id
 }
 

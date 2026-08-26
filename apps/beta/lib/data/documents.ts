@@ -11,7 +11,10 @@ import "server-only"
  * `OrgScope` as its first argument, so none of it is reachable without a
  * resolved membership.
  *
- * FOUR FILTERS ARE ON EVERY READ, and each is a different rule:
+ * FOUR FILTERS GOVERN EVERY READ — on every client-facing read they are in the
+ * WHERE clause; on the one query that cannot put them there (the upload's
+ * duplicate lookup, explained below) they are re-applied to the result. Each is
+ * a different rule:
  *
  *   1. `organization_id = scope.organizationId` — tenancy. The document id from
  *      the URL is never used alone; it is always ANDed with the scope's org, so
@@ -26,6 +29,18 @@ import "server-only"
  *   4. `visible_to_client` — the hidden class. owner IS the accountant (plan
  *      Part 4), so owner sees the whole book; every other role sees only what
  *      the office has marked client-visible.
+ *
+ * THE ONE QUERY THAT DOES NOT USE THAT FILTER, AND WHY IT IS STILL SAFE. The
+ * upload's duplicate lookup searches (organization_id, sha256) with filters 1
+ * and 2 only. It has to: `document_organization_sha256_unique` is unconditional
+ * over live rows, so a lookup that could not SEE a hidden twin would let the
+ * INSERT behind it hit the index and raise 23505 — the office hiding a document
+ * would start turning a client's next upload into a 500. The filter is applied
+ * to the ANSWER instead: `duplicateTwinVisibleTo` re-applies rules 3 and 4 and
+ * returns `document: null` when the twin is one this caller could not read
+ * through any other door. The upload is still correctly refused as a duplicate;
+ * the caller simply learns nothing about the row. Matching a file's digest is
+ * not a permission to read a row that shares it.
  *
  * THE UPLOAD'S ORDER OF OPERATIONS, and why the bytes go first:
  *
@@ -50,6 +65,7 @@ import {
   document,
   organization,
   type BetaClientDocumentType,
+  type BetaDocumentType,
 } from "@/db/schema"
 import { isInlineSafeContentType } from "@/lib/storage/content-type"
 import { baseFilename } from "@/lib/storage/content-disposition"
@@ -117,6 +133,43 @@ function visibleDocuments(scope: OrgScope) {
     // the client-visible layer.
     scope.role === "owner" ? undefined : eq(document.visible_to_client, true),
   )
+}
+
+/**
+ * The two extra columns the duplicate lookup needs, and only it.
+ *
+ * WHY THE DUPLICATE LOOKUP IS THE ONE READ THAT CANNOT USE `visibleDocuments`.
+ * `document_organization_sha256_unique` is UNCONDITIONAL over live rows — it
+ * knows nothing about `doc_type` or `visible_to_client`. If the pre-INSERT
+ * lookup filtered on visibility, a hidden twin would be invisible to the SELECT
+ * and the INSERT behind it would hit the index and raise 23505: the office
+ * hiding one document would start turning a client's next upload into a 500.
+ *
+ * So the SELECT stays unfiltered — and the ANSWER is gated instead. The row is
+ * found (so the duplicate is correctly detected) but its projection is only
+ * returned to a caller who could have read that row through any other door.
+ */
+const duplicateLookupColumns = {
+  ...summaryColumns,
+  visible_to_client: document.visible_to_client,
+}
+
+/**
+ * May this caller be told WHICH row their upload duplicates?
+ *
+ * Mirrors filters 3 and 4 of `visibleDocuments` exactly. Without it, uploading
+ * bytes that happen to match a hidden row would hand back that row's whole
+ * projection — filename, status, office message, amount, date, site — to
+ * someone the office deliberately hid it from, and after PR 32 an employee
+ * seat could surface a colleague's payslip the same way. The digest of a file
+ * is not a permission to read a row that shares it.
+ */
+function duplicateTwinVisibleTo(
+  scope: OrgScope,
+  twin: { doc_type: BetaDocumentType; visible_to_client: boolean },
+): boolean {
+  if (twin.doc_type === "payslip") return false
+  return scope.role === "owner" || twin.visible_to_client
 }
 
 // ---------------------------------------------------------------------------
@@ -238,16 +291,23 @@ export type DocumentUploadRefusal =
   | "retry"
 
 export type DocumentUploadResult =
+  | { ok: true; status: "stored"; document: DocumentSummary }
   | {
       ok: true
       /**
-       * `duplicate` means these exact bytes are already on this book, and the
-       * row returned is the EXISTING one (spec §2.2 duplicate soft-detect:
-       * "Tento soubor už jste nahráli DD.MM.YYYY — otevřít / nahrát znovu",
-       * never an error page). Nothing new was stored.
+       * These exact bytes are already on this book (spec §2.2 duplicate
+       * soft-detect: "Tento soubor už jste nahráli DD.MM.YYYY — otevřít /
+       * nahrát znovu", never an error page). Nothing new was stored.
        */
-      status: "stored" | "duplicate"
-      document: DocumentSummary
+      status: "duplicate"
+      /**
+       * The EXISTING row — or `null` when that row is one this caller may not
+       * read (see `duplicateTwinVisibleTo`). Null is not an error: the upload
+       * was still correctly refused as a duplicate, the client is still told
+       * so, it just gets no link to open. A UI renders "tento soubor už na
+       * účtu je" without the "otevřít" button.
+       */
+      document: DocumentSummary | null
     }
   | { ok: false; reason: DocumentUploadRefusal }
 
@@ -380,8 +440,10 @@ export async function uploadDocument(
         .where(eq(organization.id, scope.organizationId))
         .for("no key update")
 
+      // Unfiltered by design — see `duplicateLookupColumns`. The visibility
+      // decision is made on the way OUT, not in the WHERE clause.
       const [existing] = await tx
-        .select(summaryColumns)
+        .select(duplicateLookupColumns)
         .from(document)
         .where(
           and(
@@ -438,12 +500,15 @@ export async function uploadDocument(
     }
     if (outcome.kind === "duplicate") {
       // The bytes we just wrote are a second copy of an object this book
-      // already has. Drop it — the row the client gets back is the original.
+      // already has. Drop it — the row the client gets back is the original,
+      // and only when that original is one they could read anyway.
       await discard()
       return {
         ok: true,
         status: "duplicate",
-        document: documentSummary(outcome.row),
+        document: duplicateTwinVisibleTo(scope, outcome.row)
+          ? documentSummary(outcome.row)
+          : null,
       }
     }
     if (!outcome.row) throw new Error("insert returned no row")
@@ -459,8 +524,9 @@ export async function uploadDocument(
     // them the way the duplicate branch does rather than as a 500: re-read the
     // row that won.
     if (isUniqueViolation(error)) {
+      // Same unfiltered lookup, same gate on the way out.
       const winner = await betaDb()
-        .select(summaryColumns)
+        .select(duplicateLookupColumns)
         .from(document)
         .where(
           and(
@@ -472,7 +538,13 @@ export async function uploadDocument(
         .limit(1)
       const [row] = winner
       if (row) {
-        return { ok: true, status: "duplicate", document: documentSummary(row) }
+        return {
+          ok: true,
+          status: "duplicate",
+          document: duplicateTwinVisibleTo(scope, row)
+            ? documentSummary(row)
+            : null,
+        }
       }
     }
     // Postgres broke a lock cycle and picked this transaction as the victim.

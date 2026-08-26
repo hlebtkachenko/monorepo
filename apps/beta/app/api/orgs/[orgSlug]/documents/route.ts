@@ -117,9 +117,14 @@ export async function POST(
   // apart to show the "už jste nahráli" dialog of spec §2.2 rather than a
   // success toast, and the status code is the honest way to say "nothing was
   // created".
+  //
+  // `document` is OMITTED, not sent as null, when the duplicate's twin is a row
+  // this caller may not read (a hidden document, or a payslip). The dialog then
+  // says "tento soubor už na účtu je" with no "otevřít" link — and the payload
+  // carries no field of the row at all.
   return json(result.status === "stored" ? 201 : 200, {
     status: result.status,
-    document: result.document,
+    ...(result.document ? { document: result.document } : {}),
   })
 }
 

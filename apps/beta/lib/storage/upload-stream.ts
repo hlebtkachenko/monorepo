@@ -19,8 +19,20 @@
  * `Content-Type` both come from the SNIFFED type, so the type has to be known
  * before the S3 upload can start. `scanUpload` therefore pulls just enough bytes
  * to decide (`SNIFF_BYTES`), answers with the type, and hands back a stream that
- * replays those bytes ahead of the rest — the caller sees one continuous body
- * and the file is never buffered beyond 64 bytes.
+ * replays those bytes ahead of the rest — the caller sees one continuous body,
+ * and past the head nothing is accumulated at all: each chunk is hashed,
+ * counted and yielded straight through.
+ *
+ * WHAT THE HEAD ACTUALLY BUFFERS. The loop stops as soon as it HOLDS at least
+ * `SNIFF_BYTES`, not as soon as it has read that many — so the buffer is 64
+ * bytes plus the overshoot of the chunk that crossed the line, i.e. bounded by
+ * `SNIFF_BYTES + (largest single chunk)`. In practice that is one network chunk
+ * (~64 KiB from undici). The hard ceiling is `MAX_UPLOAD_BYTES`: the loop
+ * checks the running total on every chunk and refuses `too_large` before
+ * concatenating, so a source that hands over one 500 MiB buffer is rejected
+ * rather than joined. Deliberately NOT "never beyond 64 bytes" — that would be
+ * true only of a source that chunks finely, which is not a property this module
+ * controls.
  *
  * PURE-ISH MODULE: node:crypto and node:stream only, no AWS, no database. The
  * caller supplies any `AsyncIterable<Uint8Array>`, so the whole pipeline is

@@ -8,6 +8,7 @@
  */
 import { randomUUID } from "node:crypto"
 
+import postgres from "postgres"
 import {
   afterAll,
   afterEach,
@@ -31,6 +32,7 @@ import {
   seedOrganization,
   type TestOrganization,
 } from "../../../../../tests/fixtures"
+import { sharedDatabaseUrl } from "../../../../../tests/scratch-db"
 
 const request = vi.hoisted(() => ({ headers: new Headers() }))
 
@@ -43,12 +45,20 @@ const ORIGIN = "http://localhost:3200"
 let route: typeof import("./route")
 let setDocumentStoreForTests: (store: unknown) => void
 let store: MemoryDocumentStore
+/**
+ * A raw driver handle, not `betaDb()`: `db/client.ts` is import-fenced to the
+ * data layer (`lib/data/db-client-fence.boundary.test.ts`), and a route's spec
+ * is not the data layer. It is used only to reshape a seeded row the way the
+ * office would.
+ */
+let sql: postgres.Sql
 
 let orgA: TestOrganization
 let orgB: TestOrganization
 
 beforeAll(async () => {
   process.env["BETTER_AUTH_URL"] ??= ORIGIN
+  sql = postgres(sharedDatabaseUrl(), { max: 2, onnotice: () => {} })
   route = await import("./route")
   const storeModule = await import("@/lib/storage/store")
   setDocumentStoreForTests = storeModule.setDocumentStoreForTests as (
@@ -62,6 +72,7 @@ afterEach(() => {
 })
 
 afterAll(async () => {
+  await sql.end({ timeout: 5 })
   await endFixtures()
 })
 
@@ -159,6 +170,33 @@ describe("POST /api/orgs/[orgSlug]/documents", () => {
     )
   })
 
+  it("omits `document` entirely when the duplicate's twin is hidden", async () => {
+    useStore()
+    const bytes = fresh(PDF_BYTES)
+
+    // The office uploads, then hides the row.
+    const seeded = await post(orgA.members.owner.headers, orgA.slug, bytes, {
+      filename: "tajne-cislo-42.pdf",
+    })
+    const { document: twin } = (await seeded.json()) as {
+      document: { id: string }
+    }
+    await sql`UPDATE document SET visible_to_client = false WHERE id = ${twin.id}`
+
+    // A member re-uploads the same file — the everyday case.
+    const response = await post(orgA.members.member.headers, orgA.slug, bytes, {
+      filename: "muj-soubor.pdf",
+    })
+
+    expect(response.status).toBe(200)
+    const payload = (await response.json()) as Record<string, unknown>
+    expect(payload["status"]).toBe("duplicate")
+    // Not `null` — absent. The wire carries no field of that row at all.
+    expect("document" in payload).toBe(false)
+    expect(JSON.stringify(payload)).not.toContain(twin.id)
+    expect(JSON.stringify(payload)).not.toContain("tajne-cislo-42")
+  })
+
   it("never serialises a storage key, a hash or the internal layer", async () => {
     useStore()
     const response = await post(
@@ -219,6 +257,9 @@ describe("POST — refusals", () => {
     expect(((await response.json()) as { error: string }).error).toBe(
       "forbidden",
     )
+    // The role check runs before the body is touched, so a guest cannot make
+    // the task read — let alone store — a single byte.
+    expect(store.keys()).toEqual([])
   })
 
   it("answers 415 for bytes outside the allowlist", async () => {

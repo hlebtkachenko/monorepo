@@ -128,6 +128,23 @@ function useStore(): MemoryDocumentStore {
   return store
 }
 
+/**
+ * The row an upload carried, or a loud failure.
+ *
+ * `document` is nullable on the duplicate branch — that is the point of
+ * `duplicateTwinVisibleTo`, and the null case has its own describe block below.
+ * Everywhere else a missing row is a bug in the code under test, so this
+ * asserts rather than optional-chains: `result.document?.id` would silently
+ * compare `undefined` to `undefined` and pass.
+ */
+function rowOf(
+  result: Awaited<ReturnType<typeof upload>>,
+): NonNullable<Extract<typeof result, { ok: true }>["document"]> {
+  if (!result.ok) throw new Error(`upload refused: ${result.reason}`)
+  if (!result.document) throw new Error("upload carried no document row")
+  return result.document
+}
+
 describe("uploadDocument — the happy path", () => {
   it("stores the bytes, records the row, and answers with a projection", async () => {
     const fake = useStore()
@@ -138,9 +155,9 @@ describe("uploadDocument — the happy path", () => {
     if (!result.ok) throw new Error(`refused: ${result.reason}`)
 
     expect(result.status).toBe("stored")
-    expect(result.document.filename).toBe(CZECH_FILENAME)
-    expect(result.document.contentType).toBe("application/pdf")
-    expect(result.document.byteSize).toBe(PDF_BYTES.length)
+    expect(rowOf(result).filename).toBe(CZECH_FILENAME)
+    expect(rowOf(result).contentType).toBe("application/pdf")
+    expect(rowOf(result).byteSize).toBe(PDF_BYTES.length)
     expect(fake.keys()).toHaveLength(1)
     expect(fake.bytesOf(fake.keys()[0]!)).toEqual(PDF_BYTES)
   })
@@ -154,9 +171,9 @@ describe("uploadDocument — the happy path", () => {
     const result = await upload(scope, PNG_BYTES, { filename: "faktura.pdf" })
     if (!result.ok) throw new Error(`refused: ${result.reason}`)
 
-    expect(result.document.contentType).toBe("image/png")
+    expect(rowOf(result).contentType).toBe("image/png")
     const [row] = await sql<{ extension: string; storage_key: string }[]>`
-      SELECT extension, storage_key FROM document WHERE id = ${result.document.id}
+      SELECT extension, storage_key FROM document WHERE id = ${rowOf(result).id}
     `
     expect(row!.extension).toBe("png")
     expect(row!.storage_key).toMatch(/\.png$/)
@@ -173,7 +190,7 @@ describe("uploadDocument — the happy path", () => {
     if (!result.ok) throw new Error(`refused: ${result.reason}`)
 
     const [row] = await sql<{ storage_key: string }[]>`
-      SELECT storage_key FROM document WHERE id = ${result.document.id}
+      SELECT storage_key FROM document WHERE id = ${rowOf(result).id}
     `
     const key = row!.storage_key
     expect(key.startsWith(`org/${scope.organizationId}/`)).toBe(true)
@@ -191,7 +208,7 @@ describe("uploadDocument — the happy path", () => {
     if (!result.ok) throw new Error(`refused: ${result.reason}`)
 
     const [row] = await sql<{ uploaded_by_user_id: string }[]>`
-      SELECT uploaded_by_user_id FROM document WHERE id = ${result.document.id}
+      SELECT uploaded_by_user_id FROM document WHERE id = ${rowOf(result).id}
     `
     expect(row!.uploaded_by_user_id).toBe(org.members.admin.userId)
   })
@@ -270,7 +287,7 @@ describe("uploadDocument — refusals", () => {
       filename: "../../etc/faktura.pdf",
     })
     if (!result.ok) throw new Error(`refused: ${result.reason}`)
-    expect(result.document.filename).toBe("faktura.pdf")
+    expect(rowOf(result).filename).toBe("faktura.pdf")
   })
 })
 
@@ -289,8 +306,8 @@ describe("uploadDocument — duplicate soft-detect (spec §2.2)", () => {
     expect(second.status).toBe("duplicate")
     // The row handed back is the one already on the book — that is what lets
     // the dialog say "už jste nahráli DD.MM.YYYY — otevřít".
-    expect(second.document.id).toBe(first.document.id)
-    expect(second.document.filename).toBe("prvni.pdf")
+    expect(rowOf(second).id).toBe(rowOf(first).id)
+    expect(rowOf(second).filename).toBe("prvni.pdf")
 
     // Exactly one object survives; the second copy was compensated away.
     expect(fake.keys()).toHaveLength(1)
@@ -321,14 +338,14 @@ describe("uploadDocument — duplicate soft-detect (spec §2.2)", () => {
 
     const first = await upload(owner, PDF_BYTES)
     if (!first.ok) throw new Error("first upload refused")
-    expect(await documents.softDeleteDocument(owner, first.document.id)).toBe(
+    expect(await documents.softDeleteDocument(owner, rowOf(first).id)).toBe(
       true,
     )
 
     const again = await upload(owner, PDF_BYTES)
     if (!again.ok) throw new Error("re-upload refused")
     expect(again.status).toBe("stored")
-    expect(again.document.id).not.toBe(first.document.id)
+    expect(rowOf(again).id).not.toBe(rowOf(first).id)
   })
 
   it("answers duplicate for two uploads racing the same bytes", async () => {
@@ -344,12 +361,143 @@ describe("uploadDocument — duplicate soft-detect (spec §2.2)", () => {
 
     const statuses = [a.status, b.status].sort()
     expect(statuses).toEqual(["duplicate", "stored"])
-    expect(a.document.id).toBe(b.document.id)
+    expect(rowOf(a).id).toBe(rowOf(b).id)
     expect(fake.keys()).toHaveLength(1)
 
     const rows =
       await sql`SELECT id FROM document WHERE organization_id = ${scope.organizationId}`
     expect(rows).toHaveLength(1)
+  })
+})
+
+/**
+ * The duplicate lookup is the one query that cannot put the visibility filters
+ * in its WHERE clause (the unique index is unconditional, so a filtered SELECT
+ * would let the INSERT behind it hit 23505). It applies them to the answer
+ * instead — and these are the cases that prove it, because getting this wrong
+ * turns "I uploaded a file" into a read of a row the office hid.
+ *
+ * The leak is genuinely reachable without any privilege: a client re-uploading
+ * the same PDF they sent last month is the NORMAL case, and if the office has
+ * since hidden that row, the naive implementation hands its filename, status,
+ * office message, amount, date and site back to them.
+ */
+describe("uploadDocument — a duplicate never reads a row the caller cannot", () => {
+  /** Upload once as owner, then reshape the stored row with raw SQL. */
+  async function seedTwin(
+    org: TestOrganization,
+    bytes: Buffer,
+    patch: (id: string) => Promise<unknown>,
+  ): Promise<string> {
+    const owner = await scopeFor(org, "owner")
+    const first = await upload(owner, bytes, { filename: "tajne-cislo-42.pdf" })
+    if (!first.ok || !first.document) throw new Error("seed upload refused")
+    await patch(rowOf(first).id)
+    return rowOf(first).id
+  }
+
+  /** No field of the hidden row may appear anywhere in the answer. */
+  function expectNoLeak(result: unknown, twinId: string): void {
+    const serialized = JSON.stringify(result)
+    expect(serialized).not.toContain(twinId)
+    expect(serialized).not.toContain("tajne-cislo-42")
+    expect(serialized).not.toContain("Interni poznamka")
+    expect(serialized).not.toContain("1234.56")
+  }
+
+  it.each(["admin", "member"] as const)(
+    "answers %s `duplicate` with NO row when the twin is hidden",
+    async (role) => {
+      const fake = useStore()
+      const org = await seedOrganization()
+      const bytes = Buffer.concat([PDF_BYTES, Buffer.from(role)])
+
+      const twinId = await seedTwin(
+        org,
+        bytes,
+        (id) =>
+          sql`
+          UPDATE document
+             SET visible_to_client = false,
+                 office_message = 'Interni poznamka',
+                 amount = 1234.56
+           WHERE id = ${id}
+        `,
+      )
+
+      const result = await upload(await scopeFor(org, role), bytes, {
+        filename: "muj-soubor.pdf",
+      })
+      if (!result.ok) throw new Error(`refused: ${result.reason}`)
+
+      // Still a duplicate — nothing new was stored, and the caller is told so.
+      expect(result.status).toBe("duplicate")
+      expect(result.document).toBeNull()
+      expectNoLeak(result, twinId)
+
+      // And the twin is still the only object + the only row.
+      expect(fake.keys()).toHaveLength(1)
+      const rows =
+        await sql`SELECT id FROM document WHERE organization_id = ${org.organizationId}`
+      expect(rows).toHaveLength(1)
+    },
+  )
+
+  it("answers `duplicate` with NO row when the twin is a payslip — even for the owner", async () => {
+    useStore()
+    const org = await seedOrganization()
+    const bytes = Buffer.concat([PDF_BYTES, Buffer.from("payslip")])
+
+    // Relabelled the way PR 31's Výplatnice upload will. Payslips leave
+    // Dokumenty entirely (spec §2.2), so nothing here may surface one — and
+    // after PR 32 the uploader could be the employee seat of a colleague.
+    const twinId = await seedTwin(
+      org,
+      bytes,
+      (id) =>
+        sql`UPDATE document SET doc_type = 'payslip', amount = 1234.56 WHERE id = ${id}`,
+    )
+
+    for (const role of ["owner", "admin", "member"] as const) {
+      const result = await upload(await scopeFor(org, role), bytes)
+      if (!result.ok) throw new Error(`refused: ${result.reason}`)
+      expect(result.status, role).toBe("duplicate")
+      expect(result.document, role).toBeNull()
+      expectNoLeak(result, twinId)
+    }
+  })
+
+  it("still hands the OWNER a hidden twin's row — the gate is role-aware", async () => {
+    useStore()
+    const org = await seedOrganization()
+    const bytes = Buffer.concat([PDF_BYTES, Buffer.from("owner-control")])
+
+    const twinId = await seedTwin(
+      org,
+      bytes,
+      (id) =>
+        sql`UPDATE document SET visible_to_client = false WHERE id = ${id}`,
+    )
+
+    // owner IS the accountant: the hidden layer is theirs, so the "otevřít"
+    // link must still work for them. A blanket null would be over-correction.
+    const result = await upload(await scopeFor(org, "owner"), bytes)
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+    expect(result.status).toBe("duplicate")
+    expect(result.document?.id).toBe(twinId)
+  })
+
+  it("hands back the row normally when the twin is plainly visible", async () => {
+    useStore()
+    const org = await seedOrganization()
+    const bytes = Buffer.concat([PDF_BYTES, Buffer.from("visible")])
+    const twinId = await seedTwin(org, bytes, () => Promise.resolve())
+
+    const result = await upload(await scopeFor(org, "member"), bytes)
+    if (!result.ok) throw new Error(`refused: ${result.reason}`)
+    expect(result.status).toBe("duplicate")
+    expect(result.document?.id).toBe(twinId)
+    expect(result.document?.filename).toBe("tajne-cislo-42.pdf")
   })
 })
 
@@ -416,7 +564,7 @@ describe("uploadDocument — the per-organization quota", () => {
       PDF_BYTES.length,
     )
 
-    await documents.softDeleteDocument(owner, first.document.id)
+    await documents.softDeleteDocument(owner, rowOf(first).id)
     expect((await documents.organizationStorageUsage(owner)).usedBytes).toBe(0)
   })
 
@@ -505,10 +653,10 @@ describe("reads — the four filters", () => {
 
     const intruder = await scopeFor(b, "owner")
     expect(
-      await documents.documentForScope(intruder, mine.document.id),
+      await documents.documentForScope(intruder, rowOf(mine).id),
     ).toBeNull()
     expect(
-      await documents.openDocumentFile(intruder, mine.document.id),
+      await documents.openDocumentFile(intruder, rowOf(mine).id),
     ).toBeNull()
     expect(await documents.listDocuments(intruder)).toEqual([])
   })
@@ -531,14 +679,10 @@ describe("reads — the four filters", () => {
 
     const result = await upload(owner, PDF_BYTES)
     if (!result.ok) throw new Error("refused")
-    await documents.softDeleteDocument(owner, result.document.id)
+    await documents.softDeleteDocument(owner, rowOf(result).id)
 
-    expect(
-      await documents.documentForScope(owner, result.document.id),
-    ).toBeNull()
-    expect(
-      await documents.openDocumentFile(owner, result.document.id),
-    ).toBeNull()
+    expect(await documents.documentForScope(owner, rowOf(result).id)).toBeNull()
+    expect(await documents.openDocumentFile(owner, rowOf(result).id)).toBeNull()
     expect(await documents.listDocuments(owner)).toEqual([])
   })
 
@@ -550,19 +694,19 @@ describe("reads — the four filters", () => {
     const result = await upload(member, PDF_BYTES)
     if (!result.ok) throw new Error("refused")
 
-    expect(await documents.softDeleteDocument(member, result.document.id)).toBe(
+    expect(await documents.softDeleteDocument(member, rowOf(result).id)).toBe(
       false,
     )
     expect(
       await documents.softDeleteDocument(
         await scopeFor(org, "guest"),
-        result.document.id,
+        rowOf(result).id,
       ),
     ).toBe(false)
     expect(
       await documents.softDeleteDocument(
         await scopeFor(org, "owner"),
-        result.document.id,
+        rowOf(result).id,
       ),
     ).toBe(true)
   })
@@ -578,15 +722,11 @@ describe("reads — the four filters", () => {
     // Relabelled the way PR 31's Výplatnice upload will. Even the owner — the
     // accountant, who sees everything else — loses it from Dokumenty; it is
     // reachable only under the payroll scope that PR 32 introduces.
-    await sql`UPDATE document SET doc_type = 'payslip' WHERE id = ${result.document.id}`
+    await sql`UPDATE document SET doc_type = 'payslip' WHERE id = ${rowOf(result).id}`
 
     expect(await documents.listDocuments(owner)).toEqual([])
-    expect(
-      await documents.documentForScope(owner, result.document.id),
-    ).toBeNull()
-    expect(
-      await documents.openDocumentFile(owner, result.document.id),
-    ).toBeNull()
+    expect(await documents.documentForScope(owner, rowOf(result).id)).toBeNull()
+    expect(await documents.openDocumentFile(owner, rowOf(result).id)).toBeNull()
   })
 
   it("hides a not-client-visible document from everyone but the owner", async () => {
@@ -596,17 +736,17 @@ describe("reads — the four filters", () => {
 
     const result = await upload(owner, PDF_BYTES)
     if (!result.ok) throw new Error("refused")
-    await sql`UPDATE document SET visible_to_client = false WHERE id = ${result.document.id}`
+    await sql`UPDATE document SET visible_to_client = false WHERE id = ${rowOf(result).id}`
 
     expect(await documents.listDocuments(owner)).toHaveLength(1)
     for (const role of ["admin", "member", "guest"] as const) {
       const scope = await scopeFor(org, role)
       expect(await documents.listDocuments(scope)).toEqual([])
       expect(
-        await documents.documentForScope(scope, result.document.id),
+        await documents.documentForScope(scope, rowOf(result).id),
       ).toBeNull()
       expect(
-        await documents.openDocumentFile(scope, result.document.id),
+        await documents.openDocumentFile(scope, rowOf(result).id),
       ).toBeNull()
     }
   })
@@ -621,8 +761,8 @@ describe("reads — the four filters", () => {
     if (!first.ok || !second.ok) throw new Error("refused")
 
     expect((await documents.listDocuments(scope)).map((d) => d.id)).toEqual([
-      second.document.id,
-      first.document.id,
+      rowOf(second).id,
+      rowOf(first).id,
     ])
   })
 })
@@ -636,7 +776,7 @@ describe("openDocumentFile", () => {
     const result = await upload(scope, JPEG_BYTES)
     if (!result.ok) throw new Error("refused")
 
-    const handle = await documents.openDocumentFile(scope, result.document.id)
+    const handle = await documents.openDocumentFile(scope, rowOf(result).id)
     if (!handle) throw new Error("no handle")
 
     const parts: Buffer[] = []
@@ -660,7 +800,7 @@ describe("openDocumentFile", () => {
       const result = await upload(scope, Buffer.from(bytes))
       if (!result.ok) throw new Error("refused")
 
-      const handle = await documents.openDocumentFile(scope, result.document.id)
+      const handle = await documents.openDocumentFile(scope, rowOf(result).id)
       expect(handle?.inlineAllowed).toBe(allowed)
     },
   )
@@ -724,12 +864,12 @@ describe("database constraints", () => {
     if (!result.ok) throw new Error("refused")
 
     await expect(
-      sql`UPDATE document SET status = 'returned' WHERE id = ${result.document.id}`,
+      sql`UPDATE document SET status = 'returned' WHERE id = ${rowOf(result).id}`,
     ).rejects.toThrow()
 
     await expect(sql`
       UPDATE document SET status = 'returned', office_message = 'Chybí druhá strana'
-       WHERE id = ${result.document.id}
+       WHERE id = ${rowOf(result).id}
     `).resolves.toBeDefined()
   })
 
@@ -742,7 +882,7 @@ describe("database constraints", () => {
 
     await expect(sql`
       UPDATE document SET organization_id = ${b.organizationId}
-       WHERE id = ${result.document.id}
+       WHERE id = ${rowOf(result).id}
     `).rejects.toThrow(/cannot change organization/)
   })
 
@@ -755,11 +895,11 @@ describe("database constraints", () => {
     await expect(sql`
       UPDATE document
          SET storage_key = ${`org/${org.organizationId}/${crypto.randomUUID()}.pdf`}
-       WHERE id = ${result.document.id}
+       WHERE id = ${rowOf(result).id}
     `).rejects.toThrow(/cannot change its stored object/)
 
     await expect(sql`
-      UPDATE document SET sha256 = ${"e".repeat(64)} WHERE id = ${result.document.id}
+      UPDATE document SET sha256 = ${"e".repeat(64)} WHERE id = ${rowOf(result).id}
     `).rejects.toThrow(/cannot change its stored object/)
   })
 
@@ -773,7 +913,7 @@ describe("database constraints", () => {
     await sql`DELETE FROM app_user WHERE id = ${org.members.member.userId}`
 
     const [row] = await sql<{ uploaded_by_user_id: string | null }[]>`
-      SELECT uploaded_by_user_id FROM document WHERE id = ${result.document.id}
+      SELECT uploaded_by_user_id FROM document WHERE id = ${rowOf(result).id}
     `
     expect(row!.uploaded_by_user_id).toBeNull()
   })

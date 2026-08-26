@@ -788,8 +788,9 @@ describe("the dataset axis", () => {
         FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid
        WHERE t.typname = 'beta_import_dataset'
     `
-    // saldokonto (PR 27) and payroll (PR 29) are declared now so the publish
-    // semantics never have to be re-reasoned when their payload tables land.
+    // saldokonto (PR 27) is still declared ahead of its payload table so the
+    // publish semantics never have to be re-reasoned when it lands; payroll's
+    // arrived with migration 0016.
     expect(row!.labels).toEqual([
       "predvaha",
       "rozvaha",

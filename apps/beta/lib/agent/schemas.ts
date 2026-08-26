@@ -219,6 +219,139 @@ export const publishTrialBalanceSchema = z
   })
   .strict()
 
+/**
+ * A headcount. An integer, and never a money string: it counts people.
+ *
+ * The cap mirrors `MAX_PAYROLL_EMPLOYEES` below rather than being open-ended —
+ * a five-digit headcount in a payload aimed at a small s.r.o.'s book is a
+ * mis-mapped column, and it is cheaper to say so here than to let the office
+ * discover it on Přehled mezd.
+ */
+const headcount = z.int().min(0).max(10_000)
+
+/**
+ * How many employees one payroll publish may carry.
+ *
+ * The office's clients are small Czech s.r.o.s; 500 is an order of magnitude
+ * above the largest realistic payroll here, and it bounds the per-employee
+ * upsert list this call echoes into its `activity_log` summary — which the
+ * office reads, and which is why this cap is nearer the registry cap than the
+ * 5 000-row `predvaha` one.
+ */
+const MAX_PAYROLL_EMPLOYEES = 500
+
+/**
+ * Publish one period's payroll — the totals and the per-employee lines (spec
+ * §3.2 "payroll summary + employee lines", §2.6).
+ *
+ * ONE CALL, TWO PAYLOAD TABLES, and the employee REGISTRY upserted alongside
+ * them, because the office's source produces all three as one payroll run. A
+ * separate "employees" endpoint would let the register and the lines be
+ * published apart, and a line whose person the portal does not know yet is not a
+ * state anything can render.
+ *
+ * `summary` IS REQUIRED, `employees` IS NOT. A payroll publish with lines and no
+ * totals would leave Přehled mezd reading "zatím nebylo nahráno" while
+ * Zaměstnanci showed a full month; the reverse — totals with no per-person
+ * breakdown — is a real thing an office may send (spec §2.6 has the two as
+ * separate surfaces) and is accepted as such. Every field INSIDE `summary` is
+ * optional: an absent figure is absent, never zero (§0.4).
+ *
+ * `externalRef` IS THE ONLY MATCH KEY, and it is required on every employee.
+ * Two employees can genuinely be called Jan Novák, and one employee's name
+ * genuinely changes — so name matching would merge two people in the first case
+ * and duplicate one in the second, and both end with a salary attributed to the
+ * wrong person. The source payroll system's own id is the only key that means
+ * anything here.
+ *
+ * THERE IS NO `appUserId` FIELD, AND THERE WILL NOT BE ONE. Binding a portal
+ * account to an employee row is the employee seat's identity act (spec §2.6.1:
+ * a pre-bound setup token consumed into account + guest membership + link, in
+ * one transaction), not an accounting fact an office agent states. An agent that
+ * could set it could hand any account someone else's payslips.
+ */
+export const publishPayrollSchema = z
+  .object({
+    period: periodSchema,
+    summary: z
+      .object({
+        grossTotal: money.nullish(),
+        employerSocial: money.nullish(),
+        employerHealth: money.nullish(),
+        /** "Celkové náklady na zaměstnance" (spec §2.6). Never "superhrubá". */
+        employerCostTotal: money.nullish(),
+        employeeWithholdingsTotal: money.nullish(),
+        incomeTaxAdvance: money.nullish(),
+        /** Čistá vyplacená celkem (Advisor F14). */
+        netPaidTotal: money.nullish(),
+        paymentDueDate: isoDate.nullish(),
+        headcountHpp: headcount.nullish(),
+        headcountDpc: headcount.nullish(),
+        headcountDpp: headcount.nullish(),
+        noteClient: optionalText(2000),
+      })
+      .strict(),
+    employees: z
+      .array(
+        z
+          .object({
+            externalRef,
+            fullName: text(255),
+            contractType: z.enum(["hpp", "dpc", "dpp"]),
+            startedOn: isoDate.nullish(),
+            endedOn: isoDate.nullish(),
+            /**
+             * Whether the register still lists this person. Independent of
+             * `endedOn` on purpose — spec §2.6.1 makes deactivating a leaver a
+             * deliberate act ("never automatic"), so neither is derived from
+             * the other here or in the database.
+             */
+            active: z.boolean().optional(),
+            gross: money.nullish(),
+            deductionsTotal: money.nullish(),
+            net: money.nullish(),
+            employerCost: money.nullish(),
+          })
+          .strict()
+          .superRefine((value, ctx) => {
+            // Mirrors `payroll_employee_employment_dates_ordered`. Stated here
+            // so the caller is told WHICH field is wrong instead of being handed
+            // a constraint name in a 23514.
+            if (
+              value.startedOn &&
+              value.endedOn &&
+              value.endedOn < value.startedOn
+            ) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["endedOn"],
+                message: "endedOn precedes startedOn",
+              })
+            }
+          }),
+      )
+      .max(MAX_PAYROLL_EMPLOYEES),
+    noteInternal: optionalText(2000),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // `payroll_employee_line_identity_unique` would refuse the second row with a
+    // 23505 at the bottom of a transaction. Refused here instead, by index, so a
+    // source that emitted one person twice is told which entry is the duplicate
+    // — and so the refusal costs no transaction at all.
+    const seen = new Set<string>()
+    for (const [index, employee] of value.employees.entries()) {
+      if (seen.has(employee.externalRef)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["employees", index, "externalRef"],
+          message: "duplicate externalRef in one payroll payload",
+        })
+      }
+      seen.add(employee.externalRef)
+    }
+  })
+
 // ---------------------------------------------------------------------------
 // Registry upserts (spec §3.2 "filings, liabilities, ... assets")
 // ---------------------------------------------------------------------------
@@ -398,6 +531,7 @@ export const clientTasksUpsertSchema = z
 
 export type PublishStatementsInput = z.infer<typeof publishStatementsSchema>
 export type PublishTrialBalanceInput = z.infer<typeof publishTrialBalanceSchema>
+export type PublishPayrollInput = z.infer<typeof publishPayrollSchema>
 export type FilingsUpsertInput = z.infer<typeof filingsUpsertSchema>
 export type LiabilitiesUpsertInput = z.infer<typeof liabilitiesUpsertSchema>
 export type AssetsUpsertInput = z.infer<typeof assetsUpsertSchema>

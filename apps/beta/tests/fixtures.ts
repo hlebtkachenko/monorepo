@@ -25,6 +25,7 @@ import type {
   BetaImportStatus,
   BetaObligationGroup,
   BetaOrgRole,
+  BetaPayrollContractType,
   BetaPeriodKind,
   BetaStatementKind,
   BetaVatRegime,
@@ -351,6 +352,7 @@ export async function createDocumentRow(
     visibleToClient?: boolean
     deleted?: boolean
     payslipPeriodId?: string | null
+    payslipEmployeeId?: string | null
   } = {},
 ): Promise<string> {
   const sql = db()
@@ -358,7 +360,7 @@ export async function createDocumentRow(
     INSERT INTO document (
       organization_id, doc_type, original_filename, storage_key,
       content_type, extension, byte_size, sha256, visible_to_client,
-      payslip_period_id, deleted_at
+      payslip_period_id, payslip_employee_id, deleted_at
     )
     VALUES (
       ${organizationId},
@@ -371,6 +373,7 @@ export async function createDocumentRow(
       md5(random()::text) || md5(random()::text),
       ${values.visibleToClient ?? true},
       ${values.payslipPeriodId ?? null},
+      ${values.payslipEmployeeId ?? null},
       ${values.deleted ? sql`now()` : null}
     )
     RETURNING id
@@ -729,4 +732,186 @@ export async function createClientTaskTemplateRow(
     RETURNING id
   `
   return row!.id
+}
+
+/**
+ * A `payroll_employee` row, straight to SQL.
+ *
+ * `externalRef` defaults to a fresh one per call, so a fixture never collides
+ * with `payroll_employee_external_ref_idx` — a suite that wants a HAND-TYPED
+ * employee (the row an agent run must never touch) passes `externalRef: null`.
+ */
+export async function createPayrollEmployeeRow(
+  organizationId: string,
+  values: {
+    fullName?: string
+    contractType?: BetaPayrollContractType
+    startedOn?: string | null
+    endedOn?: string | null
+    active?: boolean
+    appUserId?: string | null
+    externalRef?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO payroll_employee (
+      organization_id, full_name, contract_type, started_on, ended_on,
+      active, app_user_id, external_ref
+    )
+    VALUES (
+      ${organizationId},
+      ${values.fullName ?? "Jan Novák"},
+      ${values.contractType ?? "hpp"},
+      ${values.startedOn ?? null},
+      ${values.endedOn ?? null},
+      ${values.active ?? true},
+      ${values.appUserId ?? null},
+      ${values.externalRef === undefined ? unique("employee") : values.externalRef}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/**
+ * A `payroll_summary` row inside `batchId`.
+ *
+ * Every figure defaults to NULL rather than to zero, for the same reason
+ * `createStatementLineRow`'s value columns do: an absent total is not a zero
+ * (spec §0.4), and a fixture that quietly filled them would make that
+ * distinction untestable.
+ */
+export async function createPayrollSummaryRow(
+  organizationId: string,
+  batchId: string,
+  periodId: string,
+  values: {
+    grossTotal?: string | null
+    employerSocial?: string | null
+    employerHealth?: string | null
+    employerCostTotal?: string | null
+    employeeWithholdingsTotal?: string | null
+    incomeTaxAdvance?: string | null
+    netPaidTotal?: string | null
+    paymentDueDate?: string | null
+    headcountHpp?: number | null
+    headcountDpc?: number | null
+    headcountDpp?: number | null
+    noteClient?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO payroll_summary (
+      organization_id, import_batch_id, period_id, gross_total,
+      employer_social, employer_health, employer_cost_total,
+      employee_withholdings_total, income_tax_advance, net_paid_total,
+      payment_due_date, headcount_hpp, headcount_dpc, headcount_dpp, note_client
+    )
+    VALUES (
+      ${organizationId},
+      ${batchId},
+      ${periodId},
+      ${values.grossTotal ?? null},
+      ${values.employerSocial ?? null},
+      ${values.employerHealth ?? null},
+      ${values.employerCostTotal ?? null},
+      ${values.employeeWithholdingsTotal ?? null},
+      ${values.incomeTaxAdvance ?? null},
+      ${values.netPaidTotal ?? null},
+      ${values.paymentDueDate ?? null},
+      ${values.headcountHpp ?? null},
+      ${values.headcountDpc ?? null},
+      ${values.headcountDpp ?? null},
+      ${values.noteClient ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/** A `payroll_employee_line` row inside `batchId`. */
+export async function createPayrollLineRow(
+  organizationId: string,
+  batchId: string,
+  periodId: string,
+  employeeId: string,
+  values: {
+    gross?: string | null
+    deductionsTotal?: string | null
+    net?: string | null
+    employerCost?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO payroll_employee_line (
+      organization_id, import_batch_id, payroll_employee_id, period_id,
+      gross, deductions_total, net, employer_cost
+    )
+    VALUES (
+      ${organizationId},
+      ${batchId},
+      ${employeeId},
+      ${periodId},
+      ${values.gross ?? null},
+      ${values.deductionsTotal ?? null},
+      ${values.net ?? null},
+      ${values.employerCost ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/**
+ * A PUBLISHED payroll batch carrying its summary and lines — the state every
+ * payroll READ is about.
+ *
+ * The batch is created as a draft, the payload written into it, and only then
+ * published: `beta_import_line_requires_draft_batch` refuses payload rows in a
+ * published batch, which is exactly the freeze the production write path also
+ * has to work around by writing first and flipping second.
+ */
+export async function publishPayrollFixture(
+  organizationId: string,
+  periodId: string,
+  input: {
+    summary?: Parameters<typeof createPayrollSummaryRow>[3]
+    lines?: readonly {
+      employeeId: string
+      gross?: string | null
+      deductionsTotal?: string | null
+      net?: string | null
+      employerCost?: string | null
+    }[]
+  } = {},
+): Promise<string> {
+  const lines = input.lines ?? []
+  const batchId = await createImportBatchRow(organizationId, periodId, {
+    dataset: "payroll",
+    status: "draft",
+    rowCount: lines.length + 1,
+  })
+
+  await createPayrollSummaryRow(
+    organizationId,
+    batchId,
+    periodId,
+    input.summary,
+  )
+  for (const line of lines) {
+    await createPayrollLineRow(
+      organizationId,
+      batchId,
+      periodId,
+      line.employeeId,
+      line,
+    )
+  }
+
+  await db()`
+    UPDATE import_batch
+       SET status = 'published', published_at = now()
+     WHERE id = ${batchId}
+  `
+  return batchId
 }

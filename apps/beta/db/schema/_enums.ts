@@ -348,3 +348,23 @@ export const betaClientTaskLinkKind = pgEnum("beta_client_task_link_kind", [
 
 export type BetaClientTaskLinkKind =
   (typeof betaClientTaskLinkKind.enumValues)[number]
+
+/**
+ * Mirrors: 0016_payroll.sql — CREATE TYPE beta_payroll_contract_type.
+ *
+ * Spec §2.6: "headcount HPP/DPČ/DPP" — pracovní poměr, dohoda o pracovní
+ * činnosti, dohoda o provedení práce.
+ *
+ * Spelled as the office spells them rather than translated (unlike
+ * `betaAssetCategory`): these are named legal instruments of the zákoník práce,
+ * not a classification this application invented. Their Czech display labels
+ * belong in `messages/cs.json`, and land with the Mzdy surfaces that render them.
+ */
+export const betaPayrollContractType = pgEnum("beta_payroll_contract_type", [
+  "hpp",
+  "dpc",
+  "dpp",
+])
+
+export type BetaPayrollContractType =
+  (typeof betaPayrollContractType.enumValues)[number]

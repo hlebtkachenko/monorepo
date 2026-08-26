@@ -6,6 +6,8 @@ import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   app_user,
   import_batch,
+  payroll_employee_line,
+  payroll_summary,
   reporting_period,
   statement_line,
   trial_balance_line,
@@ -103,11 +105,15 @@ export const IMPORT_DATASETS: readonly {
   { dataset: "predvaha", implemented: true },
   { dataset: "rozvaha", implemented: true },
   { dataset: "vzz", implemented: true },
-  // PR 27 (partner + partner_saldo) and PR 29 (payroll_summary +
-  // payroll_employee_line) add a payload table and one arm to
-  // `ImportBatchPayload`. Neither adds a publish semantic — that is this file.
+  // PR 27 (partner + partner_saldo) adds a payload table and one arm to
+  // `ImportBatchPayload`. It adds no publish semantic — that is this file.
   { dataset: "saldokonto", implemented: false },
-  { dataset: "payroll", implemented: false },
+  // Payroll (migration 0016) took exactly that shape: `payroll_summary` +
+  // `payroll_employee_line` are payload tables of this spine, so the whole of
+  // §3.2 — supersession, one published per period, rollback, the §0.4 freshness
+  // stamp — applies to Mzdy with nothing added here. Flipping this flag is what
+  // moves the completeness matrix's payroll cell from "not wired" to "not sent".
+  { dataset: "payroll", implemented: true },
 ])
 
 // ---------------------------------------------------------------------------
@@ -165,6 +171,47 @@ export type TrialBalanceLineInput = {
 }
 
 /**
+ * One period's payroll aggregates, as the office states them (spec §2.6).
+ *
+ * EVERY FIELD IS OPTIONAL and every money value is a string. Beta computes no
+ * payroll figure: `employerCostTotal` is not gross plus levies, `netPaidTotal`
+ * is not gross minus withholdings, and `paymentDueDate` is not a period end plus
+ * twenty days. Absent means absent, never zero (§0.4).
+ */
+export type PayrollSummaryInput = {
+  readonly grossTotal?: string | null
+  readonly employerSocial?: string | null
+  readonly employerHealth?: string | null
+  /** "Celkové náklady na zaměstnance" (spec §2.6). Never "superhrubá". */
+  readonly employerCostTotal?: string | null
+  readonly employeeWithholdingsTotal?: string | null
+  readonly incomeTaxAdvance?: string | null
+  /** Čistá vyplacená celkem (Advisor F14). */
+  readonly netPaidTotal?: string | null
+  readonly paymentDueDate?: string | null
+  readonly headcountHpp?: number | null
+  readonly headcountDpc?: number | null
+  readonly headcountDpp?: number | null
+  readonly noteClient?: string | null
+}
+
+/**
+ * One employee's figures for the period.
+ *
+ * `payrollEmployeeId` is an id of an ALREADY-RESOLVED `payroll_employee` row —
+ * the caller upserts the register first (`lib/data/payroll.ts`) and hands ids
+ * down. The composite FK carries `organization_id`, so an id from another book
+ * is refused by the database rather than written.
+ */
+export type PayrollLineInput = {
+  readonly payrollEmployeeId: string
+  readonly gross?: string | null
+  readonly deductionsTotal?: string | null
+  readonly net?: string | null
+  readonly employerCost?: string | null
+}
+
+/**
  * The dataset and its rows, as ONE value. Not exported — `ImportBatchInput` is
  * the shape a caller names; this is how it is composed.
  *
@@ -188,6 +235,18 @@ type ImportBatchPayload =
   | {
       readonly dataset: "predvaha"
       readonly trialBalanceLines: readonly TrialBalanceLineInput[]
+    }
+  | {
+      readonly dataset: "payroll"
+      /**
+       * REQUIRED, not optional. A payroll batch with per-employee lines and no
+       * totals would render Přehled mezd as "zatím nebylo nahráno" while
+       * Zaměstnanci showed a full month — the two halves of §2.6 disagreeing
+       * about whether the period exists. Every field INSIDE the summary is
+       * optional; the summary itself is not.
+       */
+      readonly payrollSummary: PayrollSummaryInput
+      readonly payrollLines: readonly PayrollLineInput[]
     }
 
 export type ImportBatchInput = ImportBatchPayload & {
@@ -704,7 +763,13 @@ export async function createDraftBatch(
   const rowCount =
     input.dataset === "predvaha"
       ? input.trialBalanceLines.length
-      : input.statementLines.length
+      : input.dataset === "payroll"
+        ? // The summary IS a payload row, so a twelve-person month counts 13.
+          // Counting only the lines would report a batch as one row short of
+          // what it wrote, and `row_count` is what the office reads in the
+          // completeness matrix to decide whether an import looks complete.
+          input.payrollLines.length + 1
+        : input.statementLines.length
 
   // A caller already inside a transaction (PR 24's ingestion API, which writes
   // its activity_log row in the same one) gets a SAVEPOINT here rather than a
@@ -743,6 +808,44 @@ export async function createDraftBatch(
             turnover_debit: line.turnoverDebit ?? null,
             turnover_credit: line.turnoverCredit ?? null,
             closing_balance: line.closingBalance ?? null,
+          })),
+        )
+      }
+    } else if (input.dataset === "payroll") {
+      // The summary is unconditional (the payload type makes it so) and the
+      // lines are one more multi-row INSERT, in the same transaction and the
+      // same draft — so a payroll period lands whole or not at all, exactly as
+      // a rozvaha does.
+      await tx.insert(payroll_summary).values({
+        organization_id: scope.organizationId,
+        import_batch_id: batch.id,
+        period_id: input.periodId,
+        gross_total: input.payrollSummary.grossTotal ?? null,
+        employer_social: input.payrollSummary.employerSocial ?? null,
+        employer_health: input.payrollSummary.employerHealth ?? null,
+        employer_cost_total: input.payrollSummary.employerCostTotal ?? null,
+        employee_withholdings_total:
+          input.payrollSummary.employeeWithholdingsTotal ?? null,
+        income_tax_advance: input.payrollSummary.incomeTaxAdvance ?? null,
+        net_paid_total: input.payrollSummary.netPaidTotal ?? null,
+        payment_due_date: input.payrollSummary.paymentDueDate ?? null,
+        headcount_hpp: input.payrollSummary.headcountHpp ?? null,
+        headcount_dpc: input.payrollSummary.headcountDpc ?? null,
+        headcount_dpp: input.payrollSummary.headcountDpp ?? null,
+        note_client: input.payrollSummary.noteClient ?? null,
+      })
+
+      if (input.payrollLines.length > 0) {
+        await tx.insert(payroll_employee_line).values(
+          input.payrollLines.map((line) => ({
+            organization_id: scope.organizationId,
+            import_batch_id: batch.id,
+            payroll_employee_id: line.payrollEmployeeId,
+            period_id: input.periodId,
+            gross: line.gross ?? null,
+            deductions_total: line.deductionsTotal ?? null,
+            net: line.net ?? null,
+            employer_cost: line.employerCost ?? null,
           })),
         )
       }

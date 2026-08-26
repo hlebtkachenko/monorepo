@@ -146,9 +146,12 @@ describe("loadUzaverka — the completeness matrix", () => {
 
     // Implemented but empty — the office's gap.
     expect(wired("rozvaha")).toBe(true)
-    // No payload table yet (PRs 27 / 29) — the build's gap, never the office's.
+    // Payroll joined them with migration 0016: `payroll_summary` and
+    // `payroll_employee_line` are payload tables of this spine, so the cell is
+    // wired and its emptiness is now the office's gap too.
+    expect(wired("payroll")).toBe(true)
+    // No payload table yet (PR 27) — the build's gap, never the office's.
     expect(wired("saldokonto")).toBe(false)
-    expect(wired("payroll")).toBe(false)
 
     for (const cell of view.cells) {
       expect(cell.published).toBeNull()

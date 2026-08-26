@@ -80,6 +80,8 @@ function issueErrorKey(reason: IssueSetupTokenRejection): BetaMessageKey {
       return "admin.errorInvalidEmail"
     case "role_not_allowed":
       return "admin.errorRoleNotAllowed"
+    case "organization_archived":
+      return "admin.errorOrganizationArchived"
     case "purpose_not_allowed":
     case "scope_mismatch":
       return "admin.errorInvalidInput"

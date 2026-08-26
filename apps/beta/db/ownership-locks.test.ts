@@ -268,6 +268,88 @@ describe("SF-1 — last-owner protection is a lock, not a count", () => {
   })
 })
 
+describe("an owner membership requires a LIVE office account", () => {
+  it("refuses to seat a deactivated staff account as owner", async () => {
+    // The hole 0000 left: `is_staff` alone. A disabled owner is worse than
+    // useless — `beta_active_owner_count` excludes disabled users, so a book
+    // whose only owner is disabled counts as having ZERO owners, and the
+    // last-owner guard then happily lets the remaining real owner go.
+    const organizationId = await createOrganization()
+    const anchor = await createUser({ staff: true })
+    await addMembership(organizationId, anchor.id, "owner")
+
+    const retired = await createUser({ staff: true })
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${retired.id}`
+
+    await expect(
+      addMembership(organizationId, retired.id, "owner"),
+    ).rejects.toThrow(/requires an active account/)
+
+    // A non-owner membership for the same account is still fine: deactivation
+    // is a soft delete, and the row is the audit trail.
+    await expect(
+      addMembership(organizationId, retired.id, "guest"),
+    ).resolves.toBeTruthy()
+  })
+
+  it("refuses to promote an existing membership held by a deactivated account", async () => {
+    const organizationId = await createOrganization()
+    const anchor = await createUser({ staff: true })
+    await addMembership(organizationId, anchor.id, "owner")
+
+    const retired = await createUser({ staff: true })
+    const membershipId = await addMembership(
+      organizationId,
+      retired.id,
+      "admin",
+    )
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${retired.id}`
+
+    await expect(
+      sql`UPDATE organization_membership SET role = 'owner' WHERE id = ${membershipId}`,
+    ).rejects.toThrow(/requires an active account/)
+  })
+
+  /**
+   * The narrowing that makes the new condition safe. 0000's version re-checked
+   * on EVERY update of a row whose new role is `owner`, including
+   * `SET active = false` — so adding `disabled_at IS NULL` to that would have
+   * made a disabled owner's membership impossible to deactivate, refusing the
+   * very cleanup it creates the need for.
+   */
+  it("still lets a disabled owner's membership be deactivated and demoted", async () => {
+    const organizationId = await createOrganization()
+    const anchor = await createUser({ staff: true })
+    await addMembership(organizationId, anchor.id, "owner")
+
+    const retired = await createUser({ staff: true })
+    const membershipId = await addMembership(
+      organizationId,
+      retired.id,
+      "owner",
+    )
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${retired.id}`
+
+    await sql`UPDATE organization_membership SET active = false WHERE id = ${membershipId}`
+    await sql`UPDATE organization_membership SET role = 'guest' WHERE id = ${membershipId}`
+
+    const [row] = await sql<{ role: string; active: boolean }[]>`
+      SELECT role, active FROM organization_membership WHERE id = ${membershipId}
+    `
+    expect(row).toEqual({ role: "guest", active: false })
+  })
+
+  it("still refuses a non-staff account, with the staff message", async () => {
+    // The two refusals stay distinguishable: `guardRefusal` maps them to
+    // different reasons, and the office needs different next actions.
+    const organizationId = await createOrganization()
+    const company = await createUser({ staff: false })
+    await expect(
+      addMembership(organizationId, company.id, "owner"),
+    ).rejects.toThrow(/requires app_user\.is_staff/)
+  })
+})
+
 describe("SF-6 — offboarding revokes outstanding links", () => {
   const hash = (seed: string) =>
     // 64 lowercase hex, the shape `user_setup_token_hash_format` demands.
@@ -401,6 +483,82 @@ describe("SF-6 — offboarding revokes outstanding links", () => {
     // organization's business.
     expect(await revokedAt(elsewhereInvite)).toBeNull()
     expect(await revokedAt(reset)).toBeNull()
+  })
+
+  it("kills the links a deactivated account ISSUED, not just those addressed to it", async () => {
+    // The sharper half of offboarding, and the one 0002 missed. An accountant
+    // being disabled — perhaps precisely because the account is suspected
+    // compromised — may have minted invites into any number of books on the way
+    // out. Each is a live grant that outlives the account by up to 48 hours.
+    const organizationId = await createOrganization()
+    const leaving = await createUser({ staff: true })
+    const anchor = await createUser({ staff: true })
+    await addMembership(organizationId, leaving.id, "owner")
+    await addMembership(organizationId, anchor.id, "owner")
+
+    const invitee = await createUser()
+    const issuedByLeaver = await issue({
+      purpose: "org_invite",
+      email: invitee.email,
+      organizationId,
+      grantedRole: "member",
+      issuedBy: leaving.id,
+    })
+    const issuedByAnchor = await issue({
+      purpose: "org_invite",
+      email: `${unique("keep")}@example.com`,
+      organizationId,
+      grantedRole: "member",
+      issuedBy: anchor.id,
+    })
+
+    await sql`UPDATE app_user SET disabled_at = now() WHERE id = ${leaving.id}`
+
+    expect(await revokedAt(issuedByLeaver)).not.toBeNull()
+    // A colleague's invite is untouched — only the leaver's grants die.
+    expect(await revokedAt(issuedByAnchor)).toBeNull()
+  })
+
+  it("kills the invitations into a book when the book is archived", async () => {
+    // An archived organization admits nobody (`requireScope` refuses it), so a
+    // live invite into one is a 404 waiting to happen — and worse, it springs
+    // back to life if the book is ever unarchived.
+    const organizationId = await createOrganization()
+    const elsewhere = await createOrganization()
+    const staff = await createUser({ staff: true })
+    await addMembership(organizationId, staff.id, "owner")
+    await addMembership(elsewhere, staff.id, "owner")
+
+    const target = `${unique("arch")}@example.com`
+    const intoArchived = await issue({
+      purpose: "org_invite",
+      email: target,
+      organizationId,
+      grantedRole: "member",
+      issuedBy: staff.id,
+    })
+    const intoOther = await issue({
+      purpose: "org_invite",
+      email: target,
+      organizationId: elsewhere,
+      grantedRole: "member",
+      issuedBy: staff.id,
+    })
+    const unscoped = await issue({
+      purpose: "password_reset",
+      email: target,
+      issuedBy: staff.id,
+    })
+
+    await sql`UPDATE organization SET archived_at = now() WHERE id = ${organizationId}`
+
+    expect(await revokedAt(intoArchived)).not.toBeNull()
+    expect(await revokedAt(intoOther)).toBeNull()
+    expect(await revokedAt(unscoped)).toBeNull()
+
+    // Unarchiving does not resurrect them — revoked_at is write-once.
+    await sql`UPDATE organization SET archived_at = NULL WHERE id = ${organizationId}`
+    expect(await revokedAt(intoArchived)).not.toBeNull()
   })
 
   it("does not revoke on reactivation, and does not un-revoke", async () => {

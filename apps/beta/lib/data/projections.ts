@@ -245,6 +245,15 @@ export type OfficeOrganizationRow = {
   legalName: string
   ico: string | null
   vatRegime: OrganizationRow["vat_regime"]
+  /**
+   * Load-bearing, not decorative. The /admin settings form posts the VAT regime
+   * and its registration date TOGETHER (`organizationVatPayload` keeps the pair
+   * coherent), so the date input has to be able to render the stored value as
+   * its `defaultValue`. Without this field the input renders empty, every save
+   * posts an empty date, and an unrelated edit — toggling `is_demo` — silently
+   * nulls the registration date of a plátce.
+   */
+  vatRegisteredFrom: string | null
   isDemo: boolean
   archived: boolean
   /** Active memberships, and how many of them are owners (the ≥1 invariant). */
@@ -258,6 +267,7 @@ export function officeOrganizationRow(row: {
   legal_name: string
   ico: string | null
   vat_regime: OrganizationRow["vat_regime"]
+  vat_registered_from: string | null
   is_demo: boolean
   archived_at: Date | null
   memberCount: number
@@ -269,6 +279,7 @@ export function officeOrganizationRow(row: {
     legalName: row.legal_name,
     ico: row.ico,
     vatRegime: row.vat_regime,
+    vatRegisteredFrom: row.vat_registered_from,
     isDemo: row.is_demo,
     archived: row.archived_at !== null,
     memberCount: row.memberCount,

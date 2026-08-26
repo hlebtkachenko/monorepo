@@ -99,9 +99,16 @@ async function consume(
   })
 
   if (!result.ok) {
-    return result.reason === "signin_required"
-      ? { status: "error", error: "auth.signInRequired" }
-      : INVALID
+    if (result.reason === "signin_required") {
+      return { status: "error", error: "auth.signInRequired" }
+    }
+    // A lock-cycle victim left the link unconsumed, so "try again" is the only
+    // true thing to say. Reporting it as an invalid link would send someone
+    // holding a perfectly good one back to the office for a replacement.
+    if (result.reason === "retry") {
+      return { status: "error", error: "auth.retryLater" }
+    }
+    return INVALID
   }
 
   return {

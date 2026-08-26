@@ -42,11 +42,20 @@ export async function createOrganizationAction(
 ): Promise<AdminActionState> {
   const office = await requireOffice()
 
+  // No `?? "neplatce"` default. A silent fallback turns an unrecognised value —
+  // a stale form, a hand-built POST, a future enum member — into a book quietly
+  // marked as a non-payer, and the VAT regime is the fact the whole Daně module
+  // keys off. An unknown value is a refusal, like every other enum here.
+  const vatRegime = formVatRegime(formData, "vatRegime")
+  if (vatRegime === null) {
+    return { status: "error", error: "admin.errorInvalidInput" }
+  }
+
   const result = await createOfficeOrganization(office, {
     slug: formString(formData, "slug"),
     legalName: formString(formData, "legalName"),
     ico: formString(formData, "ico") || null,
-    vatRegime: formVatRegime(formData, "vatRegime") ?? "neplatce",
+    vatRegime,
     isDemo: formChecked(formData, "isDemo"),
   })
 

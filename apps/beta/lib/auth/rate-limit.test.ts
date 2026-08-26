@@ -104,8 +104,44 @@ describe("client identity", () => {
       "<script>",
       "2001:db8::1::2",
       "1:2:3:4:5:6:7:8:9",
+      // The shapes a loose "hex and colons" check waved through. Every one of
+      // them is refused by `inet`, so accepting it would not corrupt a log
+      // line — it would throw inside the issue/consume transaction.
+      "203.0.113.7:80",
+      "[2001:db8::1]:443",
+      "::ffff:203.0.113.7:80",
+      "203.0.113.7/24",
+      "2001:db8::/32",
+      "fe80::1%eth0",
+      "1:2:3:4:5:6:7",
+      "1.2.3.4:5.6.7.8",
+      ":2001:db8::1",
+      "2001:db8::1:",
     ]) {
       expect(isIpAddress(bad), bad || "<empty>").toBe(false)
+    }
+  })
+
+  it("accepts an embedded IPv4 only in the last group", () => {
+    expect(isIpAddress("::ffff:203.0.113.7")).toBe(true)
+    expect(isIpAddress("64:ff9b::203.0.113.7")).toBe(true)
+    // Anywhere else it is the host:port shape wearing a disguise.
+    expect(isIpAddress("::203.0.113.7:ffff")).toBe(false)
+  })
+
+  it("never hands `inet` something it would reject", () => {
+    // The contract in one line: this validator is the only thing between a
+    // request header and two `inet` columns.
+    const accepted = [
+      "203.0.113.7",
+      "::1",
+      "2001:db8::1",
+      "::ffff:203.0.113.7",
+      "1:2:3:4:5:6:7:8",
+    ]
+    for (const value of accepted) {
+      expect(isIpAddress(value), value).toBe(true)
+      expect(clientIp(new Headers({ "cf-connecting-ip": value }))).toBe(value)
     }
   })
 
@@ -157,10 +193,33 @@ describe("the no-IP floor under Better Auth's limiter", () => {
     expect(Number(refused?.headers.get("retry-after"))).toBeGreaterThan(0)
   })
 
-  it("budgets each auth path separately", () => {
+  it("budgets each allowlisted auth path separately", () => {
     // The previous case spent /sign-in/email's whole budget on the shared
-    // process-wide limiter. A different path must still have its own.
+    // process-wide limiter. The other budgeted path must still have its own.
     expect(authNoIpFloor(request("/api/auth/sign-out"))).toBeNull()
+  })
+
+  /**
+   * The key space has to be CLOSED. Keyed per raw path, a client with no usable
+   * IP mints a fresh budget for every URL it invents — and `createRateLimiter`
+   * only sweeps EXPIRED entries, so a fast attacker both escapes the limit and
+   * grows the map without bound.
+   */
+  it("funnels every unlisted path into one shared bucket", () => {
+    const invented = Array.from(
+      { length: BETA_AUTH_NO_IP_RATE_LIMIT.max + 1 },
+      (_, i) => `/api/auth/made-up-${i}`,
+    )
+
+    const verdicts = invented.map((path) => authNoIpFloor(request(path)))
+    // The first `max` share one bucket and are allowed; the next is refused,
+    // even though it is a path the limiter has never seen before.
+    expect(verdicts.slice(0, -1).every((v) => v === null)).toBe(true)
+    expect(verdicts.at(-1)?.status).toBe(429)
+
+    // And the shared bucket did not spend the credential-guessing allowance:
+    // /sign-in/email keeps its own budget, which the earlier case exhausted.
+    expect(authNoIpFloor(request("/api/auth/anything-else"))?.status).toBe(429)
   })
 
   it("keys on the path only, never on the request's origin", () => {

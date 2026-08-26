@@ -160,6 +160,8 @@ function userErrorKey(reason: OfficeUserRefusal): BetaMessageKey {
       return "admin.errorLastOwner"
     case "staff_holds_owner":
       return "admin.errorStaffHoldsOwner"
+    case "retry":
+      return "admin.errorRetry"
     case "rejected":
       return "admin.errorRejected"
   }

@@ -3,7 +3,7 @@ import "server-only"
 import { asc, eq, sql } from "drizzle-orm"
 
 import { app_user } from "@/db/schema"
-import { guardRefusal, isUniqueViolation } from "@/lib/pg-error"
+import { guardRefusal, isDeadlock, isUniqueViolation } from "@/lib/pg-error"
 
 import { officeUserRow, type OfficeUserRow } from "../projections"
 import type { OfficeScope } from "../scope"
@@ -43,6 +43,8 @@ export type OfficeUserRefusal =
   | "last_owner"
   /** Clearing is_staff while the account still owns a book (DB trigger). */
   | "staff_holds_owner"
+  /** Lock-cycle victim. Nothing was wrong with the request; try again. */
+  | "retry"
   | "rejected"
 
 export type OfficeUserWriteResult =
@@ -205,6 +207,9 @@ export async function setUserDisabled(
  * the worst possible way to find out about one.
  */
 function translateUserRefusal(error: unknown): OfficeUserWriteResult {
+  // See `writeMembership`: a lock-cycle victim is retryable, not broken.
+  if (isDeadlock(error)) return { ok: false, reason: "retry" }
+
   const refusal = guardRefusal(error)
   if (refusal === "last_owner") return { ok: false, reason: "last_owner" }
   if (refusal === "staff_holds_owner") {

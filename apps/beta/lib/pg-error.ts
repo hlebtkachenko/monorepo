@@ -22,6 +22,8 @@ const MAX_CAUSE_DEPTH = 5
 const PG_CHECK_VIOLATION = "23514"
 /** `unique_violation` — a taken slug, a duplicate email. */
 const PG_UNIQUE_VIOLATION = "23505"
+/** `deadlock_detected` — see `isDeadlock`. */
+const PG_DEADLOCK_DETECTED = "40P01"
 
 type PgErrorLike = { code: string; message: string }
 
@@ -57,6 +59,31 @@ export function isUniqueViolation(error: unknown): boolean {
 }
 
 /**
+ * `deadlock_detected` — Postgres broke a lock cycle by aborting THIS
+ * transaction.
+ *
+ * It is not a bug in the caller and it is not a refusal: nothing about the
+ * request was wrong, the database simply picked this transaction as the victim.
+ * The correct answer is "try again", and the correct thing NOT to do is return
+ * a 500 — a 500 says the server is broken when the next click would work.
+ *
+ * Beta takes locks in three classes (`app_user`, then `organization`, then
+ * `user_setup_token` — see the header of migration 0003), and every write path
+ * in the app takes them in that order, so a cycle should be unreachable. This
+ * is the honest floor under "should be": ordering is a convention enforced by
+ * review, and the day a future write path inverts it, the symptom must be a
+ * retryable message rather than an opaque failure the office cannot act on.
+ *
+ * Deliberately NOT an automatic retry loop. A retry here would re-run a
+ * transaction whose side effects the caller has not seen, inside a request that
+ * is already holding a connection; surfacing it and letting the operator click
+ * again is both simpler and safer.
+ */
+export function isDeadlock(error: unknown): boolean {
+  return pgError(error)?.code === PG_DEADLOCK_DETECTED
+}
+
+/**
  * Which of beta's guards refused, so the UI can say something true instead of
  * "something went wrong".
  *
@@ -69,7 +96,11 @@ export function isUniqueViolation(error: unknown): boolean {
  * exception fails a test rather than silently degrading a message.
  */
 export type GuardRefusal =
-  "last_owner" | "owner_requires_staff" | "staff_holds_owner" | "other"
+  | "last_owner"
+  | "owner_requires_staff"
+  | "owner_requires_active"
+  | "staff_holds_owner"
+  | "other"
 
 export function guardRefusal(error: unknown): GuardRefusal | null {
   const pg = pgError(error)
@@ -77,6 +108,12 @@ export function guardRefusal(error: unknown): GuardRefusal | null {
   if (/last owner/i.test(pg.message)) return "last_owner"
   if (/requires app_user\.is_staff/i.test(pg.message)) {
     return "owner_requires_staff"
+  }
+  // Distinct from the staff refusal on purpose (migration 0003, section 3):
+  // "this account is not office staff" and "this office account is
+  // deactivated" call for different next actions from whoever reads it.
+  if (/requires an active account/i.test(pg.message)) {
+    return "owner_requires_active"
   }
   if (/cannot clear is_staff/i.test(pg.message)) return "staff_holds_owner"
   return "other"

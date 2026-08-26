@@ -9,7 +9,7 @@ import {
   type BetaOrgRole,
 } from "@/db/schema"
 import { mayChangeRole } from "@/lib/auth/invite-policy"
-import { guardRefusal } from "@/lib/pg-error"
+import { guardRefusal, isDeadlock } from "@/lib/pg-error"
 
 import { officeMemberRow, type OfficeMemberRow } from "../projections"
 import type { OfficeScope } from "../scope"
@@ -45,6 +45,13 @@ export type MembershipRefusal =
   | "last_owner"
   /** The target is not office staff, so cannot hold owner (DB trigger). */
   | "owner_requires_staff"
+  /** The target IS office staff but the account is deactivated (0003). */
+  | "owner_requires_active"
+  /**
+   * Postgres broke a lock cycle and picked this transaction as the victim.
+   * Nothing was wrong with the request; the next attempt is expected to work.
+   */
+  | "retry"
   /** Some other guard refused. */
   | "rejected"
 
@@ -203,15 +210,26 @@ export async function grantOwnerInAllOrganizations(
 
   if (!target) return { ok: false, reason: "not_found" }
   // Checked here as well as by the trigger so the office user is told which
-  // precondition failed instead of watching the whole batch refuse.
-  if (!target.is_staff || target.disabled_at !== null) {
-    return { ok: false, reason: "owner_requires_staff" }
+  // precondition failed instead of watching the whole batch refuse — and told
+  // WHICH one: "not office staff" and "office account, but deactivated" have
+  // different fixes.
+  if (!target.is_staff) return { ok: false, reason: "owner_requires_staff" }
+  if (target.disabled_at !== null) {
+    return { ok: false, reason: "owner_requires_active" }
   }
 
+  // THIS IS THE APP'S ONE BATCH WRITE, and the reason the lock-order note in
+  // migration 0003 says a batch must sort. The INSERT below touches every live
+  // organization's membership rows in the order these ids come back, so two
+  // concurrent "owner ve všech" runs for two different accountants would
+  // otherwise take the same row locks in whatever order the planner happened to
+  // return — a lock cycle, and a deadlock for one of them. Ascending id is an
+  // arbitrary but TOTAL order, which is all a deadlock-free protocol needs.
   const live = await db
     .select({ id: organization.id })
     .from(organization)
     .where(isNull(organization.archived_at))
+    .orderBy(asc(organization.id))
 
   if (live.length === 0) return { ok: true, organizationCount: 0 }
 
@@ -254,10 +272,18 @@ async function writeMembership(
     await write()
     return { ok: true }
   } catch (error) {
+    // A deadlock is not a refusal and not a fault — the database picked this
+    // transaction as the victim of a lock cycle. Answering it as a 500 would
+    // tell the office the server is broken when the next click would succeed.
+    if (isDeadlock(error)) return { ok: false, reason: "retry" }
+
     const refusal = guardRefusal(error)
     if (refusal === "last_owner") return { ok: false, reason: "last_owner" }
     if (refusal === "owner_requires_staff") {
       return { ok: false, reason: "owner_requires_staff" }
+    }
+    if (refusal === "owner_requires_active") {
+      return { ok: false, reason: "owner_requires_active" }
     }
     if (refusal !== null) return { ok: false, reason: "rejected" }
     throw error

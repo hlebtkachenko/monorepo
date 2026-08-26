@@ -69,10 +69,23 @@ export function formDate(formData: FormData, key: string): string | null {
   return ISO_DATE.test(value) ? value : null
 }
 
-/** A uuid, or null. Ids reach the actions as hidden fields. */
+/**
+ * Ids reach the actions as hidden fields and pages as route segments, and both
+ * are request input.
+ *
+ * The check is not cosmetic. Postgres answers a non-uuid `= $1` against a uuid
+ * column with 22P02 (invalid input syntax), which reaches the browser as a 500.
+ * A malformed id has to be an ordinary refusal — `notFound()` on a page, an
+ * "invalid input" on an action — so a probe cannot tell a typo from a real id
+ * it is not allowed to see.
+ */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+export function isUuid(value: string): boolean {
+  return UUID.test(value)
+}
 
 export function formUuid(formData: FormData, key: string): string | null {
   const value = formString(formData, key)
-  return UUID.test(value) ? value : null
+  return isUuid(value) ? value : null
 }

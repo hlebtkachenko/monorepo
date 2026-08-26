@@ -20,33 +20,75 @@ const FALLBACK_KEY = "unknown-ip"
 /**
  * A value that is not address-SHAPED is treated as no address at all.
  *
- * Two reasons, and the second is the security one. `issued_ip` / `consumed_ip`
- * are `inet` columns, so a junk value turns a link issuance into a 500 rather
- * than a stored row. And Better Auth applies its own validity test before
- * keying its limiter — `getIp` in 1.6.13 falls through to `null` when the
- * header does not parse as an IP — after which it SKIPS the limit entirely. If
- * this function disagreed with that verdict, the no-IP floor in
- * `authRateLimitKey` would not engage in exactly the case Better Auth dropped.
+ * MUST BE AT LEAST AS STRICT AS `inet`. Whatever this accepts is written into
+ * `user_setup_token.issued_ip` / `consumed_ip`, which are `inet` columns — so a
+ * value Postgres refuses is not a bad log line, it is an exception that takes
+ * down the whole issue-a-link or consume-a-link transaction. A request header
+ * is the one input an operator cannot sanitise, which makes this the wrong
+ * place to be approximate.
  *
- * Shape, not semantics: no reserved-range checks, no canonicalization. The
- * value is written by Cloudflare, not by the client.
+ * `203.0.113.7:80` is the shape that catches a loose validator out: a
+ * plausible `host:port` that `inet` rejects outright. An "any hex and colons"
+ * check accepted it — split on `:` gives `["203.0.113.7", "80"]`, the first
+ * passing as an embedded IPv4 and the second as a hex group. So the rule below
+ * is the actual grammar: an embedded IPv4 is legal only as the LAST group, and
+ * the group count has to add up.
+ *
+ * IT MUST NOT BE MUCH STRICTER EITHER. Better Auth applies its own validity
+ * test before keying its limiter — `getIp` in 1.6.13 falls through to `null`
+ * when the header does not parse — after which it SKIPS the limit entirely. If
+ * this function disagreed in the other direction, the no-IP floor in
+ * `authRateLimitKey` would fail to engage in exactly the case Better Auth
+ * dropped.
+ *
+ * Shape, not semantics: no reserved-range checks, no canonicalization, and
+ * deliberately no CIDR — `1.2.3.4/24` is a network, not a connecting address.
  */
 const IPV4 =
   /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/
-const IPV6_CHARS = /^[0-9a-fA-F:.]+$/
+const HEX_GROUP = /^[0-9a-fA-F]{1,4}$/
 
 export function isIpAddress(value: string): boolean {
   if (IPV4.test(value)) return true
-  // IPv6, including the IPv4-mapped `::ffff:203.0.113.7` form: hex groups and
-  // colons only, at most one `::`, and never more than eight groups.
   if (!value.includes(":")) return false
-  if (!IPV6_CHARS.test(value)) return false
-  if (value.split("::").length > 2) return false
-  const groups = value.split(":").filter((group) => group.length > 0)
-  if (groups.length > 8) return false
-  return groups.every(
-    (group) => /^[0-9a-fA-F]{1,4}$/.test(group) || IPV4.test(group),
-  )
+  return isIpv6(value)
+}
+
+function isIpv6(value: string): boolean {
+  // A zone id (`fe80::1%eth0`) is legal in text, never appears in
+  // `cf-connecting-ip`, and is rejected by `inet`. Refused, not stripped.
+  if (value.includes("%") || value.includes("/")) return false
+
+  const halves = value.split("::")
+  if (halves.length > 2) return false
+  const compressed = halves.length === 2
+
+  // A stray `:` at either end that is not part of `::` leaves an empty group.
+  const parse = (half: string): string[] | null => {
+    if (half === "") return []
+    const groups = half.split(":")
+    return groups.some((group) => group === "") ? null : groups
+  }
+
+  const head = parse(halves[0] ?? "")
+  const tail = parse(compressed ? (halves[1] ?? "") : "")
+  if (head === null || tail === null) return false
+
+  const groups = [...head, ...tail]
+  let size = groups.length
+
+  for (const [index, group] of groups.entries()) {
+    if (HEX_GROUP.test(group)) continue
+    // An embedded IPv4 (`::ffff:203.0.113.7`) is legal ONLY as the final group
+    // and occupies two of the eight. Anywhere else it is the host:port shape.
+    if (index === groups.length - 1 && IPV4.test(group)) {
+      size += 1
+      continue
+    }
+    return false
+  }
+
+  return compressed ? size <= 7 : size === 8
 }
 
 export function clientIp(headers: Headers): string | null {

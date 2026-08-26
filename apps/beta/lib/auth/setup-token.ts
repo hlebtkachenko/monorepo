@@ -15,7 +15,7 @@ import {
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
 import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
-import { isCheckViolation } from "@/lib/pg-error"
+import { isCheckViolation, isDeadlock } from "@/lib/pg-error"
 
 import {
   mayGrantRole,
@@ -139,6 +139,13 @@ export type ConsumeResult =
       passwordSet: boolean
     }
   | { ok: false; reason: "invalid" }
+  /**
+   * A lock cycle picked this transaction as the victim. The link was NOT
+   * consumed (the transaction rolled back), so the honest answer is "try
+   * again" — telling the holder of a perfectly good link that it is invalid
+   * would send them back to the office for a replacement they do not need.
+   */
+  | { ok: false; reason: "retry" }
   /** The invite is real, but this account already exists — prove it is you. */
   | { ok: false; reason: "signin_required"; email: string }
 
@@ -239,6 +246,16 @@ export type IssueSetupTokenRejection =
   | "role_not_allowed"
   /** Organization + role pairing wrong, or an org issuer aiming elsewhere. */
   | "scope_mismatch"
+  /**
+   * The organization has been archived. An invite into a withdrawn book is a
+   * link that resolves to a 404 the moment it is consumed (`requireScope`
+   * refuses an archived organization), so minting one is never what the office
+   * meant. Archiving also revokes the ones already outstanding — trigger
+   * `organization_archive_revokes_setup_tokens`, migration 0003 — and this is
+   * the other half: without it the office can re-mint into the same book right
+   * after archiving it.
+   */
+  | "organization_archived"
   /** A database guard refused it. The floor did its job; say no, quietly. */
   | "rejected"
 
@@ -321,6 +338,26 @@ export async function issueSetupToken(
     organizationId !== input.issuer.organizationId
   ) {
     return { ok: false, reason: "scope_mismatch" }
+  }
+
+  // An archived book admits nobody: `requireScope` refuses it, so an invite
+  // into one is a link whose only possible outcome is a 404 for the invitee.
+  // The check races with a concurrent archive, and that is fine — the archive
+  // trigger (0003) revokes whatever slipped through moments later. It is not a
+  // substitute for the trigger; it is what stops the office from re-minting
+  // into a book it has just withdrawn.
+  if (organizationId !== null) {
+    const [book] = await betaDb()
+      .select({ archived_at: organization.archived_at })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+      .limit(1)
+
+    // A missing organization falls through to the FK, which refuses it as a
+    // plain `rejected` — the caller learns nothing about which ids exist.
+    if (book && book.archived_at !== null) {
+      return { ok: false, reason: "organization_archived" }
+    }
   }
 
   const token = generateSetupToken()
@@ -468,10 +505,18 @@ export async function consumeSetupToken(
            *   true  → office staff
            *   false → a company admin issuing inside their own organization
            *   null  → no issuer: the bootstrap seed
+           *
+           * The outer column is the TABLE-QUALIFIED literal, not an
+           * interpolated Drizzle column: interpolation emits a bare
+           * `"issued_by_user_id"`, which resolves against the subquery's own
+           * `app_user` first and only falls through to the outer query because
+           * `app_user` happens not to have a column by that name today. The day
+           * it does, this silently starts comparing a user to itself and every
+           * link reads as staff-issued.
            */
           issuerIsStaff: sql<
             boolean | null
-          >`(SELECT u.is_staff FROM app_user u WHERE u.id = ${user_setup_token.issued_by_user_id})`,
+          >`(SELECT u.is_staff FROM app_user u WHERE u.id = user_setup_token.issued_by_user_id)`,
         })
 
       if (!claimed) throw new ConsumeRejected({ ok: false, reason: "invalid" })
@@ -641,6 +686,11 @@ export async function consumeSetupToken(
     })
   } catch (error) {
     if (error instanceof ConsumeRejected) return error.result
+    // A lock-cycle victim: the whole transaction rolled back, so the link is
+    // still unconsumed and the only true thing to say is "try again". This
+    // arm has to sit ABOVE the check-violation arm — reporting it as `invalid`
+    // would burn a link in the user's mind that the database never touched.
+    if (isDeadlock(error)) return { ok: false, reason: "retry" }
     // A trigger rejection (e.g. an owner grant for a non-staff account) is a
     // legitimate refusal, not a bug to leak. Everything else is a real fault
     // and must not be swallowed.

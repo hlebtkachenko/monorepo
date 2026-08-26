@@ -147,6 +147,10 @@ function membershipErrorKey(reason: MembershipRefusal): BetaMessageKey {
       return "admin.errorLastOwner"
     case "owner_requires_staff":
       return "admin.errorOwnerRequiresStaff"
+    case "owner_requires_active":
+      return "admin.errorOwnerRequiresActive"
+    case "retry":
+      return "admin.errorRetry"
     case "rejected":
       return "admin.errorRejected"
   }

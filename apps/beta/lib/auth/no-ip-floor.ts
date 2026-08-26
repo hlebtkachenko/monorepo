@@ -19,16 +19,41 @@ import { authRateLimitKey } from "./request-ip"
  * drops, and returns `null` (stay out of the way) otherwise, so nothing is
  * double-counted in the deployed environment.
  *
- * KEYED PER PATH, not one bucket for the whole auth surface: the budget that
- * matters is `/sign-in/email`, and folding it in with `/sign-out` and the rest
- * would let cheap traffic spend the credential-guessing allowance.
+ * KEYED PER PATH FROM A CLOSED LIST, plus one shared bucket for everything
+ * else.
+ *
+ * Per path, because the budget that matters is `/sign-in/email` and folding it
+ * in with `/sign-out` would let cheap traffic spend the credential-guessing
+ * allowance. From a CLOSED LIST, because the path is attacker-controlled: with
+ * a bucket minted per distinct path, one client with no usable IP gets a fresh
+ * budget for every URL it invents — `/api/auth/sign-in/email?x=1`,
+ * `/api/auth/aaaa`, and so on forever — which both defeats the limit and grows
+ * the in-memory map without bound (`createRateLimiter` only sweeps EXPIRED
+ * entries, so a fast attacker outruns the sweep). Anything not on the list
+ * shares `other`, so the key space is exactly `ALLOWLIST.size + 1`.
  *
  * A SEPARATE MODULE from the route handler so it can be exercised without
  * constructing the Better Auth instance — which would need a database and a
  * secret to test one `if`.
  */
+
+/**
+ * The paths worth their own budget. Deliberately the two that
+ * `BETA_RATE_LIMIT_RULES` singles out for Better Auth's own limiter — the ones
+ * with a credential or a session behind them. Everything else on beta's tiny
+ * auth surface is a read.
+ */
+const BUDGETED_PATHS: ReadonlySet<string> = new Set([
+  "/api/auth/sign-in/email",
+  "/api/auth/sign-out",
+])
+
+const OTHER_BUCKET = "other"
+
 export function authNoIpFloor(request: Request): Response | null {
-  const key = authRateLimitKey(request.headers, pathOf(request.url))
+  const path = pathOf(request.url)
+  const bucket = BUDGETED_PATHS.has(path) ? path : OTHER_BUCKET
+  const key = authRateLimitKey(request.headers, bucket)
   if (key === null) return null
 
   const verdict = authNoIpRateLimiter(key, BETA_AUTH_NO_IP_RATE_LIMIT)

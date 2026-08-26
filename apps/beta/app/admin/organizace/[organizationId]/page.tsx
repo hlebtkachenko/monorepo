@@ -34,6 +34,7 @@ import {
   inviteToOrganizationAction,
   setMemberActiveAction,
 } from "../../_actions/memberships"
+import { isUuid } from "../../_actions/input"
 import {
   setOrganizationArchivedAction,
   updateOrganizationSettingsAction,
@@ -64,6 +65,12 @@ export default async function AdminOrganizationDetailPage({
 }) {
   const { organizationId } = await params
   const office = await requireOffice()
+
+  // The segment is request input. Postgres answers a non-uuid `= $1` on a uuid
+  // column with 22P02 (invalid input syntax), which surfaces as a 500 — a
+  // typo'd URL must be a 404, and a probe must not be able to tell the two
+  // apart. Same rule the actions apply to every id they receive.
+  if (!isUuid(organizationId)) notFound()
 
   const organization = await officeOrganization(office, organizationId)
   if (!organization) notFound()
@@ -135,10 +142,17 @@ export default async function AdminOrganizationDetailPage({
               <Label htmlFor="vatRegisteredFrom">
                 {t("admin.fieldVatRegisteredFrom")}
               </Label>
+              {/*
+                `defaultValue` is what stops an unrelated save — toggling the
+                demo flag — from nulling this. The regime and its date are
+                written as a pair (`organizationVatPayload`), so an empty input
+                is indistinguishable from "clear it".
+              */}
               <Input
                 id="vatRegisteredFrom"
                 name="vatRegisteredFrom"
                 type="date"
+                defaultValue={organization.vatRegisteredFrom ?? ""}
               />
             </div>
             <div className="flex items-center gap-2 sm:col-span-2">

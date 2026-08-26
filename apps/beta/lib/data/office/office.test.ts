@@ -324,6 +324,7 @@ describe("creating an organization", () => {
       const result = await run(organizationActions.createOrganizationAction, {
         slug,
         legalName: "Kolize s.r.o.",
+        vatRegime: "neplatce",
       })
       // `_next` is refused by the FORMAT rule (leading underscore) before the
       // reserved list is consulted; both are refusals, which is the point.
@@ -341,6 +342,7 @@ describe("creating an organization", () => {
     await run(organizationActions.createOrganizationAction, {
       slug: taken,
       legalName: "První s.r.o.",
+      vatRegime: "neplatce",
     })
 
     const cases: [Record<string, string>, string][] = [
@@ -358,14 +360,31 @@ describe("creating an organization", () => {
     ]
 
     for (const [entries, error] of cases) {
-      const result = await run(
-        organizationActions.createOrganizationAction,
-        entries,
-      )
+      const result = await run(organizationActions.createOrganizationAction, {
+        vatRegime: "neplatce",
+        ...entries,
+      })
       expect(result, JSON.stringify(entries)).toMatchObject({
         status: "error",
         error,
       })
+    }
+  })
+
+  it("refuses an unknown VAT regime instead of quietly defaulting", async () => {
+    // A silent `?? "neplatce"` turns a stale form, a hand-built POST or a
+    // future enum member into a book marked as a non-payer — and the VAT
+    // regime is the fact the whole Daně module keys off.
+    as(staff.headers)
+    for (const vatRegime of ["", "osvobozeny", "PLATCE"]) {
+      expect(
+        await run(organizationActions.createOrganizationAction, {
+          slug: unique("dph-neznamy-"),
+          legalName: "Neznámý režim s.r.o.",
+          vatRegime,
+        }),
+        vatRegime || "<empty>",
+      ).toMatchObject({ status: "error", error: "admin.errorInvalidInput" })
     }
   })
 
@@ -378,6 +397,7 @@ describe("creating an organization", () => {
       await run(organizationActions.createOrganizationAction, {
         slug: `  ${slug.toUpperCase()}  `,
         legalName: "Velká s.r.o.",
+        vatRegime: "neplatce",
       }),
     ).toMatchObject({ status: "ok" })
 
@@ -394,6 +414,7 @@ describe("organization settings", () => {
     await run(organizationActions.createOrganizationAction, {
       slug,
       legalName: "Nastavení s.r.o.",
+      vatRegime: "neplatce",
     })
     const created = (await listOfficeOrganizations(await office())).find(
       (row) => row.slug === slug,
@@ -435,6 +456,82 @@ describe("organization settings", () => {
     expect(
       (await officeOrganization(await office(), created.id))?.archived,
     ).toBe(false)
+  })
+
+  /**
+   * The regression the Advisor caught. `OfficeOrganizationRow` had no
+   * `vatRegisteredFrom`, so the date input rendered with no `defaultValue`,
+   * so every save posted an empty date — and the regime and its date are
+   * written as a PAIR (`organizationVatPayload`), so an empty date reads as
+   * "clear it". Toggling the demo flag silently wiped the registration date of
+   * a plátce, which is a legal fact on the identity card.
+   */
+  it("keeps the VAT registration date through an unrelated save", async () => {
+    as(staff.headers)
+    const slug = unique("dph-")
+    await run(organizationActions.createOrganizationAction, {
+      slug,
+      legalName: "Plátce s.r.o.",
+      vatRegime: "neplatce",
+    })
+    const created = (await listOfficeOrganizations(await office())).find(
+      (row) => row.slug === slug,
+    )!
+
+    await run(organizationActions.updateOrganizationSettingsAction, {
+      organizationId: created.id,
+      vatRegime: "platce",
+      vatRegisteredFrom: "2026-04-01",
+    })
+    expect(
+      (await officeOrganization(await office(), created.id))?.vatRegisteredFrom,
+    ).toBe("2026-04-01")
+
+    // The save the office actually makes next: flip `is_demo`, leaving the VAT
+    // fields exactly as the form rendered them. The date must survive.
+    const beforeToggle = await officeOrganization(await office(), created.id)
+    await run(organizationActions.updateOrganizationSettingsAction, {
+      organizationId: created.id,
+      vatRegime: beforeToggle!.vatRegime,
+      // What the form now posts, because the input has a defaultValue.
+      vatRegisteredFrom: beforeToggle!.vatRegisteredFrom ?? "",
+      isDemo: "on",
+    })
+
+    const after = await officeOrganization(await office(), created.id)
+    expect(after?.isDemo).toBe(true)
+    expect(after?.vatRegime).toBe("platce")
+    expect(after?.vatRegisteredFrom).toBe("2026-04-01")
+  })
+
+  it("clears the registration date when the regime goes back to neplátce", async () => {
+    // The other direction is still deliberate: a neplátce carrying a
+    // registration date is an identity card that lies.
+    as(staff.headers)
+    const slug = unique("zpet-")
+    await run(organizationActions.createOrganizationAction, {
+      slug,
+      legalName: "Zpět s.r.o.",
+      vatRegime: "platce",
+    })
+    const created = (await listOfficeOrganizations(await office())).find(
+      (row) => row.slug === slug,
+    )!
+
+    await run(organizationActions.updateOrganizationSettingsAction, {
+      organizationId: created.id,
+      vatRegime: "platce",
+      vatRegisteredFrom: "2026-04-01",
+    })
+    await run(organizationActions.updateOrganizationSettingsAction, {
+      organizationId: created.id,
+      vatRegime: "neplatce",
+      vatRegisteredFrom: "2026-04-01",
+    })
+
+    const after = await officeOrganization(await office(), created.id)
+    expect(after?.vatRegime).toBe("neplatce")
+    expect(after?.vatRegisteredFrom).toBeNull()
   })
 
   it("refuses a payload whose enum or id is not one of the known values", async () => {
@@ -700,22 +797,31 @@ describe("owner ve všech", () => {
     ).toBeUndefined()
   })
 
-  it("refuses a non-staff or deactivated target", async () => {
+  it("refuses a non-staff or deactivated target, and says which", async () => {
+    // Two different preconditions with two different fixes: "make this an
+    // office account" versus "this office account is switched off".
     const company = await createAccount()
     const retired = await createAccount({ staff: true })
     await disableAccount(retired.userId)
 
     as(staff.headers)
-    for (const target of [company, retired]) {
-      expect(
-        await run(membershipActions.grantOwnerEverywhereAction, {
-          userId: target.userId,
-        }),
-      ).toMatchObject({
-        status: "error",
-        error: "admin.errorOwnerRequiresStaff",
-      })
-    }
+    expect(
+      await run(membershipActions.grantOwnerEverywhereAction, {
+        userId: company.userId,
+      }),
+    ).toMatchObject({
+      status: "error",
+      error: "admin.errorOwnerRequiresStaff",
+    })
+
+    expect(
+      await run(membershipActions.grantOwnerEverywhereAction, {
+        userId: retired.userId,
+      }),
+    ).toMatchObject({
+      status: "error",
+      error: "admin.errorOwnerRequiresActive",
+    })
   })
 })
 
@@ -926,6 +1032,73 @@ describe("the one-time link is shown exactly once", () => {
       await run(setupLinkActions.revokeSetupLinkAction, { tokenId: "../../" }),
     ).toMatchObject({ status: "error", error: "admin.errorInvalidInput" })
   })
+
+  it("refuses to mint an invite into an archived book", async () => {
+    // An archived organization admits nobody, so the link's only possible
+    // outcome is a 404 for whoever clicks it. Archiving already revokes what
+    // was outstanding (0003); this is the other half — without it the office
+    // can re-mint into a book it has just withdrawn.
+    const book = await seedOrganization()
+    as(staff.headers)
+    await run(organizationActions.setOrganizationArchivedAction, {
+      organizationId: book.organizationId,
+      archived: "true",
+    })
+
+    expect(
+      await run(membershipActions.inviteToOrganizationAction, {
+        organizationId: book.organizationId,
+        email: `${unique("arch")}@example.com`,
+        role: "guest",
+      }),
+    ).toMatchObject({
+      status: "error",
+      error: "admin.errorOrganizationArchived",
+    })
+
+    // And it works again once the book is back.
+    await run(organizationActions.setOrganizationArchivedAction, {
+      organizationId: book.organizationId,
+      archived: "false",
+    })
+    expect(
+      await run(membershipActions.inviteToOrganizationAction, {
+        organizationId: book.organizationId,
+        email: `${unique("arch")}@example.com`,
+        role: "guest",
+      }),
+    ).toMatchObject({ status: "issued" })
+  })
+
+  it("revokes the outstanding invites when a book is archived", async () => {
+    const book = await seedOrganization()
+    const email = `${unique("pending")}@example.com`
+    as(staff.headers)
+    await run(membershipActions.inviteToOrganizationAction, {
+      organizationId: book.organizationId,
+      email,
+      role: "member",
+    })
+
+    const liveBefore = (
+      await listSetupLinks(await office(), {
+        organizationId: book.organizationId,
+      })
+    ).find((entry) => entry.email === email)
+    expect(liveBefore?.status).toBe("live")
+
+    await run(organizationActions.setOrganizationArchivedAction, {
+      organizationId: book.organizationId,
+      archived: "true",
+    })
+
+    const after = (
+      await listSetupLinks(await office(), {
+        organizationId: book.organizationId,
+      })
+    ).find((entry) => entry.email === email)
+    expect(after?.status).toBe("revoked")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -966,6 +1139,76 @@ describe("SF-6 — offboarding through /admin revokes what is outstanding", () =
       (entry) => entry.email === leaver.email,
     )
     expect(after.map((entry) => entry.status)).toEqual(["revoked", "revoked"])
+  })
+
+  it("deactivating an office account kills the links it ISSUED", async () => {
+    // Containment: disabling a suspect office account has to kill the grants it
+    // handed out, not just the ones addressed to it. Otherwise the office also
+    // has to hunt its invites through the registry by hand, within 48 hours.
+    const book = await seedOrganization()
+    const rogue = await createAccount({ staff: true })
+    as(staff.headers)
+    await run(membershipActions.grantOwnerEverywhereAction, {
+      userId: rogue.userId,
+    })
+
+    const invitee = `${unique("issued")}@example.com`
+    as(rogue.headers)
+    const issued = await run(membershipActions.inviteToOrganizationAction, {
+      organizationId: book.organizationId,
+      email: invitee,
+      role: "admin",
+    })
+    expect(issued).toMatchObject({ status: "issued" })
+
+    as(staff.headers)
+    expect(
+      await run(userActions.setUserDisabledAction, {
+        userId: rogue.userId,
+        disabled: "true",
+      }),
+    ).toMatchObject({ status: "ok" })
+
+    const link = (await listSetupLinks(await office())).find(
+      (entry) => entry.email === invitee,
+    )
+    expect(link?.status).toBe("revoked")
+  })
+
+  it("refuses to seat a deactivated office account as owner", async () => {
+    // `is_staff` alone was not enough: a disabled owner does not count towards
+    // `beta_active_owner_count`, so a book whose only owner is disabled reads
+    // as ownerless and the last-owner guard stops defending it.
+    const book = await seedOrganization()
+    const retired = await createAccount({ staff: true })
+    as(staff.headers)
+    await run(userActions.setUserDisabledAction, {
+      userId: retired.userId,
+      disabled: "true",
+    })
+
+    await addMembership(book.organizationId, retired.userId, "guest")
+    expect(
+      await run(membershipActions.changeMemberRoleAction, {
+        organizationId: book.organizationId,
+        userId: retired.userId,
+        role: "owner",
+      }),
+    ).toMatchObject({
+      status: "error",
+      error: "admin.errorOwnerRequiresActive",
+    })
+
+    // And "owner ve všech" refuses the same target, with the same distinction
+    // between "not office staff" and "office account, but switched off".
+    expect(
+      await run(membershipActions.grantOwnerEverywhereAction, {
+        userId: retired.userId,
+      }),
+    ).toMatchObject({
+      status: "error",
+      error: "admin.errorOwnerRequiresActive",
+    })
   })
 
   it("deactivating a membership kills that book's invites and no others", async () => {

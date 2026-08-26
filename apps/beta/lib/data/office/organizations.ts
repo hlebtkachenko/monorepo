@@ -61,6 +61,10 @@ const ORGANIZATION_COLUMNS = {
   legal_name: organization.legal_name,
   ico: organization.ico,
   vat_regime: organization.vat_regime,
+  // Selected because the settings form has to re-post it. See the note on
+  // `OfficeOrganizationRow.vatRegisteredFrom`: without it every save nulls the
+  // registration date of a plátce.
+  vat_registered_from: organization.vat_registered_from,
   is_demo: organization.is_demo,
   archived_at: organization.archived_at,
   memberCount: ACTIVE_MEMBER_COUNT,

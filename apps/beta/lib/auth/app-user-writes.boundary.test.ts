@@ -117,12 +117,57 @@ function parse(source: string, fileName: string): ts.SourceFile {
 }
 
 /**
+ * Local names in this file that stand for the `app_user` table.
+ *
+ * `const users = app_user` then `db.update(users)` is an ordinary refactor and
+ * used to walk straight past the fence, because the table argument was only
+ * matched as the literal identifier `app_user`. Per-file, so an unrelated
+ * `users` in a module that never imports the table is not claimed.
+ */
+function appUserAliases(sf: ts.SourceFile): Set<string> {
+  const aliases = new Set(["app_user"])
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      tableNameOf(node.initializer, sf) === "app_user"
+    ) {
+      aliases.add(node.name.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+  return aliases
+}
+
+/**
+ * The table an expression names, as a bare name.
+ *
+ * Takes the TAIL of a property access, so `schema.app_user` and
+ * `tables.beta.app_user` are the same table as `app_user` — the previous
+ * version required a bare identifier and silently returned null for every
+ * namespaced import, which is the most natural way to write this code.
+ */
+function tableNameOf(node: ts.Expression, sf: ts.SourceFile): string | null {
+  if (ts.isIdentifier(node)) return node.text
+  if (ts.isPropertyAccessExpression(node)) return node.name.text
+  if (ts.isElementAccessExpression(node)) {
+    const argument = node.argumentExpression
+    return ts.isStringLiteralLike(argument) ? argument.text : null
+  }
+  void sf
+  return null
+}
+
+/**
  * `db.update(app_user).set({...})` and `db.insert(app_user).values({...})`.
  * The payload argument sits on the `.set` / `.values` call; the table sits on
  * the `update` / `insert` call one link back down the chain.
  */
 function drizzleWriteFindings(sf: ts.SourceFile, file: string): Finding[] {
   const findings: Finding[] = []
+  const aliases = appUserAliases(sf)
 
   const tableOfChain = (node: ts.Node): string | null => {
     let current: ts.Node = node
@@ -133,7 +178,10 @@ function drizzleWriteFindings(sf: ts.SourceFile, file: string): Finding[] {
         ["update", "insert"].includes(current.expression.name.text)
       ) {
         const [table] = current.arguments
-        return table && ts.isIdentifier(table) ? table.text : null
+        if (!table) return null
+        const name = tableNameOf(table, sf)
+        // Normalize every alias back to the one name the caller checks for.
+        return name !== null && aliases.has(name) ? "app_user" : name
       }
       if (ts.isCallExpression(current)) current = current.expression
       else if (ts.isPropertyAccessExpression(current))
@@ -317,6 +365,42 @@ describe("SF-3 — app_user write paths", () => {
     ])
   })
 
+  it("sees the table through a namespace and through an alias", () => {
+    // Both spellings are ordinary refactors that used to walk straight past
+    // the fence: the table argument was matched only as the bare identifier
+    // `app_user`, so a namespaced import returned null and an alias returned a
+    // name nobody was looking for.
+    const hostile = `
+      import * as schema from "@/db/schema"
+      import { app_user } from "@/db/schema"
+      const users = app_user
+      export async function promote(db, id) {
+        await db.update(schema.app_user).set({ is_staff: true }).where(eq(schema.app_user.id, id))
+        await db.update(users).set({ disabled_at: null }).where(eq(users.id, id))
+      }
+    `
+    const findings = drizzleWriteFindings(
+      parse(hostile, "aliased-table.ts"),
+      "aliased-table.ts",
+    )
+    expect(findings.map((f) => f.detail)).toEqual([
+      "app_user write sets is_staff",
+      "app_user write sets disabled_at",
+    ])
+  })
+
+  it("does not claim an unrelated table of a similar shape", () => {
+    const innocent = `
+      import { organization } from "@/db/schema"
+      export async function rename(db, id, name) {
+        await db.update(organization).set({ legal_name: name }).where(eq(organization.id, id))
+      }
+    `
+    expect(
+      drizzleWriteFindings(parse(innocent, "other-table.ts"), "other-table.ts"),
+    ).toEqual([])
+  })
+
   it("accepts an audited builder as a payload, and only an audited one", () => {
     const audited = `
       import { app_user } from "@/db/schema"
@@ -422,7 +506,9 @@ describe("SF-3 — app_user write paths", () => {
   })
 
   it("writes app_user through no raw SQL at all", () => {
-    const pattern = /(insert\s+into|update)\s+app_user\b/i
+    // Optional quotes: `UPDATE "app_user" SET ...` is the spelling a copied
+    // psql session produces, and the unquoted-only pattern walked past it.
+    const pattern = /(insert\s+into|update)\s+"?app_user"?\b/i
     const offenders = parsed
       .filter((entry) => pattern.test(entry.source))
       .map((entry) => entry.file)
@@ -434,5 +520,13 @@ describe("SF-3 — app_user write paths", () => {
       "utf8",
     )
     expect(pattern.test(fixtures)).toBe(true)
+
+    // And it matches the quoted spelling a copied psql session produces.
+    expect(pattern.test(`UPDATE "app_user" SET is_staff = true`)).toBe(true)
+    expect(pattern.test(`INSERT INTO "app_user" (email) VALUES ($1)`)).toBe(
+      true,
+    )
+    // Without matching a different table whose name merely starts the same.
+    expect(pattern.test(`UPDATE app_user_session SET x = 1`)).toBe(false)
   })
 })

@@ -329,16 +329,23 @@ export class SecurityStack extends Stack {
       },
     ]
 
-    // Production also carries an account-WIDE guard: an untagged $55 total
-    // that caps the whole account (no Environment filter), strictly tighter
-    // than the sum of the per-env caps. It feeds the kill-switch — production
-    // is the always-on env, so an account-wide overrun stops production.
-    // Lives on production only (staging is ephemeral / auto-stopped). This
-    // codifies the CLI stop-gap budget `monorepo-account-total-guard-temp`
-    // created during the AFF cost review 2026-05-31, replacing the drift with
-    // a managed resource. Delete the CLI budget once this has deployed.
+    // Production also carries an account-WIDE guard: an untagged total that
+    // caps the whole account (no Environment filter). It feeds the
+    // kill-switch — production is the always-on env, so an account-wide
+    // overrun stops production. Lives on production only (staging is
+    // ephemeral / auto-stopped). This codifies the CLI stop-gap budget
+    // `monorepo-account-total-guard-temp` created during the AFF cost review
+    // 2026-05-31, replacing the drift with a managed resource.
+    //
+    // $55 → $75: beta env headroom. The dedicated `beta` environment
+    // (Network-beta + BetaData-beta + BetaApp-beta) adds ~$20-22/mo of
+    // account spend that this untagged budget measures but the per-env
+    // Total budgets above do not — beta runs no SecurityStack, so it has no
+    // budget of its own. At $55 the account-wide guard would fire on normal
+    // beta+production steady state and stop PRODUCTION. See
+    // `.context/beta-afframe/30-plan-v3-beta-env.md` Part 1 + ADR-0016.
     if (props.envName === "production") {
-      budgets.push({ id: "AccountTotal", limitUsd: 55, killSwitch: true })
+      budgets.push({ id: "AccountTotal", limitUsd: 75, killSwitch: true })
     }
 
     for (const spec of budgets) {

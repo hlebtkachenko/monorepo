@@ -82,9 +82,10 @@ set and the HardCap50 budget (2026-05-19 amendment) were replaced by:
 - Per env: `Total` **$55** (kill-switch at 100%, ops email at 80%) +
   `DataTransfer` **$10** (alert-only; replaces the removed
   Container-Insights fargate-egress alarm).
-- Production only: `AccountTotal` **$55** — account-wide, untagged,
-  kill-switch-wired. Codifies the CLI stop-gap budget
-  `monorepo-account-total-guard-temp` as a managed resource.
+- Production only: `AccountTotal` **$75** (was $55 until the beta
+  amendment below) — account-wide, untagged, kill-switch-wired. Codifies
+  the CLI stop-gap budget `monorepo-account-total-guard-temp` as a
+  managed resource.
 
 **Kill-switch scope.** The Lambda now stops **RDS as well as ECS** on a
 breach (the old design left ~$16/mo/env of RDS running). It stops the
@@ -106,6 +107,27 @@ management events.
 RDS stop) after a max-uptime TTL. `AUTO_STOP_ENVS` currently includes
 `production` as an explicit **pre-v1 exception** — it MUST be removed at
 v1 launch (see `docs/plans/V1-LAUNCH-GATES.md` and the in-code banner).
+
+## Amendment (2026-08-26): AccountTotal raised to $75 for the beta environment
+
+The dedicated `beta` environment (`Network-beta` + `BetaData-beta` +
+`BetaApp-beta`, added for the beta.afframe.com client portal) instantiates
+no `SecurityStack`, so it carries **no budget of its own** — its
+~$20-22/mo of steady-state spend (RDS t4g.micro + 20 GB gp3 + a 256/512
+ARM Fargate task + S3/ECR/logs) is invisible to the per-env `Total`
+budgets, which all filter on the `Environment` cost-allocation tag.
+
+The untagged production-only `AccountTotal` guard measures it. At $55 it
+would have crossed on ordinary beta + production steady state and stopped
+**production**, which is the failure mode this budget exists to prevent
+rather than cause. Raised to **$75** — beta's envelope plus the same
+headroom the $55 figure carried for production alone.
+
+Budget _actions_ wiring is unchanged: the same SNS → kill-switch Lambda
+path, the same 80% ops / 100% kill-switch thresholds. Only the dollar
+threshold moved. Applying it is a production `cdk deploy`, gated on Hleb
+(the budget is a production-stack resource; the beta pipeline never
+deploys `Security-production`).
 
 ## Alternatives considered
 

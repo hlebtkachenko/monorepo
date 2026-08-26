@@ -465,6 +465,34 @@ export async function listDocumentSiteSummaries(
   }))
 }
 
+/** The Partneři detail's own bound — a construction client's supplier does
+ * not accumulate thousands of documents, and the newest ones are what the
+ * page needs to show first. */
+const PARTNER_DOCUMENTS_LIMIT = 200
+
+/**
+ * The documents linked to one partner (spec §2.4: Partneři detail's "linked
+ * documents"), newest first.
+ *
+ * REUSES `visibleDocuments` WHOLE, so a guest reading a client's own Partneři
+ * detail sees exactly the same client-visible layer Dokumenty already shows
+ * them — never a hidden document merely because it happens to name this
+ * partner as its protistrana.
+ */
+export async function documentsForPartner(
+  scope: OrgScope,
+  partnerId: string,
+): Promise<DocumentSummary[]> {
+  const rows = await betaDb()
+    .select(summaryColumns)
+    .from(document)
+    .where(and(visibleDocuments(scope), eq(document.partner_id, partnerId)))
+    .orderBy(desc(document.created_at), desc(document.id))
+    .limit(PARTNER_DOCUMENTS_LIMIT)
+
+  return rows.map(documentSummary)
+}
+
 /** One document, or null. Null is what the routes turn into a 404. */
 export async function documentForScope(
   scope: OrgScope,

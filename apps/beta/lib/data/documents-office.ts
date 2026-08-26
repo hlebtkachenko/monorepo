@@ -24,6 +24,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import { betaDb } from "@/db/client"
 import {
   document,
+  partner,
   type BetaClientDocumentType,
   type BetaDocumentStatus,
 } from "@/db/schema"
@@ -63,6 +64,7 @@ const detailColumns = {
   office_message: document.office_message,
   internal_note: document.internal_note,
   visible_to_client: document.visible_to_client,
+  partner_id: document.partner_id,
 }
 
 /**
@@ -214,6 +216,12 @@ export type DocumentOfficePatch = {
    * parsed to a `number` here (spec §0.7: beta never computes). */
   amount?: string | null
   siteRef?: string | null
+  /**
+   * Protistrana (spec §2.2, §4's `document.partner_id`, PR 29). `null` clears
+   * it — the office un-linking a document from a partner is a real edit, not
+   * "leave it alone".
+   */
+  partnerId?: string | null
 }
 
 export type DocumentOfficeRefusal =
@@ -225,6 +233,11 @@ export type DocumentOfficeRefusal =
   | "message_required"
   | "invalid_date"
   | "invalid_amount"
+  /** `partnerId` names no partner of this book — either a typo in a hand-built
+   * POST, or a partner from another organization. The composite FK
+   * (`document_partner_fk`) would refuse it anyway; checked here first so the
+   * office gets a Czech sentence rather than a 500. */
+  | "invalid_partner"
   /** Another write landed on this row between the read and the write. Not a
    * fault — the caller re-opens the sheet and tries again, the same shape of
    * refusal `office/memberships.ts` calls `"retry"`. */
@@ -278,6 +291,21 @@ export async function saveDocumentOffice(
   ) {
     return { ok: false, reason: "invalid_amount" }
   }
+  if (patch.partnerId !== undefined && patch.partnerId !== null) {
+    if (!UUID.test(patch.partnerId))
+      return { ok: false, reason: "invalid_partner" }
+    const [linked] = await betaDb()
+      .select({ id: partner.id })
+      .from(partner)
+      .where(
+        and(
+          eq(partner.organization_id, owner.organizationId),
+          eq(partner.id, patch.partnerId),
+        ),
+      )
+      .limit(1)
+    if (!linked) return { ok: false, reason: "invalid_partner" }
+  }
 
   const [current] = await betaDb()
     .select({
@@ -329,6 +357,7 @@ export async function saveDocumentOffice(
   if (patch.siteRef !== undefined) {
     values.site_ref = normalizeSiteRef(patch.siteRef)
   }
+  if (patch.partnerId !== undefined) values.partner_id = patch.partnerId
 
   try {
     if (Object.keys(values).length === 0) {

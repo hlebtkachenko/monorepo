@@ -25,6 +25,7 @@ import type {
   app_user,
   asset,
   asset_event,
+  client_task,
   document,
   filing,
   import_batch,
@@ -37,6 +38,8 @@ import type {
   BetaAssetCategory,
   BetaAssetEventKind,
   BetaAssetStatus,
+  BetaClientTaskLinkKind,
+  BetaClientTaskStatus,
   BetaFilingFamily,
   BetaFilingKind,
   BetaFilingStatus,
@@ -61,6 +64,7 @@ type StatementLineRow = typeof statement_line.$inferSelect
 type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
 type AssetRow = typeof asset.$inferSelect
 type AssetEventRow = typeof asset_event.$inferSelect
+type ClientTaskRow = typeof client_task.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -938,6 +942,99 @@ export function assetEventView(
     eventDate: row.event_date,
     amount: row.amount,
     note: row.note,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Client task — Pro účetní › Úkoly klientovi (spec §3.4, §2.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * One OPEN, non-template task as the client's own list renders it (spec §2.1:
+ * "open client_tasks (text, due, link)"). Deliberately narrow — no
+ * `organization_id` (the reader already holds the scope that produced it),
+ * no `status` (this view is only ever built from `status = 'open'` rows, the
+ * same reasoning `filingView` gives for omitting `created_at`), and none of
+ * the office-only bookkeeping (`isTemplate`, `createdBy`, the `source*`
+ * pair, `templateDueDay`) — `OwnerClientTaskDetail` below is the office's own,
+ * separate shape for those, the same split `documentSummary` /
+ * `ownerDocumentDetail` already establish for `document`.
+ */
+export type ClientTaskView = {
+  id: string
+  title: string
+  description: string | null
+  dueDate: string
+  linkKind: BetaClientTaskLinkKind
+}
+
+export function clientTaskView(
+  row: Pick<ClientTaskRow, "id" | "title" | "description" | "link_kind"> & {
+    due_date: string
+  },
+): ClientTaskView {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    dueDate: row.due_date,
+    linkKind: row.link_kind,
+  }
+}
+
+/**
+ * One row of Pro účetní › Úkoly klientovi (spec §3.4) — a real task OR a
+ * template, as the office's own CRUD list needs it. `generatedFromTemplate`
+ * is DERIVED (`source_template_id !== null`), not the raw id itself: the
+ * office UI only ever needs to know THAT a task came from a template, never
+ * which one, so the raw foreign key stays out of this projection the same way
+ * `hasAttachment` on `FilingView` reports a fact rather than the id behind it.
+ */
+export type OwnerClientTaskDetail = {
+  id: string
+  isTemplate: boolean
+  title: string
+  description: string | null
+  dueDate: string | null
+  templateDueDay: number | null
+  linkKind: BetaClientTaskLinkKind
+  status: BetaClientTaskStatus
+  doneAt: string | null
+  generatedFromTemplate: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export function ownerClientTaskDetail(
+  row: Pick<
+    ClientTaskRow,
+    | "id"
+    | "is_template"
+    | "title"
+    | "description"
+    | "due_date"
+    | "template_due_day"
+    | "link_kind"
+    | "status"
+    | "done_at"
+    | "source_template_id"
+    | "created_at"
+    | "updated_at"
+  >,
+): OwnerClientTaskDetail {
+  return {
+    id: row.id,
+    isTemplate: row.is_template,
+    title: row.title,
+    description: row.description,
+    dueDate: row.due_date,
+    templateDueDay: row.template_due_day,
+    linkKind: row.link_kind,
+    status: row.status,
+    doneAt: row.done_at === null ? null : row.done_at.toISOString(),
+    generatedFromTemplate: row.source_template_id !== null,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
   }
 }
 

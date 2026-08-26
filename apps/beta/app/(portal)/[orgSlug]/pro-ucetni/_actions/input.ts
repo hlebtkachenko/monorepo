@@ -2,7 +2,9 @@ import "server-only"
 
 import {
   BETA_CLIENT_DOCUMENT_TYPES,
+  betaClientTaskLinkKind,
   type BetaClientDocumentType,
+  type BetaClientTaskLinkKind,
   type BetaFilingKind,
   type BetaFilingStatus,
   type BetaObligationGroup,
@@ -288,4 +290,22 @@ export function formObligationGroup(
 ): BetaObligationGroup | null {
   const value = formString(formData, key)
   return MANUAL_OBLIGATION_GROUPS.find((group) => group === value) ?? null
+}
+
+/**
+ * Úkoly klientovi's own closed set (`db/schema/_enums.ts`'s
+ * `betaClientTaskLinkKind`) — same discipline as `formObligationGroup` above:
+ * an unrecognised value is a refusal, never a cast. `year` / `month` /
+ * `templateDueDay` reuse `formInteger` above rather than a new reader — they
+ * are all "a whole number in an inclusive range", which is exactly what that
+ * one already checks.
+ */
+export function formClientTaskLinkKind(
+  formData: FormData,
+  key: string,
+): BetaClientTaskLinkKind | null {
+  const value = formString(formData, key)
+  return (
+    betaClientTaskLinkKind.enumValues.find((kind) => kind === value) ?? null
+  )
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  betaClientTaskLinkKind,
   betaFilingKind,
   betaFilingStatus,
   betaObligationGroup,
@@ -10,6 +11,7 @@ import {
 import {
   formChecked,
   formClientDocType,
+  formClientTaskLinkKind,
   formDate,
   formDecimal,
   formDocumentStatus,
@@ -277,5 +279,19 @@ describe("the Zadávání closed lists", () => {
       expect(formObligationGroup(fd({ g: group }), "g"), group).toBe(group)
     }
     expect(formObligationGroup(fd({ g: "dodavatele" }), "g")).toBeNull()
+  })
+})
+
+describe("Úkoly klientovi's closed list", () => {
+  it("covers every client_task link kind the enum declares", () => {
+    for (const kind of betaClientTaskLinkKind.enumValues) {
+      expect(formClientTaskLinkKind(fd({ k: kind }), "k"), kind).toBe(kind)
+    }
+  })
+
+  it("refuses a value that is not on the list", () => {
+    expect(formClientTaskLinkKind(fd({ k: "" }), "k")).toBeNull()
+    expect(formClientTaskLinkKind(fd({ k: "financni" }), "k")).toBeNull()
+    expect(formClientTaskLinkKind(fd({}), "k")).toBeNull()
   })
 })

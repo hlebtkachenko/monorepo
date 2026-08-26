@@ -9,10 +9,14 @@ import { loadZadavani } from "./_lib/load-zadavani"
  * non-document data".
  *
  * TWO OF THE NINE THINGS §3.3 LISTS. Filings and manual liabilities land here
- * with PR 18 because they are what Finance › Dluhy a platby reads; client_task
- * (PR 19), indicator, loan, asset, payroll_summary, partner and
- * account_balance_map each arrive with the module that reads them, as its own
- * section on this page. Nothing is stubbed for them (§0.3).
+ * with PR 18 because they are what Finance › Dluhy a platby reads. `client_task`
+ * is named in the same §3.3 list but does NOT land here: spec §3 gives it its
+ * own sidebar entry — Úkoly klientovi — because §3.4 grows it well past a
+ * single deep-link edit form (CRUD, templates, "Vytvořit měsíční sadu úkolů"),
+ * so PR 19 ships `pro-ucetni/ukoly/` instead. indicator, loan, asset,
+ * payroll_summary, partner and account_balance_map still arrive here, each
+ * with the module that reads them, as its own section on this page. Nothing
+ * is stubbed for them (§0.3).
  *
  * NO GATE IN THIS FILE, and that is not an omission: `loadZadavani` opens with
  * `requireOwner`, so the 404 happens before anything is read — and it is the

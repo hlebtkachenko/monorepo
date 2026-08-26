@@ -16,6 +16,7 @@
 import postgres from "postgres"
 
 import type {
+  BetaClientTaskLinkKind,
   BetaDocumentType,
   BetaFilingKind,
   BetaFilingStatus,
@@ -591,6 +592,75 @@ export async function createLiabilityRow(
       ${values.variableSymbol ?? null},
       ${values.noteClient ?? null},
       ${values.noteInternal ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+// ---------------------------------------------------------------------------
+// client_task (PR 19) — written as raw SQL, same reasoning as the fixtures
+// above: the office write path (`lib/data/client-tasks.ts`) is owner-gated,
+// so a fixture that used it could not seed a world for a test whose subject
+// IS the gate.
+// ---------------------------------------------------------------------------
+
+export async function createClientTaskRow(
+  organizationId: string,
+  values: {
+    title?: string
+    description?: string | null
+    dueDate?: string
+    linkKind?: BetaClientTaskLinkKind
+    status?: "open" | "done"
+    doneAt?: Date | null
+    sourceTemplateId?: string | null
+    sourcePeriodId?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO client_task (
+      organization_id, is_template, title, description, due_date, link_kind,
+      status, done_at, source_template_id, source_period_id
+    )
+    VALUES (
+      ${organizationId},
+      false,
+      ${values.title ?? "Nahrát bankovní výpis"},
+      ${values.description ?? null},
+      ${values.dueDate ?? "2026-03-25"},
+      ${values.linkKind ?? "none"},
+      ${values.status ?? "open"},
+      ${values.doneAt ?? null},
+      ${values.sourceTemplateId ?? null},
+      ${values.sourcePeriodId ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+export async function createClientTaskTemplateRow(
+  organizationId: string,
+  values: {
+    title?: string
+    description?: string | null
+    templateDueDay?: number
+    linkKind?: BetaClientTaskLinkKind
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO client_task (
+      organization_id, is_template, title, description, template_due_day,
+      link_kind
+    )
+    VALUES (
+      ${organizationId},
+      true,
+      ${values.title ?? "Doklady za měsíc"},
+      ${values.description ?? null},
+      ${values.templateDueDay ?? 5},
+      ${values.linkKind ?? "none"}
     )
     RETURNING id
   `

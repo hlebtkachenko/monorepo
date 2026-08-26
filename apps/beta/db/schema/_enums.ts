@@ -307,3 +307,34 @@ export const betaAssetEventKind = pgEnum("beta_asset_event_kind", [
 ])
 
 export type BetaAssetEventKind = (typeof betaAssetEventKind.enumValues)[number]
+
+/**
+ * Mirrors: 0009_client_tasks.sql — CREATE TYPE beta_client_task_status.
+ *
+ * A template never reaches `done` (0009's `client_task_template_never_done`
+ * CHECK) — this is a real task's own two-state lifecycle, spec §2.1's "open
+ * client_tasks" being exactly `status = 'open'`.
+ */
+export const betaClientTaskStatus = pgEnum("beta_client_task_status", [
+  "open",
+  "done",
+])
+
+export type BetaClientTaskStatus =
+  (typeof betaClientTaskStatus.enumValues)[number]
+
+/**
+ * Mirrors: 0009_client_tasks.sql — CREATE TYPE beta_client_task_link_kind.
+ *
+ * A CLOSED list of modules that already have a route in this app — see the
+ * migration's own comment on why a value is added only together with its
+ * route.
+ */
+export const betaClientTaskLinkKind = pgEnum("beta_client_task_link_kind", [
+  "none",
+  "dokumenty",
+  "dane",
+])
+
+export type BetaClientTaskLinkKind =
+  (typeof betaClientTaskLinkKind.enumValues)[number]

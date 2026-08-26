@@ -2,10 +2,10 @@
  * The sections of Pro účetní (spec §3: "Zpracování · Měsíční uzávěrka ·
  * Zadávání dat · Úkoly klientovi").
  *
- * TWO OF THE FOUR ARE HERE, because two of the four exist. Zpracování landed
- * with PR 14 and Zadávání dat with PR 18; Měsíční uzávěrka (PR 25) and Úkoly
- * klientovi (PR 19) add their own entry in the PR that adds their route — the
- * same "an entry is added only together with its route" rule `app/_nav/
+ * THREE OF THE FOUR ARE HERE, because three of the four exist. Zpracování
+ * landed with PR 14, Zadávání dat with PR 18, Úkoly klientovi with PR 19;
+ * Měsíční uzávěrka (PR 25) adds its own entry in the PR that adds its route —
+ * the same "an entry is added only together with its route" rule `app/_nav/
  * beta-nav.ts` states for the rail. Nothing here is a stub.
  *
  * A FUNCTION OF `orgSlug` for the same reason the rail is: every route lives
@@ -31,6 +31,10 @@ export function proUcetniNav(orgSlug: string): readonly ProUcetniNavItem[] {
     {
       labelKey: "zadavani.title",
       href: `/${orgSlug}/pro-ucetni/zadavani`,
+    },
+    {
+      labelKey: "ukoly.title",
+      href: `/${orgSlug}/pro-ucetni/ukoly`,
     },
   ]
 }

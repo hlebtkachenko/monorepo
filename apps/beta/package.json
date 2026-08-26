@@ -27,6 +27,7 @@
     "drizzle-orm": "^0.45.2",
     "heic-decode": "2.1.0",
     "jpeg-js": "0.4.4",
+    "jszip": "^3.10.1",
     "next": "16.2.10",
     "next-intl": "^4.13.1",
     "postgres": "^3.4.7",

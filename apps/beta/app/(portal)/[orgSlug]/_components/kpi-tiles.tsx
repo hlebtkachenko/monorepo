@@ -26,14 +26,15 @@ import { formatBetaMoney } from "@/lib/format/money"
  * `load-prehled.ts`'s presence questions) decides which ones exist at all. There
  * is no `value ?? 0` anywhere below, and there must never be one.
  *
- * §2.1 names five tiles. TWO HAVE FEEDERS TODAY — otevřené závazky (the §2.4
- * obligations read model) and zůstatková hodnota majetku (§2.7's asset
- * register). The other three do not, and are NOT stubbed here: výsledek
- * hospodaření needs Výkazy (PR 25) to say which VZZ řádek an export calls it,
- * volné prostředky needs `account_balance_map` (PR 26) to say which účet is a
- * bank, and mzdové náklady needs `payroll_summary` (PR 29) to exist. All three
- * appear on the data-presence grid below as datasets nobody has sent yet, which
- * is the true statement; a tile would be a guess.
+ * §2.1 names five tiles. THREE HAVE FEEDERS TODAY — otevřené závazky (the
+ * §2.4 obligations read model), zůstatková hodnota majetku (§2.7's asset
+ * register), and mzdové náklady (`payroll_summary`, `page.tsx`'s own
+ * presence check over `load-prehled.ts`'s `payroll` field). The other two do
+ * not, and are NOT stubbed here: výsledek hospodaření needs Výkazy (PR 25) to
+ * say which VZZ řádek an export calls it, and volné prostředky needs
+ * `account_balance_map` (PR 26) to say which účet is a bank. Both still
+ * appear on the data-presence grid below as datasets nobody has sent yet,
+ * which is the true statement; a tile would be a guess.
  *
  * NO SPARKLINES YET, for the same reason. §2.1 asks for one "where history" —
  * history means several published periods of the same dataset, and the two fed

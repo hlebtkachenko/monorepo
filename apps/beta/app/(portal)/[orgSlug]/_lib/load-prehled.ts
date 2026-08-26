@@ -11,10 +11,16 @@ import type { DatasetFreshness } from "@/lib/data/imports"
 import { obligationsForScope } from "@/lib/data/obligations"
 import type { ObligationsReadModel } from "@/lib/data/obligations"
 import { organizationCardForScope } from "@/lib/data/organizations"
+import {
+  payrollSummaryForPeriod,
+  publishedPayrollPeriods,
+} from "@/lib/data/payroll"
 import type {
   ClientTaskView,
   DocumentSummary,
   OrganizationCard,
+  PayrollSummaryView,
+  ReportingPeriodView,
 } from "@/lib/data/projections"
 import type { OrgScope } from "@/lib/data/scope"
 import { betaTodayIso } from "@/lib/format/date"
@@ -32,9 +38,13 @@ import type { TurnoverReading } from "@/lib/turnover"
  * composition. Here they are values, and `load-prehled.db.test.ts` asserts them
  * against real rows.
  *
- * SEVEN READS, ALL IN PARALLEL, NONE OF THEM NEW ARITHMETIC. Every sum on this
- * page was computed by Postgres in the module that owns it (§0.2); this file
- * chooses which of them exist, never what they are.
+ * EIGHT READS IN PARALLEL, PLUS ONE DEPENDENT NINTH, NONE OF THEM NEW
+ * ARITHMETIC. Every sum on this page was computed by Postgres in the module
+ * that owns it (§0.2); this file chooses which of them exist, never what
+ * they are. The payroll summary is the one read that cannot join the
+ * `Promise.all` below — it needs the newest published period's id, which is
+ * itself one of the eight — so it runs as a second, dependent await, the same
+ * shape `payroll/page.tsx` already uses for its own period-then-summary read.
  */
 
 /** §2.1 item 6: "Poslední dokumenty — 5 rows, status chips". */
@@ -57,6 +67,21 @@ export type PrehledData = {
   assets: AssetResidualSummary
   datasets: DatasetFreshness[]
   documents: PrehledDocuments
+  /**
+   * Mzdové náklady tile's feeder (spec §2.1 item 3, kpi-tiles.tsx's own
+   * header: "mzdové náklady needs payroll_summary to exist" — it landed in
+   * PR 30). The NEWEST published payroll period and its summary, or `null`
+   * for either an unlinked guest (`payrollScope` fails closed the same way it
+   * does for every other payroll read) or a book with no published payroll
+   * batch yet. `summary` can still be `null` even with a period present — the
+   * batch exists but the office has not stated `employer_cost_total` — and
+   * `page.tsx` treats that exactly like "no period" (§2.1's presence rule:
+   * the tile renders only where a REAL figure exists to show).
+   */
+  payroll: {
+    period: ReportingPeriodView
+    summary: PayrollSummaryView | null
+  } | null
   /**
    * The office-provided obrat figure — ALWAYS NULL TODAY, and deliberately so.
    *
@@ -104,18 +129,35 @@ export type PrehledData = {
 }
 
 export async function loadPrehled(scope: OrgScope): Promise<PrehledData> {
-  const [org, tasks, deadlines, obligations, assets, datasets, documentPage] =
-    await Promise.all([
-      organizationCardForScope(scope),
-      openClientTasksForScope(scope),
-      upcomingDeadlinesForScope(scope),
-      obligationsForScope(scope),
-      assetResidualSummaryForScope(scope),
-      datasetFreshnessForScope(scope),
-      listDocuments(scope),
-    ])
+  const [
+    org,
+    tasks,
+    deadlines,
+    obligations,
+    assets,
+    datasets,
+    documentPage,
+    payrollPeriods,
+  ] = await Promise.all([
+    organizationCardForScope(scope),
+    openClientTasksForScope(scope),
+    upcomingDeadlinesForScope(scope),
+    obligationsForScope(scope),
+    assetResidualSummaryForScope(scope),
+    datasetFreshnessForScope(scope),
+    listDocuments(scope),
+    publishedPayrollPeriods(scope),
+  ])
 
   const recent = documentPage.documents.slice(0, RECENT_DOCUMENT_COUNT)
+
+  // The newest published payroll period only — the KPI tile is one number,
+  // not the 12-month trend Přehled mezd itself renders, so a second read per
+  // period would cost far more than this page's one tile is worth.
+  const latestPayrollPeriod = payrollPeriods[0] ?? null
+  const payrollSummary = latestPayrollPeriod
+    ? await payrollSummaryForPeriod(scope, latestPayrollPeriod.id)
+    : null
 
   return {
     org,
@@ -124,6 +166,9 @@ export async function loadPrehled(scope: OrgScope): Promise<PrehledData> {
     obligations,
     assets,
     datasets,
+    payroll: latestPayrollPeriod
+      ? { period: latestPayrollPeriod, summary: payrollSummary }
+      : null,
     documents: {
       recent,
       total: documentPage.total,

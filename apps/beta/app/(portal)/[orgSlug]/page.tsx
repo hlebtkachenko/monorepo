@@ -102,6 +102,26 @@ export default async function OrgHomePage({
     })
   }
 
+  // Mzdové náklady (spec §2.1 item 3, `kpi-tiles.tsx`'s own long-blocked
+  // third feeder): renders only when a published payroll period exists AND
+  // the office has stated `employerCostTotal` for it — `data.payroll` is
+  // ALREADY `null` for anything short of that (an unlinked guest, no
+  // published batch, a batch with no summary), so this is the same single
+  // presence check every other tile above makes, not a role check of its
+  // own. `asOf` is the period's OWN end date, not today's — the same "as of
+  // a date, never interpolated" rule the asset tile states above, and the
+  // stamp `mzdy/page.tsx`'s own summary card gives no equivalent of, because
+  // that page has a freshness line of its own already.
+  if (data.payroll?.summary?.employerCostTotal) {
+    tiles.push({
+      key: "payroll",
+      labelKey: "prehled.kpiPayroll",
+      value: data.payroll.summary.employerCostTotal,
+      asOf: data.payroll.period.endsOn,
+      href: `/${orgSlug}/mzdy`,
+    })
+  }
+
   return (
     <div className="grid gap-4 p-6">
       <p className="text-sm text-muted-foreground">

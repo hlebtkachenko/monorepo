@@ -2,13 +2,32 @@
   "extends": ["//"],
   "tasks": {
     "build": {
-      "outputs": [".next/**", "!.next/cache/**"]
+      "outputs": [".next/**", "!.next/cache/**"],
+      // Better Auth reads these at runtime, not at build time (the instance is
+      // built lazily, see lib/auth/server.ts) — they are declared so the cache
+      // key and the lint rule both know about them. BETTER_AUTH_SECRET and
+      // NODE_ENV already live in the root globalEnv. NEXT_PHASE is set by Next
+      // itself during `next build`; the auth module keys its build placeholder
+      // on it.
+      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
+    },
+    "typecheck": {
+      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
+    },
+    "lint": {
+      "env": ["BETTER_AUTH_URL", "BETTER_AUTH_TRUSTED_ORIGINS", "NEXT_PHASE"]
     },
     "test": {
       // DATABASE_URL is set by tests/global-setup.ts after the Postgres 18
       // testcontainer boots (and read by db/client.ts); SKIP_TESTCONTAINER is
       // the escape hatch that reuses an externally-provided database instead.
-      "env": ["DATABASE_URL", "SKIP_TESTCONTAINER"]
+      "env": [
+        "DATABASE_URL",
+        "SKIP_TESTCONTAINER",
+        "BETTER_AUTH_URL",
+        "BETTER_AUTH_TRUSTED_ORIGINS",
+        "NEXT_PHASE"
+      ]
     }
   }
 }

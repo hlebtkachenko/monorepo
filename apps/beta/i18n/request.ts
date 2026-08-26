@@ -15,5 +15,13 @@ export default getRequestConfig(() => ({
   locale: BETA_LOCALE,
   timeZone: BETA_TIME_ZONE,
   formats: betaFormats,
-  messages: betaMessages,
+  // `@workspace/i18n` augments next-intl's global `AppConfig["Messages"]` with
+  // the MAIN product catalog, and that augmentation reaches this app as soon as
+  // anything imports `@workspace/ui`. next-intl then type-checks beta's own
+  // catalog against a foreign one: as long as beta's namespaces happened to be
+  // new (`app`, `nav`, `landing`) that was merely useless, but `auth` exists in
+  // both with different keys, which makes it an error. Beta's key checking
+  // comes from `BetaMessageKey` at every `t(...)` call site instead — see
+  // `./translations.ts`, which confines the same cast for the client hook.
+  messages: betaMessages as never,
 }))

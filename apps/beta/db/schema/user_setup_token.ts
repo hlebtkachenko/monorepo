@@ -19,16 +19,20 @@
  *     always grants a role, an unscoped one never does.
  *   - `password_reset` is never org-scoped.
  *   - trigger `user_setup_token_issuer_guard`: only office staff may issue an
- *     owner grant or a password reset, and a non-staff issuer must hold an
- *     active owner|admin membership in the very organization the token targets
- *     (Advisor blockers B4-3 + B4-4).
+ *     owner grant, a password reset, or an account_setup link with no
+ *     organization, and a non-staff issuer must hold an active owner|admin
+ *     membership in the very organization the token targets (Advisor blockers
+ *     B4-3 + B4-4, extended by SF-5 in migration 0001).
+ *   - trigger `user_setup_token_immutable_grant` (migration 0001, SF-2): the
+ *     issuance fields are frozen after INSERT and every consume/revoke column
+ *     is write-once, so a spent link can never be un-spent or re-stamped.
  *
- * CONSUME CONTRACT (implemented in PR 06): one atomic
+ * CONSUME CONTRACT (implemented in `lib/auth/setup-token.ts`): one atomic
  * `UPDATE ... WHERE token_hash = $1 AND consumed_at IS NULL AND revoked_at IS
  * NULL AND expires_at > now() RETURNING ...`. Zero rows means expired / revoked
- * / already consumed / unknown, and the route must answer all four with the
- * same uniform error. The sibling revoke (same purpose + email + org) runs in
- * the same transaction. The full statements are written out in the migration
+ * / already consumed / unknown, and the route answers all four with the same
+ * uniform error. The sibling revoke (same purpose + email + org) runs in the
+ * same transaction. The full statements are written out in the migration
  * header above this table.
  */
 import {

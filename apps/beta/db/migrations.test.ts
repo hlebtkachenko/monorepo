@@ -4,9 +4,11 @@
  * (`db/migrate.mjs`) rather than a re-implementation.
  */
 import { execFile } from "node:child_process"
+import { copyFile, mkdir, rm, writeFile } from "node:fs/promises"
+import { resolve } from "node:path"
 import { promisify } from "node:util"
 import postgres from "postgres"
-import { describe, expect, it } from "vitest"
+import { afterAll, describe, expect, it } from "vitest"
 import { MIGRATE_SCRIPT } from "../tests/global-setup"
 import { withScratchDatabase } from "../tests/scratch-db"
 
@@ -17,6 +19,48 @@ async function migrate(url: string): Promise<string> {
     env: { ...process.env, DATABASE_URL: url },
   })
   return stdout
+}
+
+/**
+ * A throwaway copy of the runner with a migrations directory we control.
+ *
+ * The runner resolves `./migrations` relative to its own file, so exercising it
+ * against deliberately-broken SQL means copying it somewhere else. That
+ * somewhere has to sit under a `node_modules` on the resolution path — the
+ * script imports `postgres` — which is also why it is gitignored by definition.
+ */
+const SANDBOX = resolve(
+  import.meta.dirname,
+  "..",
+  "node_modules",
+  ".beta-migrate-sandbox",
+)
+
+afterAll(async () => {
+  await rm(SANDBOX, { recursive: true, force: true })
+})
+
+async function withSandboxRunner(
+  files: Record<string, string>,
+  fn: (run: (url: string) => Promise<string>) => Promise<void>,
+): Promise<void> {
+  await rm(SANDBOX, { recursive: true, force: true })
+  await mkdir(resolve(SANDBOX, "migrations"), { recursive: true })
+  await copyFile(MIGRATE_SCRIPT, resolve(SANDBOX, "migrate.mjs"))
+  for (const [name, body] of Object.entries(files)) {
+    await writeFile(resolve(SANDBOX, "migrations", name), body, "utf8")
+  }
+
+  const run = async (url: string) => {
+    const { stdout } = await execFileAsync(
+      process.execPath,
+      [resolve(SANDBOX, "migrate.mjs")],
+      { env: { ...process.env, DATABASE_URL: url } },
+    )
+    return stdout
+  }
+
+  await fn(run)
 }
 
 describe("beta migration runner", () => {
@@ -35,7 +79,10 @@ describe("beta migration runner", () => {
         const journal = await sql<
           { filename: string; checksum: string }[]
         >`SELECT filename, checksum FROM _beta_migrations ORDER BY filename`
-        expect(journal.map((r) => r.filename)).toEqual(["0000_init.sql"])
+        expect(journal.map((r) => r.filename)).toEqual([
+          "0000_init.sql",
+          "0001_setup_token_guards.sql",
+        ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
         const tables = await sql<{ table_name: string }[]>`
@@ -81,5 +128,96 @@ describe("beta migration runner", () => {
     await expect(
       execFileAsync(process.execPath, [MIGRATE_SCRIPT], { env }),
     ).rejects.toMatchObject({ code: 1 })
+  })
+})
+
+/**
+ * Advisor carry-in SF-4. The runner — not the migration file — owns the
+ * transaction, so "DDL applied, journal row missing" is unreachable. That state
+ * is the nasty one: the next deploy re-runs the file, the objects already
+ * exist, and the container crash-loops on a database that is actually fine.
+ */
+describe("migration atomicity", () => {
+  it("commits the DDL and its journal row together, or neither", async () => {
+    await withSandboxRunner(
+      {
+        "0000_first.sql": "CREATE TABLE applied_ok (id integer PRIMARY KEY);",
+        // First statement succeeds, second one cannot: if the runner did not
+        // own the transaction, `half_applied` would survive.
+        "0001_broken.sql":
+          "CREATE TABLE half_applied (id integer PRIMARY KEY);\n" +
+          "CREATE TABLE half_applied (id integer PRIMARY KEY);\n",
+      },
+      async (run) => {
+        await withScratchDatabase("beta_migrate_atomic", async (url) => {
+          await expect(run(url)).rejects.toMatchObject({ code: 1 })
+
+          const sql = postgres(url, { max: 1, onnotice: () => {} })
+          try {
+            const journal = await sql<{ filename: string }[]>`
+              SELECT filename FROM _beta_migrations ORDER BY filename
+            `
+            expect(journal.map((r) => r.filename)).toEqual(["0000_first.sql"])
+
+            const tables = await sql<{ table_name: string }[]>`
+              SELECT table_name FROM information_schema.tables
+               WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+               ORDER BY table_name
+            `
+            const names = tables.map((t) => t.table_name)
+            expect(names).toContain("applied_ok")
+            // No partial DDL from the failed file.
+            expect(names).not.toContain("half_applied")
+          } finally {
+            await sql.end({ timeout: 5 })
+          }
+        })
+      },
+    )
+  })
+
+  it("rejects a migration that opens its own transaction", async () => {
+    await withSandboxRunner(
+      {
+        "0000_wrapped.sql":
+          "BEGIN;\nCREATE TABLE wrapped (id integer PRIMARY KEY);\nCOMMIT;\n",
+      },
+      async (run) => {
+        await withScratchDatabase("beta_migrate_wrapped", async (url) => {
+          await expect(run(url)).rejects.toMatchObject({ code: 1 })
+
+          const sql = postgres(url, { max: 1, onnotice: () => {} })
+          try {
+            const tables = await sql<{ table_name: string }[]>`
+              SELECT table_name FROM information_schema.tables
+               WHERE table_schema = 'public' AND table_name = 'wrapped'
+            `
+            expect(tables).toHaveLength(0)
+          } finally {
+            await sql.end({ timeout: 5 })
+          }
+        })
+      },
+    )
+  })
+
+  it("does not mistake a plpgsql BEGIN for a transaction", async () => {
+    await withSandboxRunner(
+      {
+        "0000_plpgsql.sql": [
+          "CREATE FUNCTION sandbox_noop() RETURNS trigger LANGUAGE plpgsql AS $$",
+          "BEGIN",
+          "  RETURN NEW;",
+          "END;",
+          "$$;",
+        ].join("\n"),
+      },
+      async (run) => {
+        await withScratchDatabase("beta_migrate_plpgsql", async (url) => {
+          const output = await run(url)
+          expect(output).toContain("[applied] 0000_plpgsql.sql")
+        })
+      },
+    )
   })
 })

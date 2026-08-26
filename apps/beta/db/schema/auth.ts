@@ -6,13 +6,12 @@
  *
  * TARGET VERSION: better-auth 1.6.13 — the exact version pinned repo-wide in
  * `pnpm-workspace.yaml` overrides ("Pin 1.6.13: auth-critical, manual bumps
- * only"). This PR creates storage only; the runtime instance, cookie hardening
- * and rate limits land in PR 06. `better-auth` is deliberately NOT a dependency
- * of apps/beta yet.
+ * only"). The runtime instance that reads these tables is
+ * `apps/beta/lib/auth/server.ts`.
  *
- * PR 06 CONTRACT — the column names here are snake_case, so the drizzleAdapter
- * must carry an explicit `fields` remap, exactly as the main app does
- * (packages/auth/src/server.ts:291-360):
+ * ADAPTER CONTRACT (implemented in `lib/auth/server.ts`) — the column names
+ * here are snake_case, so the drizzleAdapter carries an explicit `fields`
+ * remap, exactly as the main app does (packages/auth/src/server.ts:291-360):
  *
  *   user:         { modelName: "app_user",          fields: { emailVerified: "email_verified",
  *                                                             twoFactorEnabled: "two_factor_enabled",
@@ -31,7 +30,7 @@
  *                                                             createdAt: "created_at", updatedAt: "updated_at" } }
  *   twoFactor:    { modelName: "two_factor",        fields: { userId: "user_id", backupCodes: "backup_codes" } }
  *
- * Also for PR 06: `advanced.database.generateId: "uuid"` (every PK here is a
+ * Also required: `advanced.database.generateId: "uuid"` (every PK here is a
  * uuid column, and Better Auth generates the id on the TS side before handing
  * the row to Drizzle).
  *
@@ -124,8 +123,12 @@ export const auth_verification = pgTable("auth_verification", {
 
 /**
  * TOTP enrollment. Better Auth's twoFactor() plugin owns every write here.
- * Enforcement ("an owner without 2FA is redirected to enrollment") is
- * layout-level in PR 06, not a DB constraint.
+ *
+ * The plugin is NOT enabled yet (see `lib/auth/server.ts`): it lands with the
+ * enrolment screen in Nastavení › Účet (PR 21), because turning it on before
+ * that screen exists would gate owners on a flow they cannot complete.
+ * Enforcement ("an owner without 2FA is redirected to enrolment") is
+ * layout-level then, not a DB constraint.
  */
 export const two_factor = pgTable("two_factor", {
   id: uuid("id")

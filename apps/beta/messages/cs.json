@@ -15,7 +15,8 @@
     "finance": "Finance",
     "majetek": "Majetek",
     "ucetni": "Pro účetní",
-    "vykazy": "Výkazy"
+    "vykazy": "Výkazy",
+    "asistent": "Asistent"
   },
   "landing": {
     "heading": "Klientský portál",
@@ -875,6 +876,39 @@
     "toggleHint": "Dostávejte e-mail, když se vrátí doklad, přibude nový úkol nebo se zveřejní nová data ve výkazech."
   },
 
+  "asistent": {
+    "title": "Asistent",
+    "intro": "Obecné dotazy k účetnictví, daním a k tomuto portálu. Odpovědi nejsou závazné.",
+
+    "listLabel": "Seznam chatů",
+    "listEmpty": "Zatím nemáte žádný chat.",
+    "newChat": "Nový chat",
+    "untitled": "Nový chat",
+    "rename": "Přejmenovat",
+    "renameLabel": "Název chatu",
+    "delete": "Smazat chat",
+
+    "emptyHeading": "Zatím tu nic není",
+    "emptyBody": "Založte nový chat a zeptejte se na cokoli obecného k účetnictví, daním nebo k portálu.",
+    "chatEmpty": "Napište první dotaz.",
+
+    "roleUser": "Vy",
+    "roleAssistant": "Asistent",
+    "composerLabel": "Váš dotaz",
+    "composerPlaceholder": "Napište dotaz…",
+    "send": "Odeslat",
+    "sending": "Odesílám…",
+    "disclaimer": "Asistent poskytuje obecné informace, nikoli závazné daňové ani právní poradenství. Nevidí vaše doklady ani částky. Závazné otázky řešte se svou účetní.",
+
+    "errorDailyLimit": "Denní limit dotazů je vyčerpán. Zkuste to prosím zítra.",
+    "errorMonthlyBudget": "Měsíční limit asistenta je vyčerpán. Napište prosím své účetní.",
+    "errorTooLong": "Dotaz je příliš dlouhý. Zkraťte ho prosím.",
+    "errorUnavailable": "Asistent není momentálně k dispozici.",
+    "errorBusy": "Asistent je přetížený. Zkuste to prosím za chvíli.",
+    "errorRefused": "Na tento dotaz asistent neodpoví. Obraťte se prosím na svou účetní.",
+    "errorNetwork": "Spojení s asistentem se přerušilo. Zkuste to prosím znovu.",
+    "errorGeneric": "Dotaz se nepodařilo odeslat. Zkuste to prosím znovu."
+  },
   "nastaveni": {
     "navLabel": "Nastavení",
     "navSpolecnost": "Společnost",

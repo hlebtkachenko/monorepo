@@ -62,6 +62,11 @@ const config: KnipConfig = {
     "apps/beta": {
       // Same @workspace/ui/postcss.config re-export indirection as apps/admin.
       ignoreDependencies: ["@tailwindcss/postcss"],
+      // The Asistent adversarial probe runner is executed by hand via
+      // `pnpm exec tsx apps/beta/scripts/assistant-probe.ts` before the client
+      // exposure gate is opened (spec §2.8) — never imported into the TS graph,
+      // and deliberately never run in CI (it calls the real model).
+      ignore: ["scripts/*.ts"],
     },
     "apps/beta-agent": {
       // src/vendor/* are BYTE-IDENTICAL copies of apps/beta's wire schemas and

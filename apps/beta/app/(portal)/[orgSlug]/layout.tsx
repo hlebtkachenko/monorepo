@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { assistantVisibleTo } from "@/lib/data/assistant"
 import { activeMembershipsForViewer } from "@/lib/data/memberships"
 import { organizationForScope } from "@/lib/data/organizations"
 
@@ -63,6 +64,11 @@ export default async function OrgLayout({
         />
       }
       isOwner={scope.role === "owner"}
+      // Resolved HERE because both halves of the answer — the
+      // `BETA_ASSISTANT_ENABLED` flag and the §5 role rule — are server facts,
+      // and `BetaShell` is a Client Component. It gates the rail ENTRY only;
+      // `assertAssistantAvailable` answers 404 on the routes themselves.
+      showAssistant={assistantVisibleTo(scope)}
     >
       {children}
     </BetaShell>

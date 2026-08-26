@@ -28,12 +28,14 @@ import { betaRailNav } from "../_nav/beta-nav"
  * data-in composition.
  *
  * Two deliberate differences from the org shell:
- *   - NO assistant panel and NO assistant toggle. The AppShell renders the
- *     toggle only when an `assistant` node is passed, so omitting the prop
- *     removes the whole surface. Asistent ships later as a nav MODULE with its
- *     own route; nothing is stubbed for it here.
- *   - NO sidebar. No module has subpages yet, so the sidebar panel (and its
- *     toggle) stay off until the first one does.
+ *   - NO assistant PANEL and NO assistant toggle. `AppShell` renders the toggle
+ *     only when an `assistant` node is passed, so omitting the prop removes the
+ *     whole surface, and it stays omitted. Asistent shipped as a nav MODULE
+ *     with its own route instead (PR 36, spec §2.8) — `showAssistant` below
+ *     gates that RAIL ENTRY; it does not turn any shell chrome back on.
+ *   - NO sidebar. Modules with subpages render their own chrome (Dokumenty's
+ *     tab row, Asistent's chat list), so the shell's sidebar panel and its
+ *     toggle stay off.
  */
 export function BetaShell({
   children,
@@ -42,6 +44,7 @@ export function BetaShell({
   switcher,
   accountMenu,
   isOwner = false,
+  showAssistant = false,
 }: {
   children: React.ReactNode
   orgSlug: string
@@ -58,17 +61,24 @@ export function BetaShell({
   accountMenu?: React.ReactNode
   /** Gates the "Pro účetní" rail entry (spec §5) — see `beta-nav.ts`. */
   isOwner?: boolean
+  /**
+   * Gates the Asistent rail entry (spec §2.8 / §5). Resolved on the server by
+   * `assistantVisibleTo` — it folds the `BETA_ASSISTANT_ENABLED` dark-launch
+   * flag together with the role rule, neither of which a Client Component can
+   * read for itself.
+   */
+  showAssistant?: boolean
 }) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      betaRailNav(orgSlug, { isOwner }).map((entry) => {
+      betaRailNav(orgSlug, { isOwner, showAssistant }).map((entry) => {
         if (entry === "separator") return entry
         const { labelKey, ...rest } = entry
         return { ...rest, label: t(`nav.${labelKey}`) }
       }),
-    [orgSlug, isOwner, t],
+    [orgSlug, isOwner, showAssistant, t],
   )
 
   return (

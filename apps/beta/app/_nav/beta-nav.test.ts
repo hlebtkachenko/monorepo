@@ -65,6 +65,49 @@ describe("beta rail nav", () => {
     ).toBe(true)
   })
 
+  it("hides Asistent unless the caller was told to show it", () => {
+    // The default is OFF, which is the whole point: `showAssistant` is resolved
+    // on the server from `BETA_ASSISTANT_ENABLED` plus the §5 role rule, and a
+    // caller that forgets to pass it gets no entry rather than an open one.
+    expect(items(entries).some((item) => item.labelKey === "asistent")).toBe(
+      false,
+    )
+    expect(
+      items(betaRailNav("acme-sro", { showAssistant: false })).some(
+        (item) => item.labelKey === "asistent",
+      ),
+    ).toBe(false)
+  })
+
+  it("places Asistent after Majetek, before the Pro účetní separator", () => {
+    const shown = betaRailNav("acme-sro", {
+      showAssistant: true,
+      isOwner: true,
+    })
+    const labels = items(shown).map((item) => item.labelKey)
+
+    expect(labels.indexOf("asistent")).toBe(labels.indexOf("majetek") + 1)
+    expect(labels.indexOf("ucetni")).toBe(labels.indexOf("asistent") + 1)
+    expect(shown.indexOf("separator")).toBeGreaterThan(0)
+
+    const asistent = items(shown).find((item) => item.labelKey === "asistent")
+    // The icon spec §1 names, and one every icon pack carries.
+    expect(asistent?.href).toBe("/acme-sro/asistent")
+    expect(asistent?.icon).toBe("MessageCircle")
+
+    const hrefs = items(shown).map((item) => item.href)
+    expect(hrefs.every((href) => href?.startsWith("/acme-sro"))).toBe(true)
+    expect(new Set(hrefs).size).toBe(hrefs.length)
+  })
+
+  it("resolves the Asistent label key against the catalog too", () => {
+    for (const item of items(
+      betaRailNav("acme-sro", { showAssistant: true }),
+    )) {
+      expect(betaCs.nav).toHaveProperty(item.labelKey)
+    }
+  })
+
   it("hides Pro účetní from every non-owner viewer", () => {
     expect(entries).toEqual(betaRailNav("acme-sro", { isOwner: false }))
     expect(items(entries).some((item) => item.labelKey === "ucetni")).toBe(

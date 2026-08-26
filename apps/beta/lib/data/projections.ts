@@ -25,6 +25,8 @@ import type {
   app_user,
   asset,
   asset_event,
+  chat,
+  chat_message,
   client_task,
   document,
   filing,
@@ -41,6 +43,7 @@ import type {
   BetaAssetCategory,
   BetaAssetEventKind,
   BetaAssetStatus,
+  BetaChatRole,
   BetaClientTaskLinkKind,
   BetaClientTaskStatus,
   BetaFilingFamily,
@@ -68,6 +71,8 @@ type StatementLineRow = typeof statement_line.$inferSelect
 type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
 type AssetRow = typeof asset.$inferSelect
 type AssetEventRow = typeof asset_event.$inferSelect
+type ChatRow = typeof chat.$inferSelect
+type ChatMessageRow = typeof chat_message.$inferSelect
 type ClientTaskRow = typeof client_task.$inferSelect
 type PayrollEmployeeRow = typeof payroll_employee.$inferSelect
 type PayrollSummaryRow = typeof payroll_summary.$inferSelect
@@ -1878,5 +1883,59 @@ export function officeSetupLinkRow(
     expiresAt: row.expiresAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
     issuedByEmail: row.issuedByEmail,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Asistent — chats and their transcripts (spec §2.8)
+// ---------------------------------------------------------------------------
+
+/**
+ * One conversation as the sidebar chat list renders it.
+ *
+ * No `userId` and no `organizationId`: the reader already holds the scope that
+ * produced the row, and a chat is only ever listed to the person who owns it —
+ * echoing the owner back would be the one field a shared screenshot could leak.
+ * No `promptVersion` either: that column exists so a reviewed transcript can be
+ * tied to the prompt text that produced it, which is an office-side audit
+ * question, not something the client's sidebar has any use for.
+ *
+ * `title` stays NULL for an unnamed chat. The Czech placeholder is an i18n key
+ * the component resolves — a projection that substituted "Nový chat" here would
+ * put UI copy in the data layer and make "named" and "unnamed" indistinguishable
+ * to the rename form.
+ */
+export type ChatSummary = {
+  id: string
+  title: string | null
+  updatedAt: string
+}
+
+export function chatSummary(
+  row: Pick<ChatRow, "id" | "title" | "updated_at">,
+): ChatSummary {
+  return {
+    id: row.id,
+    title: row.title,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+/** One transcript line. `role` is the pgEnum value, never a free string. */
+export type ChatMessageView = {
+  id: string
+  role: BetaChatRole
+  content: string
+  createdAt: string
+}
+
+export function chatMessageView(
+  row: Pick<ChatMessageRow, "id" | "role" | "content" | "created_at">,
+): ChatMessageView {
+  return {
+    id: row.id,
+    role: row.role,
+    content: row.content,
+    createdAt: row.created_at.toISOString(),
   }
 }

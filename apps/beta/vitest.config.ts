@@ -99,6 +99,16 @@ export default defineConfig({
             // adversarially, and a suite that needs Docker to assert "a body
             // naming an organization is refused" is a suite that gets skipped.
             "lib/agent/**/*.test.ts",
+            // PR 36, same rule: the Asistent config gate, the SSE frame
+            // reader, the provider boundary (behind an injected `fetchImpl`,
+            // so no key and no network) and the system-prompt snapshot are all
+            // pure functions over strings and bytes. They are also the pieces
+            // most worth testing adversarially — a suite that needed Docker to
+            // assert "no key means no request is made" is a suite that gets
+            // skipped. `lib/data/assistant.ts` — the chats, the transcript and
+            // the budget ledger — stays in the `db` project with every other
+            // `lib/data/**` module.
+            "lib/assistant/**/*.test.ts",
             // PR 21, same rule: the ARES reconciliation rules are a pure diff
             // over two plain objects and a fetch behind an injected `fetchImpl`,
             // the ÚFO číselník is a Map, and the forced-TOTP predicate is three
@@ -163,6 +173,7 @@ export default defineConfig({
           exclude: [
             "lib/**/*.boundary.test.ts",
             "lib/agent/**/*.test.ts",
+            "lib/assistant/**/*.test.ts",
             "lib/storage/**/*.test.ts",
             "lib/http/**/*.test.ts",
             "lib/format/**/*.test.ts",

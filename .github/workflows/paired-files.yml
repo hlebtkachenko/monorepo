@@ -2,7 +2,7 @@ name: Paired files
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, main-beta]
 
 permissions: {}
 

@@ -88,6 +88,7 @@ describe("beta migration runner", () => {
           "0005_filings.sql",
           "0006_liabilities.sql",
           "0007_import_spine.sql",
+          "0008_assets.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
@@ -99,6 +100,8 @@ describe("beta migration runner", () => {
         expect(tables.map((t) => t.table_name)).toEqual([
           "_beta_migrations",
           "app_user",
+          "asset",
+          "asset_event",
           "auth_account",
           "auth_session",
           "auth_verification",

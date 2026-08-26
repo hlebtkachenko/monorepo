@@ -267,3 +267,43 @@ export const betaStatementKind = pgEnum("beta_statement_kind", [
 ])
 
 export type BetaStatementKind = (typeof betaStatementKind.enumValues)[number]
+
+/**
+ * Mirrors: 0008_assets.sql — CREATE TYPE beta_asset_category.
+ *
+ * Spec §2.7 Přehled majetku column ("kategorie: Stroj/Vozidlo/Nářadí/
+ * Nemovitost/Ostatní"), spelled in English like `betaDocumentType` — a
+ * classification this application invented, not a legal document name. Czech
+ * display labels live in `messages/cs.json`.
+ */
+export const betaAssetCategory = pgEnum("beta_asset_category", [
+  "machine",
+  "vehicle",
+  "tool",
+  "real_estate",
+  "other",
+])
+
+export type BetaAssetCategory = (typeof betaAssetCategory.enumValues)[number]
+
+/** Mirrors: 0008_assets.sql — CREATE TYPE beta_asset_status. Spec §2.7, verbatim. */
+export const betaAssetStatus = pgEnum("beta_asset_status", [
+  "in_use",
+  "disposed",
+])
+
+export type BetaAssetStatus = (typeof betaAssetStatus.enumValues)[number]
+
+/**
+ * Mirrors: 0008_assets.sql — CREATE TYPE beta_asset_event_kind.
+ *
+ * Spec §2.7 Karta majetku event history: "Zařazení/TZ/Vyřazení: datum,
+ * částka, poznámka".
+ */
+export const betaAssetEventKind = pgEnum("beta_asset_event_kind", [
+  "put_into_service",
+  "improvement",
+  "disposal",
+])
+
+export type BetaAssetEventKind = (typeof betaAssetEventKind.enumValues)[number]

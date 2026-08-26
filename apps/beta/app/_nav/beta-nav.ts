@@ -25,7 +25,8 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  * one entry gated on the caller's OWN role rather than on which routes exist,
  * which is why it takes a parameter instead of joining the static list above.
  */
-type BetaNavLabelKey = "prehled" | "dokumenty" | "dane" | "finance" | "ucetni"
+type BetaNavLabelKey =
+  "prehled" | "dokumenty" | "dane" | "finance" | "majetek" | "ucetni"
 
 export type BetaRailItem =
   (Omit<RailMenuItem, "label"> & { labelKey: BetaNavLabelKey }) | "separator"
@@ -55,6 +56,10 @@ export function betaRailNav(
     // sidebar leaves land (PRs 26-28); `finance/page.tsx` redirects to Dluhy a
     // platby, so it is a live route, not a landing stub.
     { labelKey: "finance", icon: "CreditCard", href: `/${orgSlug}/finance` },
+    // The structure spec names Package for Majetek. `Box` is the closest
+    // existing `IconName` (present in all three packs already), so this entry
+    // does not need an icon-pack-parity PR of its own.
+    { labelKey: "majetek", icon: "Box", href: `/${orgSlug}/majetek` },
   ]
 
   if (options.isOwner) {

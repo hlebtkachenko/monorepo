@@ -9,6 +9,8 @@
  */
 export * from "./_enums"
 export * from "./app_user"
+export * from "./asset"
+export * from "./asset_event"
 export * from "./auth"
 export * from "./document"
 export * from "./filing"

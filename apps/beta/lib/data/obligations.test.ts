@@ -4,20 +4,30 @@
  * Three things are under test and they are different in kind. The first is EACH
  * SOURCE: which rows become an obligation and which do not, which is where a
  * wrong predicate would show a client a debt they do not owe. The second is the
- * UNION CONTRACT: the row shape PR 28's partner saldo will plug into, written to
- * fail if that shape changes. The third — new with PR 18, because the union now
- * has two arms — is that the two sources COMPOSE: same shape, same ordering, one
- * set of totals, and no row shown twice.
+ * UNION CONTRACT: the row shape every arm plugs into, written to fail if that
+ * shape changes. The third is that the sources COMPOSE: same shape, same
+ * ordering, one set of totals, and no row shown twice.
+ *
+ * PR 28 CLOSED THE UNION with the imported saldokonto's payables. Its own
+ * section is at the bottom, and it is the arm with the most ways to be wrong:
+ * it must read the PUBLISHED batch and no other, must take the payable side and
+ * never the receivable one, and must not let a re-published month double a
+ * supplier's debt.
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   createFilingRow,
+  createImportBatchRow,
   createLiabilityRow,
   createMonthPeriod,
+  createPartnerRow,
+  createPartnerSaldoRow,
   createReportingPeriod,
   endFixtures,
+  publishSaldokontoRow,
   seedOrganization,
+  touchPartnerRow,
   type TestOrganization,
 } from "../../tests/fixtures"
 
@@ -281,16 +291,16 @@ describe("freshness — spec §0.4, empty beats stale", () => {
       "partner_saldo",
       "manual_liability",
     ])
+    // All three since PR 28 closed the union. The flag survives because the
+    // distinction it draws still matters for the NEXT source (§0.3 forbids a
+    // placeholder, and a surface has to be able to render an absent feed as
+    // ABSENT rather than as "0 Kč").
     expect(freshness.map((f) => [f.source, f.implemented])).toEqual([
       ["filing", true],
-      // Not a placeholder (§0.3 forbids those) — the fact a surface needs in
-      // order to render an absent source as ABSENT rather than as "0 Kč".
-      ["partner_saldo", false],
+      ["partner_saldo", true],
       ["manual_liability", true],
     ])
-    expect(
-      freshness.filter((f) => !f.implemented).map((f) => f.sourceUpdatedAt),
-    ).toEqual([null])
+    expect(freshness.filter((f) => !f.implemented)).toEqual([])
   })
 
   it("stamps the SOURCE's last edit, not its last obligation", async () => {
@@ -345,7 +355,7 @@ describe("freshness — spec §0.4, empty beats stale", () => {
   })
 })
 
-describe("the union contract — what PR 18 and PR 28 plug into", () => {
+describe("the union contract — what PR 18 and PR 28 plugged into", () => {
   it("discriminates every row by source, and keys it uniquely across sources", async () => {
     const target = await seedOrganization()
     const periodId = await createMonthPeriod(target.organizationId)
@@ -418,7 +428,7 @@ describe("the union contract — what PR 18 and PR 28 plug into", () => {
       "partner_saldo",
       "manual_liability",
     ])
-    expect(OBLIGATION_SOURCES.filter((s) => s.implemented)).toHaveLength(2)
+    expect(OBLIGATION_SOURCES.filter((s) => s.implemented)).toHaveLength(3)
     expect(Object.isFrozen(OBLIGATION_SOURCES)).toBe(true)
   })
 })
@@ -884,5 +894,425 @@ describe("groups — the §2.4 creditor buckets the page renders", () => {
     expect(
       groups.flatMap((g) => g.obligations.map((o) => o.key)).sort(),
     ).toEqual(obligations.map((o) => o.key).sort())
+  })
+})
+describe("the saldokonto source — the Dodavatelé arm (PR 28)", () => {
+  it("lists a published partner payable, with the partner's name as the label", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Stavebniny Novak s.r.o.",
+      ico: "12345678",
+      source: "saldokonto",
+      externalRef: "money-p-1",
+    })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "48250.50", oldestDue: "2026-04-30" },
+    ])
+
+    const { obligations } = await readFor(target)
+
+    expect(obligations).toHaveLength(1)
+    expect(obligations[0]).toMatchObject({
+      source: "partner_saldo",
+      // §2.4 puts supplier payables in their own creditor group, and no filing
+      // kind maps to it — `dodavatele` exists in the enum for this arm alone.
+      group: "dodavatele",
+      filingKind: null,
+      label: "Stavebniny Novak s.r.o.",
+      amount: "48250.50",
+      dueOn: "2026-04-30",
+      // A saldokonto states a position per PARTNER, not per invoice, so there
+      // is no variable symbol to carry. Inventing one would be worse.
+      variableSymbol: null,
+    })
+    expect(obligations[0]!.key.startsWith("partner_saldo:")).toBe(true)
+  })
+
+  it("carries the period the batch was published for", async () => {
+    const target = await seedOrganization()
+    const periodId = await createReportingPeriod(target.organizationId, {
+      kind: "month",
+      year: 2026,
+      month: 7,
+    })
+    const partnerId = await createPartnerRow(target.organizationId)
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "1000.00", oldestDue: "2026-08-15" },
+    ])
+
+    const { obligations } = await readFor(target)
+    expect(obligations[0]!.period).toEqual({
+      id: periodId,
+      kind: "month",
+      year: 2026,
+      month: 7,
+      quarter: null,
+      startsOn: "2026-07-01",
+      endsOn: "2026-07-31",
+    })
+  })
+
+  it("NEVER lists the receivable side — that is money owed TO the client", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Odberatel a.s.",
+    })
+    // A pure debtor: they owe the client 120 000 and the client owes them
+    // nothing. Listing this as a debt would be the mirror image of the
+    // nadměrný-odpočet error the filing arm excludes, and it is the single
+    // worst thing this arm could do.
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, receivableTotal: "120000.00", oldestDue: "2026-02-01" },
+    ])
+
+    const { obligations, totals } = await readFor(target)
+    expect(obligations).toEqual([])
+    expect(totals).toEqual({ total: "0.00", overdue: "0.00" })
+  })
+
+  it("lists only the payable half of a partner who is both", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Obousmerny partner s.r.o.",
+      role: "both",
+    })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      {
+        partnerId,
+        receivableTotal: "90000.00",
+        payableTotal: "15000.00",
+        oldestDue: "2026-03-31",
+      },
+    ])
+
+    const { obligations, totals } = await readFor(target)
+    // The two sides are NOT netted. Netting would be an arithmetic this portal
+    // is not allowed to perform (§0.2) and would hide a real debt behind a
+    // receivable the client may never collect.
+    expect(obligations).toHaveLength(1)
+    expect(obligations[0]!.amount).toBe("15000.00")
+    expect(totals.total).toBe("15000.00")
+  })
+
+  it("excludes a settled supplier and an unstated payable — two different non-debts", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const settled = await createPartnerRow(target.organizationId, {
+      name: "Vyrovnany dodavatel s.r.o.",
+    })
+    const receivableOnly = await createPartnerRow(target.organizationId, {
+      name: "Jen odberatel s.r.o.",
+    })
+
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      // Settled — a measured zero.
+      { partnerId: settled, payableTotal: "0.00", oldestDue: "2026-01-31" },
+      // The export stated only the receivable side: an UNKNOWN, not a zero.
+      { partnerId: receivableOnly, receivableTotal: "500.00" },
+    ])
+
+    expect((await readFor(target)).obligations).toEqual([])
+  })
+
+  it("reads the PUBLISHED batch and never a draft", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+
+    // A draft the office is staging. No client may watch a correction being
+    // prepared, and a debt list is the last place it should surface.
+    const draftId = await createImportBatchRow(
+      target.organizationId,
+      periodId,
+      {
+        dataset: "saldokonto",
+        status: "draft",
+      },
+    )
+    await createPartnerSaldoRow(
+      target.organizationId,
+      draftId,
+      partnerId,
+      periodId,
+      { payableTotal: "777777.00", oldestDue: "2026-05-31" },
+    )
+
+    const { obligations, freshness } = await readFor(target)
+    expect(obligations).toEqual([])
+    // ...and the source's own stamp stays absent too: a draft is not a
+    // publication, so §0.4 has nothing to stamp the surface with yet.
+    expect(
+      freshness.find((f) => f.source === "partner_saldo")!.sourceUpdatedAt,
+    ).toBeNull()
+  })
+
+  it("shows a re-imported month once — the supersession replaces, never adds", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Dodavatel s.r.o.",
+    })
+
+    const first = await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "10000.00", oldestDue: "2026-03-31" },
+    ])
+    // The office re-publishes the same period with a corrected figure. The
+    // fixture vacates the incumbent first, the way `publishBatch` does:
+    // `import_batch_one_published_idx` allows exactly one published batch per
+    // (org, period, dataset) and is checked per statement.
+    await publishSaldokontoRow(
+      target.organizationId,
+      periodId,
+      [{ partnerId, payableTotal: "8500.00", oldestDue: "2026-03-31" }],
+      { supersedes: first },
+    )
+
+    const { obligations, totals } = await readFor(target)
+    // ONE row, not two. A superseded batch is what the client saw BEFORE the
+    // correction; a union that read both would double every supplier's debt on
+    // the first re-import of the month.
+    expect(obligations).toHaveLength(1)
+    expect(obligations[0]!.amount).toBe("8500.00")
+    expect(totals.total).toBe("8500.00")
+  })
+
+  it("derives Po splatnosti from the oldest splatnost, against today", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const late = await createPartnerRow(target.organizationId, {
+      name: "A late s.r.o.",
+    })
+    const soon = await createPartnerRow(target.organizationId, {
+      name: "B soon s.r.o.",
+    })
+
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId: late, payableTotal: "1000.00", oldestDueInDays: -45 },
+      { partnerId: soon, payableTotal: "2000.00", oldestDueInDays: 14 },
+    ])
+
+    const { obligations, totals } = await readFor(target)
+    expect(obligations.map((o) => o.overdue)).toEqual([true, false])
+    expect(obligations[0]!.daysOverdue).toBe(45)
+    expect(obligations[1]!.daysOverdue).toBe(0)
+    expect(totals.overdue).toBe("1000.00")
+  })
+
+  it("stamps the arm with the BATCH's publication, not the partner's last edit", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "1000.00", oldestDue: "2026-06-30" },
+    ])
+
+    const before = await readFor(target)
+    const stamp = before.freshness.find(
+      (f) => f.source === "partner_saldo",
+    )!.sourceUpdatedAt
+    expect(Date.parse(stamp!)).not.toBeNaN()
+    expect(before.obligations[0]!.asOf).toBe(stamp)
+
+    // An office edit to the supplier's ADDRESS moves `partner.updated_at` and
+    // must not move the saldo's stamp: §2.4's per-group stamp for this arm is
+    // the import period's publication, and a shared "last touched" would make a
+    // three-month-old position read as this morning's.
+    await touchPartnerRow(partnerId)
+
+    const after = await readFor(target)
+    expect(
+      after.freshness.find((f) => f.source === "partner_saldo")!
+        .sourceUpdatedAt,
+    ).toBe(stamp)
+    expect(after.obligations[0]!.asOf).toBe(stamp)
+  })
+
+  it("keeps a stamp after every supplier is settled", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+    // A published saldokonto in which nobody is owed anything. The source has
+    // spoken; it just has nothing to list. Without the stamp the page would
+    // read as a feed nobody connected.
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, receivableTotal: "0.00", payableTotal: "0.00" },
+    ])
+
+    const { obligations, freshness } = await readFor(target)
+    const source = freshness.find((f) => f.source === "partner_saldo")!
+    expect(obligations).toEqual([])
+    expect(source.openCount).toBe(0)
+    expect(source.implemented).toBe(true)
+    expect(Date.parse(source.sourceUpdatedAt!)).not.toBeNaN()
+  })
+
+  it("never shows another organization's supplier payables", async () => {
+    const foreign = await seedOrganization()
+    const foreignPeriod = await createMonthPeriod(foreign.organizationId)
+    const foreignPartner = await createPartnerRow(foreign.organizationId, {
+      name: "Cizi dodavatel s.r.o.",
+    })
+    await publishSaldokontoRow(foreign.organizationId, foreignPeriod, [
+      {
+        partnerId: foreignPartner,
+        payableTotal: "123456.00",
+        oldestDue: "2026-03-31",
+      },
+    ])
+
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "1000.00", oldestDue: "2026-03-31" },
+    ])
+
+    const { obligations, totals } = await readFor(target)
+    expect(obligations).toHaveLength(1)
+    expect(totals.total).toBe("1000.00")
+    expect(JSON.stringify(obligations)).not.toContain("123456")
+    expect(JSON.stringify(obligations)).not.toContain("Cizi")
+  })
+
+  it("is readable by every role, guest included", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "4200.00", oldestDue: "2026-03-31" },
+    ])
+
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      as(target.members[role].headers)
+      const model = await obligationsForScope(await requireScope(target.slug))
+      expect(
+        model.obligations,
+        `${role} reads the Dodavatele arm`,
+      ).toHaveLength(1)
+    }
+  })
+})
+
+describe("all three sources compose — the closed union (PR 28)", () => {
+  it("interleaves filings, supplier payables and the residue by deadline", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Dodavatel s.r.o.",
+    })
+
+    const filingId = await createFilingRow(target.organizationId, periodId, {
+      kind: "dph_priznani",
+      dueOn: "2026-03-25",
+      amountDue: "31200.00",
+    })
+    const liabilityId = await createLiabilityRow(target.organizationId, {
+      group: "fu",
+      label: "Penale z prodleni",
+      dueOn: "2026-02-28",
+      amount: "1500.50",
+    })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "48250.50", oldestDue: "2026-04-30" },
+    ])
+
+    const { obligations, totals, groups } = await readFor(target)
+
+    expect(obligations.map((o) => o.source)).toEqual([
+      "manual_liability",
+      "filing",
+      "partner_saldo",
+    ])
+    expect(obligations[0]!.key).toBe(`manual_liability:${liabilityId}`)
+    expect(obligations[1]!.key).toBe(`filing:${filingId}`)
+    // Three tables can hold the same uuid, so the key is prefixed by source.
+    expect(new Set(obligations.map((o) => o.key)).size).toBe(3)
+    expect(totals.total).toBe("80951.00")
+
+    // §2.4's creditor buckets, in enum order rather than in first-seen order.
+    expect(groups.map((g) => g.group)).toEqual(["fu", "dodavatele"])
+    expect(groups.find((g) => g.group === "fu")!.total).toBe("32700.50")
+    expect(groups.find((g) => g.group === "dodavatele")!.total).toBe("48250.50")
+  })
+
+  it("counts open obligations per source, separately, across all three", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const first = await createPartnerRow(target.organizationId, { name: "A" })
+    const second = await createPartnerRow(target.organizationId, { name: "B" })
+
+    await createFilingRow(target.organizationId, periodId, {
+      amountDue: "100.00",
+      dueOn: "2026-02-25",
+    })
+    await createLiabilityRow(target.organizationId, { dueOn: "2026-03-31" })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId: first, payableTotal: "200.00", oldestDue: "2026-04-30" },
+      { partnerId: second, payableTotal: "300.00", oldestDue: "2026-05-31" },
+    ])
+
+    const { freshness } = await readFor(target)
+    expect(freshness.map((f) => [f.source, f.openCount] as const)).toEqual([
+      ["filing", 1],
+      ["partner_saldo", 2],
+      ["manual_liability", 1],
+    ])
+  })
+
+  it("keeps the saldokonto's stamp independent of the other two", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId)
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "1000.00", oldestDue: "2026-04-30" },
+    ])
+
+    const before = await readFor(target)
+    const saldoStamp = before.freshness.find(
+      (f) => f.source === "partner_saldo",
+    )!.sourceUpdatedAt
+
+    await createLiabilityRow(target.organizationId)
+
+    const after = await readFor(target)
+    expect(
+      after.freshness.find((f) => f.source === "partner_saldo")!
+        .sourceUpdatedAt,
+    ).toBe(saldoStamp)
+  })
+
+  it("keeps the union's row shape unchanged for a saldokonto row", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    const partnerId = await createPartnerRow(target.organizationId, {
+      name: "Dodavatel s.r.o.",
+    })
+    await publishSaldokontoRow(target.organizationId, periodId, [
+      { partnerId, payableTotal: "1000.00", oldestDue: "2026-04-30" },
+    ])
+
+    const obligation: Obligation | undefined = (await readFor(target))
+      .obligations[0]
+
+    // The SAME twelve keys the filing arm produces. `Obligation` did not change
+    // shape when this arm landed, which is exactly why no consumer did either.
+    expect(Object.keys(obligation!).sort()).toEqual([
+      "amount",
+      "asOf",
+      "daysOverdue",
+      "dueOn",
+      "filingKind",
+      "group",
+      "key",
+      "label",
+      "overdue",
+      "period",
+      "source",
+      "variableSymbol",
+    ])
+    expect(forbiddenClientKeys(obligation)).toEqual([])
   })
 })

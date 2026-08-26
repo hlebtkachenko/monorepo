@@ -79,6 +79,14 @@ export const liability = pgTable(
     note_internal: text("note_internal"),
     /** Agent upsert match key — see `filing.external_ref` (migration 0011). */
     external_ref: text("external_ref"),
+    /**
+     * The counterparty, when the residual debt happens to be owed to a known
+     * partner (spec §4: "liability.partner_id nullable"). Composite,
+     * tenancy-carrying FK in migration 0015; nothing writes it yet — the
+     * Zadávání dat field is PR 29's, alongside the Partneři surface that would
+     * render it.
+     */
+    partner_id: uuid("partner_id"),
     created_at: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -1,111 +1,82 @@
+/**
+ * The Finance module's nav model (spec §2.4), on the same terms as
+ * `vykazy/_nav/vykazy-nav.test.ts`: the tab row is data, so its drift check is a
+ * unit test rather than a comment.
+ *
+ * Two things are asserted and only one of them is about routing. The first is
+ * that every entry POINTS AT A ROUTE THAT EXISTS — §0.3 forbids a "coming soon"
+ * stub, and a tab row is the easiest place in the app to acquire one. The second
+ * is the active-match rule, which is where a prefix bug would light two tabs at
+ * once.
+ */
+import { readdirSync } from "node:fs"
+import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
-import betaCs from "@/messages/cs.json"
+import betaMessages from "@/messages/cs.json"
 
 import { FINANCE_NAV, financeHref, isActiveFinanceNav } from "./finance-nav"
 
+const MODULE_DIR = resolve(import.meta.dirname, "..")
+
 describe("FINANCE_NAV", () => {
-  it("resolves every label key against the catalog", () => {
-    for (const item of FINANCE_NAV) {
-      const [namespace, key] = item.labelKey.split(".") as [
-        keyof typeof betaCs,
-        string,
-      ]
-      expect(betaCs[namespace]).toHaveProperty(key)
-    }
-  })
-
-  it("carries the §2.4 leaves that have a route, in spec order", () => {
-    // §2.4 names five; the other three (Pohledávky a závazky, Partneři, Úvěry
-    // a leasingy) are not routes yet, and §0.3 forbids a placeholder tab for
-    // them. Each arrives here together with its page.
-    expect(FINANCE_NAV.map((item) => item.slug)).toEqual([
-      "dluhy-a-platby",
-      "ucty-a-hotovost",
-    ])
-  })
-
-  it("every slug produces a unique, org-scoped href", () => {
-    const hrefs = FINANCE_NAV.map((item) => financeHref("acme-sro", item.slug))
-    expect(hrefs.every((href) => href.startsWith("/acme-sro/finance/"))).toBe(
-      true,
+  it("carries only leaves that have a route on disk", () => {
+    const routes = new Set(
+      readdirSync(MODULE_DIR, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
+        .map((entry) => entry.name),
     )
-    expect(new Set(hrefs).size).toBe(hrefs.length)
-  })
 
-  it("has no slug that is a prefix of another — what makes the prefix match safe", () => {
-    // `isActiveFinanceNav` matches on a prefix and needs no exact-match branch
-    // (unlike `isActiveVykazyNav`, whose Rozvaha tab sits at the module root).
-    // That is only sound while this holds, so it is asserted rather than
-    // assumed — a leaf added later cannot quietly break it.
-    for (const outer of FINANCE_NAV) {
-      for (const inner of FINANCE_NAV) {
-        if (outer === inner) continue
-        expect(
-          inner.slug.startsWith(`${outer.slug}/`),
-          `${inner.slug} under ${outer.slug}`,
-        ).toBe(false)
-      }
-    }
-  })
-
-  it("never points at the module root, which is a redirect", () => {
-    expect(FINANCE_NAV.every((item) => item.slug.length > 0)).toBe(true)
-  })
-})
-
-describe("isActiveFinanceNav", () => {
-  const [dluhy, ucty] = FINANCE_NAV
-
-  it("matches a tab on its own path and not on a sibling's", () => {
-    expect(
-      isActiveFinanceNav(
-        dluhy!,
-        "acme-sro",
-        "/acme-sro/finance/dluhy-a-platby",
-      ),
-    ).toBe(true)
-    expect(
-      isActiveFinanceNav(
-        dluhy!,
-        "acme-sro",
-        "/acme-sro/finance/ucty-a-hotovost",
-      ),
-    ).toBe(false)
-    expect(
-      isActiveFinanceNav(
-        ucty!,
-        "acme-sro",
-        "/acme-sro/finance/ucty-a-hotovost",
-      ),
-    ).toBe(true)
-  })
-
-  it("lights nothing up on the module root itself", () => {
     for (const item of FINANCE_NAV) {
-      expect(isActiveFinanceNav(item, "acme-sro", "/acme-sro/finance")).toBe(
-        false,
-      )
+      expect(routes.has(item.slug), `${item.slug} has a route`).toBe(true)
     }
   })
 
-  it("stays active on a deeper path under its own tab", () => {
-    expect(
-      isActiveFinanceNav(
-        ucty!,
-        "acme-sro",
-        "/acme-sro/finance/ucty-a-hotovost/221",
-      ),
-    ).toBe(true)
+  it("names a Czech label for every entry", () => {
+    const messages = betaMessages as Record<string, Record<string, string>>
+    for (const item of FINANCE_NAV) {
+      const [namespace, key] = item.labelKey.split(".")
+      expect(messages[namespace!]?.[key!], item.labelKey).toBeTruthy()
+    }
   })
 
-  it("does not leak across organizations", () => {
-    expect(
-      isActiveFinanceNav(
-        ucty!,
-        "acme-sro",
-        "/jina-firma/finance/ucty-a-hotovost",
-      ),
-    ).toBe(false)
+  it("gives every entry a distinct, non-empty slug", () => {
+    const slugs = FINANCE_NAV.map((item) => item.slug)
+    expect(new Set(slugs).size).toBe(slugs.length)
+    // No leaf takes the module root. `finance/page.tsx` redirects into the
+    // first leaf, and an empty slug would be a strict PREFIX of every sibling's
+    // href — the trap `isActiveVykazyNav` has to special-case.
+    expect(slugs).not.toContain("")
+  })
+
+  it("builds org-scoped hrefs", () => {
+    expect(financeHref("acme", "dluhy-a-platby")).toBe(
+      "/acme/finance/dluhy-a-platby",
+    )
+  })
+
+  it("lights exactly one tab, on the leaf and on a route beneath it", () => {
+    for (const item of FINANCE_NAV) {
+      const href = financeHref("acme", item.slug)
+      const active = FINANCE_NAV.filter((candidate) =>
+        isActiveFinanceNav(candidate, "acme", href),
+      )
+      expect(active, `${item.slug} lights one tab`).toEqual([item])
+
+      const nested = FINANCE_NAV.filter((candidate) =>
+        isActiveFinanceNav(candidate, "acme", `${href}/detail`),
+      )
+      expect(nested, `${item.slug}/detail lights one tab`).toEqual([item])
+    }
+  })
+
+  it("lights nothing on the module root or in another organization", () => {
+    for (const pathname of ["/acme/finance", "/jina/finance/dluhy-a-platby"]) {
+      expect(
+        FINANCE_NAV.filter((item) =>
+          isActiveFinanceNav(item, "acme", pathname),
+        ),
+      ).toEqual([])
+    }
   })
 })

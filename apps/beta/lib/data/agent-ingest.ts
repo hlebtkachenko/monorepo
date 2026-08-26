@@ -8,6 +8,7 @@ import type {
   FilingsUpsertInput,
   LiabilitiesUpsertInput,
   PublishPayrollInput,
+  PublishSaldokontoInput,
   PublishStatementsInput,
   PublishTrialBalanceInput,
 } from "@/lib/agent/schemas"
@@ -35,6 +36,7 @@ import { createFiling, filingByExternalRef, updateFiling } from "./filings"
 import {
   createDraftBatch,
   publishBatch,
+  type PartnerSaldoLineInput,
   type PayrollLineInput,
   type PayrollSummaryInput,
 } from "./imports"
@@ -43,6 +45,7 @@ import {
   liabilityIdByExternalRef,
   updateLiability,
 } from "./liabilities"
+import { createPartner, partnerForUpsert, updatePartner } from "./partners"
 import {
   createPayrollEmployee,
   payrollEmployeeByExternalRef,
@@ -315,6 +318,161 @@ export async function ingestTrialBalance(
           rowCount: batch.rowCount,
           supersededBatchId: published.supersededBatchId,
           alreadyPublished: published.alreadyPublished,
+        },
+      }
+    },
+  )
+}
+
+/**
+ * Publish a saldokonto — the one dataset that is BOTH an upsert and a publish
+ * (spec §3.2: "saldokonto (partner+saldo upsert)").
+ *
+ * TWO LIFETIMES, ONE TRANSACTION. Each line carries a partner IDENTITY, which is
+ * upserted into a registry that outlives every period, and three FIGURES, which
+ * are published as this period's measurement and superseded wholesale next
+ * month. Both halves commit together: a partner created for a batch that then
+ * failed to publish would leave the registry carrying a supplier the client's
+ * books never mentioned.
+ *
+ * THE PARTNERS ARE RESOLVED FIRST, ALL OF THEM, BEFORE THE BATCH EXISTS. The
+ * batch's payload names partner IDS (`PartnerSaldoLineInput`), so identity is
+ * settled before a single saldo row is written — which is what keeps "which row
+ * is this counterparty?" in `lib/data/partners.ts` (where the match order and
+ * its reasoning live) instead of spreading into the import spine.
+ *
+ * A SECOND SOURCE ID ON ONE IČO IS `identity_changed`, and the whole call rolls
+ * back. `partnerForUpsert` found the partner by IČO, and that partner already
+ * carries a DIFFERENT `external_ref`: two rows of the office's own system are
+ * claiming one legal person. Re-pointing would move that partner's entire saldo
+ * history under a new id and inserting would violate `partner_ico_idx` anyway,
+ * so the honest answer is to refuse and let the office fix its source — the same
+ * judgement `ingestFilings` makes when a ref comes back on a different kind.
+ */
+export async function ingestSaldokonto(
+  ctx: IngestContext,
+  input: PublishSaldokontoInput,
+): Promise<IngestOutcome> {
+  return ingest(
+    ctx,
+    { action: "saldokonto.publish", entityKind: "import_batch" },
+    async (tx) => {
+      const period = await ensureReportingPeriod(ctx.owner, input.period, tx)
+
+      const partners: UpsertedItem[] = []
+      const saldoLines: PartnerSaldoLineInput[] = []
+
+      for (const line of input.lines) {
+        const stated = line.partner
+
+        // Every field the payload can reach, stated on every run: the office's
+        // own system is the authority on a supplier's identity, so an omitted
+        // field is an ABSENT one (`?? null`), never "keep what the portal had".
+        // `noteClient` / `noteInternal` are deliberately unreachable from here —
+        // they are the portal's own layer (§3.3) and an import must never erase
+        // an accountant's note about a supplier.
+        const fields = {
+          name: stated.name,
+          ico: stated.ico ?? null,
+          dic: stated.dic ?? null,
+          role: stated.partnerRole ?? ("other" as const),
+          email: stated.email ?? null,
+          phone: stated.phone ?? null,
+          street: stated.street ?? null,
+          houseNumber: stated.houseNumber ?? null,
+          orientationNumber: stated.orientationNumber ?? null,
+          city: stated.city ?? null,
+          postalCode: stated.postalCode ?? null,
+          countryCode: stated.countryCode ?? "CZ",
+        } as const
+
+        const match = await partnerForUpsert(
+          ctx.owner,
+          { externalRef: stated.externalRef, ico: stated.ico },
+          tx,
+        )
+
+        let partnerId: string
+        if (match) {
+          if (match.matchedBy === "ico" && match.externalRef !== null) {
+            throw new IngestRefused("identity_changed")
+          }
+          await updatePartner(
+            ctx.owner,
+            match.id,
+            {
+              ...fields,
+              // Adoption: the IČO matched a partner the office typed by hand
+              // (`external_ref IS NULL`), so the import claims it rather than
+              // shadowing it with a duplicate. `source` stays `manual` — it
+              // records the row's ORIGIN and the database freezes it.
+              ...(match.externalRef === null
+                ? { externalRef: stated.externalRef }
+                : {}),
+            },
+            tx,
+          )
+          partnerId = match.id
+          partners.push({
+            externalRef: stated.externalRef,
+            id: partnerId,
+            action: "updated",
+          })
+        } else {
+          const created = await createPartner(
+            ctx.owner,
+            {
+              ...fields,
+              externalRef: stated.externalRef,
+              source: "saldokonto",
+            },
+            tx,
+          )
+          partnerId = created.id
+          partners.push({
+            externalRef: stated.externalRef,
+            id: partnerId,
+            action: "created",
+          })
+        }
+
+        saldoLines.push({
+          partnerId,
+          receivableTotal: line.receivableTotal ?? null,
+          payableTotal: line.payableTotal ?? null,
+          oldestDue: line.oldestDue ?? null,
+        })
+      }
+
+      const batch = await createDraftBatch(
+        ctx.owner,
+        {
+          dataset: "saldokonto",
+          periodId: period.id,
+          source: "agent",
+          noteInternal: input.noteInternal ?? null,
+          partnerSaldoLines: saldoLines,
+        },
+        tx,
+      )
+
+      const published = await publishBatch(ctx.owner, batch.id, tx)
+      if (!published.ok) throw new IngestRefused("conflict")
+
+      return {
+        entityId: batch.id,
+        summary: {
+          dataset: "saldokonto",
+          periodId: period.id,
+          batchId: batch.id,
+          rowCount: batch.rowCount,
+          supersededBatchId: published.supersededBatchId,
+          alreadyPublished: published.alreadyPublished,
+          // The registry side of the act, reported apart from the batch: the
+          // office reading the log needs to see that a run created four
+          // suppliers it has never seen, which is the one part of a saldokonto
+          // publish that is not superseded next month.
+          partners: upsertSummary(partners),
         },
       }
     },

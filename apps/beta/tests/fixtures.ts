@@ -27,6 +27,8 @@ import type {
   BetaImportStatus,
   BetaObligationGroup,
   BetaOrgRole,
+  BetaPartnerRole,
+  BetaPartnerSource,
   BetaPayrollContractType,
   BetaPeriodKind,
   BetaStatementKind,
@@ -610,6 +612,163 @@ export async function readImportBatchRow(batchId: string): Promise<{
   `
   if (!row) throw new Error(`fixture: no import_batch ${batchId}`)
   return row
+}
+
+// ---------------------------------------------------------------------------
+// Partner registry + saldokonto (PR 28) — written as raw SQL
+// ---------------------------------------------------------------------------
+//
+// Same reasoning as every seed above: `lib/data/partners.ts` is the owner-gated
+// write path and a fixture that used it could not seed a world for the tests
+// whose subject IS the gate — and every read test would then be asserting
+// against rows its own subject wrote. `createPartnerRow` can also seed a
+// `manual` partner with no `external_ref`, which is exactly the state the
+// import's ADOPTION path has to find and which no agent call can produce.
+
+export async function createPartnerRow(
+  organizationId: string,
+  values: {
+    name?: string
+    ico?: string | null
+    dic?: string | null
+    role?: BetaPartnerRole
+    source?: BetaPartnerSource
+    externalRef?: string | null
+    noteClient?: string | null
+    noteInternal?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO partner (
+      organization_id, name, ico, dic, partner_role, source, external_ref,
+      note_client, note_internal
+    )
+    VALUES (
+      ${organizationId},
+      ${values.name ?? "ACME s.r.o."},
+      ${values.ico ?? null},
+      ${values.dic ?? null},
+      ${values.role ?? "other"},
+      ${values.source ?? "manual"},
+      ${values.externalRef ?? null},
+      ${values.noteClient ?? null},
+      ${values.noteInternal ?? null}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+export async function createPartnerSaldoRow(
+  organizationId: string,
+  batchId: string,
+  partnerId: string,
+  periodId: string,
+  values: {
+    receivableTotal?: string | null
+    payableTotal?: string | null
+    /** ISO date, or a signed day offset from today (negative = overdue). */
+    oldestDue?: string
+    oldestDueInDays?: number
+  } = {},
+): Promise<string> {
+  const oldestDue =
+    values.oldestDue ??
+    (values.oldestDueInDays === undefined
+      ? null
+      : new Date(Date.now() + values.oldestDueInDays * 86_400_000)
+          .toISOString()
+          .slice(0, 10))
+
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO partner_saldo (
+      organization_id, import_batch_id, partner_id, period_id,
+      receivable_total, payable_total, oldest_due
+    )
+    VALUES (
+      ${organizationId},
+      ${batchId},
+      ${partnerId},
+      ${periodId},
+      ${values.receivableTotal ?? null},
+      ${values.payableTotal ?? null},
+      ${oldestDue}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+/**
+ * A PUBLISHED saldokonto batch with one row per partner, in one call — the
+ * world every Pohledávky / obligations read test needs.
+ *
+ * THE ORDERING IS PRODUCTION'S, not a shortcut. The batch is created as a DRAFT
+ * and flipped afterwards because `partner_saldo_requires_draft_batch` (0007's
+ * shared trigger) refuses a row written into a live batch; and `supersedes`
+ * vacates the incumbent BEFORE the new batch enters `published`, because
+ * `import_batch_one_published_idx` is a plain unique index checked per
+ * statement. `publishBatch` does exactly these two things in exactly this order.
+ * What the fixture skips is the office's review, not the invariants.
+ */
+export async function publishSaldokontoRow(
+  organizationId: string,
+  periodId: string,
+  lines: readonly {
+    partnerId: string
+    receivableTotal?: string | null
+    payableTotal?: string | null
+    oldestDue?: string
+    oldestDueInDays?: number
+  }[],
+  options: { supersedes?: string } = {},
+): Promise<string> {
+  const sql = db()
+  const batchId = await createImportBatchRow(organizationId, periodId, {
+    dataset: "saldokonto",
+    status: "draft",
+    source: "agent",
+    rowCount: lines.length,
+  })
+
+  for (const line of lines) {
+    await createPartnerSaldoRow(
+      organizationId,
+      batchId,
+      line.partnerId,
+      periodId,
+      line,
+    )
+  }
+
+  if (options.supersedes) {
+    // `superseded_by_batch_id` is not optional: `import_batch_status_coherence`
+    // refuses a superseded row with nothing superseding it, which is what makes
+    // rollback's backward walk a function rather than a guess.
+    await sql`
+      UPDATE import_batch
+         SET status = 'superseded',
+             superseded_at = now(),
+             superseded_by_batch_id = ${batchId}
+       WHERE id = ${options.supersedes}
+    `
+  }
+
+  await sql`
+    UPDATE import_batch
+       SET status = 'published', published_at = now()
+     WHERE id = ${batchId}
+  `
+  return batchId
+}
+
+/**
+ * An office edit to a partner, which moves `partner.updated_at` through the
+ * touch trigger — for asserting that the REGISTRY's stamp and the SALDO's stamp
+ * are independent.
+ */
+export async function touchPartnerRow(partnerId: string): Promise<void> {
+  await db()`UPDATE partner SET city = 'Brno' WHERE id = ${partnerId}`
 }
 
 export async function createFilingRow(

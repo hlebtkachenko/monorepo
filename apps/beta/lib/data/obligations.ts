@@ -24,11 +24,11 @@ import type { OrgScope } from "./scope"
  * three numbers that disagree. So this file reads the sources and shapes them,
  * and owns nothing.
  *
- * THREE SOURCES, TWO IMPLEMENTED (spec §2.4):
+ * THREE SOURCES, ALL THREE IMPLEMENTED (spec §2.4):
  *
  *   filing            unpaid filings with a positive amount_due     — PR 16
  *   partner_saldo     payables per partner, from the saldokonto     — PR 28
- *   manual_liability  the residue the other two cannot see          — HERE, now
+ *   manual_liability  the residue the other two cannot see          — PR 18
  *
  * THE UNION IS DISJOINT BY CONSTRUCTION, WHICH IS THE ANTI-TRIPLE-ENTRY RULE.
  * §2.4 writes the sources with their creditor groups in parentheses — "filings
@@ -63,13 +63,16 @@ import type { OrgScope } from "./scope"
  * GUC this database does not set. The union lives here, in the one place that
  * already holds the scope.
  *
- * ADDING A SOURCE (PR 28) is meant to be a small, local change: register it in
+ * ADDING A SOURCE was meant to be a small, local change: register it in
  * `OBLIGATION_SOURCES` with `implemented: true`, add one arm to the `UNION ALL`
- * in `obligationRowsQuery` selecting the same column list, and add one arm to
- * the freshness query. `Obligation` does not change shape, so no consumer does
+ * in `obligationUnionSql` selecting the same column list, and add one arm to the
+ * freshness query. `Obligation` does not change shape, so no consumer does
  * either — which is the whole reason `source` is a discriminator on every row
  * rather than something the caller infers. PR 18 followed that contract to the
- * letter and this note is the evidence it holds.
+ * letter, and PR 28 closed the union by doing exactly the same three things:
+ * Dluhy a platby grew a Dodavatelé group, Přehled's Nejbližší termíny
+ * (`deadlines.ts`, which imports this union whole) grew supplier payments, and
+ * neither file changed.
  */
 
 export type ObligationSource = "filing" | "partner_saldo" | "manual_liability"
@@ -87,7 +90,7 @@ export const OBLIGATION_SOURCES: readonly {
   readonly implemented: boolean
 }[] = Object.freeze([
   { source: "filing", implemented: true },
-  { source: "partner_saldo", implemented: false },
+  { source: "partner_saldo", implemented: true },
   { source: "manual_liability", implemented: true },
 ])
 
@@ -295,8 +298,72 @@ export function obligationUnionSql(organizationId: string) {
         AND f.paid_at IS NULL
         AND f.amount_due > 0
 
-      -- SOURCE 2/3 (PR 28): partner_saldo payables, group 'dodavatele'.
-      -- It arrives as one more UNION ALL SELECT with this column list.
+      UNION ALL
+
+      -- SOURCE 2/3: partner_saldo payables (spec §2.4, group Dodavatelé).
+      --
+      -- ONLY THE PUBLISHED BATCH, and the join is what enforces it. A saldokonto
+      -- lives in an import_batch like every other office-fed dataset, so "what
+      -- does this client owe their suppliers" means "what does the CURRENTLY
+      -- PUBLISHED saldokonto say" — a draft the office is staging must never
+      -- reach a client's debt list, and a superseded batch is what they were
+      -- shown BEFORE a correction. import_batch_one_published_idx is what makes
+      -- "the" batch singular, so this join cannot double a partner's payable
+      -- across two live batches.
+      --
+      -- ONLY THE PAYABLE SIDE. receivable_total is money owed TO the client;
+      -- listing it here would be the mirror image of the nadměrný-odpočet error
+      -- the filing arm above excludes, and it is Pohledávky's own column
+      -- (§2.4), not a debt.
+      --
+      -- payable_total > 0 excludes NULL (an export that stated only the
+      -- receivable side — an unknown, not a zero) and 0 (a settled supplier) in
+      -- one predicate, exactly as the filing arm's amount_due > 0 does.
+      -- oldest_due is NOT NULL for every row this predicate admits:
+      -- partner_saldo_payable_has_oldest_due (migration 0015) refuses a stated
+      -- payable with no splatnost precisely so that no debt can be silently
+      -- dropped from this list for want of a date.
+      --
+      -- THE LABEL IS THE PARTNER'S NAME, the office's own words, never
+      -- translated — the same slot a manual liability's titul uses. There is no
+      -- variable symbol: a saldokonto states a position per partner, not per
+      -- invoice, so a VS would have to be invented.
+      --
+      -- THE STAMP IS THE BATCH'S published_at, which is §2.4's "the SOURCE's own
+      -- stamp (filing edit / IMPORT PERIOD / manual edit)" for this arm. Not the
+      -- partner row's updated_at: an office edit to a supplier's address does
+      -- not make last month's saldo newer.
+      SELECT
+        'partner_saldo'::text                       AS source,
+        ps.id                                       AS source_id,
+        'dodavatele'::text                          AS "group",
+        NULL::text                                  AS filing_kind,
+        pt.name                                     AS label,
+        ps.payable_total                            AS amount,
+        ps.oldest_due                               AS due_on,
+        NULL::text                                  AS variable_symbol,
+        to_char(b.published_at AT TIME ZONE 'UTC',
+                ${sql.raw(ISO_INSTANT)})            AS as_of,
+        p.id                                        AS period_id,
+        p.period_kind::text                         AS period_kind,
+        p.year                                      AS period_year,
+        p.month                                     AS period_month,
+        p.quarter                                   AS period_quarter,
+        p.starts_on::text                           AS period_starts_on,
+        p.ends_on::text                             AS period_ends_on
+      FROM partner_saldo ps
+      JOIN import_batch b
+        ON b.id = ps.import_batch_id
+       AND b.organization_id = ps.organization_id
+       AND b.status = 'published'
+      JOIN partner pt
+        ON pt.id = ps.partner_id
+       AND pt.organization_id = ps.organization_id
+      JOIN reporting_period p
+        ON p.id = ps.period_id
+       AND p.organization_id = ps.organization_id
+      WHERE ps.organization_id = ${organizationId}
+        AND ps.payable_total > 0
 
       UNION ALL
 
@@ -408,7 +475,27 @@ function freshnessQuery(organizationId: string) {
               ${sql.raw(ISO_INSTANT)}) AS source_updated_at
       FROM liability l
      WHERE l.organization_id = ${organizationId}
-    -- PR 28 appends its own arm here.
+
+    UNION ALL
+
+    -- The saldokonto's own stamp: when the office last PUBLISHED one, whether
+    -- or not it currently states a payable.
+    --
+    -- max(published_at) over the published batches rather than a count of rows,
+    -- on the same terms as the two arms above — a client whose suppliers are all
+    -- settled has zero Dodavatelé obligations and a recent stamp, and the
+    -- surface can say "k <date> nic neevidujeme" instead of reading as a feed
+    -- nobody has connected. Restricted to saldokonto batches: a rozvaha
+    -- published yesterday says nothing about how fresh the supplier position is,
+    -- and §0.4's stamp is per DATASET for exactly that reason.
+    SELECT
+      'partner_saldo'::text AS source,
+      to_char(max(b.published_at) AT TIME ZONE 'UTC',
+              ${sql.raw(ISO_INSTANT)}) AS source_updated_at
+      FROM import_batch b
+     WHERE b.organization_id = ${organizationId}
+       AND b.dataset = 'saldokonto'
+       AND b.status = 'published'
   `
 }
 

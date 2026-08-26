@@ -6,6 +6,7 @@ import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   app_user,
   import_batch,
+  partner_saldo,
   payroll_employee_line,
   payroll_summary,
   reporting_period,
@@ -105,9 +106,12 @@ export const IMPORT_DATASETS: readonly {
   { dataset: "predvaha", implemented: true },
   { dataset: "rozvaha", implemented: true },
   { dataset: "vzz", implemented: true },
-  // PR 27 (partner + partner_saldo) adds a payload table and one arm to
-  // `ImportBatchPayload`. It adds no publish semantic — that is this file.
-  { dataset: "saldokonto", implemented: false },
+  // PR 28 added `partner_saldo` and one arm to `ImportBatchPayload` — and no
+  // publish semantic, which is the property this registry was designed to
+  // demonstrate: the completeness matrix, the freshness read, the rollback and
+  // the supersession all started reporting saldokonto the moment this flag
+  // flipped, with nothing in this file changing but the flag and the insert.
+  { dataset: "saldokonto", implemented: true },
   // Payroll (migration 0016) took exactly that shape: `payroll_summary` +
   // `payroll_employee_line` are payload tables of this spine, so the whole of
   // §3.2 — supersession, one published per period, rollback, the §0.4 freshness
@@ -168,6 +172,29 @@ export type TrialBalanceLineInput = {
   readonly turnoverDebit?: string | null
   readonly turnoverCredit?: string | null
   readonly closingBalance?: string | null
+}
+
+/**
+ * One partner's saldo, as the office states it (spec §2.4, PR 28).
+ *
+ * IT NAMES A PARTNER BY ID, not by name or by IČO. Resolving a counterparty into
+ * a registry row is the ingest's job (`lib/data/partners.ts` holds the match
+ * order), and it has to happen BEFORE the batch is written: a payload that
+ * carried a name would make this module decide identity, which is the one
+ * decision the whole partner registry exists to keep in one place.
+ *
+ * Both totals optional and neither a zero — `partner_saldo_states_something`
+ * refuses a row that states neither, and `partner_saldo_payable_has_oldest_due`
+ * refuses a payable with no splatnost.
+ */
+export type PartnerSaldoLineInput = {
+  readonly partnerId: string
+  /** "Dlužné nám" — `numeric(14,2)` as a string. */
+  readonly receivableTotal?: string | null
+  /** "Dlužíme". */
+  readonly payableTotal?: string | null
+  /** The oldest unpaid splatnost. Required whenever a payable is stated. */
+  readonly oldestDue?: string | null
 }
 
 /**
@@ -235,6 +262,10 @@ type ImportBatchPayload =
   | {
       readonly dataset: "predvaha"
       readonly trialBalanceLines: readonly TrialBalanceLineInput[]
+    }
+  | {
+      readonly dataset: "saldokonto"
+      readonly partnerSaldoLines: readonly PartnerSaldoLineInput[]
     }
   | {
       readonly dataset: "payroll"
@@ -760,16 +791,7 @@ export async function createDraftBatch(
   input: ImportBatchInput,
   executor: BetaExecutor = betaDb(),
 ): Promise<{ id: string; rowCount: number }> {
-  const rowCount =
-    input.dataset === "predvaha"
-      ? input.trialBalanceLines.length
-      : input.dataset === "payroll"
-        ? // The summary IS a payload row, so a twelve-person month counts 13.
-          // Counting only the lines would report a batch as one row short of
-          // what it wrote, and `row_count` is what the office reads in the
-          // completeness matrix to decide whether an import looks complete.
-          input.payrollLines.length + 1
-        : input.statementLines.length
+  const rowCount = batchRowCount(input)
 
   // A caller already inside a transaction (PR 24's ingestion API, which writes
   // its activity_log row in the same one) gets a SAVEPOINT here rather than a
@@ -808,6 +830,20 @@ export async function createDraftBatch(
             turnover_debit: line.turnoverDebit ?? null,
             turnover_credit: line.turnoverCredit ?? null,
             closing_balance: line.closingBalance ?? null,
+          })),
+        )
+      }
+    } else if (input.dataset === "saldokonto") {
+      if (input.partnerSaldoLines.length > 0) {
+        await tx.insert(partner_saldo).values(
+          input.partnerSaldoLines.map((line) => ({
+            organization_id: scope.organizationId,
+            import_batch_id: batch.id,
+            period_id: input.periodId,
+            partner_id: line.partnerId,
+            receivable_total: line.receivableTotal ?? null,
+            payable_total: line.payableTotal ?? null,
+            oldest_due: line.oldestDue ?? null,
           })),
         )
       }
@@ -873,6 +909,29 @@ export async function createDraftBatch(
 
     return { id: batch.id, rowCount }
   })
+}
+
+/**
+ * How many rows the payload carries — one exhaustive switch over the union
+ * rather than a ternary chain, so a fourth dataset arm is a compile error here
+ * instead of a batch that silently reports `row_count: 0`.
+ */
+function batchRowCount(input: ImportBatchInput): number {
+  switch (input.dataset) {
+    case "predvaha":
+      return input.trialBalanceLines.length
+    case "saldokonto":
+      return input.partnerSaldoLines.length
+    case "payroll":
+      // The summary IS a payload row, so a twelve-person month counts 13.
+      // Counting only the lines would report a batch as one row short of what
+      // it wrote, and `row_count` is what the office reads in the completeness
+      // matrix to decide whether an import looks complete.
+      return input.payrollLines.length + 1
+    case "rozvaha":
+    case "vzz":
+      return input.statementLines.length
+  }
 }
 
 export type PublishRefusal =

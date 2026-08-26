@@ -23,6 +23,7 @@ import {
   filingsUpsertSchema,
   liabilitiesUpsertSchema,
   publishPayrollSchema,
+  publishSaldokontoSchema,
   publishStatementsSchema,
   publishTrialBalanceSchema,
   tenancyKeysIn,
@@ -148,6 +149,150 @@ describe("publishTrialBalanceSchema", () => {
       ],
     })
     expect(result.success).toBe(true)
+  })
+})
+
+describe("publishSaldokontoSchema", () => {
+  const line = (over: Record<string, unknown> = {}) => ({
+    partner: {
+      externalRef: "money:p:1",
+      name: "Stavebniny Novak s.r.o.",
+      ico: "12345678",
+      partnerRole: "supplier",
+    },
+    receivableTotal: "1000.00",
+    payableTotal: "2000.00",
+    oldestDue: "2026-04-30",
+    ...over,
+  })
+
+  it("accepts a partner line with both sides stated", () => {
+    expect(
+      publishSaldokontoSchema.safeParse({ period, lines: [line()] }).success,
+    ).toBe(true)
+  })
+
+  it("accepts a receivable-only line with no splatnost", () => {
+    // A receivable owes nobody a deadline; the DB CHECK requires one only for a
+    // payable, and this mirrors it exactly.
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [
+          {
+            partner: { externalRef: "money:p:2", name: "Odberatel a.s." },
+            receivableTotal: "1000.00",
+          },
+        ],
+      }).success,
+    ).toBe(true)
+  })
+
+  it("refuses a line that states neither side", () => {
+    const result = publishSaldokontoSchema.safeParse({
+      period,
+      lines: [
+        {
+          partner: { externalRef: "money:p:3", name: "Prazdny s.r.o." },
+        },
+      ],
+    })
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result.error?.issues)).toContain("payableTotal")
+  })
+
+  it("refuses a stated payable with no splatnost, naming the field", () => {
+    const result = publishSaldokontoSchema.safeParse({
+      period,
+      lines: [line({ oldestDue: undefined })],
+    })
+    expect(result.success).toBe(false)
+    // The obligations union lists a payable WITH its date. A named 400 beats a
+    // 23514 the caller has to reverse-engineer — and beats a debt that silently
+    // never reaches Dluhy a platby.
+    expect(JSON.stringify(result.error?.issues)).toContain("oldestDue")
+  })
+
+  it("allows a settled ZERO payable with no splatnost", () => {
+    // A measured zero never reaches the debt list, so it needs no date. The
+    // check is on POSITIVE, textually — "0.00" carries no non-zero digit.
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [line({ payableTotal: "0.00", oldestDue: undefined })],
+      }).success,
+    ).toBe(true)
+  })
+
+  it("refuses a negative total on either side", () => {
+    // A negative receivable IS a payable; the caller meant the other column.
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [line({ receivableTotal: "-1.00" })],
+      }).success,
+    ).toBe(false)
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [line({ payableTotal: "-1.00" })],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses two lines for one partner", () => {
+    const result = publishSaldokontoSchema.safeParse({
+      period,
+      lines: [line(), line()],
+    })
+    expect(result.success).toBe(false)
+    expect(JSON.stringify(result.error?.issues)).toContain("duplicate partner")
+  })
+
+  it("refuses an IČO that is not eight digits", () => {
+    // It is a MATCH KEY: an unpadded IČO creates a second partner for a company
+    // that already has one.
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [
+          line({ partner: { externalRef: "x", name: "A", ico: "1234567" } }),
+        ],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a partner line naming a membership role", () => {
+    // `partnerRole` is the field; `role` is on FORBIDDEN_PAYLOAD_KEYS because a
+    // membership role must never be stated in a body. Both halves are asserted:
+    // the strict object refuses the unknown key, and `tenancyKeysIn` finds it
+    // at depth before the schema ever runs.
+    const body = {
+      period,
+      lines: [
+        line({ partner: { externalRef: "x", name: "A", role: "owner" } }),
+      ],
+    }
+    expect(publishSaldokontoSchema.safeParse(body).success).toBe(false)
+    expect(tenancyKeysIn(body)).toEqual(["role"])
+  })
+
+  it("refuses an unknown field rather than dropping it", () => {
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [line({ payableTotall: "2000.00" })],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a money value that is a number", () => {
+    expect(
+      publishSaldokontoSchema.safeParse({
+        period,
+        lines: [line({ receivableTotal: 1000 })],
+      }).success,
+    ).toBe(false)
   })
 })
 

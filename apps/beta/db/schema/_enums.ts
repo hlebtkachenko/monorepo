@@ -319,6 +319,43 @@ export const betaAssetEventKind = pgEnum("beta_asset_event_kind", [
 export type BetaAssetEventKind = (typeof betaAssetEventKind.enumValues)[number]
 
 /**
+ * Mirrors: 0015_partners_saldokonto.sql — CREATE TYPE beta_partner_role.
+ *
+ * Spec §4's `partner_role`, rendered as §2.4's Partneři column "role". English
+ * identifiers like `betaAssetCategory` — a classification this application
+ * invented, not the legal name of a document; the Czech labels live in
+ * `messages/cs.json` via `lib/partner-labels.ts`.
+ *
+ * `both` is not a hedge: the same company supplying material on one site and
+ * buying work on another is the ordinary construction case, and a registry that
+ * forced a choice would make the Pohledávky page's two columns disagree with the
+ * role chip beside them.
+ */
+export const betaPartnerRole = pgEnum("beta_partner_role", [
+  "supplier",
+  "customer",
+  "both",
+  "other",
+])
+
+export type BetaPartnerRole = (typeof betaPartnerRole.enumValues)[number]
+
+/**
+ * Mirrors: 0015_partners_saldokonto.sql — CREATE TYPE beta_partner_source.
+ *
+ * Spec §4, verbatim: "source manual|saldokonto". It records the row's ORIGIN and
+ * is frozen by `partner_freeze_source` — a partner the import created will be
+ * re-stated by every future import and one the office typed never will, and an
+ * origin that changed under an import would make that distinction unanswerable.
+ */
+export const betaPartnerSource = pgEnum("beta_partner_source", [
+  "manual",
+  "saldokonto",
+])
+
+export type BetaPartnerSource = (typeof betaPartnerSource.enumValues)[number]
+
+/**
  * Mirrors: 0009_client_tasks.sql — CREATE TYPE beta_client_task_status.
  *
  * A template never reaches `done` (0009's `client_task_template_never_done`

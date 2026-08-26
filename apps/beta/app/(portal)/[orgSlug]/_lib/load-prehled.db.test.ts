@@ -157,16 +157,19 @@ describe("hasObligationData — presence, never a non-zero total", () => {
     expect(hasObligationData((await loadFor(target)).obligations)).toBe(true)
   })
 
-  it("ignores the unimplemented source — it could never have been fed", async () => {
+  it("lists the saldokonto source as fed by nothing on a fresh book", async () => {
     const data = await loadFor(await seedOrganization())
     const partnerSaldo = data.obligations.freshness.find(
       (source) => source.source === "partner_saldo",
     )
 
-    expect(partnerSaldo?.implemented).toBe(false)
-    // Which is exactly why the tile's caption has to say the total excludes
-    // supplier payables.
+    // PR 28 implemented this source, so an absent stamp now means "the office
+    // has published no saldokonto" rather than "this feed does not exist" —
+    // which is why the KPI tile no longer carries a caption saying its total
+    // excludes supplier payables.
+    expect(partnerSaldo?.implemented).toBe(true)
     expect(partnerSaldo?.sourceUpdatedAt).toBeNull()
+    expect(partnerSaldo?.openCount).toBe(0)
   })
 })
 

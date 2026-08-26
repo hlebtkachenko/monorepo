@@ -81,6 +81,37 @@ const money = z
     "expected a numeric(14,2) value as a string",
   )
 
+/**
+ * The same grammar with no sign — for a column the database refuses a negative
+ * on (`partner_saldo_totals_nonnegative`).
+ *
+ * Stated here rather than left to the CHECK because the two sides of a saldo
+ * mean opposite things: a negative payable is a RECEIVABLE, and a caller that
+ * sent one meant the other column. Naming the field in a 400 is the difference
+ * between "fix your mapping" and a constraint name at the bottom of a
+ * transaction.
+ */
+const unsignedMoney = z
+  .string()
+  .regex(
+    /^\d{1,12}(\.\d{1,2})?$/,
+    "expected a non-negative numeric(14,2) value as a string",
+  )
+
+/**
+ * Whether a money string is strictly greater than zero — TEXTUALLY, never by
+ * parsing.
+ *
+ * `Number("0.00") > 0` would be the obvious implementation and it is the one
+ * thing this file forbids (rule 3 in the header): a money value never becomes an
+ * IEEE double anywhere in this application. The grammar above guarantees digits
+ * and at most one dot, so "is any digit non-zero" is the same question and
+ * survives a figure no double could hold.
+ */
+function isPositiveMoney(value: string): boolean {
+  return /[1-9]/.test(value)
+}
+
 /** `YYYY-MM-DD`, the shape a `date` column stores. */
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD")
 
@@ -218,6 +249,141 @@ export const publishTrialBalanceSchema = z
     noteInternal: optionalText(2000),
   })
   .strict()
+
+/**
+ * Publish a saldokonto (spec §3.2's "saldokonto (partner+saldo upsert)").
+ *
+ * ONE LINE PER PARTNER, and the partner's IDENTITY is nested inside it rather
+ * than flattened alongside the two totals. The nesting is the contract made
+ * visible: the `partner` block is UPSERTED into a registry that outlives every
+ * period, and the three figures beside it are PUBLISHED as one period's
+ * measurement and superseded wholesale next month. A flat line would read as one
+ * fact with one lifetime, which is exactly the confusion that would make an
+ * office edit disappear on the next import.
+ *
+ * THE PARTNER BLOCK IS THE WHOLE TRUTH ABOUT THE PARTNER. A field the payload
+ * omits is set to NULL, not left alone — the same semantics `filings` and
+ * `assets` already have, and the right ones for an import: the office's own
+ * system is the authority on a supplier's name and address, so "absent" there
+ * means "absent", never "keep whatever the portal had". The two fields it can
+ * NOT reach are `noteClient` and `noteInternal`, which are the portal's own
+ * layer (§3.3) and have no field here at all — an import must never erase an
+ * accountant's note about a supplier.
+ *
+ * `externalRef` IS THE PARTNER'S ID, not the saldo row's. A saldo row's identity
+ * is (batch, partner), which the batch itself supplies; the ref names the
+ * counterparty across periods and across runs. See `lib/data/partners.ts` for
+ * the match order it participates in.
+ */
+const saldoPartnerSchema = z
+  .object({
+    externalRef,
+    name: text(255),
+    // Eight digits, and the DB CHECK says the same. Stated here because it is a
+    // MATCH KEY: a seven-digit IČO an export left unpadded would create a second
+    // partner for a company that already has one, and the caller is better told
+    // which field is wrong than handed `partner_ico_shape`.
+    ico: z
+      .string()
+      .regex(/^\d{8}$/)
+      .nullish(),
+    dic: optionalText(14),
+    // `partnerRole`, NOT `role`, and the name is load-bearing: `role` is on
+    // `FORBIDDEN_PAYLOAD_KEYS` (rule 1) because a membership role must never be
+    // stated in a body, and the check is on a NORMALIZED name at any depth. A
+    // partner's commercial role is a different thing entirely, so it takes the
+    // column's own name and the tenancy fence stays exactly as strict as it was.
+    partnerRole: z.enum(["supplier", "customer", "both", "other"]).optional(),
+    email: optionalText(255),
+    phone: optionalText(32),
+    street: optionalText(255),
+    houseNumber: optionalText(16),
+    orientationNumber: optionalText(16),
+    city: optionalText(255),
+    postalCode: optionalText(10),
+    countryCode: z
+      .string()
+      .regex(/^[A-Z]{2}$/)
+      .optional(),
+  })
+  .strict()
+
+const MAX_SALDO_LINES = 2000
+
+export const publishSaldokontoSchema = z
+  .object({
+    period: periodSchema,
+    lines: z
+      .array(
+        z
+          .object({
+            partner: saldoPartnerSchema,
+            /** "Dlužné nám" (§2.4). */
+            receivableTotal: unsignedMoney.nullish(),
+            /** "Dlužíme" — the figure the Dodavatelé obligations arm reads. */
+            payableTotal: unsignedMoney.nullish(),
+            oldestDue: isoDate.nullish(),
+          })
+          .strict()
+          .superRefine((value, ctx) => {
+            // Both mirror a DB CHECK, and both are worth naming rather than
+            // letting the constraint speak.
+            //
+            // `partner_saldo_states_something`: a line with neither total is not
+            // a fact about the partner, it is a row that would render as an
+            // empty line under a supplier's name.
+            if (value.receivableTotal == null && value.payableTotal == null) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["payableTotal"],
+                message: "state receivableTotal, payableTotal, or both",
+              })
+            }
+            // `partner_saldo_payable_has_oldest_due`: the obligations read model
+            // lists a payable WITH its splatnost, and a dateless one would be
+            // dropped from Dluhy a platby and from Nejbližší termíny without
+            // anybody being told. Refusing it here turns a silently lost debt
+            // into a 400 the office agent can fix.
+            if (
+              value.payableTotal != null &&
+              isPositiveMoney(value.payableTotal) &&
+              value.oldestDue == null
+            ) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["oldestDue"],
+                message: "a stated payable carries the date it is due",
+              })
+            }
+          }),
+      )
+      .min(1)
+      .max(MAX_SALDO_LINES),
+    noteInternal: optionalText(2000),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // ONE LINE PER PARTNER. `partner_saldo_identity_unique` refuses the second
+    // one at the bottom of the transaction, which the caller would receive as an
+    // unexplained `conflict`; here it is the index of the offending line. A
+    // duplicate is also the one shape that could DOUBLE a supplier's payable in
+    // Dluhy a platby if the constraint were ever relaxed, so it is checked in
+    // both places on purpose.
+    const seen = new Map<string, number>()
+    for (const [index, line] of value.lines.entries()) {
+      const ref = line.partner.externalRef
+      const first = seen.get(ref)
+      if (first !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["lines", index, "partner", "externalRef"],
+          message: `duplicate partner, first stated at line ${first}`,
+        })
+        continue
+      }
+      seen.set(ref, index)
+    }
+  })
 
 /**
  * A headcount. An integer, and never a money string: it counts people.
@@ -588,6 +754,7 @@ export const accountBalanceMapUpsertSchema = z
 
 export type PublishStatementsInput = z.infer<typeof publishStatementsSchema>
 export type PublishTrialBalanceInput = z.infer<typeof publishTrialBalanceSchema>
+export type PublishSaldokontoInput = z.infer<typeof publishSaldokontoSchema>
 export type PublishPayrollInput = z.infer<typeof publishPayrollSchema>
 export type FilingsUpsertInput = z.infer<typeof filingsUpsertSchema>
 export type LiabilitiesUpsertInput = z.infer<typeof liabilitiesUpsertSchema>

@@ -95,6 +95,7 @@ describe("beta migration runner", () => {
           "0012_notification_prefs.sql",
           "0013_two_factor_verified.sql",
           "0014_account_balance_map.sql",
+          "0015_partners_saldokonto.sql",
           "0016_payroll.sql",
           "0018_assistant.sql",
         ])
@@ -126,6 +127,8 @@ describe("beta migration runner", () => {
           "liability",
           "organization",
           "organization_membership",
+          "partner",
+          "partner_saldo",
           "payroll_employee",
           "payroll_employee_line",
           "payroll_summary",

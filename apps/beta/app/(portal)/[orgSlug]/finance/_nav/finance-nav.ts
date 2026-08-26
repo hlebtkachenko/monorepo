@@ -8,10 +8,10 @@ import type { BetaMessageKey } from "@/i18n/messages"
  * would give every other one an empty panel and a toggle that does nothing).
  *
  * §2.4 NAMES FIVE LEAVES; THIS LIST CARRIES THE ONES THAT EXIST. Dluhy a platby
- * (PR 18) and Účty a hotovost (here) are routes; Pohledávky a závazky, Partneři
- * and Úvěry a leasingy are not, and spec §0.3 forbids a placeholder for them.
- * Each arrives as ONE MORE ENTRY in this array together with its page — the
- * same rule `app/_nav/beta-nav.ts` states for the rail as a whole.
+ * (PR 18), Účty a hotovost (PR 27) and Pohledávky a závazky (PR 28) are routes;
+ * Partneři and Úvěry a leasingy are not, and spec §0.3 forbids a placeholder for
+ * them. Each arrives as ONE MORE ENTRY in this array together with its page —
+ * the same rule `app/_nav/beta-nav.ts` states for the rail as a whole.
  *
  * DLUHY A PLATBY IS THE FIRST LEAF BUT NOT THE MODULE ROOT. Unlike Výkazy —
  * where Rozvaha lives at `/[orgSlug]/vykazy` itself — `finance/page.tsx`
@@ -29,6 +29,7 @@ export type FinanceNavItem = {
 export const FINANCE_NAV: readonly FinanceNavItem[] = [
   { labelKey: "finance.navDluhy", slug: "dluhy-a-platby" },
   { labelKey: "finance.navUcty", slug: "ucty-a-hotovost" },
+  { labelKey: "finance.navPohledavky", slug: "pohledavky-a-zavazky" },
 ]
 
 export function financeHref(orgSlug: string, slug: string): string {

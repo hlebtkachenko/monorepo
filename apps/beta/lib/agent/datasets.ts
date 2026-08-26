@@ -24,15 +24,11 @@ export type AgentDataset = {
 export const AGENT_DATASETS: readonly AgentDataset[] = Object.freeze([
   { path: "publish/statements", implemented: true },
   { path: "publish/trial-balance", implemented: true },
+  { path: "publish/saldokonto", implemented: true },
   { path: "publish/payroll", implemented: true },
   { path: "filings", implemented: true },
   { path: "liabilities", implemented: true },
   { path: "assets", implemented: true },
   { path: "client-tasks", implemented: true },
-  {
-    path: "publish/saldokonto",
-    implemented: false,
-    note: "PR 27 ships partner + partner_saldo",
-  },
   { path: "account-balance-map", implemented: true },
 ])

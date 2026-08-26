@@ -89,6 +89,10 @@ export default defineConfig({
             // maps checked against the pgEnums' declared values and the JSON,
             // neither of which needs a running database.
             "lib/account-labels.test.ts",
+            // Same rule again for PR 28's `lib/partner-labels.ts`: an
+            // enum-to-catalog map checked against the pgEnum's declared values
+            // and the JSON, neither of which needs a running database.
+            "lib/partner-labels.test.ts",
             // Same rule as `lib/obligation-labels.test.ts` above, for PR 20's
             // two pure helpers: `lib/freshness.ts` is calendar-index
             // arithmetic over a period and a date string, `lib/turnover.ts`
@@ -185,6 +189,7 @@ export default defineConfig({
             "lib/import/**/*.test.ts",
             "lib/obligation-labels.test.ts",
             "lib/account-labels.test.ts",
+            "lib/partner-labels.test.ts",
             "lib/freshness.test.ts",
             "lib/turnover.test.ts",
             "lib/notifications/**/*.test.ts",

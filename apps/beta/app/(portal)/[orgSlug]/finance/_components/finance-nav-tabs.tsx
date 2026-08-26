@@ -14,10 +14,12 @@ import {
 } from "../_nav/finance-nav"
 
 /**
- * The Finance module's tab row — spec §2.4's sidebar, rendered the way
- * `VykazyNavTabs` and `DaneNavTabs` render theirs, and for the same reason.
+ * The Finance module's tab row — the twin of `VykazyNavTabs` and `DaneNavTabs`,
+ * rendered as tabs for the same reason both of those are: `BetaShell` passes no
+ * `sidebar`, and turning the shell panel on for one module would give every
+ * other one an empty panel and a toggle that does nothing.
  *
- * Client component only because it reads `usePathname()` for the active state.
+ * A Client Component only because it reads `usePathname()` for the active state.
  */
 export function FinanceNavTabs({ orgSlug }: { orgSlug: string }) {
   const pathname = usePathname() ?? ""
@@ -25,7 +27,7 @@ export function FinanceNavTabs({ orgSlug }: { orgSlug: string }) {
 
   return (
     <nav
-      aria-label={t("nav.finance")}
+      aria-label={t("finance.navLabel")}
       className="flex flex-wrap gap-1 border-b border-border-subtle px-6 py-3"
     >
       {FINANCE_NAV.map((item) => {

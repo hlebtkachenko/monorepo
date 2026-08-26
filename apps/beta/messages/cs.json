@@ -58,7 +58,6 @@
     "kpiTitle": "Klíčové údaje",
     "kpiObligations": "Otevřené závazky",
     "kpiObligationsOverdue": "z toho po splatnosti",
-    "kpiObligationsPartial": "Bez saldokonta dodavatelů, které zatím není napojené.",
     "kpiAssets": "Zůstatková hodnota majetku",
     "kpiAssetsCount": "položek v užívání",
     "asOf": "Údaje k",
@@ -529,6 +528,10 @@
     "kindOstatni": "Ostatní"
   },
   "finance": {
+    "navLabel": "Finance",
+    "navDluhy": "Dluhy a platby",
+    "navPohledavky": "Pohledávky a závazky",
+
     "dluhyTitle": "Dluhy a platby",
     "dluhyIntro": "Nezaplacené závazky ze všech evidencí, seřazené podle splatnosti.",
     "groupFu": "Finanční úřad",
@@ -556,7 +559,6 @@
     "sourceNotConnected": "Zatím nenapojeno",
     "sourceNoData": "Zatím nebylo nahráno",
     "sourceOpenCount": "otevřených položek",
-    "navDluhy": "Dluhy a platby",
     "navUcty": "Účty a hotovost",
     "uctyTitle": "Účty a hotovost",
     "uctyIntro": "Zůstatky bankovních účtů a pokladny podle poslední zveřejněné obratové předvahy.",
@@ -578,7 +580,36 @@
     "uctyUnmappedBody": "Účetní určí, které účty z obratové předvahy jsou banka a které pokladna. Do té doby tu nic nezobrazujeme.",
     "uctyUnmappedOwnerCta": "Nastavit v Zadávání dat",
     "uctyStaleBandPrefix": "Poslední zveřejněné údaje jsou za období",
-    "uctyStaleBandSuffix": ". Novější zatím nebyly nahrány."
+    "uctyStaleBandSuffix": ". Novější zatím nebyly nahrány.",
+
+    "pohledavkyTitle": "Pohledávky a závazky",
+    "pohledavkyIntro": "Saldokonto podle partnerů — kolik dluží nám a kolik dlužíme my.",
+    "pohledavkyEmptyHeading": "Saldokonto zatím nebylo nahráno.",
+    "pohledavkyEmptyBody": "Objeví se tady po měsíční uzávěrce, ve které účetní saldokonto odešle.",
+    "pohledavkyNoRows": "V nahraném saldokontu nejsou žádní partneři.",
+    "columnPartner": "Partner",
+    "columnIco": "IČO",
+    "columnRole": "Role",
+    "columnReceivable": "Dluží nám",
+    "columnPayable": "Dlužíme",
+    "columnOldestDue": "Nejstarší splatnost",
+    "columnAging": "Stáří",
+    "totalReceivable": "Celkem dluží nám",
+    "totalPayable": "Celkem dlužíme",
+    "saldoPeriod": "Období",
+    "saldoPublishedAt": "Nahráno",
+    "saldoStaleBand": "Novější saldokonto zatím nebylo nahráno.",
+
+    "agingUnknown": "Bez splatnosti",
+    "agingNotDue": "Do splatnosti",
+    "aging1to30": "1–30 dní po splatnosti",
+    "aging31to90": "31–90 dní po splatnosti",
+    "agingOver90": "Více než 90 dní po splatnosti",
+
+    "roleSupplier": "Dodavatel",
+    "roleCustomer": "Odběratel",
+    "roleBoth": "Dodavatel i odběratel",
+    "roleOther": "Neurčeno"
   },
   "zadavani": {
     "title": "Zadávání dat",

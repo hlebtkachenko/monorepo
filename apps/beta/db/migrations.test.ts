@@ -97,6 +97,7 @@ describe("beta migration runner", () => {
           "0014_account_balance_map.sql",
           "0015_partners_saldokonto.sql",
           "0016_payroll.sql",
+          "0017_loans.sql",
           "0018_assistant.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
@@ -125,6 +126,7 @@ describe("beta migration runner", () => {
           "filing",
           "import_batch",
           "liability",
+          "loan",
           "organization",
           "organization_membership",
           "partner",

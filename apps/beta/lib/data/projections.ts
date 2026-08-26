@@ -33,6 +33,7 @@ import type {
   filing,
   import_batch,
   liability,
+  loan,
   organization,
   organization_membership,
   partner,
@@ -57,6 +58,8 @@ import type {
   BetaImportDataset,
   BetaImportSource,
   BetaImportStatus,
+  BetaLoanInstallmentPeriod,
+  BetaLoanKind,
   BetaObligationGroup,
   BetaPartnerRole,
   BetaPartnerSource,
@@ -74,6 +77,7 @@ type MembershipRow = typeof organization_membership.$inferSelect
 type ReportingPeriodRow = typeof reporting_period.$inferSelect
 type FilingRow = typeof filing.$inferSelect
 type LiabilityRow = typeof liability.$inferSelect
+type LoanRow = typeof loan.$inferSelect
 type ImportBatchRow = typeof import_batch.$inferSelect
 type StatementLineRow = typeof statement_line.$inferSelect
 type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
@@ -1415,6 +1419,74 @@ export function assetEventView(
     eventDate: row.event_date,
     amount: row.amount,
     note: row.note,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Loan — Finance › Úvěry a leasingy (spec §2.4)
+// ---------------------------------------------------------------------------
+
+/**
+ * One credit facility as the Úvěry a leasingy table renders it.
+ *
+ * `balance` and `balanceAsOf` are BOTH-OR-NEITHER at the database
+ * (`loan_balance_stamp_coherence`), and this type carries the pair rather than
+ * the figure alone: the zůstatek is only readable next to the date it is AS OF
+ * (spec §0.4 — this product never rolls a balance forward to today). Same for
+ * `installment` / `installmentPeriod` — spec §2.4 names "splátka + frekvence"
+ * in one breath because neither half means anything by itself.
+ *
+ * `noteInternal` is absent by design: it is on `CLIENT_FORBIDDEN_COLUMNS`.
+ *
+ * Every money field is a STRING (`numeric(14,2)`, spec §0.7) — this portal
+ * never parses one into a JavaScript number. `interestRatePct` is a string for
+ * the same reason and is NOT money: it is a percent, `"4.125"` meaning 4,125 %.
+ */
+export type LoanView = {
+  id: string
+  institution: string
+  loanKind: BetaLoanKind
+  principal: string
+  balance: string | null
+  balanceAsOf: string | null
+  installment: string | null
+  installmentPeriod: BetaLoanInstallmentPeriod | null
+  interestRatePct: string | null
+  endsOn: string | null
+  noteClient: string | null
+  updatedAt: string
+}
+
+export function loanView(
+  row: Pick<
+    LoanRow,
+    | "id"
+    | "institution"
+    | "loan_kind"
+    | "principal"
+    | "balance"
+    | "balance_as_of"
+    | "installment"
+    | "installment_period"
+    | "interest_rate_pct"
+    | "ends_on"
+    | "note_client"
+    | "updated_at"
+  >,
+): LoanView {
+  return {
+    id: row.id,
+    institution: row.institution,
+    loanKind: row.loan_kind,
+    principal: row.principal,
+    balance: row.balance,
+    balanceAsOf: row.balance_as_of,
+    installment: row.installment,
+    installmentPeriod: row.installment_period,
+    interestRatePct: row.interest_rate_pct,
+    endsOn: row.ends_on,
+    noteClient: row.note_client,
+    updatedAt: row.updated_at.toISOString(),
   }
 }
 

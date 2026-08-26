@@ -2,23 +2,25 @@ import type { BetaMessageKey } from "@/i18n/messages"
 
 /**
  * The Finance module's own navigation (spec §2.4's sidebar), as the same flat
- * nav model `vykazy/_nav/vykazy-nav.ts` and `dane/_nav/dane-nav.ts` use — a row
+ * nav model `dane/_nav/dane-nav.ts` and `vykazy/_nav/vykazy-nav.ts` use — a row
  * of links inside one module, not the `@workspace/ui` sidebar-panel machinery
  * (`BetaShell` passes no `sidebar`, and turning that panel on for one module
  * would give every other one an empty panel and a toggle that does nothing).
  *
- * §2.4 NAMES FIVE LEAVES; THIS LIST CARRIES THE ONES THAT EXIST. Dluhy a platby
- * (PR 18), Účty a hotovost (PR 27) and Pohledávky a závazky (PR 28) are routes;
- * Partneři and Úvěry a leasingy are not, and spec §0.3 forbids a placeholder for
- * them. Each arrives as ONE MORE ENTRY in this array together with its page —
- * the same rule `app/_nav/beta-nav.ts` states for the rail as a whole.
+ * ONLY THE LEAVES THAT EXIST. §2.4 gives Finance five (Dluhy a platby · Účty a
+ * hotovost · Pohledávky a závazky · Partneři · Úvěry a leasingy) and an entry is
+ * added here only together with its route, exactly as the rail itself is built
+ * (`app/_nav/beta-nav.ts`): the tab row never carries a dead link or a "coming
+ * soon" stub, which §0.3 forbids. Partneři is not yet a route and stays absent
+ * until it is; the order below is §2.4's own, with the unbuilt leaf simply
+ * absent — so a later PR inserts its entry in place rather than appending and
+ * re-ordering.
  *
- * DLUHY A PLATBY IS THE FIRST LEAF BUT NOT THE MODULE ROOT. Unlike Výkazy —
- * where Rozvaha lives at `/[orgSlug]/vykazy` itself — `finance/page.tsx`
- * redirects, because §2.4's first leaf was built before the module had a second
- * one and the route the client's bookmarks already carry is
- * `/finance/dluhy-a-platby`. So every entry here has a real, non-empty slug and
- * the active match needs no exact-match special case.
+ * DLUHY A PLATBY STAYS AT `finance/dluhy-a-platby` RATHER THAN BECOMING THE
+ * MODULE ROOT. `finance/page.tsx` already redirects the rail entry there, that
+ * redirect shipped with PR 18, and moving the page to `""` now would break every
+ * link the Přehled KPI tile and the deadline list already emit. The tab is
+ * matched on its own href like every other one.
  */
 export type FinanceNavItem = {
   readonly labelKey: BetaMessageKey
@@ -30,6 +32,7 @@ export const FINANCE_NAV: readonly FinanceNavItem[] = [
   { labelKey: "finance.navDluhy", slug: "dluhy-a-platby" },
   { labelKey: "finance.navUcty", slug: "ucty-a-hotovost" },
   { labelKey: "finance.navPohledavky", slug: "pohledavky-a-zavazky" },
+  { labelKey: "finance.navUvery", slug: "uvery" },
 ]
 
 export function financeHref(orgSlug: string, slug: string): string {

@@ -167,8 +167,13 @@ describe("GET .../file — the header set", () => {
     const response = await get(orgA.members.owner.headers, orgA.slug, id)
 
     expect(response.headers.get("x-content-type-options")).toBe("nosniff")
+    // The handler's own copy. It is NOT what a browser receives — the
+    // site-wide `headers()` entry in next.config.mjs replaces this key on a
+    // real server — so the policy that actually reaches the wire is asserted
+    // over real HTTP in `document-file-headers.test.ts`. Both are needed: this
+    // one keeps the fallback honest, that one keeps the product correct.
     expect(response.headers.get("content-security-policy")).toBe(
-      "default-src 'none'; sandbox",
+      route.DOCUMENT_FILE_CSP,
     )
     expect(response.headers.get("cross-origin-resource-policy")).toBe(
       "same-origin",

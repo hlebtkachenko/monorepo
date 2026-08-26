@@ -18,6 +18,20 @@ export default defineConfig({
       "@/": resolve("./") + "/",
     },
   },
+  // The React 17+ JSX transform, so a `.tsx` test can render a component
+  // without importing React.
+  //
+  // It has to be stated here because `tsconfig.json` says `jsx: "preserve"` —
+  // correct for Next, which does its own transform, and fatal for Vite, which
+  // would hand raw JSX to the import analyser. Set on `oxc` rather than
+  // `esbuild`: Vite 8 transforms with oxc and IGNORES the esbuild block
+  // entirely (it says so, in a warning, while failing).
+  //
+  // The alternative — `@vitejs/plugin-react` — would be a new devDependency,
+  // and therefore a lockfile change that cold-rebuilds every package in the
+  // monorepo, bought for nothing: these tests render to a string and have no
+  // use for Fast Refresh.
+  oxc: { jsx: { runtime: "automatic" } },
   test: {
     projects: [
       {
@@ -41,6 +55,11 @@ export default defineConfig({
           // database underneath them.
           include: [
             "app/**/*.test.ts",
+            // Component render tests (PR 12): they render a Client Component
+            // to a string with `react-dom/server`, so they need no jsdom and
+            // no Postgres — the two things that would otherwise make a UI
+            // assertion expensive enough to skip.
+            "app/**/*.test.tsx",
             "i18n/**/*.test.ts",
             "lib/**/*.boundary.test.ts",
             "lib/storage/**/*.test.ts",

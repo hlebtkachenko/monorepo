@@ -38,6 +38,11 @@ import {
 } from "../../tests/fixtures"
 import { sharedDatabaseUrl } from "../../tests/scratch-db"
 
+import {
+  EMPTY_DOCUMENT_LIST_FILTERS,
+  type DocumentListFilters,
+} from "./document-filters"
+
 const CZECH_FILENAME = "Faktura Nováková 03-2026.pdf"
 
 /**
@@ -143,6 +148,20 @@ function rowOf(
   if (!result.ok) throw new Error(`upload refused: ${result.reason}`)
   if (!result.document) throw new Error("upload carried no document row")
   return result.document
+}
+
+/**
+ * Just the rows of a page.
+ *
+ * `listDocuments` answers with a page envelope (rows + total + page + count)
+ * since PR 12, and most of the cases below are about WHICH rows come back
+ * rather than about paging. The paging contract has its own describe block.
+ */
+async function listed(
+  scope: Awaited<ReturnType<typeof scopeFor>>,
+  options?: Parameters<DocumentsModule["listDocuments"]>[1],
+): Promise<Awaited<ReturnType<DocumentsModule["listDocuments"]>>["documents"]> {
+  return (await documents.listDocuments(scope, options)).documents
 }
 
 describe("uploadDocument — the happy path", () => {
@@ -658,7 +677,8 @@ describe("reads — the four filters", () => {
     expect(
       await documents.openDocumentFile(intruder, rowOf(mine).id),
     ).toBeNull()
-    expect(await documents.listDocuments(intruder)).toEqual([])
+    expect(await listed(intruder)).toEqual([])
+    expect(await documents.listDocumentSites(intruder)).toEqual([])
   })
 
   it("answers null for a malformed id rather than raising", async () => {
@@ -683,7 +703,7 @@ describe("reads — the four filters", () => {
 
     expect(await documents.documentForScope(owner, rowOf(result).id)).toBeNull()
     expect(await documents.openDocumentFile(owner, rowOf(result).id)).toBeNull()
-    expect(await documents.listDocuments(owner)).toEqual([])
+    expect(await listed(owner)).toEqual([])
   })
 
   it("only the owner may soft-delete", async () => {
@@ -724,7 +744,7 @@ describe("reads — the four filters", () => {
     // reachable only under the payroll scope that PR 32 introduces.
     await sql`UPDATE document SET doc_type = 'payslip' WHERE id = ${rowOf(result).id}`
 
-    expect(await documents.listDocuments(owner)).toEqual([])
+    expect(await listed(owner)).toEqual([])
     expect(await documents.documentForScope(owner, rowOf(result).id)).toBeNull()
     expect(await documents.openDocumentFile(owner, rowOf(result).id)).toBeNull()
   })
@@ -738,10 +758,10 @@ describe("reads — the four filters", () => {
     if (!result.ok) throw new Error("refused")
     await sql`UPDATE document SET visible_to_client = false WHERE id = ${rowOf(result).id}`
 
-    expect(await documents.listDocuments(owner)).toHaveLength(1)
+    expect(await listed(owner)).toHaveLength(1)
     for (const role of ["admin", "member", "guest"] as const) {
       const scope = await scopeFor(org, role)
-      expect(await documents.listDocuments(scope)).toEqual([])
+      expect(await listed(scope)).toEqual([])
       expect(
         await documents.documentForScope(scope, rowOf(result).id),
       ).toBeNull()
@@ -760,10 +780,430 @@ describe("reads — the four filters", () => {
     const second = await upload(scope, PNG_BYTES)
     if (!first.ok || !second.ok) throw new Error("refused")
 
-    expect((await documents.listDocuments(scope)).map((d) => d.id)).toEqual([
+    expect((await listed(scope)).map((d) => d.id)).toEqual([
       rowOf(second).id,
       rowOf(first).id,
     ])
+  })
+})
+
+/**
+ * The Dokumenty filters (spec §2.2), against real rows.
+ *
+ * WHY THIS IS A DATABASE TEST AND NOT A UNIT TEST. Every one of these filters
+ * is a WHERE clause, and the three things that can go wrong with a WHERE clause
+ * only exist against a real Postgres: a date range that is off by a timezone, a
+ * LIKE pattern whose metacharacters were not escaped, and a filter that quietly
+ * loses the visibility conditions it was ANDed onto. The last one is the reason
+ * every case below also asserts that a filter cannot reach a hidden row.
+ */
+describe("listDocuments — filters (spec §2.2)", () => {
+  /**
+   * Rows with chosen columns, inserted directly.
+   *
+   * The upload path cannot produce a `processed` document, an `invoice_in` with
+   * an amount, or a row created last March — those are all office edits and
+   * clock facts. What matters here is the read, so the rows are written as the
+   * office (and time) would have left them.
+   */
+  async function seedRow(
+    organizationId: string,
+    row: {
+      filename: string
+      status?: string
+      docType?: string
+      siteRef?: string | null
+      amount?: string | null
+      createdAt?: string
+      visible?: boolean
+    },
+  ): Promise<string> {
+    const [inserted] = await sql<{ id: string }[]>`
+      INSERT INTO document (
+        organization_id, original_filename, storage_key, content_type,
+        extension, byte_size, sha256, status, doc_type, site_ref, amount,
+        created_at, visible_to_client, office_message
+      ) VALUES (
+        ${organizationId}, ${row.filename},
+        ${`org/${organizationId}/${crypto.randomUUID()}.pdf`},
+        'application/pdf', 'pdf', 1024, ${crypto.randomUUID().replace(/-/g, "").padEnd(64, "0")},
+        ${row.status ?? "received"}::beta_document_status,
+        ${row.docType ?? "other"}::beta_document_type,
+        ${row.siteRef ?? null}, ${row.amount ?? null},
+        ${row.createdAt ?? "2026-03-15T09:00:00+01:00"},
+        ${row.visible ?? true},
+        ${row.status === "returned" ? "Chybí druhá strana" : null}
+      )
+      RETURNING id
+    `
+    return inserted!.id
+  }
+
+  async function filteredNames(
+    scope: Awaited<ReturnType<typeof scopeFor>>,
+    filters: Partial<DocumentListFilters>,
+  ): Promise<string[]> {
+    const rows = await listed(scope, {
+      filters: { ...EMPTY_DOCUMENT_LIST_FILTERS, ...filters },
+    })
+    return rows.map((row) => row.filename).sort()
+  }
+
+  it("filters by status", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "a.pdf", status: "received" })
+    await seedRow(org.organizationId, {
+      filename: "b.pdf",
+      status: "processed",
+    })
+    await seedRow(org.organizationId, {
+      filename: "c.pdf",
+      status: "returned",
+    })
+
+    expect(await filteredNames(scope, { status: "processed" })).toEqual([
+      "b.pdf",
+    ])
+    expect(await filteredNames(scope, { status: "returned" })).toEqual([
+      "c.pdf",
+    ])
+    expect(await filteredNames(scope, {})).toEqual(["a.pdf", "b.pdf", "c.pdf"])
+  })
+
+  it("filters by document type", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "prijata.pdf",
+      docType: "invoice_in",
+    })
+    await seedRow(org.organizationId, {
+      filename: "vydana.pdf",
+      docType: "invoice_out",
+    })
+
+    expect(await filteredNames(scope, { docType: "invoice_in" })).toEqual([
+      "prijata.pdf",
+    ])
+  })
+
+  it("filters by stavba", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "vinohrady.pdf",
+      siteRef: "Vinohrady",
+    })
+    await seedRow(org.organizationId, {
+      filename: "smichov.pdf",
+      siteRef: "Smíchov",
+    })
+    await seedRow(org.organizationId, { filename: "bez-stavby.pdf" })
+
+    expect(await filteredNames(scope, { siteRef: "Vinohrady" })).toEqual([
+      "vinohrady.pdf",
+    ])
+    // Diacritics are data, not a normalisation problem: the value came out of
+    // the same column the filter compares against.
+    expect(await filteredNames(scope, { siteRef: "Smíchov" })).toEqual([
+      "smichov.pdf",
+    ])
+  })
+
+  it("filters by an inclusive Prague day range", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    // 00:30 Prague on 2 March is 23:30 UTC on 1 March — the row a naive UTC
+    // range drops out of "od 2. 3.".
+    await seedRow(org.organizationId, {
+      filename: "brzy-rano.pdf",
+      createdAt: "2026-03-02T00:30:00+01:00",
+    })
+    // 23:30 Prague on 3 March is 22:30 UTC — the row a naive UTC range drops
+    // out of "do 3. 3." at the other end.
+    await seedRow(org.organizationId, {
+      filename: "pozde-vecer.pdf",
+      createdAt: "2026-03-03T23:30:00+01:00",
+    })
+    await seedRow(org.organizationId, {
+      filename: "mimo.pdf",
+      createdAt: "2026-03-05T12:00:00+01:00",
+    })
+
+    expect(
+      await filteredNames(scope, { from: "2026-03-02", to: "2026-03-03" }),
+    ).toEqual(["brzy-rano.pdf", "pozde-vecer.pdf"])
+
+    // A single day is a range of one, and it contains that whole day.
+    expect(
+      await filteredNames(scope, { from: "2026-03-02", to: "2026-03-02" }),
+    ).toEqual(["brzy-rano.pdf"])
+
+    expect(await filteredNames(scope, { from: "2026-03-04" })).toEqual([
+      "mimo.pdf",
+    ])
+    expect(await filteredNames(scope, { to: "2026-03-02" })).toEqual([
+      "brzy-rano.pdf",
+    ])
+  })
+
+  it("searches the filename case-insensitively", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "Faktura Nováková.pdf" })
+    await seedRow(org.organizationId, { filename: "Účtenka OBI.pdf" })
+
+    expect(await filteredNames(scope, { search: "faktura" })).toEqual([
+      "Faktura Nováková.pdf",
+    ])
+    expect(await filteredNames(scope, { search: "NOVÁKOVÁ" })).toEqual([
+      "Faktura Nováková.pdf",
+    ])
+    expect(await filteredNames(scope, { search: "obi" })).toEqual([
+      "Účtenka OBI.pdf",
+    ])
+    expect(await filteredNames(scope, { search: "nic takového" })).toEqual([])
+  })
+
+  it("treats LIKE metacharacters as text, not as wildcards", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "faktura-03.pdf" })
+    await seedRow(org.organizationId, { filename: "faktura_03.pdf" })
+    await seedRow(org.organizationId, { filename: "sleva 50%.pdf" })
+
+    // `_` is the single-character wildcard. Unescaped, this returns both.
+    expect(await filteredNames(scope, { search: "faktura_03" })).toEqual([
+      "faktura_03.pdf",
+    ])
+    // `%` is the any-run wildcard. Unescaped it returns all three; escaped it
+    // means the character, and exactly one filename contains it.
+    expect(await filteredNames(scope, { search: "%" })).toEqual([
+      "sleva 50%.pdf",
+    ])
+    expect(await filteredNames(scope, { search: "50%" })).toEqual([
+      "sleva 50%.pdf",
+    ])
+    // A backslash is the escape character itself; it must survive as text
+    // rather than swallowing the character behind it.
+    expect(await filteredNames(scope, { search: "\\" })).toEqual([])
+  })
+
+  it("ANDs several filters rather than widening", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, {
+      filename: "hit.pdf",
+      status: "processed",
+      docType: "invoice_in",
+      siteRef: "Vinohrady",
+      createdAt: "2026-03-10T10:00:00+01:00",
+    })
+    await seedRow(org.organizationId, {
+      filename: "spatny-stav.pdf",
+      status: "received",
+      docType: "invoice_in",
+      siteRef: "Vinohrady",
+      createdAt: "2026-03-10T10:00:00+01:00",
+    })
+    await seedRow(org.organizationId, {
+      filename: "spatna-stavba.pdf",
+      status: "processed",
+      docType: "invoice_in",
+      siteRef: "Smíchov",
+      createdAt: "2026-03-10T10:00:00+01:00",
+    })
+    await seedRow(org.organizationId, {
+      filename: "spatne-datum.pdf",
+      status: "processed",
+      docType: "invoice_in",
+      siteRef: "Vinohrady",
+      createdAt: "2026-01-10T10:00:00+01:00",
+    })
+
+    expect(
+      await filteredNames(scope, {
+        status: "processed",
+        docType: "invoice_in",
+        siteRef: "Vinohrady",
+        from: "2026-03-01",
+        to: "2026-03-31",
+        search: "hit",
+      }),
+    ).toEqual(["hit.pdf"])
+  })
+
+  it("never lets a filter reach a hidden row, a payslip or another book", async () => {
+    const org = await seedOrganization()
+    const other = await seedOrganization()
+    const member = await scopeFor(org, "member")
+
+    await seedRow(org.organizationId, {
+      filename: "skryty.pdf",
+      status: "processed",
+      siteRef: "Vinohrady",
+      visible: false,
+    })
+    await seedRow(org.organizationId, {
+      filename: "vyplatnice.pdf",
+      status: "processed",
+      docType: "payslip",
+      siteRef: "Vinohrady",
+    })
+    await seedRow(other.organizationId, {
+      filename: "cizi.pdf",
+      status: "processed",
+      siteRef: "Vinohrady",
+    })
+
+    // Every filter that would have SELECTED those rows, one at a time.
+    for (const filters of [
+      {},
+      { status: "processed" as const },
+      { siteRef: "Vinohrady" },
+      { search: "y" },
+      { from: "2020-01-01", to: "2030-01-01" },
+    ]) {
+      expect(await filteredNames(member, filters)).toEqual([])
+    }
+
+    // The site filter's options do not leak them either: a stavba that only
+    // occurs on a hidden row must not be offered, because picking it and
+    // getting nothing back confirms the row exists.
+    expect(await documents.listDocumentSites(member)).toEqual([])
+    // The owner is the accountant and does see the hidden one — the gate is
+    // role-aware, not a blanket blindfold. The payslip stays gone even there.
+    expect(
+      await documents.listDocumentSites(await scopeFor(org, "owner")),
+    ).toEqual(["Vinohrady"])
+    expect(await filteredNames(await scopeFor(org, "owner"), {})).toEqual([
+      "skryty.pdf",
+    ])
+  })
+
+  it("lists the distinct stavby of this book, sorted, without nulls", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedRow(org.organizationId, { filename: "a.pdf", siteRef: "Zličín" })
+    await seedRow(org.organizationId, { filename: "b.pdf", siteRef: "Anděl" })
+    await seedRow(org.organizationId, { filename: "c.pdf", siteRef: "Anděl" })
+    await seedRow(org.organizationId, { filename: "d.pdf" })
+
+    expect(await documents.listDocumentSites(scope)).toEqual([
+      "Anděl",
+      "Zličín",
+    ])
+  })
+})
+
+describe("listDocuments — the pagination contract", () => {
+  /** `count` rows on one book, each one second apart so the order is total. */
+  async function seedMany(
+    organizationId: string,
+    count: number,
+  ): Promise<void> {
+    await sql`
+      INSERT INTO document (
+        organization_id, original_filename, storage_key, content_type,
+        extension, byte_size, sha256, created_at
+      )
+      SELECT
+        ${organizationId},
+        'doklad-' || lpad(g::text, 3, '0') || '.pdf',
+        'org/' || ${organizationId} || '/' || gen_random_uuid() || '.pdf',
+        'application/pdf', 'pdf', 512,
+        md5(g::text) || md5((g + 7000000)::text),
+        timestamptz '2026-03-01 08:00:00+01' + (g || ' seconds')::interval
+      FROM generate_series(1, ${count}) AS g
+    `
+  }
+
+  it("serves whole pages, newest first, with no row seen twice", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedMany(org.organizationId, 60)
+
+    const first = await documents.listDocuments(scope, { page: 1 })
+    expect(first.pageSize).toBe(25)
+    expect(first.documents).toHaveLength(25)
+    expect(first.total).toBe(60)
+    expect(first.page).toBe(1)
+    expect(first.pageCount).toBe(3)
+    // Newest first: the last row seeded is `doklad-060.pdf`.
+    expect(first.documents[0]?.filename).toBe("doklad-060.pdf")
+
+    const second = await documents.listDocuments(scope, { page: 2 })
+    const third = await documents.listDocuments(scope, { page: 3 })
+    expect(second.documents).toHaveLength(25)
+    expect(third.documents).toHaveLength(10)
+    expect(third.documents.at(-1)?.filename).toBe("doklad-001.pdf")
+
+    // Every row exactly once across the three pages — the property an unstable
+    // sort silently breaks.
+    const seen = [...first.documents, ...second.documents, ...third.documents]
+    expect(new Set(seen.map((row) => row.id)).size).toBe(60)
+  })
+
+  it("counts the FILTERED total, not the book", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedMany(org.organizationId, 30)
+    await sql`
+      UPDATE document SET status = 'processed'
+       WHERE organization_id = ${org.organizationId}
+         AND original_filename <= 'doklad-004.pdf'
+    `
+
+    const page = await documents.listDocuments(scope, {
+      filters: {
+        status: "processed",
+        docType: null,
+        from: null,
+        to: null,
+        siteRef: null,
+        search: null,
+      },
+    })
+    expect(page.total).toBe(4)
+    expect(page.pageCount).toBe(1)
+    expect(page.documents).toHaveLength(4)
+  })
+
+  it("answers an empty page past the end rather than raising", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    await seedMany(org.organizationId, 3)
+
+    const page = await documents.listDocuments(scope, { page: 9 })
+    expect(page.documents).toEqual([])
+    // `total` comes from the rows, and there are none — the pager falls back to
+    // its floor rather than reporting a page count it cannot know.
+    expect(page.total).toBe(0)
+    expect(page.pageCount).toBe(1)
+  })
+
+  it("clamps a hostile page number instead of scanning the whole index", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    expect((await documents.listDocuments(scope, { page: 0 })).page).toBe(1)
+    expect((await documents.listDocuments(scope, { page: -5 })).page).toBe(1)
+    expect(
+      (await documents.listDocuments(scope, { page: 999_999_999 })).page,
+    ).toBe(10_000)
+  })
+
+  it("reports an empty book as one empty page", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "member")
+    const page = await documents.listDocuments(scope)
+    expect(page).toEqual({
+      documents: [],
+      total: 0,
+      page: 1,
+      pageSize: 25,
+      pageCount: 1,
+    })
   })
 })
 
@@ -785,14 +1225,18 @@ describe("openDocumentFile", () => {
     expect(handle.inlineAllowed).toBe(true)
   })
 
+  // `inlineAllowed` governs the bare `<img>` in the sheet; `previewAllowed`
+  // governs the sandboxed frame. They differ by exactly one type — PDF — and
+  // that single difference is the whole PR 12 preview design, so it is asserted
+  // rather than assumed.
   it.each([
-    ["PDF", PDF_BYTES, false],
-    ["HEIC", HEIC_BYTES, false],
-    ["PNG", PNG_BYTES, true],
-    ["JPEG", JPEG_BYTES, true],
+    ["PDF", PDF_BYTES, false, true],
+    ["HEIC", HEIC_BYTES, false, false],
+    ["PNG", PNG_BYTES, true, true],
+    ["JPEG", JPEG_BYTES, true, true],
   ] as const)(
-    "marks %s inline-allowed = %s",
-    async (_label, bytes, allowed) => {
+    "marks %s inline-allowed = %s, preview-allowed = %s",
+    async (_label, bytes, inlineAllowed, previewAllowed) => {
       useStore()
       const org = await seedOrganization()
       const scope = await scopeFor(org, "member")
@@ -801,7 +1245,8 @@ describe("openDocumentFile", () => {
       if (!result.ok) throw new Error("refused")
 
       const handle = await documents.openDocumentFile(scope, rowOf(result).id)
-      expect(handle?.inlineAllowed).toBe(allowed)
+      expect(handle?.inlineAllowed).toBe(inlineAllowed)
+      expect(handle?.previewAllowed).toBe(previewAllowed)
     },
   )
 })

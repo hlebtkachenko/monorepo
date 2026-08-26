@@ -23,6 +23,8 @@
  */
 import type {
   app_user,
+  asset,
+  asset_event,
   document,
   filing,
   import_batch,
@@ -32,6 +34,9 @@ import type {
   reporting_period,
   statement_line,
   trial_balance_line,
+  BetaAssetCategory,
+  BetaAssetEventKind,
+  BetaAssetStatus,
   BetaFilingFamily,
   BetaFilingKind,
   BetaFilingStatus,
@@ -54,6 +59,8 @@ type LiabilityRow = typeof liability.$inferSelect
 type ImportBatchRow = typeof import_batch.$inferSelect
 type StatementLineRow = typeof statement_line.$inferSelect
 type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
+type AssetRow = typeof asset.$inferSelect
+type AssetEventRow = typeof asset_event.$inferSelect
 
 /**
  * Columns that must never appear in a client-visible object, in any spelling.
@@ -833,6 +840,104 @@ export function trialBalanceLineView(
     turnoverDebit: row.turnover_debit,
     turnoverCredit: row.turnover_credit,
     closingBalance: row.closing_balance,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Asset — Majetek (spec §2.7 Přehled majetku / Karta majetku)
+// ---------------------------------------------------------------------------
+
+/**
+ * One asset as Přehled majetku and the Karta render it.
+ *
+ * `residualValue` is NOT a stored column — it is `acquisition_cost −
+ * accumulated_depreciation`, computed in SQL at read time
+ * (`lib/data/assets.ts`), null whenever `accumulatedDepreciation` is null
+ * (spec §0.4: "empty beats stale", never a silent zero). `note_internal` is
+ * absent by design: it is on `CLIENT_FORBIDDEN_COLUMNS`, the office's own
+ * layer, mirrored from `filing.note_internal`.
+ *
+ * Every money field is a STRING (`numeric(14,2)`, spec §0.7) — this portal
+ * never parses one into a JavaScript number.
+ */
+export type AssetView = {
+  id: string
+  name: string
+  category: BetaAssetCategory
+  isMinor: boolean
+  acquisitionCost: string
+  acquiredOn: string | null
+  placedInServiceOn: string | null
+  accumulatedDepreciation: string | null
+  depreciationAsOf: string | null
+  /** `acquisition_cost − accumulated_depreciation`, or null — see above. */
+  residualValue: string | null
+  taxResidualValue: string | null
+  siteRef: string | null
+  status: BetaAssetStatus
+  disposedOn: string | null
+  noteClient: string | null
+  updatedAt: string
+}
+
+export function assetView(
+  row: Pick<
+    AssetRow,
+    | "id"
+    | "name"
+    | "category"
+    | "is_minor"
+    | "acquisition_cost"
+    | "acquired_on"
+    | "placed_in_service_on"
+    | "accumulated_depreciation"
+    | "depreciation_as_of"
+    | "tax_residual_value"
+    | "site_ref"
+    | "status"
+    | "disposed_on"
+    | "note_client"
+    | "updated_at"
+  > & { residualValue: string | null },
+): AssetView {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    isMinor: row.is_minor,
+    acquisitionCost: row.acquisition_cost,
+    acquiredOn: row.acquired_on,
+    placedInServiceOn: row.placed_in_service_on,
+    accumulatedDepreciation: row.accumulated_depreciation,
+    depreciationAsOf: row.depreciation_as_of,
+    residualValue: row.residualValue,
+    taxResidualValue: row.tax_residual_value,
+    siteRef: row.site_ref,
+    status: row.status,
+    disposedOn: row.disposed_on,
+    noteClient: row.note_client,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+/** One row of an asset's Karta event history (spec §2.7). */
+export type AssetEventView = {
+  id: string
+  kind: BetaAssetEventKind
+  eventDate: string
+  amount: string | null
+  note: string | null
+}
+
+export function assetEventView(
+  row: Pick<AssetEventRow, "id" | "kind" | "event_date" | "amount" | "note">,
+): AssetEventView {
+  return {
+    id: row.id,
+    kind: row.kind,
+    eventDate: row.event_date,
+    amount: row.amount,
+    note: row.note,
   }
 }
 

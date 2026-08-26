@@ -13,6 +13,7 @@
     "dokumenty": "Dokumenty",
     "dane": "Daně a podání",
     "finance": "Finance",
+    "majetek": "Majetek",
     "ucetni": "Pro účetní"
   },
   "landing": {
@@ -541,5 +542,82 @@
     "errorPeriodInvalid": "Vyberte platné období.",
     "errorNotFound": "Záznam nenalezen.",
     "errorRejected": "Operaci odmítla databáze."
+  },
+
+  "majetek": {
+    "overviewTitle": "Přehled majetku",
+    "detailTitle": "Karta majetku",
+    "backToOverview": "Zpět na přehled",
+
+    "columnName": "Název",
+    "columnCategory": "Kategorie",
+    "columnAcquisitionCost": "Pořizovací cena",
+    "columnPlacedInService": "Zařazeno",
+    "columnResidualValue": "Zůstatková cena",
+    "columnSite": "Stavba",
+    "columnStatus": "Stav",
+    "footerTotal": "Celkem",
+
+    "emptyHeading": "Zatím žádný majetek.",
+    "emptyBody": "Jakmile účetní kancelář přidá první položku, uvidíte ji zde.",
+    "noEvents": "Zatím žádné události.",
+
+    "filterAll": "Vše",
+    "filterInUse": "V používání",
+    "filterDisposed": "Vyřazené",
+
+    "statusInUse": "V používání",
+    "statusDisposed": "Vyřazeno",
+
+    "categoryMachine": "Stroj",
+    "categoryVehicle": "Vozidlo",
+    "categoryTool": "Nářadí",
+    "categoryRealEstate": "Nemovitost",
+    "categoryOther": "Ostatní",
+
+    "isMinorBadge": "Drobný majetek",
+    "residualNotProvided": "Zatím nebylo nahráno",
+    "residualNotApplicable": "Nevztahuje se",
+    "depreciationAsOfPrefix": "oprávky k",
+    "taxResidualLabel": "Daňová zůstatková cena",
+    "disposedOnLabel": "Vyřazeno dne",
+
+    "newAssetTitle": "Nový majetek",
+    "newAssetSubmit": "Přidat majetek",
+    "editTitle": "Upravit majetek",
+    "editSubmit": "Uložit",
+    "disposeTitle": "Vyřadit majetek",
+    "disposeSubmit": "Vyřadit",
+    "eventsTitle": "Historie událostí",
+    "addEventSubmit": "Přidat",
+
+    "fieldName": "Název",
+    "fieldCategory": "Kategorie",
+    "fieldIsMinor": "Drobný majetek",
+    "fieldAcquisitionCost": "Pořizovací cena",
+    "fieldAcquiredOn": "Datum pořízení",
+    "fieldPlacedInServiceOn": "Zařazeno do užívání",
+    "fieldAccumulatedDepreciation": "Oprávky",
+    "fieldDepreciationAsOf": "Oprávky k datu",
+    "fieldTaxResidualValue": "Daňová zůstatková cena",
+    "fieldSiteRef": "Stavba",
+    "fieldNoteClient": "Poznámka",
+    "fieldDisposedOn": "Datum vyřazení",
+    "fieldEventKind": "Typ události",
+    "fieldEventDate": "Datum",
+    "fieldEventAmount": "Částka",
+    "fieldEventNote": "Poznámka",
+
+    "eventKindPutIntoService": "Zařazení",
+    "eventKindImprovement": "Technické zhodnocení",
+    "eventKindDisposal": "Vyřazení",
+
+    "pending": "Ukládám…",
+    "okCreated": "Majetek přidán.",
+    "okUpdated": "Uloženo.",
+    "okDisposed": "Majetek vyřazen.",
+    "okEventAdded": "Událost přidána.",
+    "errorInvalidInput": "Neplatný vstup.",
+    "errorNotFound": "Záznam nenalezen."
   }
 }

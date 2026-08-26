@@ -15,9 +15,14 @@ import postgres from "postgres"
 import { afterAll, describe, expect, it } from "vitest"
 import {
   app_user,
+  asset,
+  asset_event,
   auth_account,
   auth_session,
   auth_verification,
+  betaAssetCategory,
+  betaAssetEventKind,
+  betaAssetStatus,
   betaDocumentStatus,
   betaDocumentType,
   betaFilingFamily,
@@ -54,6 +59,8 @@ afterAll(async () => {
 
 const tables: PgTable[] = [
   app_user,
+  asset,
+  asset_event,
   auth_account,
   auth_session,
   auth_verification,
@@ -127,6 +134,9 @@ describe("drizzle schema mirrors the migrations", () => {
     expect(
       Object.fromEntries(actual.map((r) => [r.enum_name, r.labels])),
     ).toEqual({
+      beta_asset_category: [...betaAssetCategory.enumValues],
+      beta_asset_event_kind: [...betaAssetEventKind.enumValues],
+      beta_asset_status: [...betaAssetStatus.enumValues],
       beta_document_status: [...betaDocumentStatus.enumValues],
       beta_document_type: [...betaDocumentType.enumValues],
       beta_filing_family: [...betaFilingFamily.enumValues],

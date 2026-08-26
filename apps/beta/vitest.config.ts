@@ -73,12 +73,14 @@ export default defineConfig({
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
           // `dane-scope` gate, which resolves a real membership and a real
-          // `vat_regime` (PR 17). `**/dane/**` rather than the literal
-          // `app/(portal)/[orgSlug]/dane/**`: `[orgSlug]` is a glob BRACKET
-          // EXPRESSION (matches one char of "orgSlug"), not the literal
-          // directory name, so a literal path silently failed to exclude
-          // anything — `**` swallows the route-group and dynamic-segment
-          // folders regardless of their punctuation.
+          // `vat_regime` (PR 17), and Majetek's page-render smokes (PR 34),
+          // which do the same. `**/dane/**` / `**/majetek/**` rather than the
+          // literal `app/(portal)/[orgSlug]/dane/**`: `(portal)` and
+          // `[orgSlug]` are glob-special (an extglob group and a bracket
+          // expression), not literal directory names to a glob matcher, so a
+          // literal path silently failed to exclude anything — `**` swallows
+          // the route-group and dynamic-segment folders regardless of their
+          // punctuation.
           //
           // `**/*.db.test.ts` (PR 18) is the same rule stated by SUFFIX rather
           // than by path: a Server Action's authz matrix and a page loader's
@@ -88,6 +90,7 @@ export default defineConfig({
           exclude: [
             "app/api/orgs/**",
             "app/**/dane/**",
+            "app/**/majetek/**",
             "**/*.db.test.ts",
             "**/node_modules/**",
           ],
@@ -107,6 +110,7 @@ export default defineConfig({
             "lib/**/*.test.ts",
             "app/api/orgs/**/*.test.ts",
             "app/**/dane/**/*.test.ts",
+            "app/**/majetek/**/*.test.ts",
             // Server Actions and page loaders that need real rows — see the
             // `pure` project's exclude for why the suffix rather than a path.
             "app/**/*.db.test.ts",

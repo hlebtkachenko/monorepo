@@ -5,6 +5,7 @@ import * as React from "react"
 import { Logo } from "@workspace/ui/brand-assets"
 import { IconButton } from "@workspace/ui/components/icon-button"
 import { Sheet, SheetContent, SheetTitle } from "@workspace/ui/components/sheet"
+import { TooltipProvider } from "@workspace/ui/components/tooltip"
 import { useIsMobile } from "@workspace/ui/hooks/use-mobile"
 import { useResizeHandle } from "@workspace/ui/lib/use-resize-handle"
 import { cn } from "@workspace/ui/lib/utils"
@@ -332,162 +333,169 @@ export function AppShell({
 
   return (
     <AppShellContext.Provider value={shellContext}>
-      <div
-        data-slot="app-shell"
-        className={cn(
-          "relative h-svh w-full overflow-hidden bg-canvas",
-          className,
-        )}
-      >
-        {/* Skip link — the first focusable element in the shell, so a keyboard
+      {/* Single TooltipProvider for the whole shell — header, rail, AND body
+          share one scope, so any Tooltip-based child (org-switcher, header
+          menu, collapsed rail icons, the inspector resize handle) resolves
+          without needing its own local provider. Do not add a second one
+          below; nested providers are redundant here. */}
+      <TooltipProvider>
+        <div
+          data-slot="app-shell"
+          className={cn(
+            "relative h-svh w-full overflow-hidden bg-canvas",
+            className,
+          )}
+        >
+          {/* Skip link — the first focusable element in the shell, so a keyboard
             user's initial Tab reveals it and can jump past the rail/sidebar
             straight to `<main id="main-content">`. Off-screen until focused. */}
-        <a
-          href="#main-content"
-          data-slot="app-shell-skip-link"
-          className="sr-only rounded-md border border-border-subtle bg-shell-surface px-4 py-2 text-sm font-medium text-foreground shadow-md outline-none focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {skipToContentLabel}
-        </a>
-        {rail !== undefined && (
-          <aside
-            data-slot="app-shell-rail"
-            className="absolute top-0 bottom-[var(--shell-bottom-inset)] left-0 flex w-[var(--shell-rail-width)] flex-col transition-[width] duration-200 ease-in-out max-md:hidden"
+          <a
+            href="#main-content"
+            data-slot="app-shell-skip-link"
+            className="sr-only rounded-md border border-border-subtle bg-shell-surface px-4 py-2 text-sm font-medium text-foreground shadow-md outline-none focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <div
-              data-slot="app-shell-logomark"
-              className={cn(
-                "relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden",
-                logoNudge && "[&>svg]:translate-y-[4px]",
-                logoOverflow && "invisible",
-              )}
+            {skipToContentLabel}
+          </a>
+          {rail !== undefined && (
+            <aside
+              data-slot="app-shell-rail"
+              className="absolute top-0 bottom-[var(--shell-bottom-inset)] left-0 flex w-[var(--shell-rail-width)] flex-col transition-[width] duration-200 ease-in-out max-md:hidden"
             >
-              {!logoOverflow && logo}
-              {!logoOverflow && logoHref && (
-                <a
-                  href={logoHref}
-                  aria-label="Home"
-                  className="absolute top-[11px] left-[14px] h-[26px] w-[32px]"
-                />
-              )}
-            </div>
-            <div className="flex-1 overflow-x-hidden overflow-y-auto">
-              {rail}
-            </div>
-          </aside>
-        )}
+              <div
+                data-slot="app-shell-logomark"
+                className={cn(
+                  "relative flex h-[var(--shell-header-height)] shrink-0 items-center justify-center overflow-hidden",
+                  logoNudge && "[&>svg]:translate-y-[4px]",
+                  logoOverflow && "invisible",
+                )}
+              >
+                {!logoOverflow && logo}
+                {!logoOverflow && logoHref && (
+                  <a
+                    href={logoHref}
+                    aria-label="Home"
+                    className="absolute top-[11px] left-[14px] h-[26px] w-[32px]"
+                  />
+                )}
+              </div>
+              <div className="flex-1 overflow-x-hidden overflow-y-auto">
+                {rail}
+              </div>
+            </aside>
+          )}
 
-        {header && (
-          <header
-            data-slot="app-shell-header"
-            className="absolute top-0 right-[var(--shell-right-inset)] left-[var(--shell-rail-width)] h-[var(--shell-header-height)] overflow-hidden transition-[left] duration-200 ease-in-out max-md:left-0"
-          >
-            {header}
-          </header>
-        )}
+          {header && (
+            <header
+              data-slot="app-shell-header"
+              className="absolute top-0 right-[var(--shell-right-inset)] left-[var(--shell-rail-width)] h-[var(--shell-header-height)] overflow-hidden transition-[left] duration-200 ease-in-out max-md:left-0"
+            >
+              {header}
+            </header>
+          )}
 
-        {/* Overflow logo overlay — paints AFTER (on top of) both the rail and
+          {/* Overflow logo overlay — paints AFTER (on top of) both the rail and
             the header, so a lockup wider than the rail-header zone (e.g. a
             combined logomark+wordmark) bleeds rightward into the header's
             territory unclipped. Pinned at the same top-left origin the
             rail's logomark box always used. */}
-        {rail !== undefined && logoOverflow && (
-          <div
-            data-slot="app-shell-logo-overlay"
-            className={cn(
-              "pointer-events-none absolute top-0 left-0 z-10 flex h-[var(--shell-header-height)] items-center overflow-visible max-md:hidden",
-              logoNudge && "[&>svg]:translate-y-[4px]",
-            )}
-          >
-            {/* `relative` + `inset-0` (not a hardcoded box like the default
+          {rail !== undefined && logoOverflow && (
+            <div
+              data-slot="app-shell-logo-overlay"
+              className={cn(
+                "pointer-events-none absolute top-0 left-0 z-10 flex h-[var(--shell-header-height)] items-center overflow-visible max-md:hidden",
+                logoNudge && "[&>svg]:translate-y-[4px]",
+              )}
+            >
+              {/* `relative` + `inset-0` (not a hardcoded box like the default
                 path's 26×32) so the click target always matches whatever
                 width the wider lockup renders at, logomark through
                 wordmark — no magic number to drift when the artwork
                 changes. */}
-            <div className="pointer-events-auto relative">
-              {logo}
-              {logoHref && (
-                <a
-                  href={logoHref}
-                  aria-label="Home"
-                  className="absolute inset-0"
-                />
-              )}
+              <div className="pointer-events-auto relative">
+                {logo}
+                {logoHref && (
+                  <a
+                    href={logoHref}
+                    aria-label="Home"
+                    className="absolute inset-0"
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <AppBody
-          sidebar={sidebar}
-          sidebarHeader={sidebarHeader}
-          contentHeader={contentHeader}
-          assistant={assistant}
-          assistantVariant={assistantVariant}
-          mainLabel={mainLabel}
-          isMobile={isMobile}
-          sidebarOpen={sidebarOpen}
-          sidebarIsOpen={sidebarIsOpen}
-          sidebarWidth={sidebarWidth}
-          assistantOpen={assistantOpen}
-          assistantIsOpen={assistantIsOpen}
-          assistantWidth={assistantWidth}
-          hasBottomNav={bottomNav !== undefined}
-          sidebarHandle={sidebarHandle}
-          assistantHandle={assistantHandle}
-          toggleAssistant={toggleAssistant}
-          renderSidebarToggle={renderSidebarToggle}
-        >
-          {children}
-        </AppBody>
+          <AppBody
+            sidebar={sidebar}
+            sidebarHeader={sidebarHeader}
+            contentHeader={contentHeader}
+            assistant={assistant}
+            assistantVariant={assistantVariant}
+            mainLabel={mainLabel}
+            isMobile={isMobile}
+            sidebarOpen={sidebarOpen}
+            sidebarIsOpen={sidebarIsOpen}
+            sidebarWidth={sidebarWidth}
+            assistantOpen={assistantOpen}
+            assistantIsOpen={assistantIsOpen}
+            assistantWidth={assistantWidth}
+            hasBottomNav={bottomNav !== undefined}
+            sidebarHandle={sidebarHandle}
+            assistantHandle={assistantHandle}
+            toggleAssistant={toggleAssistant}
+            renderSidebarToggle={renderSidebarToggle}
+          >
+            {children}
+          </AppBody>
 
-        {/* Mobile drawers — the SAME sidebar/assistant nodes, presented
+          {/* Mobile drawers — the SAME sidebar/assistant nodes, presented
             as Sheets below md. Portal content mounts only while open. */}
-        {sidebar !== undefined && (
-          <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
-            <SheetContent side="left" aria-describedby={undefined}>
-              <SheetTitle className="sr-only">Sidebar</SheetTitle>
-              <div
-                data-slot="app-shell-mobile-sidebar"
-                className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              >
-                {sidebar}
-              </div>
-            </SheetContent>
-          </Sheet>
-        )}
-        {assistant !== undefined && (
-          <Sheet
-            open={mobileAssistantOpen}
-            onOpenChange={setMobileAssistantOpen}
-          >
-            <SheetContent side="right" aria-describedby={undefined}>
-              <SheetTitle className="sr-only">Assistant</SheetTitle>
-              <div
-                data-slot="app-shell-mobile-assistant"
-                className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
-              >
-                {assistant}
-              </div>
-            </SheetContent>
-          </Sheet>
-        )}
+          {sidebar !== undefined && (
+            <Sheet open={mobileSidebarOpen} onOpenChange={setMobileSidebarOpen}>
+              <SheetContent side="left" aria-describedby={undefined}>
+                <SheetTitle className="sr-only">Sidebar</SheetTitle>
+                <div
+                  data-slot="app-shell-mobile-sidebar"
+                  className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+                >
+                  {sidebar}
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
+          {assistant !== undefined && (
+            <Sheet
+              open={mobileAssistantOpen}
+              onOpenChange={setMobileAssistantOpen}
+            >
+              <SheetContent side="right" aria-describedby={undefined}>
+                <SheetTitle className="sr-only">Assistant</SheetTitle>
+                <div
+                  data-slot="app-shell-mobile-assistant"
+                  className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+                >
+                  {assistant}
+                </div>
+              </SheetContent>
+            </Sheet>
+          )}
 
-        {bottomNav !== undefined && (
-          <div
-            data-slot="app-shell-bottom-nav"
-            className="absolute inset-x-0 bottom-0 md:hidden"
-          >
-            {bottomNav}
-          </div>
-        )}
+          {bottomNav !== undefined && (
+            <div
+              data-slot="app-shell-bottom-nav"
+              className="absolute inset-x-0 bottom-0 md:hidden"
+            >
+              {bottomNav}
+            </div>
+          )}
 
-        {deployment && DEPLOYMENT_UPDATE_PROMPT_ENABLED ? (
-          <DeploymentUpdatePrompt
-            initialDeployment={deployment}
-            endpoint={deploymentVersionEndpoint}
-          />
-        ) : null}
-      </div>
+          {deployment && DEPLOYMENT_UPDATE_PROMPT_ENABLED ? (
+            <DeploymentUpdatePrompt
+              initialDeployment={deployment}
+              endpoint={deploymentVersionEndpoint}
+            />
+          ) : null}
+        </div>
+      </TooltipProvider>
     </AppShellContext.Provider>
   )
 }

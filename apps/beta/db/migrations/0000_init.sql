@@ -27,8 +27,12 @@
 --     No money column appears in this migration.
 --
 -- Requires PostgreSQL 18+: every primary key defaults to the native `uuidv7()`.
-
-BEGIN;
+--
+-- NO `BEGIN;` / `COMMIT;` in this file. The runner (`db/migrate.mjs`) opens ONE
+-- transaction around the migration body AND its journal INSERT, so "DDL applied
+-- but journal row missing" is not a reachable state. A file-level BEGIN would
+-- commit the DDL before the journal write and re-open that crash window; the
+-- runner rejects any file that contains one.
 
 -- 0. Server guard --------------------------------------------------------------
 
@@ -574,5 +578,3 @@ $$;
 CREATE TRIGGER user_setup_token_issuer_guard
   BEFORE INSERT ON user_setup_token
   FOR EACH ROW EXECUTE FUNCTION beta_setup_token_issuer_guard();
-
-COMMIT;

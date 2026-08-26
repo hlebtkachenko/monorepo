@@ -33,7 +33,10 @@ export default defineConfig({
         test: {
           name: "db",
           environment: "node",
-          include: ["db/**/*.test.ts"],
+          // `lib/auth` joins this project rather than `pure`: the consume flow,
+          // the trigger guards and Better Auth's own storage only mean anything
+          // against a real Postgres.
+          include: ["db/**/*.test.ts", "lib/**/*.test.ts"],
           globalSetup: ["./tests/global-setup.ts"],
           testTimeout: 60_000,
           hookTimeout: 120_000,

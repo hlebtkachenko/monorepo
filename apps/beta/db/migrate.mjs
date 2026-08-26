@@ -29,6 +29,13 @@
  *
  * It deliberately does NOT copy that script's pgBouncer port validation: this
  * environment has no pgBouncer.
+ *
+ * TRANSACTION OWNERSHIP (Advisor carry-in SF-4): the RUNNER owns the
+ * transaction, not the migration file. Each file's body and its journal INSERT
+ * run inside ONE `client.begin(...)`, so a crash between "DDL applied" and
+ * "journal row written" is unreachable — the pair commits or neither does. A
+ * file that carries its own `BEGIN;` / `COMMIT;` would commit the DDL early and
+ * re-open exactly that window, so such a file is rejected before anything runs.
  */
 
 import { createHash } from "node:crypto"
@@ -45,6 +52,15 @@ const migrationsDir = resolve(
 
 const MIGRATION_FILENAME = /^\d{4}_[a-z][a-z0-9_]*\.sql$/
 const ADVISORY_LOCK_KEY = "beta_migrations"
+
+/**
+ * A statement-level transaction keyword: `BEGIN;`, `COMMIT;`, `ROLLBACK;` or
+ * `START TRANSACTION;` on its own. The trailing semicolon is what keeps the
+ * `BEGIN` that opens a plpgsql function body (`AS $$ BEGIN ... END; $$`) out of
+ * the match — that one is never followed by a semicolon.
+ */
+const TRANSACTION_KEYWORD =
+  /^[ \t]*(BEGIN|COMMIT|ROLLBACK|START[ \t]+TRANSACTION)[ \t]*;/im
 
 /** @param {string} content */
 function sha256(content) {
@@ -129,13 +145,26 @@ async function main() {
         continue
       }
 
+      if (TRANSACTION_KEYWORD.test(body)) {
+        throw new Error(
+          `${file} contains a statement-level BEGIN/COMMIT. The runner wraps ` +
+            "every migration body and its journal INSERT in one transaction; a " +
+            "file-level BEGIN would commit the DDL before the journal row and " +
+            "leave a crash window. Remove it.",
+        )
+      }
+
       try {
-        // Each file carries its own BEGIN/COMMIT, so the DDL is atomic.
-        await client.unsafe(body)
-        await client`
-          INSERT INTO _beta_migrations (filename, checksum)
-          VALUES (${file}, ${checksum})
-        `
+        // ONE transaction for the DDL *and* the journal row (SF-4): a crash
+        // between the two cannot leave a migrated database with an empty
+        // journal (which would re-run the file and fail on existing objects).
+        await client.begin(async (tx) => {
+          await tx.unsafe(body)
+          await tx`
+            INSERT INTO _beta_migrations (filename, checksum)
+            VALUES (${file}, ${checksum})
+          `
+        })
         console.log(`[beta migrate] [applied] ${file}`)
         countApplied++
       } catch (err) {

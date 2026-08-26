@@ -14,5 +14,41 @@
   "landing": {
     "heading": "Klientský portál",
     "intro": "Portál pro klienty účetní kanceláře. Přihlášení a jednotlivé moduly se zapínají postupně."
+  },
+  "auth": {
+    "signInTitle": "Přihlášení",
+    "signInSubtitle": "Zadejte e-mail a heslo. Účty zakládá účetní kancelář.",
+    "signInSubmit": "Přihlásit se",
+    "signOut": "Odhlásit se",
+    "emailLabel": "E-mail",
+    "passwordLabel": "Heslo",
+    "newPasswordLabel": "Nové heslo",
+    "nameLabel": "Jméno a příjmení",
+    "accountLabel": "Účet",
+    "organizationLabel": "Organizace",
+    "passwordHint": "Alespoň 12 znaků, malé i velké písmeno, číslice a speciální znak.",
+    "pending": "Odesílám…",
+    "invalidCredentials": "Nesprávný e-mail nebo heslo.",
+    "tooManyAttempts": "Příliš mnoho pokusů. Zkuste to prosím za chvíli.",
+    "linkInvalidTitle": "Odkaz už nelze použít",
+    "linkInvalid": "Odkaz je neplatný, vypršel nebo už byl použit. Požádejte účetní kancelář o nový.",
+    "signInRequired": "Tento e-mail už účet má. Přihlaste se a otevřete odkaz znovu.",
+    "consumedSignInFailed": "Účet je připraven, ale přihlášení se nepovedlo. Přihlaste se prosím ručně.",
+    "backToSignIn": "Zpět na přihlášení",
+    "setupTitle": "Dokončení účtu",
+    "setupSubtitle": "Zvolte si heslo. Odkaz je jednorázový.",
+    "setupSubmit": "Dokončit a přihlásit se",
+    "inviteTitle": "Pozvánka do portálu",
+    "inviteSubtitle": "Odkaz vás připojí k organizaci. Je jednorázový.",
+    "inviteAccept": "Přijmout pozvánku",
+    "resetTitle": "Nové heslo",
+    "resetSubtitle": "Nastavením nového hesla se odhlásí všechna zařízení.",
+    "resetSubmit": "Nastavit heslo a přihlásit se"
+  },
+  "password": {
+    "length": "Heslo musí mít alespoň 12 znaků.",
+    "number": "Heslo musí obsahovat číslici.",
+    "symbol": "Heslo musí obsahovat speciální znak.",
+    "mixedCase": "Heslo musí obsahovat malé i velké písmeno."
   }
 }

@@ -404,6 +404,42 @@ describe("anonymizing an account", () => {
     expect(left?.n).toBe(0)
   })
 
+  it("does not widen the auth_verification purge past this account's own address", async () => {
+    // `_` is a LIKE wildcard for "any one character", and it is a legal e-mail
+    // local-part character too. An unescaped pattern built from this address
+    // would ALSO delete a lookalike sibling's pending verification — the
+    // over-erasure `escapeLikePattern` (shared with `documents.ts`'s search
+    // filter) exists to close.
+    const base = unique("erase")
+    const email = `${base}_test@example.com`
+    const lookalike = `${base}Xtest@example.com`
+    const person = await createAccount({ email })
+
+    await sql`
+      INSERT INTO auth_verification (identifier, value, expires_at)
+      VALUES
+        (${`email-verification-${email}`}, 'otp', now() + interval '1 hour'),
+        (${`email-verification-${lookalike}`}, 'otp', now() + interval '1 hour')
+    `
+
+    as(office.headers)
+    expect(
+      await anonymize({ userId: person.userId, confirmEmail: email }),
+    ).toMatchObject({ status: "ok" })
+
+    const [own] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM auth_verification
+       WHERE identifier = ${`email-verification-${email}`}
+    `
+    expect(own?.n).toBe(0)
+
+    const [sibling] = await sql<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM auth_verification
+       WHERE identifier = ${`email-verification-${lookalike}`}
+    `
+    expect(sibling?.n).toBe(1)
+  })
+
   it("refuses a malformed request before it reads anything", async () => {
     as(office.headers)
     for (const entries of [

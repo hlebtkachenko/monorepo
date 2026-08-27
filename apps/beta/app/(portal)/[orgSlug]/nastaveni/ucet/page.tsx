@@ -3,7 +3,7 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { viewerAccount } from "@/lib/data/account"
 import { emailNotificationsEnabled } from "@/lib/data/notification-prefs"
 
-import { SectionTitle } from "../../../../_components/page-header"
+import { PageHeader, SectionTitle } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { AccountProfileForm } from "../_components/account-profile-form"
@@ -52,6 +52,8 @@ export default async function UcetPage({
 
   return (
     <div className="grid max-w-2xl gap-8">
+      <PageHeader title={t("nastaveni.navUcet")} />
+
       <section className="grid gap-3">
         <SectionTitle>{t("nastaveni.accountTitle")}</SectionTitle>
         <AccountProfileForm name={account.name} email={account.email} />

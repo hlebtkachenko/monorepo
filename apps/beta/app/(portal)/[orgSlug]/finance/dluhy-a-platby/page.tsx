@@ -6,11 +6,13 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { formatAmount } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { obligationsForScope } from "@/lib/data/obligations"
+import { formatAmount } from "@/lib/format/money"
 
 import { ObligationGroupCard } from "@/app/_components/obligation-group-card"
+
+import { PageHeader } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 
@@ -52,14 +54,10 @@ export default async function DluhyAPlatbyPage({
 
   return (
     <div className="grid gap-4 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("finance.dluhyTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("finance.dluhyIntro")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("finance.dluhyTitle")}
+        intro={t("finance.dluhyIntro")}
+      />
 
       {model.groups.length === 0 ? (
         <Card>

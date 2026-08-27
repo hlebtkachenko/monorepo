@@ -3,14 +3,11 @@
 import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 
-import {
-  formatAmount,
-  formatBytes,
-  formatDate,
-  formatDateTime,
-} from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { DocumentSummary } from "@/lib/data/projections"
+import { formatBytes } from "@/lib/format/bytes"
+import { formatDate, formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 
 import { DocumentPreview } from "./document-preview"
 import {

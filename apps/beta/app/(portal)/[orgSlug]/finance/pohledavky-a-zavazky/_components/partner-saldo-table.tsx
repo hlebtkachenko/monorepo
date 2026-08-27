@@ -10,9 +10,10 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount, formatDate } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import type { PartnerSaldoView } from "@/lib/data/projections"
+import { formatDate } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import {
   PARTNER_AGING_LABEL_KEY,
   PARTNER_ROLE_LABEL_KEY,

@@ -18,9 +18,10 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount, formatDate, formatDateTime } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { ObligationGroupSummary } from "@/lib/data/obligations"
+import { formatDate, formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import {
   obligationTitle,
   OBLIGATION_GROUP_LABEL_KEY,

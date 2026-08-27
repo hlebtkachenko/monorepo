@@ -27,6 +27,18 @@ export function formatBetaMoney(value: string | null): string | null {
   return currencyFormatter.format(Number(value))
 }
 
+/**
+ * The same `numeric(14,2)` → `"1 234,50 Kč"` rendering as `formatBetaMoney`,
+ * built from the SAME `currencyFormatter` instance, but accepting `undefined`
+ * and `""` alongside `null` as "not stated" — the shape a column reads before
+ * a value has ever been entered, or an optional query-string param arrives in.
+ */
+export function formatAmount(value: string | null | undefined): string | null {
+  if (value === null || value === undefined || value === "") return null
+  const amount = Number(value)
+  return Number.isFinite(amount) ? currencyFormatter.format(amount) : null
+}
+
 const statementFormatter = new Intl.NumberFormat(
   BETA_LOCALE,
   betaFormats.number.statement,

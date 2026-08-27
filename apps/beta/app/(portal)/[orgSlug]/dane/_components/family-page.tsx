@@ -1,11 +1,6 @@
 import { notFound } from "next/navigation"
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+import { Card, CardContent } from "@workspace/ui/components/card"
 
 import type { BetaFilingFamily } from "@/db/schema"
 import { getBetaTranslations } from "@/i18n/translations-server"
@@ -13,6 +8,8 @@ import type { BetaMessageKey } from "@/i18n/messages"
 import { filingsForScope } from "@/lib/data/filings"
 
 import { FilingTable } from "@/app/_components/filing-table"
+
+import { PageHeader } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { resolveVisibleFilingFamilies } from "../_lib/dane-scope"
@@ -52,17 +49,18 @@ export async function FamilyFilingsPage({
   const filings = await filingsForScope(scope, { family })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-heading text-lg">{t(titleKey)}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <FilingTable
-          orgSlug={orgSlug}
-          filings={filings}
-          emptyMessageKey="dane.familyEmpty"
-        />
-      </CardContent>
-    </Card>
+    <>
+      <PageHeader title={t(titleKey)} />
+
+      <Card>
+        <CardContent>
+          <FilingTable
+            orgSlug={orgSlug}
+            filings={filings}
+            emptyMessageKey="dane.familyEmpty"
+          />
+        </CardContent>
+      </Card>
+    </>
   )
 }

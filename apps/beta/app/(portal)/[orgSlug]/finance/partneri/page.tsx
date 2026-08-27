@@ -11,10 +11,12 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { partnersForScope, saldokontoForScope } from "@/lib/data/partners"
+import { formatAmount } from "@/lib/format/money"
 import { PARTNER_ROLE_LABEL_KEY } from "@/lib/partner-labels"
+
+import { PageHeader } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 
@@ -53,14 +55,10 @@ export default async function PartneriPage({
 
   return (
     <div className="grid gap-4 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("finance.partneriTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("finance.partneriIntro")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("finance.partneriTitle")}
+        intro={t("finance.partneriIntro")}
+      />
 
       {partners.length === 0 ? (
         <Card>

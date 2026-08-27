@@ -9,11 +9,14 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { formatAmount, formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { accountBalancesForScope } from "@/lib/data/account-balances"
+import { formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import { freshnessBand } from "@/lib/freshness"
+
+import { PageHeader } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 
@@ -67,14 +70,10 @@ export default async function UctyAHotovostPage({
 
   return (
     <div className="grid gap-4 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("finance.uctyTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("finance.uctyIntro")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("finance.uctyTitle")}
+        intro={t("finance.uctyIntro")}
+      />
 
       {model.period === null ? (
         <Card>

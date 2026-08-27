@@ -1,5 +1,7 @@
 import { getBetaTranslations } from "@/i18n/translations-server"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { AccountsSection } from "./_components/accounts-section"
 import { FilingsSection } from "./_components/filings-section"
 import { IndicatorsSection } from "./_components/indicators-section"
@@ -42,12 +44,7 @@ export default async function ZadavaniPage({
 
   return (
     <div className="grid gap-8 p-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("zadavani.title")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("zadavani.intro")}</p>
-      </header>
+      <PageHeader title={t("zadavani.title")} intro={t("zadavani.intro")} />
 
       <FilingsSection filings={filings} orgSlug={orgSlug} />
       <LiabilitiesSection liabilities={liabilities} orgSlug={orgSlug} />

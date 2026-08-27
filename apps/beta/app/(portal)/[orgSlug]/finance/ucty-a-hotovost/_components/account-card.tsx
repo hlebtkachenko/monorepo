@@ -8,13 +8,13 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { formatAmount } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import {
   ACCOUNT_KIND_LABEL_KEY,
   ACCOUNT_MATCH_KIND_LABEL_KEY,
 } from "@/lib/account-labels"
 import type { AccountBalanceCard } from "@/lib/data/account-balances"
+import { formatAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
 import { BalanceSparkline } from "./balance-sparkline"

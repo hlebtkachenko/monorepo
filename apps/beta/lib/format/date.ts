@@ -43,6 +43,37 @@ export function formatBetaDateTime(value: string): string {
 }
 
 /**
+ * `2026-03-07` or an ISO timestamp → `07.03.2026`, in Prague terms, for a
+ * value that may be absent — the null-safe twin of `formatBetaDate` above,
+ * built from the SAME `dateFormatter` instance.
+ *
+ * A bare `YYYY-MM-DD` is anchored at UTC midnight on purpose: `new Date("...")`
+ * already parses a date-only string as UTC, and Prague is ahead of UTC, so the
+ * calendar day is preserved. Anchoring at local midnight instead would move the
+ * date by one day for anyone whose machine is behind UTC.
+ */
+export function formatDate(value: string | null | undefined): string | null {
+  if (!value) return null
+  const parsed = new Date(value.length === 10 ? `${value}T00:00:00Z` : value)
+  return Number.isNaN(parsed.getTime()) ? null : dateFormatter.format(parsed)
+}
+
+/**
+ * An ISO timestamp → `07.03.2026 11:24`, in Prague terms, for a value that
+ * may be absent — the null-safe twin of `formatBetaDateTime` above, built
+ * from the SAME `dateTimeFormatter` instance.
+ */
+export function formatDateTime(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime())
+    ? null
+    : dateTimeFormatter.format(parsed)
+}
+
+/**
  * The current calendar year, in Prague local time — Souhrn's "current-year
  * timeline" (spec §2.3) filters on THIS, not on `new Date().getFullYear()`
  * (the server's own timezone, which is not guaranteed to be Prague).

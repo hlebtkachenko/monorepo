@@ -63,11 +63,13 @@ export async function handleAgentIngest<T>(
   )
 
   if (outcome.status === "refused") {
-    // 409 for all three: each says "your request is well-formed and the current
-    // state will not accept it", which is the caller's cue to re-read and retry
-    // rather than to change the payload's shape. `idempotency_key_reused` is a
-    // conflict with the caller's OWN earlier act rather than with a row, and it
-    // belongs here for the same reason.
+    // 409 for every reason: each says "your request is well-formed and the
+    // current state will not accept it", which is the caller's cue to re-read
+    // and retry rather than to change the payload's shape. `idempotency_key_reused`
+    // is a conflict with the caller's OWN earlier act rather than with a row,
+    // and `unknown_reference` names a reference rather than a row's state, but
+    // both belong here for the same reason: none of them means the server is
+    // broken.
     return agentError(409, outcome.reason)
   }
 

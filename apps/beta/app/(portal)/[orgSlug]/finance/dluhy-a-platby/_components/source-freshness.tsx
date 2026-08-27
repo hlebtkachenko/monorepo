@@ -2,13 +2,13 @@
 
 import { Badge } from "@workspace/ui/components/badge"
 
-import { formatDateTime } from "@/i18n/format-values"
 import type { BetaMessageKey } from "@/i18n/messages"
 import { useBetaTranslations } from "@/i18n/translations"
 import type {
   ObligationSource,
   ObligationSourceFreshness,
 } from "@/lib/data/obligations"
+import { formatDateTime } from "@/lib/format/date"
 
 /**
  * Where the numbers on this page came from, and when each source was last fed

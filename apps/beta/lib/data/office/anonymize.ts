@@ -14,6 +14,7 @@ import {
 import { isDeadlock } from "@/lib/pg-error"
 
 import { recordAdminActivity } from "../activity-log"
+import { escapeLikePattern } from "../documents"
 import type { OfficeScope } from "../scope"
 
 import { officeDb } from "./db"
@@ -261,14 +262,20 @@ export async function anonymizeAppUser(
       // library's internal string shapes, and over-matching here is harmless —
       // these are one-time artifacts with an expiry, and under-deleting is the
       // failure erasure must not have.
+      // `targetUserId` is a UUID and never contains a LIKE metacharacter, so
+      // only the office-typed `previousEmail` needs escaping — inert today (no
+      // Better Auth email carries `%` or `_`), but the same reasoning as
+      // `lib/data/documents.ts`'s search filter: unescaped, either character
+      // would widen the match rather than merely fail to narrow it.
+      const emailPattern = `%${escapeLikePattern(previousEmail)}%`
       const verifications = await tx
         .delete(auth_verification)
         .where(
           or(
             like(auth_verification.identifier, `%${targetUserId}%`),
             like(auth_verification.value, `%${targetUserId}%`),
-            like(auth_verification.identifier, `%${previousEmail}%`),
-            like(auth_verification.value, `%${previousEmail}%`),
+            like(auth_verification.identifier, emailPattern),
+            like(auth_verification.value, emailPattern),
           ),
         )
         .returning({ id: auth_verification.id })

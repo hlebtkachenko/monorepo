@@ -24,9 +24,10 @@ import {
 } from "@workspace/ui/components/table"
 import { Textarea } from "@workspace/ui/components/textarea"
 
-import { formatAmount, formatDate } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { LiabilityView } from "@/lib/data/projections"
+import { formatDate } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import {
   MANUAL_OBLIGATION_GROUPS,
   OBLIGATION_GROUP_LABEL_KEY,

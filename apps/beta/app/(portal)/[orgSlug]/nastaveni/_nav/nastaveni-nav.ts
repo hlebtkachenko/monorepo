@@ -89,8 +89,15 @@ export function nastaveniNavFor(
  */
 export const NASTAVENI_DEFAULT_SLUG = "spolecnost"
 
-/** Where the employee seat lands instead: their own account (PR 33). */
-export const NASTAVENI_SEAT_DEFAULT_SLUG = "ucet"
+/**
+ * Where the employee seat lands instead: their own account (PR 33).
+ *
+ * MODULE-PRIVATE. `nastaveniDefaultSlug` is the only thing that ever needs it,
+ * and an exported constant nobody imports is a second way to spell a decision —
+ * a caller could reach for the slug and skip the function that decides WHEN it
+ * applies. (knip enforces this: an unused export fails the build.)
+ */
+const NASTAVENI_SEAT_DEFAULT_SLUG = "ucet"
 
 /**
  * The landing target for THIS viewer.

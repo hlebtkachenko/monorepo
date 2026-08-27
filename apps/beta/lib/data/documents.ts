@@ -282,8 +282,11 @@ const PRAGUE = sql`'Europe/Prague'`
  * about meaning. Unescaped, a client typing `%` matches every row and a client
  * searching for `faktura_03` silently matches `faktura-03` too. Backslash is the
  * default LIKE escape character in Postgres, so it has to be escaped first.
+ *
+ * Exported: `lib/data/office/anonymize.ts`'s `auth_verification` purge builds
+ * a `%…%` pattern from an office-typed e-mail address, same reasoning, same fix.
  */
-function escapeLikePattern(value: string): string {
+export function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`)
 }
 

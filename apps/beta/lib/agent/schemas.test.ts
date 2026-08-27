@@ -21,6 +21,7 @@ import {
   assetsUpsertSchema,
   clientTasksUpsertSchema,
   filingsUpsertSchema,
+  indicatorsUpsertSchema,
   liabilitiesUpsertSchema,
   publishPayrollSchema,
   publishSaldokontoSchema,
@@ -663,6 +664,183 @@ describe("accountBalanceMapUpsertSchema", () => {
       "matchKind",
       "sortOrder",
     ])
+  })
+})
+
+describe("indicatorsUpsertSchema", () => {
+  const item = {
+    kind: "annual_turnover",
+    amount: "2536500.00",
+    asOf: "2026-07-31",
+  }
+
+  it("accepts a minimal reading — kind, figure, date", () => {
+    expect(indicatorsUpsertSchema.safeParse({ items: [item] }).success).toBe(
+      true,
+    )
+  })
+
+  it("has no externalRef field — (kind, asOf) IS the identity", () => {
+    // Migration 0020 makes the pair unique per book. A second match key could
+    // only ever disagree with the first, which is the duplicate-or-lose failure
+    // `externalRef` exists to prevent rather than to cause.
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [{ ...item, externalRef: "money:kpi:1" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a kind outside the enum", () => {
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [{ ...item, kind: "ebitda" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses a figure that is not a numeric(14,2) string", () => {
+    for (const amount of ["", "abc", "1.234", "1e6", "1 234,50", 2536500]) {
+      expect(
+        indicatorsUpsertSchema.safeParse({ items: [{ ...item, amount }] })
+          .success,
+        JSON.stringify(amount),
+      ).toBe(false)
+    }
+  })
+
+  it("refuses a NEGATIVE figure by name, not by constraint", () => {
+    // Obrat is a sum of taxable supplies; the database refuses it too
+    // (`organization_indicator_amount_nonnegative`), and naming the field in a
+    // 400 beats a constraint name at the bottom of a transaction.
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [{ ...item, amount: "-1.00" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("requires the as-of date — §0.4, every number carries its own", () => {
+    const { asOf: _dropped, ...noDate } = item
+    expect(indicatorsUpsertSchema.safeParse({ items: [noDate] }).success).toBe(
+      false,
+    )
+    for (const asOf of ["31.07.2026", "2026-7-31", ""]) {
+      expect(
+        indicatorsUpsertSchema.safeParse({ items: [{ ...item, asOf }] })
+          .success,
+        asOf,
+      ).toBe(false)
+    }
+  })
+
+  it("refuses one (kind, asOf) stated twice in one payload", () => {
+    // The unique index makes a repeat an UPSERT, not an error: without this
+    // guard the second item silently overwrites the first and the summary
+    // reports `created: 1, updated: 1` for two readings the caller believed it
+    // had sent. The offending item is named by path.
+    const result = indicatorsUpsertSchema.safeParse({
+      items: [item, { ...item, amount: "1.00" }],
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0]?.path).toEqual(["items", 1, "asOf"])
+
+    // Two DIFFERENT dates are two readings and stay legal.
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [item, { ...item, asOf: "2026-06-30" }],
+      }).success,
+    ).toBe(true)
+  })
+
+  it("takes an optional internal note and refuses an unknown key", () => {
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [{ ...item, noteInternal: "Z výkazu DPH." }],
+      }).success,
+    ).toBe(true)
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [{ ...item, noteClient: "viditelné klientovi" }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it("refuses an empty batch and a body naming a tenant", () => {
+    expect(indicatorsUpsertSchema.safeParse({ items: [] }).success).toBe(false)
+    expect(tenancyKeysIn({ organizationId: "x", items: [item] })).toEqual([
+      "organizationId",
+    ])
+  })
+})
+
+describe("a date field takes a REAL calendar day, on every dataset", () => {
+  /**
+   * The shape check alone let `2026-02-30` through to Postgres, which answers
+   * 22008 at the bottom of the transaction — not an `IngestRefused`, not a
+   * unique violation, so `ingest` rethrows and the caller gets a 500 for a
+   * payload this API is supposed to name a 400 on. Fixed at the shared `isoDate`
+   * reader, so it is asserted across datasets rather than on one field.
+   */
+  const IMPOSSIBLE = [
+    "2026-02-30", // February never has 30 days
+    "2026-02-29", // 2026 is not a leap year
+    "2026-04-31", // April has 30
+    "2026-13-01", // no 13th month
+    "2026-00-10", // no 0th month
+    "2026-06-00", // no 0th day
+    "2026-06-32",
+  ]
+
+  it("refuses an impossible day on an indicator's asOf", () => {
+    for (const asOf of IMPOSSIBLE) {
+      expect(
+        indicatorsUpsertSchema.safeParse({
+          items: [{ kind: "annual_turnover", amount: "1.00", asOf }],
+        }).success,
+        asOf,
+      ).toBe(false)
+    }
+  })
+
+  it("refuses an impossible day on a filing's dueOn", () => {
+    for (const dueOn of IMPOSSIBLE) {
+      expect(
+        filingsUpsertSchema.safeParse({
+          items: [{ ...filingsBody.items[0], dueOn }],
+        }).success,
+        dueOn,
+      ).toBe(false)
+    }
+  })
+
+  it("still takes every real day, leap 29 February included", () => {
+    for (const asOf of [
+      "2024-02-29", // a real leap day
+      "2026-01-31",
+      "2026-04-30",
+      "2026-12-31",
+    ]) {
+      expect(
+        indicatorsUpsertSchema.safeParse({
+          items: [{ kind: "annual_turnover", amount: "1.00", asOf }],
+        }).success,
+        asOf,
+      ).toBe(true)
+    }
+  })
+
+  it("is not fooled by a two-digit year widened to 19xx", () => {
+    // `Date.UTC(26, …)` means 1926, so a naive round trip would accept
+    // "0026-02-01" as if it were year 26. The comparison is against the digits
+    // the caller wrote, so it refuses.
+    expect(
+      indicatorsUpsertSchema.safeParse({
+        items: [
+          { kind: "annual_turnover", amount: "1.00", asOf: "0026-02-01" },
+        ],
+      }).success,
+    ).toBe(false)
   })
 })
 

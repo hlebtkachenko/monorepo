@@ -440,6 +440,19 @@ describe("TurnoverWatch — neplátce only, office-provided only", () => {
     expect(tight(html)).toContain("31.07.2026")
   })
 
+  it("marks only the VZZ feed as unconnected now that the office feed exists", () => {
+    // W6 flipped `TURNOVER_SOURCES`' `indicator` arm to implemented: migration
+    // 0020's `organization_indicator` is real, the office states obrat on
+    // Zadávání dat › Ukazatele or through the agent API, and `load-prehled.ts`
+    // reads it. The VZZ arm stays unconnected — deriving obrat from a VZZ řádek
+    // needs a mapping nobody has established, and §0.2 forbids guessing it.
+    const html = render(<TurnoverWatch vatRegime="neplatce" reading={null} />)
+
+    expect(html.match(/Zatím nenapojeno/g) ?? []).toHaveLength(1)
+    // The absence is still honest: no reading means no figure, never 0 Kč.
+    expect(html).toContain("Obrat zatím nemáme.")
+  })
+
   it("escalates over the second threshold and stays calm under the first", () => {
     const payer = render(
       <TurnoverWatch

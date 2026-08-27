@@ -31,4 +31,5 @@ export const AGENT_DATASETS: readonly AgentDataset[] = Object.freeze([
   { path: "assets", implemented: true },
   { path: "client-tasks", implemented: true },
   { path: "account-balance-map", implemented: true },
+  { path: "indicators", implemented: true },
 ])

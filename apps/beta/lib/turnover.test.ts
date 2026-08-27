@@ -73,10 +73,17 @@ describe("TURNOVER_SOURCES — §0.4, empty beats stale", () => {
     ])
   })
 
-  it("declares both as unconnected, so the card cannot render a computed obrat", () => {
-    // The moment either flips to true, a real reading has to reach the card —
-    // this assertion is what makes that a deliberate change rather than a
-    // silent one.
-    expect(TURNOVER_SOURCES.every((source) => !source.implemented)).toBe(true)
+  it("declares the office-stated feed connected and the VZZ one not", () => {
+    // `indicator` landed with migration 0020: `organization_indicator` holds
+    // the figure and `load-prehled.ts` reads the newest one, so the card may
+    // now print a reading. `vzz_import` stays false — deriving obrat from a VZZ
+    // řádek needs a mapping nobody has established, and §0.2 forbids guessing
+    // it. The moment that one flips too, a real reading has to reach the card;
+    // this assertion is what makes either change deliberate rather than silent.
+    expect(
+      Object.fromEntries(
+        TURNOVER_SOURCES.map((source) => [source.source, source.implemented]),
+      ),
+    ).toEqual({ indicator: true, vzz_import: false })
   })
 })

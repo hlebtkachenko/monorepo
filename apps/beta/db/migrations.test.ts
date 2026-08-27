@@ -100,6 +100,7 @@ describe("beta migration runner", () => {
           "0017_loans.sql",
           "0018_assistant.sql",
           "0019_employee_seat.sql",
+          "0020_indicators.sql",
         ])
         expect(journal[0]?.checksum).toMatch(/^[0-9a-f]{64}$/)
 
@@ -129,6 +130,7 @@ describe("beta migration runner", () => {
           "liability",
           "loan",
           "organization",
+          "organization_indicator",
           "organization_membership",
           "partner",
           "partner_saldo",

@@ -64,6 +64,8 @@ const ROUTES: Record<string, () => Promise<{ POST: Handler }>> = {
     import("./orgs/[orgSlug]/account-balance-map/route") as Promise<{
       POST: Handler
     }>,
+  indicators: () =>
+    import("./orgs/[orgSlug]/indicators/route") as Promise<{ POST: Handler }>,
 }
 
 const ENDPOINT = "https://beta.afframe.com/api/agent/v1"
@@ -1536,6 +1538,233 @@ describe("the account map is upserted on the account code", () => {
     expect(
       body.datasets.find((dataset) => dataset.path === "account-balance-map"),
     ).toEqual({ path: "account-balance-map", implemented: true })
+  })
+})
+
+describe("indicators are upserted on (kind, asOf)", () => {
+  const indicatorBody = (
+    items: Record<string, unknown>[],
+  ): { items: Record<string, unknown>[] } => ({ items })
+
+  /** Its own key, for the rate-limit reason the account-map block gives. */
+  let indicatorKey: { id: string; secret: string }
+
+  beforeAll(async () => {
+    indicatorKey = await createAgentKeyRow({
+      actingUserId: acme.members.owner.userId,
+      label: "Ukazatele",
+    })
+  })
+
+  it("states a reading and corrects it on a re-send, feeding Obrat watch", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const created = (await (
+      await post(
+        "indicators",
+        org.slug,
+        indicatorBody([
+          {
+            kind: "annual_turnover",
+            amount: "1850000.00",
+            asOf: "2026-06-30",
+            noteInternal: "první odhad",
+          },
+        ]),
+        { secret: indicatorKey.secret },
+      )
+    ).json()) as { status: string; summary: { created: number } }
+    expect(created.status).toBe("applied")
+    expect(created.summary.created).toBe(1)
+
+    const corrected = (await (
+      await post(
+        "indicators",
+        org.slug,
+        indicatorBody([
+          { kind: "annual_turnover", amount: "2100000.00", asOf: "2026-06-30" },
+        ]),
+        { secret: indicatorKey.secret },
+      )
+    ).json()) as { summary: { created: number; updated: number } }
+    expect(corrected.summary).toMatchObject({ created: 0, updated: 1 })
+
+    // Read back through the function the client's Přehled calls.
+    const { latestIndicator, indicatorsForOwner } =
+      await import("@/lib/data/indicators")
+    const owner = await ownerScopeFor(indicatorKey.secret, org.slug)
+    expect(await latestIndicator(owner, "annual_turnover")).toMatchObject({
+      amount: "2100000.00",
+      asOf: "2026-06-30",
+    })
+    // ONE row, corrected — never two contradictory obraty for one date.
+    expect(await indicatorsForOwner(owner)).toHaveLength(1)
+  })
+
+  it("keeps a different as-of date as a separate reading", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "indicators",
+      org.slug,
+      indicatorBody([
+        { kind: "annual_turnover", amount: "1000000.00", asOf: "2026-05-31" },
+        { kind: "annual_turnover", amount: "1400000.00", asOf: "2026-06-30" },
+      ]),
+      { secret: indicatorKey.secret },
+    )
+
+    const { latestIndicator, indicatorsForOwner } =
+      await import("@/lib/data/indicators")
+    const owner = await ownerScopeFor(indicatorKey.secret, org.slug)
+    expect(await indicatorsForOwner(owner)).toHaveLength(2)
+    expect(await latestIndicator(owner, "annual_turnover")).toMatchObject({
+      amount: "1400000.00",
+    })
+  })
+
+  it("refuses a payload the schema does not accept, and writes nothing", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    for (const item of [
+      { kind: "ebitda", amount: "1.00", asOf: "2026-06-30" },
+      { kind: "annual_turnover", amount: "-1.00", asOf: "2026-06-30" },
+      { kind: "annual_turnover", amount: "1.00" },
+      { kind: "annual_turnover", amount: 1, asOf: "2026-06-30" },
+      {
+        kind: "annual_turnover",
+        amount: "1.00",
+        asOf: "2026-06-30",
+        externalRef: "money:kpi:1",
+      },
+    ]) {
+      const response = await post(
+        "indicators",
+        org.slug,
+        indicatorBody([item]),
+        { secret: indicatorKey.secret },
+      )
+      expect(response.status, JSON.stringify(item)).toBe(400)
+    }
+
+    const { indicatorsForOwner } = await import("@/lib/data/indicators")
+    const owner = await ownerScopeFor(indicatorKey.secret, org.slug)
+    expect(await indicatorsForOwner(owner)).toEqual([])
+  })
+
+  it("refuses an impossible calendar day as a 400, never a 500", async () => {
+    // `2026-02-30` matches `YYYY-MM-DD` but is not a day. Before the shared
+    // `isoDate` reader validated the calendar, Postgres answered 22008 at the
+    // bottom of the transaction — not an `IngestRefused`, not a unique
+    // violation, so `ingest` rethrew it and the caller received a 500 for a
+    // payload this API is supposed to name.
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "indicators",
+      org.slug,
+      indicatorBody([
+        { kind: "annual_turnover", amount: "1850000.00", asOf: "2026-02-30" },
+      ]),
+      { secret: indicatorKey.secret },
+    )
+    expect(response.status).toBe(400)
+    // Named by PATH, never by value — the same rule every other refusal follows.
+    const body = JSON.stringify(await response.json())
+    expect(body).toContain("asOf")
+    expect(body).not.toContain("2026-02-30")
+
+    const { indicatorsForOwner } = await import("@/lib/data/indicators")
+    const owner = await ownerScopeFor(indicatorKey.secret, org.slug)
+    expect(await indicatorsForOwner(owner)).toEqual([])
+  })
+
+  it("refuses one (kind, asOf) stated twice, rather than last-wins", async () => {
+    // The unique index makes a repeat an upsert, so without the schema guard the
+    // second item would silently overwrite the first and the summary would
+    // report `created: 1, updated: 1` for two readings the caller believed it
+    // had sent.
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    const response = await post(
+      "indicators",
+      org.slug,
+      indicatorBody([
+        { kind: "annual_turnover", amount: "1000000.00", asOf: "2026-06-30" },
+        { kind: "annual_turnover", amount: "2000000.00", asOf: "2026-06-30" },
+      ]),
+      { secret: indicatorKey.secret },
+    )
+    expect(response.status).toBe(400)
+
+    const { indicatorsForOwner } = await import("@/lib/data/indicators")
+    const owner = await ownerScopeFor(indicatorKey.secret, org.slug)
+    expect(await indicatorsForOwner(owner)).toEqual([])
+  })
+
+  it("refuses a payload that names a tenant, like every other dataset", async () => {
+    const response = await post(
+      "indicators",
+      acme.slug,
+      {
+        organizationId: acme.organizationId,
+        items: [
+          { kind: "annual_turnover", amount: "1.00", asOf: "2026-06-30" },
+        ],
+      },
+      { secret: indicatorKey.secret },
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it("records the write as an agent act", async () => {
+    const org = await seedOrganization()
+    await addMembership(org.organizationId, acme.members.owner.userId, "owner")
+
+    await post(
+      "indicators",
+      org.slug,
+      indicatorBody([
+        { kind: "annual_turnover", amount: "900000.00", asOf: "2026-03-31" },
+      ]),
+      { secret: indicatorKey.secret },
+    )
+
+    const rows = await readActivityLog(org.organizationId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      action: "indicator.upsert",
+      entity_kind: "organization_indicator",
+      actor_kind: "agent",
+      agent_key_id: indicatorKey.id,
+    })
+    expect(rows[0]?.summary["created"]).toBe(1)
+  })
+
+  it("is confined by the key's own scope, like every other arm", async () => {
+    const response = await post(
+      "indicators",
+      other.slug,
+      indicatorBody([
+        { kind: "annual_turnover", amount: "1.00", asOf: "2026-06-30" },
+      ]),
+      { secret: scopedKey.secret },
+    )
+    expect(response.status).toBe(404)
+  })
+
+  it("is advertised as implemented by the handshake", async () => {
+    const body = (await (await meta(indicatorKey.secret)).json()) as {
+      datasets: { path: string; implemented: boolean }[]
+    }
+    expect(
+      body.datasets.find((dataset) => dataset.path === "indicators"),
+    ).toEqual({ path: "indicators", implemented: true })
   })
 })
 

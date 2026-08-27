@@ -36,6 +36,7 @@ vi.mock("next/headers", () => ({
 const { requireScope } = await import("@/lib/data/scope")
 const { requireOwner } = await import("@/lib/data/scope")
 const { createAsset } = await import("@/lib/data/assets")
+const { upsertIndicator } = await import("@/lib/data/indicators")
 const { loadPrehled, hasObligationData, obligationsAsOf } =
   await import("./load-prehled")
 
@@ -204,9 +205,61 @@ describe("the rest of the model", () => {
     expect(data.documents.newestUploadedAt).not.toBeNull()
   })
 
-  it("holds obrat at null — neither §2.1 feeder exists yet", async () => {
+  it("holds obrat at null until the office states one", async () => {
     // The assertion that keeps the portal from ever showing a turnover figure
-    // it derived. When a feeder lands, this line changes on purpose.
+    // it derived: an unstated obrat is ABSENT, never 0 Kč (§0.4).
+    expect((await loadFor(await seedOrganization())).turnover).toBeNull()
+  })
+
+  it("returns the office's stated obrat, verbatim, with its as-of date", async () => {
+    const target = await seedOrganization()
+    await upsertIndicator(await ownerScopeFor(target), {
+      kind: "annual_turnover",
+      amount: "2536500.01",
+      asOf: "2026-07-31",
+    })
+
+    // Digit for digit — the figure decides which of three legal positions the
+    // client is told they are in, and nothing between here and the card parses
+    // it (§0.2 / §0.7).
+    expect((await loadFor(target)).turnover).toEqual({
+      amount: "2536500.01",
+      asOf: "2026-07-31",
+      source: "indicator",
+    })
+  })
+
+  it("returns the reading with the newest as-of date, not the newest row", async () => {
+    // A late correction to May, typed after June, must not become "the latest
+    // obrat" — the card would then measure a stale figure against a statutory
+    // threshold.
+    const target = await seedOrganization()
+    const owner = await ownerScopeFor(target)
+    await upsertIndicator(owner, {
+      kind: "annual_turnover",
+      amount: "2600000.00",
+      asOf: "2026-06-30",
+    })
+    await upsertIndicator(owner, {
+      kind: "annual_turnover",
+      amount: "1900000.00",
+      asOf: "2026-05-31",
+    })
+
+    expect((await loadFor(target)).turnover).toMatchObject({
+      amount: "2600000.00",
+      asOf: "2026-06-30",
+    })
+  })
+
+  it("never reads another book's obrat", async () => {
+    const other = await seedOrganization()
+    await upsertIndicator(await ownerScopeFor(other), {
+      kind: "annual_turnover",
+      amount: "9999999.00",
+      asOf: "2026-08-31",
+    })
+
     expect((await loadFor(await seedOrganization())).turnover).toBeNull()
   })
 

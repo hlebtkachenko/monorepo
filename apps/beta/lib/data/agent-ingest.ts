@@ -6,6 +6,7 @@ import type {
   AssetsUpsertInput,
   ClientTasksUpsertInput,
   FilingsUpsertInput,
+  IndicatorsUpsertInput,
   LiabilitiesUpsertInput,
   PublishPayrollInput,
   PublishSaldokontoInput,
@@ -33,6 +34,7 @@ import {
   updateClientTask,
 } from "./client-tasks"
 import { createFiling, filingByExternalRef, updateFiling } from "./filings"
+import { upsertIndicator } from "./indicators"
 import {
   createDraftBatch,
   publishBatch,
@@ -1049,6 +1051,72 @@ export async function ingestClientTasks(
       return {
         entityId: items.length === 1 ? (items[0]?.id ?? null) : null,
         summary: upsertSummary(items),
+      }
+    },
+  )
+}
+
+/**
+ * State office-provided indicator readings (spec §2.1 item 4, migration 0020).
+ *
+ * MATCHED ON `(kind, asOf)` rather than on an `externalRef`, and each item is
+ * ONE statement — `upsertIndicator` uses the unique index as its conflict
+ * target, so a re-sent reading corrects the stored one instead of racing a
+ * select-then-branch pair on the same key. The summary reports which arm ran per
+ * item, exactly as the account map's does, because "this run overwrote a figure
+ * the office had typed" is something the operator has to be able to see in the
+ * activity log.
+ *
+ * NO DELETE ARM. Removing a reading is a judgement about which of two figures
+ * was the typo — and `latestIndicator` makes that judgement visible on the
+ * client's card — so it stays a human act on Zadávání dat (`deleteIndicators`),
+ * never something a re-run can do silently.
+ *
+ * NOTHING IS COMPUTED. `amount` reaches Postgres as the string the office's
+ * system sent (§0.2 / §0.7); obrat is 12 months of taxable supplies and this
+ * endpoint plus the office's own form are the only ways it can enter at all.
+ */
+export async function ingestIndicators(
+  ctx: IngestContext,
+  input: IndicatorsUpsertInput,
+): Promise<IngestOutcome> {
+  return ingest(
+    ctx,
+    { action: "indicator.upsert", entityKind: "organization_indicator" },
+    async (tx) => {
+      const items: {
+        kind: string
+        asOf: string
+        id: string
+        action: "created" | "updated"
+      }[] = []
+
+      try {
+        for (const item of input.items) {
+          const { id, action } = await upsertIndicator(
+            ctx.owner,
+            {
+              kind: item.kind,
+              amount: item.amount,
+              asOf: item.asOf,
+              noteInternal: item.noteInternal ?? null,
+            },
+            tx,
+          )
+          items.push({ kind: item.kind, asOf: item.asOf, id, action })
+        }
+      } catch (error) {
+        if (isCheckViolation(error)) throw new IngestRefused("conflict")
+        throw error
+      }
+
+      return {
+        entityId: items.length === 1 ? (items[0]?.id ?? null) : null,
+        summary: {
+          items,
+          created: items.filter((item) => item.action === "created").length,
+          updated: items.filter((item) => item.action === "updated").length,
+        },
       }
     },
   )

@@ -50,9 +50,11 @@ export type TurnoverTier =
  * "0 Kč", which is the difference between "we have not been told" and "you have
  * no turnover". Same device as `OBLIGATION_SOURCES` and `IMPORT_DATASETS`.
  *
- * `indicator` needs the `indicator_definition` / `indicator_value` pair of
- * spec §4, which no migration has created; `vzz_import` needs Výkazy (PR 25) to
- * establish which VZZ řádek an office's export calls total výnosy — a mapping,
+ * `indicator` LANDED with migration 0020 (`organization_indicator`): the office
+ * states the figure on Zadávání dat › Ukazatele or publishes it through
+ * `POST /api/agent/v1/orgs/{slug}/indicators`, and `load-prehled.ts` reads the
+ * newest one. `vzz_import` is still unconnected — it needs Výkazy to establish
+ * which VZZ řádek an office's export calls total výnosy, which is a mapping,
  * not a sum, and one this module must be GIVEN rather than guess. */
 export type TurnoverSource = "indicator" | "vzz_import"
 
@@ -60,7 +62,7 @@ export const TURNOVER_SOURCES: readonly {
   readonly source: TurnoverSource
   readonly implemented: boolean
 }[] = Object.freeze([
-  { source: "indicator", implemented: false },
+  { source: "indicator", implemented: true },
   { source: "vzz_import", implemented: false },
 ])
 

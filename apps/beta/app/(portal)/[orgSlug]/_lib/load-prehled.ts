@@ -8,6 +8,7 @@ import type { UpcomingDeadline } from "@/lib/data/deadlines"
 import { listDocuments } from "@/lib/data/documents"
 import { datasetFreshnessForScope } from "@/lib/data/imports"
 import type { DatasetFreshness } from "@/lib/data/imports"
+import { latestIndicator } from "@/lib/data/indicators"
 import { obligationsForScope } from "@/lib/data/obligations"
 import type { ObligationsReadModel } from "@/lib/data/obligations"
 import { organizationCardForScope } from "@/lib/data/organizations"
@@ -38,12 +39,12 @@ import type { TurnoverReading } from "@/lib/turnover"
  * composition. Here they are values, and `load-prehled.db.test.ts` asserts them
  * against real rows.
  *
- * EIGHT READS IN PARALLEL, PLUS ONE DEPENDENT NINTH, NONE OF THEM NEW
+ * NINE READS IN PARALLEL, PLUS ONE DEPENDENT TENTH, NONE OF THEM NEW
  * ARITHMETIC. Every sum on this page was computed by Postgres in the module
  * that owns it (§0.2); this file chooses which of them exist, never what
  * they are. The payroll summary is the one read that cannot join the
  * `Promise.all` below — it needs the newest published period's id, which is
- * itself one of the eight — so it runs as a second, dependent await, the same
+ * itself one of the nine — so it runs as a second, dependent await, the same
  * shape `payroll/page.tsx` already uses for its own period-then-summary read.
  */
 
@@ -83,20 +84,21 @@ export type PrehledData = {
     summary: PayrollSummaryView | null
   } | null
   /**
-   * The office-provided obrat figure — ALWAYS NULL TODAY, and deliberately so.
+   * The office-provided obrat figure, or `null` when the office has never
+   * stated one.
    *
-   * §2.1 item 4 names two feeders for it ("indicator annual_turnover or VZZ
-   * výnosy import") and NEITHER EXISTS: `indicator_definition` /
-   * `indicator_value` (spec §4) have no migration, and which VZZ řádek an
-   * office's export calls total výnosy is a mapping Výkazy (PR 25) has to
-   * establish rather than something this page may infer. §0.2 forbids the
-   * obvious shortcut — "the portal never derives an accounting fact" — and obrat
-   * is the worst possible figure to approximate, since it decides whether a
-   * company has a DPH registration duty.
+   * §2.1 item 4 names two feeders ("indicator annual_turnover or VZZ výnosy
+   * import"). The FIRST one now exists: migration 0020's
+   * `organization_indicator` holds what the office stated, with the date it is
+   * as of, and `latestIndicator` returns the newest reading. The second stays
+   * unconnected — which VZZ řádek an office's export calls total výnosy is a
+   * mapping nobody has established, and §0.2 forbids this page inferring it.
    *
-   * So the card renders an honest absence (`TURNOVER_SOURCES` names both feeds
-   * as unconnected) and this stays `null` until one of them lands, at which
-   * point exactly this line changes.
+   * NOTHING IS COMPUTED HERE, which is the whole point: obrat is 12 consecutive
+   * months of taxable supplies with place of plnění in tuzemsko, not a sum over
+   * any row this database holds, and it decides whether a company has a DPH
+   * registration duty. `null` still means "we have not been told" and the card
+   * still says so rather than rendering 0 Kč.
    */
   turnover: TurnoverReading | null
   /** Prague-local `YYYY-MM-DD`, for the §0.4 freshness bands. */
@@ -138,6 +140,7 @@ export async function loadPrehled(scope: OrgScope): Promise<PrehledData> {
     datasets,
     documentPage,
     payrollPeriods,
+    turnover,
   ] = await Promise.all([
     organizationCardForScope(scope),
     openClientTasksForScope(scope),
@@ -147,6 +150,7 @@ export async function loadPrehled(scope: OrgScope): Promise<PrehledData> {
     datasetFreshnessForScope(scope),
     listDocuments(scope),
     publishedPayrollPeriods(scope),
+    latestIndicator(scope, "annual_turnover"),
   ])
 
   const recent = documentPage.documents.slice(0, RECENT_DOCUMENT_COUNT)
@@ -176,7 +180,17 @@ export async function loadPrehled(scope: OrgScope): Promise<PrehledData> {
       // second query, and no date compared in JavaScript.
       newestUploadedAt: documentPage.documents[0]?.uploadedAt ?? null,
     },
-    turnover: null,
+    // The stored reading, renamed into the card's own shape and NOT otherwise
+    // touched — the amount is the office's own `numeric(14,2)` string all the
+    // way to `turnoverTier`, which compares it in exact minor units.
+    turnover:
+      turnover === null
+        ? null
+        : {
+            amount: turnover.amount,
+            asOf: turnover.asOf,
+            source: "indicator",
+          },
     today: betaTodayIso(),
     firstMonth:
       datasets.every((dataset) => dataset.period === null) &&

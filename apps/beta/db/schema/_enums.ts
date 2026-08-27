@@ -477,3 +477,16 @@ export const betaAccountMatchKind = pgEnum("beta_account_match_kind", [
 
 export type BetaAccountMatchKind =
   (typeof betaAccountMatchKind.enumValues)[number]
+
+/**
+ * Mirrors: 0020_indicators.sql — CREATE TYPE beta_indicator_kind.
+ *
+ * ONE VALUE, deliberately. `annual_turnover` is the only figure spec §2.1 asks
+ * the office to state outside a statement or an import (Přehled's Obrat watch),
+ * and §0.3 forbids adding values for surfaces that do not exist yet.
+ */
+export const betaIndicatorKind = pgEnum("beta_indicator_kind", [
+  "annual_turnover",
+])
+
+export type BetaIndicatorKind = (typeof betaIndicatorKind.enumValues)[number]

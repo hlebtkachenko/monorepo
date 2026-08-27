@@ -80,4 +80,15 @@ describe("AGENT_DATASETS", () => {
       AGENT_DATASETS.find((dataset) => dataset.path === "account-balance-map"),
     ).toEqual({ path: "account-balance-map", implemented: true })
   })
+
+  it("carries indicators as an implemented arm (W6)", () => {
+    // Obrat is the one figure this product may never compute, so the office's
+    // own system has to be able to publish it. Without this arm it would be the
+    // only data type in beta that a human could type but a machine could not
+    // send — the exact asymmetry the manual-entry program exists to remove,
+    // inverted.
+    expect(
+      AGENT_DATASETS.find((dataset) => dataset.path === "indicators"),
+    ).toEqual({ path: "indicators", implemented: true })
+  })
 })

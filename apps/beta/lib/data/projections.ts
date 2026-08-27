@@ -35,6 +35,7 @@ import type {
   liability,
   loan,
   organization,
+  organization_indicator,
   organization_membership,
   partner,
   partner_saldo,
@@ -58,6 +59,7 @@ import type {
   BetaImportDataset,
   BetaImportSource,
   BetaImportStatus,
+  BetaIndicatorKind,
   BetaLoanInstallmentPeriod,
   BetaLoanKind,
   BetaObligationGroup,
@@ -78,6 +80,7 @@ type ReportingPeriodRow = typeof reporting_period.$inferSelect
 type FilingRow = typeof filing.$inferSelect
 type LiabilityRow = typeof liability.$inferSelect
 type LoanRow = typeof loan.$inferSelect
+type OrganizationIndicatorRow = typeof organization_indicator.$inferSelect
 type ImportBatchRow = typeof import_batch.$inferSelect
 type StatementLineRow = typeof statement_line.$inferSelect
 type TrialBalanceLineRow = typeof trial_balance_line.$inferSelect
@@ -1503,6 +1506,46 @@ export function loanView(
     interestRatePct: row.interest_rate_pct,
     endsOn: row.ends_on,
     noteClient: row.note_client,
+    updatedAt: row.updated_at.toISOString(),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Organization indicator — Přehled › Obrat watch (spec §2.1 item 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * One office-stated indicator reading.
+ *
+ * `amount` is a STRING (`numeric(14,2)`, spec §0.7) and stays one all the way to
+ * `turnoverTier`, which compares it in exact minor units — the one place in this
+ * app where a money comparison decides a legal position, and so the one place a
+ * float would be least acceptable.
+ *
+ * `noteInternal` is absent by design: it is on `CLIENT_FORBIDDEN_COLUMNS`, and
+ * the Obrat card is a CLIENT surface. Zadávání dat's own editing table attaches
+ * it in `lib/data/indicators.ts` on the owner-only read, the same shape
+ * `partnersForOwner` already uses for `partner.note_internal`.
+ */
+export type IndicatorView = {
+  id: string
+  kind: BetaIndicatorKind
+  amount: string
+  asOf: string
+  updatedAt: string
+}
+
+export function indicatorView(
+  row: Pick<
+    OrganizationIndicatorRow,
+    "id" | "kind" | "amount" | "as_of" | "updated_at"
+  >,
+): IndicatorView {
+  return {
+    id: row.id,
+    kind: row.kind,
+    amount: row.amount,
+    asOf: row.as_of,
     updatedAt: row.updated_at.toISOString(),
   }
 }

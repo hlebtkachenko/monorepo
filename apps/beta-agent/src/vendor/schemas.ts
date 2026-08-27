@@ -112,8 +112,44 @@ function isPositiveMoney(value: string): boolean {
   return /[1-9]/.test(value)
 }
 
-/** `YYYY-MM-DD`, the shape a `date` column stores. */
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD")
+/**
+ * A REAL DAY, written `YYYY-MM-DD` — the shape a `date` column stores.
+ *
+ * THE SHAPE CHECK ALONE IS NOT ENOUGH, and the gap was a 500. `2026-02-30`,
+ * `2026-13-01` and `2026-04-31` all match the regex; Postgres then rejects the
+ * literal with 22008 (`date/time field value out of range`) at the bottom of the
+ * transaction, which is not a `IngestRefused` and not a unique violation, so
+ * `ingest` rethrows it and the caller receives a 500 for a payload the API is
+ * supposed to name a 400 on. This file is the ceiling over the database's floor
+ * (rule 3 in the header); a day the calendar does not have has to be refused
+ * HERE, by field path.
+ *
+ * ROUND-TRIP RATHER THAN A CALENDAR REIMPLEMENTATION. `Date.UTC` normalises an
+ * out-of-range day (31 April becomes 1 May), so re-rendering the parsed instant
+ * and comparing it to the input is an exact "is this the day you wrote"
+ * question, with the leap-year rule supplied by the platform instead of by a
+ * hand-written February branch. UTC, never local: a local-midnight parse shifts
+ * the day in half the world's time zones.
+ *
+ * Fixed at the SHARED reader, so every dataset that takes a date — dueOn,
+ * filedOn, oldestDue, acquiredOn, disposedOn, asOf, … — gets it at once.
+ */
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected YYYY-MM-DD")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number) as [
+      number,
+      number,
+      number,
+    ]
+    const parsed = new Date(Date.UTC(year, month - 1, day))
+    return (
+      parsed.getUTCFullYear() === year &&
+      parsed.getUTCMonth() === month - 1 &&
+      parsed.getUTCDate() === day
+    )
+  }, "expected a real calendar date")
 
 /** An instant. `paid_at` is a timestamptz, unlike the date-only columns. */
 const instant = z.iso.datetime({ offset: true })
@@ -752,6 +788,76 @@ export const accountBalanceMapUpsertSchema = z
   })
   .strict()
 
+/**
+ * `POST /orgs/{slug}/indicators` — state the office-provided figures that are
+ * not a line of any statement (spec §2.1 item 4, migration 0020).
+ *
+ * MATCHED ON `(kind, asOf)`, NOT ON AN `externalRef`. Every registry endpoint
+ * above matches on the agent's own id because a filing or an asset has an
+ * identity in the office's system that this database cannot reconstruct. An
+ * indicator reading has no such identity: it IS "this kind, as of this date",
+ * which is also the unique key migration 0020 enforces. Adding an `externalRef`
+ * would let a re-sent reading match on one key and collide on the other — the
+ * duplicate-or-lose failure that key exists to prevent rather than to cause.
+ *
+ * NO DELETE ARM, deliberately, and unlike the office's own form. The agent
+ * restates figures; removing one is a judgement about which reading was a typo,
+ * and that stays in the office's hands on Zadávání dat.
+ *
+ * `asOf` IS REQUIRED. §0.4: every number carries the date it is as of, and obrat
+ * more than any other — it is a 12-month rolling window, so a figure with no
+ * date is not a fact anyone can check.
+ */
+export const indicatorsUpsertSchema = z
+  .object({
+    items: z
+      .array(
+        z
+          .object({
+            // The pgEnum's own values (migration 0020). One today.
+            kind: z.enum(["annual_turnover"]),
+            // `unsignedMoney`, not `money`: obrat is a sum of taxable supplies
+            // and the database refuses a negative one
+            // (`organization_indicator_amount_nonnegative`). Naming the field in
+            // a 400 beats a constraint name at the bottom of a transaction.
+            amount: unsignedMoney,
+            asOf: isoDate,
+            noteInternal: optionalText(2000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(MAX_ITEMS),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    // ONE ITEM PER (kind, asOf) IN ONE PAYLOAD — the same rule, and the same
+    // device, `publishSaldokontoSchema` applies to a repeated partner.
+    //
+    // The unique index makes a repeat an UPSERT rather than an error, so two
+    // items naming 30. 6. 2026 do not fail: the second silently overwrites the
+    // first and the summary reports `created: 1, updated: 1` for what the caller
+    // sent as two distinct readings. That is the confidently-wrong outcome §0.4
+    // is written against — the office agent's operator would read "2 applied"
+    // and never learn that one figure was discarded. A payload stating one date
+    // twice is a mis-mapped export, and it is cheaper to say which line is the
+    // duplicate than to let the discrepancy surface on a client's Obrat watch.
+    const seen = new Map<string, number>()
+    for (const [index, item] of value.items.entries()) {
+      const key = `${item.kind} ${item.asOf}`
+      const first = seen.get(key)
+      if (first !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["items", index, "asOf"],
+          message: `duplicate (kind, asOf), first stated at item ${first}`,
+        })
+        continue
+      }
+      seen.set(key, index)
+    }
+  })
+
 export type PublishStatementsInput = z.infer<typeof publishStatementsSchema>
 export type PublishTrialBalanceInput = z.infer<typeof publishTrialBalanceSchema>
 export type PublishSaldokontoInput = z.infer<typeof publishSaldokontoSchema>
@@ -763,3 +869,4 @@ export type ClientTasksUpsertInput = z.infer<typeof clientTasksUpsertSchema>
 export type AccountBalanceMapUpsertInput = z.infer<
   typeof accountBalanceMapUpsertSchema
 >
+export type IndicatorsUpsertInput = z.infer<typeof indicatorsUpsertSchema>

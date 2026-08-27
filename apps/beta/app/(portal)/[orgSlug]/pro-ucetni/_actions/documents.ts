@@ -53,6 +53,7 @@ export async function saveDocumentOfficeAction(
     documentDate: formOptionalText(formData, "documentDate"),
     amount: formOptionalText(formData, "amount"),
     siteRef: formOptionalText(formData, "siteRef"),
+    partnerId: formUuid(formData, "partnerId"),
   })
 
   if (!result.ok) {
@@ -67,6 +68,8 @@ export async function saveDocumentOfficeAction(
         return { status: "error", error: "ucetni.errorInvalidDate" }
       case "invalid_amount":
         return { status: "error", error: "ucetni.errorInvalidAmount" }
+      case "invalid_partner":
+        return { status: "error", error: "ucetni.errorInvalidPartner" }
       case "conflict":
         return { status: "error", error: "ucetni.errorConflict" }
     }

@@ -130,6 +130,27 @@ export async function partnersForScope(
   return rows.map(partnerView)
 }
 
+/**
+ * The registry, WITH each partner's office-only note — Zadávání dat's own
+ * read (spec §3.3's editing home for `partner`). `OwnerScope`, not `OrgScope`:
+ * the gate is the parameter type, the same discipline `documents-office.ts`
+ * uses, so this cannot be reached with a client's handle even by mistake.
+ */
+export async function partnersForOwner(
+  owner: OwnerScope,
+): Promise<(PartnerView & { readonly noteInternal: string })[]> {
+  const rows = await betaDb()
+    .select(PARTNER_DETAIL_COLUMNS)
+    .from(partner)
+    .where(eq(partner.organization_id, owner.organizationId))
+    .orderBy(asc(partner.name), asc(partner.id))
+
+  return rows.map((row) => ({
+    ...partnerView(row),
+    noteInternal: row.note_internal ?? "",
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // Reads — the saldokonto
 // ---------------------------------------------------------------------------
@@ -389,6 +410,10 @@ export type PartnerWriteInput = {
   readonly city?: string | null
   readonly postalCode?: string | null
   readonly countryCode?: string
+  /** ČSÚ právní forma code, as ARES states it (PR 29's prefill). */
+  readonly legalFormCsuCode?: string | null
+  /** The ARES spisová značka (PR 29's prefill). */
+  readonly registryFileNumber?: string | null
   /** The office system's own id — the primary match key. */
   readonly externalRef?: string | null
 }
@@ -494,6 +519,8 @@ export async function createPartner(
       city: input.city ?? null,
       postal_code: input.postalCode ?? null,
       ...(input.countryCode ? { country_code: input.countryCode } : {}),
+      legal_form_csu_code: input.legalFormCsuCode ?? null,
+      registry_file_number: input.registryFileNumber ?? null,
       source: input.source,
       external_ref: input.externalRef ?? null,
     })
@@ -542,6 +569,12 @@ export async function updatePartner(
     ...("city" in patch ? { city: patch.city ?? null } : {}),
     ...("postalCode" in patch ? { postal_code: patch.postalCode ?? null } : {}),
     ...("countryCode" in patch ? { country_code: patch.countryCode } : {}),
+    ...("legalFormCsuCode" in patch
+      ? { legal_form_csu_code: patch.legalFormCsuCode ?? null }
+      : {}),
+    ...("registryFileNumber" in patch
+      ? { registry_file_number: patch.registryFileNumber ?? null }
+      : {}),
     ...("externalRef" in patch
       ? { external_ref: patch.externalRef ?? null }
       : {}),
@@ -564,4 +597,141 @@ export async function updatePartner(
     .returning({ id: partner.id })
 
   return updated.length > 0
+}
+
+// ---------------------------------------------------------------------------
+// Reads / writes — the Partneři detail (PR 29: spec §2.4 "detail: identity +
+// address + linked documents + saldi + client-visible note (internal note
+// office-only)")
+// ---------------------------------------------------------------------------
+
+/**
+ * `PartnerView` plus the office's own note — present ONLY when the reader is
+ * `owner`, absent (not `null`) for every other role.
+ *
+ * `noteInternal` is on `CLIENT_FORBIDDEN_COLUMNS` and `PARTNER_COLUMNS` never
+ * selects it (see `partnerView`'s own header) precisely so no ordinary read can
+ * leak it by accident. `partnerForScope` below is the ONE function that is
+ * allowed to hold it in memory, and it only ever puts the key on the returned
+ * object when `scope.role === "owner"` — the same "gate is what gets attached
+ * to the object" discipline `ownerDocumentDetail` uses via a whole separate
+ * type, done here as an optional key because the rest of the shape (identity,
+ * address, ARES stamp) is identical for every role.
+ */
+export type PartnerDetailView = PartnerView & {
+  readonly noteInternal?: string
+}
+
+const PARTNER_DETAIL_COLUMNS = {
+  ...PARTNER_COLUMNS,
+  note_internal: partner.note_internal,
+}
+
+/** One partner, or null when it does not exist or belongs to another book. */
+export async function partnerForScope(
+  scope: OrgScope,
+  partnerId: string,
+): Promise<PartnerDetailView | null> {
+  const [row] = await betaDb()
+    .select(PARTNER_DETAIL_COLUMNS)
+    .from(partner)
+    .where(
+      and(
+        eq(partner.organization_id, scope.organizationId),
+        eq(partner.id, partnerId),
+      ),
+    )
+    .limit(1)
+
+  if (!row) return null
+
+  const view = partnerView(row)
+  return scope.role === "owner"
+    ? { ...view, noteInternal: row.note_internal ?? "" }
+    : view
+}
+
+/** Whether `partnerId` names a real partner in this scope's own book. */
+export async function partnerExists(
+  scope: OrgScope,
+  partnerId: string,
+): Promise<boolean> {
+  const [row] = await betaDb()
+    .select({ id: partner.id })
+    .from(partner)
+    .where(
+      and(
+        eq(partner.organization_id, scope.organizationId),
+        eq(partner.id, partnerId),
+      ),
+    )
+    .limit(1)
+
+  return row !== undefined
+}
+
+/**
+ * The two notes (spec §2.4: "client-visible note (internal note
+ * office-only)") — their OWN patch type, deliberately separate from
+ * `PartnerPatch`. `updatePartner`'s own header explains why: an import that
+ * could touch these would erase an accountant's commentary on every
+ * re-publish, so the two writers are split by what may call them, not merely
+ * by convention.
+ */
+export type PartnerNotesPatch = {
+  readonly noteClient?: string | null
+  readonly noteInternal?: string | null
+}
+
+export async function updatePartnerNotes(
+  owner: OwnerScope,
+  partnerId: string,
+  patch: PartnerNotesPatch,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  const values = {
+    ...("noteClient" in patch ? { note_client: patch.noteClient ?? null } : {}),
+    ...("noteInternal" in patch
+      ? { note_internal: patch.noteInternal ?? null }
+      : {}),
+  }
+
+  if (Object.keys(values).length === 0) return true
+
+  const updated = await executor
+    .update(partner)
+    .set(values)
+    .where(
+      and(
+        eq(partner.id, partnerId),
+        eq(partner.organization_id, owner.organizationId),
+      ),
+    )
+    .returning({ id: partner.id })
+
+  return updated.length > 0
+}
+
+/**
+ * Stamp the §2.10 ARES cache marker on ONE partner — the per-partner twin of
+ * `organization-identity.ts`'s `stampAresFetched`. Written whenever a lookup
+ * ran, whether or not any suggestion was accepted (mirrors
+ * `lookupAresAction`'s own reasoning: the stamp answers "when did we last ask
+ * ARES about this partner", not "when did we last change it").
+ */
+export async function stampPartnerAresFetched(
+  owner: OwnerScope,
+  partnerId: string,
+  fetchedAt: Date,
+  executor: BetaExecutor = betaDb(),
+): Promise<void> {
+  await executor
+    .update(partner)
+    .set({ ares_fetched_at: fetchedAt })
+    .where(
+      and(
+        eq(partner.id, partnerId),
+        eq(partner.organization_id, owner.organizationId),
+      ),
+    )
 }

@@ -48,7 +48,9 @@ function row(overrides: Partial<PartnerSaldoView> = {}): PartnerSaldoView {
 }
 
 async function render(rows: readonly PartnerSaldoView[]): Promise<string> {
-  return renderToStaticMarkup(await PartnerSaldoTable({ rows }))
+  return renderToStaticMarkup(
+    await PartnerSaldoTable({ rows, orgSlug: "acme" }),
+  )
 }
 
 /** Strip the grouping spaces `Intl` emits so an assertion can name a number. */

@@ -3,6 +3,7 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { AccountsSection } from "./_components/accounts-section"
 import { FilingsSection } from "./_components/filings-section"
 import { LiabilitiesSection } from "./_components/liabilities-section"
+import { PartnersSection } from "./_components/partners-section"
 import { loadZadavani } from "./_lib/load-zadavani"
 
 /**
@@ -32,10 +33,8 @@ export default async function ZadavaniPage({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug: requested } = await params
-  const [t, { orgSlug, filings, liabilities, accounts }] = await Promise.all([
-    getBetaTranslations(),
-    loadZadavani(requested),
-  ])
+  const [t, { orgSlug, filings, liabilities, accounts, partners }] =
+    await Promise.all([getBetaTranslations(), loadZadavani(requested)])
 
   return (
     <div className="grid gap-8 p-6">
@@ -49,6 +48,7 @@ export default async function ZadavaniPage({
       <FilingsSection filings={filings} orgSlug={orgSlug} />
       <LiabilitiesSection liabilities={liabilities} orgSlug={orgSlug} />
       <AccountsSection mappings={accounts} orgSlug={orgSlug} />
+      <PartnersSection partners={partners} orgSlug={orgSlug} />
     </div>
   )
 }

@@ -7,11 +7,13 @@ import {
   betaClientTaskLinkKind,
   type BetaAccountKind,
   type BetaAccountMatchKind,
+  betaPartnerRole,
   type BetaClientDocumentType,
   type BetaClientTaskLinkKind,
   type BetaFilingKind,
   type BetaFilingStatus,
   type BetaObligationGroup,
+  type BetaPartnerRole,
   type BetaPeriodKind,
 } from "@/db/schema"
 import { MANUAL_OBLIGATION_GROUPS } from "@/lib/obligation-labels"
@@ -378,4 +380,13 @@ export function formBooleanChoice(
   if (value === "true") return true
   if (value === "false") return false
   return null
+}
+
+/** Partneři's own closed set (`db/schema/_enums.ts`'s `betaPartnerRole`). */
+export function formPartnerRole(
+  formData: FormData,
+  key: string,
+): BetaPartnerRole | null {
+  const value = formString(formData, key)
+  return betaPartnerRole.enumValues.find((role) => role === value) ?? null
 }

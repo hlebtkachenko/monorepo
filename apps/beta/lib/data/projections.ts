@@ -932,6 +932,8 @@ export type OwnerDocumentDetail = {
   note: string | null
   /** `visible_to_client`, renamed — see the type's own header. */
   clientVisible: boolean
+  /** Protistrana (spec §2.2, §4, PR 29) — null until the office links one. */
+  partnerId: string | null
 }
 
 export function ownerDocumentDetail(
@@ -951,6 +953,7 @@ export function ownerDocumentDetail(
     | "office_message"
     | "internal_note"
     | "visible_to_client"
+    | "partner_id"
   >,
 ): OwnerDocumentDetail {
   return {
@@ -968,6 +971,7 @@ export function ownerDocumentDetail(
     officeMessage: row.office_message,
     note: row.internal_note,
     clientVisible: row.visible_to_client,
+    partnerId: row.partner_id,
   }
 }
 

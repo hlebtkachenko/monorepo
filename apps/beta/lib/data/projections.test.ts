@@ -490,6 +490,7 @@ const hostileDocumentRow = {
   office_message: "Chybí druhá strana",
   internal_note: "Klient dluží ještě jeden doklad.",
   visible_to_client: true,
+  partner_id: null,
   payslip_employee_id: null,
   payslip_period_id: null,
   uploaded_by_user_id: "0199a0b1-0000-7000-8000-000000000006",

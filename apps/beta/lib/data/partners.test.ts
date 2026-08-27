@@ -39,11 +39,15 @@ vi.mock("next/headers", () => ({
 const { requireOwner, requireScope } = await import("./scope")
 const {
   createPartner,
+  partnerForScope,
   partnerForUpsert,
   partnerSaldoHistory,
+  partnersForOwner,
   partnersForScope,
   saldokontoForScope,
+  stampPartnerAresFetched,
   updatePartner,
+  updatePartnerNotes,
 } = await import("./partners")
 const { forbiddenClientKeys } = await import("./projections")
 
@@ -55,7 +59,10 @@ afterAll(async () => {
   await endFixtures()
 })
 
-async function scopeFor(target: TestOrganization, role: "owner" | "admin") {
+async function scopeFor(
+  target: TestOrganization,
+  role: "owner" | "admin" | "member" | "guest",
+) {
   as(target.members[role].headers)
   return requireScope(target.slug)
 }
@@ -670,5 +677,145 @@ describe("the registry writes", () => {
     as(foreign.members.admin.headers)
     const [untouched] = await partnersForScope(await requireScope(foreign.slug))
     expect(untouched!.name).toBe("Cizi s.r.o.")
+  })
+})
+
+describe("partnerForScope — the Partneři detail read (PR 29)", () => {
+  it("returns the partner's identity for every role", async () => {
+    const target = await seedOrganization()
+    const id = await createPartnerRow(target.organizationId, {
+      name: "Detail s.r.o.",
+    })
+
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      const partner = await partnerForScope(await scopeFor(target, role), id)
+      expect(partner?.name, role).toBe("Detail s.r.o.")
+    }
+  })
+
+  it("returns null for an id that does not exist or belongs to another book", async () => {
+    const target = await seedOrganization()
+    const owner = await ownerScope(target)
+    expect(
+      await partnerForScope(owner, "00000000-0000-0000-0000-000000000000"),
+    ).toBeNull()
+
+    const foreign = await seedOrganization()
+    const foreignId = await createPartnerRow(foreign.organizationId)
+    expect(await partnerForScope(owner, foreignId)).toBeNull()
+  })
+
+  it("carries note_internal ONLY for owner — absent, not null, for every other role", async () => {
+    const target = await seedOrganization()
+    const id = await createPartnerRow(target.organizationId, {
+      noteInternal: "Neplatic, hlidat.",
+    })
+
+    const owner = await partnerForScope(await scopeFor(target, "owner"), id)
+    expect(owner?.noteInternal).toBe("Neplatic, hlidat.")
+
+    for (const role of ["admin", "member", "guest"] as const) {
+      const partner = await partnerForScope(await scopeFor(target, role), id)
+      expect(partner, role).not.toHaveProperty("noteInternal")
+      expect(JSON.stringify(partner), role).not.toContain("Neplatic")
+    }
+  })
+})
+
+describe("partnersForOwner — Zadávání dat's own read (PR 29)", () => {
+  it("carries note_internal for the owner, unlike partnersForScope", async () => {
+    const target = await seedOrganization()
+    await createPartnerRow(target.organizationId, {
+      noteInternal: "Interni poznamka.",
+    })
+
+    const [row] = await partnersForOwner(await ownerScope(target))
+    expect(row!.noteInternal).toBe("Interni poznamka.")
+  })
+
+  it("never crosses into another organization", async () => {
+    const foreign = await seedOrganization()
+    await createPartnerRow(foreign.organizationId, { name: "Cizi s.r.o." })
+    const target = await seedOrganization()
+    await createPartnerRow(target.organizationId, { name: "Muj s.r.o." })
+
+    const rows = await partnersForOwner(await ownerScope(target))
+    expect(rows.map((r) => r.name)).toEqual(["Muj s.r.o."])
+  })
+})
+
+describe("updatePartnerNotes — the notes' own patch type (PR 29)", () => {
+  it("edits the client note without touching identity fields", async () => {
+    const target = await seedOrganization()
+    const owner = await ownerScope(target)
+    const id = await createPartnerRow(target.organizationId, {
+      name: "Beze zmeny s.r.o.",
+    })
+
+    expect(
+      await updatePartnerNotes(owner, id, { noteClient: "Platime do 14 dnu." }),
+    ).toBe(true)
+
+    const [row] = await partnersForOwner(owner)
+    expect(row!.name).toBe("Beze zmeny s.r.o.")
+    expect(row!.noteClient).toBe("Platime do 14 dnu.")
+  })
+
+  it("distinguishes clearing a note from leaving it alone", async () => {
+    const target = await seedOrganization()
+    const owner = await ownerScope(target)
+    const id = await createPartnerRow(target.organizationId, {
+      noteInternal: "Puvodni poznamka.",
+    })
+
+    await updatePartnerNotes(owner, id, { noteClient: "Nova poznamka." })
+    expect((await partnersForOwner(owner))[0]!.noteInternal).toBe(
+      "Puvodni poznamka.",
+    )
+
+    await updatePartnerNotes(owner, id, { noteInternal: null })
+    expect((await partnersForOwner(owner))[0]!.noteInternal).toBe("")
+  })
+
+  it("refuses to edit another organization's partner", async () => {
+    const foreign = await seedOrganization()
+    const foreignId = await createPartnerRow(foreign.organizationId)
+    const target = await seedOrganization()
+
+    expect(
+      await updatePartnerNotes(await ownerScope(target), foreignId, {
+        noteClient: "Prepsano",
+      }),
+    ).toBe(false)
+  })
+})
+
+describe("stampPartnerAresFetched — the per-partner §2.10 cache stamp (PR 29)", () => {
+  it("stamps the row, distinct from the registry's own updated_at", async () => {
+    const target = await seedOrganization()
+    const owner = await ownerScope(target)
+    const id = await createPartnerRow(target.organizationId)
+
+    const fetchedAt = new Date("2026-04-01T10:00:00.000Z")
+    await stampPartnerAresFetched(owner, id, fetchedAt)
+
+    const [row] = await partnersForScope(owner)
+    expect(row!.aresFetchedAt).toBe(fetchedAt.toISOString())
+  })
+
+  it("never stamps another organization's partner", async () => {
+    const foreign = await seedOrganization()
+    const foreignId = await createPartnerRow(foreign.organizationId)
+    const target = await seedOrganization()
+
+    await stampPartnerAresFetched(
+      await ownerScope(target),
+      foreignId,
+      new Date(),
+    )
+
+    as(foreign.members.admin.headers)
+    const [row] = await partnersForScope(await requireScope(foreign.slug))
+    expect(row!.aresFetchedAt).toBeNull()
   })
 })

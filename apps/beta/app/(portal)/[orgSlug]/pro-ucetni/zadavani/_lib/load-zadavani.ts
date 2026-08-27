@@ -3,10 +3,12 @@ import "server-only"
 import { accountMappingsForScope } from "@/lib/data/account-balances"
 import { filingsForScope } from "@/lib/data/filings"
 import { liabilitiesForScope } from "@/lib/data/liabilities"
+import { partnersForOwner } from "@/lib/data/partners"
 import type {
   AccountBalanceMappingView,
   FilingView,
   LiabilityView,
+  PartnerView,
 } from "@/lib/data/projections"
 import { requireOwner } from "@/lib/data/scope"
 
@@ -40,15 +42,23 @@ export async function loadZadavani(orgSlug: string): Promise<{
   filings: FilingView[]
   liabilities: LiabilityView[]
   accounts: AccountBalanceMappingView[]
+  partners: (PartnerView & { readonly noteInternal: string })[]
 }> {
   const scope = await resolveOrgScope(orgSlug)
   const owner = requireOwner(scope)
 
-  const [filings, liabilities, accounts] = await Promise.all([
+  const [filings, liabilities, accounts, partners] = await Promise.all([
     filingsForScope(owner),
     liabilitiesForScope(owner, { includePaid: true }),
     accountMappingsForScope(owner, { includeInactive: true }),
+    partnersForOwner(owner),
   ])
 
-  return { orgSlug: owner.organizationSlug, filings, liabilities, accounts }
+  return {
+    orgSlug: owner.organizationSlug,
+    filings,
+    liabilities,
+    accounts,
+    partners,
+  }
 }

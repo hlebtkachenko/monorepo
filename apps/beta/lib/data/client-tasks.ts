@@ -16,17 +16,19 @@ import {
   type ClientTaskView,
   type OwnerClientTaskDetail,
 } from "./projections"
-import type { OrgScope, OwnerScope } from "./scope"
+import { isEmployeeSeat, type OrgScope, type OwnerScope } from "./scope"
 
 /**
  * client_task — Pro účetní › Úkoly klientovi (spec §3.4) and the client's own
  * "Co od vás potřebujeme" (spec §2.1).
  *
  * READS SPLIT IN TWO, LIKE `documents.ts` / `documents-office.ts`.
- * `openClientTasksForScope` is readable by EVERY role off a bare `OrgScope`
- * (spec §5: guest is an external viewer of client-visible data, not a
- * blinded one). `listTasksForOwner` / `listTemplatesForOwner` are the
- * office's own CRUD list and take an `OwnerScope`.
+ * `openClientTasksForScope` is readable off a bare `OrgScope` by every role
+ * except the employee seat (spec §5: guest is an external viewer of
+ * client-visible data, not a blinded one; §2.6.1's seat is not a viewer of the
+ * company at all — see the function's own note). `listTasksForOwner` /
+ * `listTemplatesForOwner` are the office's own CRUD list and take an
+ * `OwnerScope`.
  *
  * EVERY WRITE TAKES AN `OwnerScope`, NOT AN `OrgScope` + `assertOwner`. Spec
  * §3.3: "Client pages are read-only for every role; owner gets 'Upravit'
@@ -65,10 +67,32 @@ const CLIENT_VIEW_COLUMNS = {
  * rows; there is no per-role filter here (unlike `visibleAttachment` in
  * `lib/data/filings.ts`) because a task has no hidden layer of its own — it
  * exists only to be seen.
+ *
+ * EXCEPT THE EMPLOYEE SEAT, WHICH READS NONE OF THEM.
+ *
+ * A `client_task` is a request from the ACCOUNTING OFFICE to the CLIENT COMPANY
+ * ("pošlete nám bankovní výpisy za březen"). The table has no user column and no
+ * employee column — migration 0009 gives it `organization_id` and nothing
+ * narrower — so "an employee's own task" is not a thing that exists in this
+ * schema, and §2.6.1's sentence about the seat's Přehled has no rows to point
+ * at. The honest reading of a company-wide task list for a bricklayer is
+ * therefore NONE, not ALL.
+ *
+ * WHY THE REFUSAL IS HERE AND NOT ONLY ON THE PAGE. It was already true that a
+ * seat saw no tasks: `[orgSlug]/page.tsx` branches to `SeatPrehled` before it
+ * ever calls `loadPrehled`, which is the only caller of this function. That is a
+ * property of ONE `if` in a React component, in a module this one knows nothing
+ * about — a second caller added anywhere (a widget, an API route, an export)
+ * would hand a seat the company's entire open task list, and nothing would fail.
+ * A read that must not happen belongs in the read, so this returns `[]` for the
+ * seat regardless of who asks and why. `SeatPrehled`'s own comment routed the
+ * question here; this is the answer.
  */
 export async function openClientTasksForScope(
   scope: OrgScope,
 ): Promise<ClientTaskView[]> {
+  if (isEmployeeSeat(scope)) return []
+
   const rows = await betaDb()
     .select(CLIENT_VIEW_COLUMNS)
     .from(client_task)

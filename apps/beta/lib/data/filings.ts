@@ -24,8 +24,9 @@ import { assertOwner, type OrgScope } from "./scope"
  * makes guest an external VIEWER, not a blinded one, and the role restrictions
  * bite at the write surfaces below. (The employee seat of §2.6.1 — a guest
  * membership linked to a payroll employee — must NOT see company financials, but
- * that is a NARROWING of `OrgScope` itself landing in PR 32, applied once at the
- * seam rather than re-implemented per module. Nothing here changes for it.)
+ * that is a NARROWING of `OrgScope` itself — `payrollEmployeeId`, landed in PR 33
+ * — applied once at the seam and at the Daně layout's `assertNotEmployeeSeat`
+ * rather than re-implemented per module. Nothing here changes for it.)
  *
  * WRITES ARE OWNER-ONLY. Spec §3.3: client pages are read-only for every role
  * and Zadávání dat is the only editing home for non-document data. Every write

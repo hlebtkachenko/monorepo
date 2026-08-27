@@ -18,11 +18,22 @@ export type RateLimitVerdict =
 
 type Bucket = { count: number; resetAt: number }
 
+export type RateLimiter = ((
+  key: string,
+  rule: RateLimitRule,
+) => RateLimitVerdict) & {
+  /** Drop every bucket. Test-only — go through `resetRateLimitersForTests`. */
+  reset(): void
+}
+
 /** Exported only so a test can start from a clean slate. */
-export function createRateLimiter(now: () => number = Date.now) {
+export function createRateLimiter(now: () => number = Date.now): RateLimiter {
   const buckets = new Map<string, Bucket>()
 
-  return function consume(key: string, rule: RateLimitRule): RateLimitVerdict {
+  const consume = function consume(
+    key: string,
+    rule: RateLimitRule,
+  ): RateLimitVerdict {
     const t = now()
     const bucket = buckets.get(key)
 
@@ -45,7 +56,10 @@ export function createRateLimiter(now: () => number = Date.now) {
 
     bucket.count += 1
     return { allowed: true }
-  }
+  } as RateLimiter
+
+  consume.reset = (): void => buckets.clear()
+  return consume
 }
 
 /** Process-wide limiter shared by the consume actions. */
@@ -96,3 +110,48 @@ export const orgInviteRateLimiter = createRateLimiter()
  */
 export const agentIpRateLimiter = createRateLimiter()
 export const agentKeyRateLimiter = createRateLimiter()
+
+/**
+ * EVERY LIMITER ABOVE IS PROCESS-WIDE STATE THAT A TEST CAN SPEND, AND UNTIL NOW
+ * THERE WAS NO WAY TO GET IT BACK.
+ *
+ * `createRateLimiter`'s doc says it is "exported only so a test can start from a
+ * clean slate", which works for testing the ALGORITHM and not at all for testing
+ * the WIRING: `lib/agent/auth.ts` reaches for `agentKeyRateLimiter` by name, so a
+ * test of the agent API spends the real singleton and every later test in the
+ * file inherits a partly-spent minute. Three different suites had already grown
+ * three different workarounds for this — an ordering rule ("LAST IN THE FILE ON
+ * PURPOSE"), a per-describe credential so blocks cannot starve each other, and a
+ * counter that hands every caller a synthetic IP — and each one makes test order
+ * load-bearing, which is the property that turns a real failure into a 429 on
+ * whichever assertion happened to run last.
+ *
+ * Cross-FILE, Vitest's default `isolate: true` re-imports the module and hands
+ * each file fresh singletons, so the damage is contained today. That containment
+ * is an unasserted side effect of a performance setting: `vitest.config.ts`
+ * already documents shared-container coupling as the reason for
+ * `fileParallelism: false`, and the next person tuning that block for speed can
+ * reach `isolate: false` without ever learning that seven limiters depend on it.
+ *
+ * So the reset is explicit and callable. A suite that touches a shared limiter
+ * calls it in `beforeEach` and stops caring what ran before it.
+ */
+const ALL_RATE_LIMITERS: readonly RateLimiter[] = [
+  consumeRateLimiter,
+  peekRateLimiter,
+  authNoIpRateLimiter,
+  officeIssueRateLimiter,
+  orgInviteRateLimiter,
+  agentIpRateLimiter,
+  agentKeyRateLimiter,
+]
+
+export function resetRateLimitersForTests(): void {
+  // Same guard as `setDocumentStoreForTests`: a reachable "forget every budget"
+  // switch is a rate limiter with an off button, and the one caller that wants
+  // it never runs in production.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("resetRateLimitersForTests is not callable in production")
+  }
+  for (const limiter of ALL_RATE_LIMITERS) limiter.reset()
+}

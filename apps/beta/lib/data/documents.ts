@@ -23,8 +23,8 @@ import "server-only"
  *      it is gone from the data layer. The bytes survive until PR 37's purge.
  *   3. `doc_type <> 'payslip'` — spec §2.2, verbatim: payslip rows are excluded
  *      from every Dokumenty view SERVER-SIDE. They are reachable through Mzdy ›
- *      Výplatnice under `payrollScope()` (PR 32, `lib/data/payslips.ts`), which
- *      is a different module with a different door — never through this one.
+ *      Výplatnice under `payrollScope()` (`lib/data/payslips.ts`), which is a
+ *      different module with a different door — never through this one.
  *   4. `visible_to_client` — the hidden class. owner IS the accountant (plan
  *      Part 4), so owner sees the whole book; every other role sees only what
  *      the office has marked client-visible.

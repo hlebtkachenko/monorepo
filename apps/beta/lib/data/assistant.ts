@@ -54,7 +54,7 @@ import type { OrgScope } from "./scope"
  * to `beta_org_role` later is excluded by default rather than admitted by
  * default. The employee seat of §2.6.1 is a `guest` membership, so excluding
  * `guest` excludes both cases the spec names — and it keeps excluding them when
- * the seat's payroll link lands (PR 32/33) with no change here.
+ * the seat's payroll link landed (PR 33) with no change here.
  */
 const ASSISTANT_ROLES = new Set(["owner", "admin", "member"])
 

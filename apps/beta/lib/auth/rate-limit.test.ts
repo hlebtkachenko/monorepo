@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import { authNoIpFloor } from "./no-ip-floor"
 import { BETA_AUTH_NO_IP_RATE_LIMIT } from "./policy"
-import { createRateLimiter } from "./rate-limit"
+import {
+  createRateLimiter,
+  resetRateLimitersForTests,
+  type RateLimiter,
+} from "./rate-limit"
 import {
   authRateLimitKey,
   clientIp,
@@ -231,5 +235,88 @@ describe("the no-IP floor under Better Auth's limiter", () => {
     expect(key("https://beta.afframe.com/api/auth/sign-in/email")).toBe(
       key("http://0.0.0.0:3000/api/auth/sign-in/email"),
     )
+  })
+})
+
+/**
+ * ROUTED NIT — the process-wide limiters had no reset, so every suite that
+ * touched one grew its own workaround and made its own test order load-bearing.
+ *
+ * LAST IN THE FILE ON PURPOSE, and for the opposite reason to the usual one:
+ * these cases DO clear `authNoIpRateLimiter`, and the block above deliberately
+ * spends it across three consecutive cases. Resetting before that block would
+ * turn its carefully-sequenced assertions into passes for the wrong reason.
+ */
+describe("resetting the process-wide limiters", () => {
+  const noIpRequest = (path: string): Request =>
+    new Request(`https://beta.example.com${path}`, { headers: {} })
+
+  it("hands a spent budget back", () => {
+    const path = "/api/auth/sign-in/email"
+    // The block above already exhausted this exact bucket, which is the point:
+    // this case begins from state some other test created.
+    expect(authNoIpFloor(noIpRequest(path))?.status).toBe(429)
+
+    resetRateLimitersForTests()
+
+    for (let i = 0; i < BETA_AUTH_NO_IP_RATE_LIMIT.max; i++) {
+      expect(authNoIpFloor(noIpRequest(path)), `request ${i + 1}`).toBeNull()
+    }
+    expect(authNoIpFloor(noIpRequest(path))?.status).toBe(429)
+
+    resetRateLimitersForTests()
+  })
+
+  it("clears an individual limiter through its own handle", () => {
+    const limiter = createRateLimiter(() => 1_000)
+    const rule = { window: 60, max: 1 }
+
+    expect(limiter("k", rule).allowed).toBe(true)
+    expect(limiter("k", rule).allowed).toBe(false)
+    limiter.reset()
+    expect(limiter("k", rule).allowed).toBe(true)
+  })
+
+  it("resets EVERY limiter this module exports, not the ones somebody remembered", async () => {
+    // `ALL_RATE_LIMITERS` is a hand-maintained list, which is the exact shape
+    // that goes stale: an eighth limiter declared below it would keep its state
+    // across a reset, and the only symptom would be a flake in whichever suite
+    // spends it. So the list is checked against the module's real exports.
+    const limiters = Object.entries(await import("./rate-limit")).filter(
+      (entry): entry is [string, RateLimiter] => {
+        const [name, value] = entry
+        return (
+          typeof value === "function" &&
+          "reset" in value &&
+          name !== "createRateLimiter"
+        )
+      },
+    )
+    expect(limiters.length).toBeGreaterThanOrEqual(7)
+
+    const rule = { window: 60, max: 1 }
+    for (const [, limiter] of limiters) limiter("shared-probe", rule)
+
+    resetRateLimitersForTests()
+
+    for (const [name, limiter] of limiters) {
+      expect(
+        limiter("shared-probe", rule).allowed,
+        `${name} was not reset — add it to ALL_RATE_LIMITERS`,
+      ).toBe(true)
+    }
+
+    resetRateLimitersForTests()
+  })
+
+  it("refuses to run in production", () => {
+    // A reachable "forget every budget" switch is a rate limiter with an off
+    // button, so the guard is asserted rather than assumed.
+    vi.stubEnv("NODE_ENV", "production")
+    try {
+      expect(() => resetRateLimitersForTests()).toThrow(/not callable/)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

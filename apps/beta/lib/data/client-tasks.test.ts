@@ -21,6 +21,7 @@ import {
   createClientTaskRow,
   createClientTaskTemplateRow,
   createMonthPeriod,
+  createPayrollEmployeeRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -62,7 +63,8 @@ vi.mock("@workspace/email", () => ({
   }),
 }))
 
-const { requireScope, requireOwner, resolveOrgScope } = await import("./scope")
+const { requireScope, requireOwner, resolveOrgScope, isEmployeeSeat } =
+  await import("./scope")
 const {
   openClientTasksForScope,
   listTasksForOwner,
@@ -173,6 +175,48 @@ describe("openClientTasksForScope", () => {
       const rows = await openClientTasksForScope(await requireScope(org.slug))
       expect(rows, `${role} reads the list`).toHaveLength(1)
     }
+  })
+
+  /**
+   * ITEM-33 CARRY-IN, ANSWERED. A `client_task` is the office asking the CLIENT
+   * COMPANY for something; the table has no user column, so an employee's "own
+   * task" does not exist in this schema and the company's list is not the seat's
+   * to read.
+   *
+   * The seat already saw nothing, but only because `[orgSlug]/page.tsx` branches
+   * to `SeatPrehled` before it reaches `loadPrehled` — a property of one `if` in
+   * a React component, which a second caller anywhere would have walked past
+   * without failing a thing. The refusal is in the read now, and this is the
+   * case that says so without rendering a page.
+   */
+  it("returns nothing to an employee seat, though a plain guest reads the list", async () => {
+    const org = await seedOrganization()
+    await createClientTaskRow(org.organizationId, { title: "Doložte výpisy" })
+
+    as(org.members.guest.headers)
+    expect(
+      await openClientTasksForScope(await requireScope(org.slug)),
+      "a plain guest still reads it",
+    ).toHaveLength(1)
+
+    // The SAME account, one payroll link later, is an employee seat.
+    await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Zedník Na Sedadle",
+      appUserId: org.members.guest.userId,
+    })
+
+    as(org.members.guest.headers)
+    const seatScope = await requireScope(org.slug)
+    expect(isEmployeeSeat(seatScope), "the fixture really made a seat").toBe(
+      true,
+    )
+    expect(await openClientTasksForScope(seatScope)).toEqual([])
+
+    // And management is untouched by the narrowing.
+    as(org.members.member.headers)
+    expect(
+      await openClientTasksForScope(await requireScope(org.slug)),
+    ).toHaveLength(1)
   })
 
   it("carries no forbidden column, in any spelling", async () => {

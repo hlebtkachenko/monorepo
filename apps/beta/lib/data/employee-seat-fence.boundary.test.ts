@@ -32,7 +32,15 @@
  * no database — the same shape as `scope-brand-fence.boundary.test.ts` and
  * `db-client-fence.boundary.test.ts`.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
 import { join, relative, resolve } from "node:path"
 
 import ts from "typescript"
@@ -64,6 +72,20 @@ const SEAT_GATES = new Set([
 ])
 
 /**
+ * The failure text is DERIVED from `SEAT_GATES` rather than spelled out beside
+ * it. The hand-written version said "calls neither assertNotEmployeeSeat nor
+ * requireOwner" and stayed that way when `assertAssistantAvailable` was added —
+ * so the one sentence a failing contributor reads listed two of the three gates
+ * and quietly hid the third. A message that cannot disagree with the set it
+ * describes is the fix; adding a fourth gate now updates the diagnostic for
+ * free.
+ */
+const GATE_LIST = [...SEAT_GATES].join(" / ")
+
+/** Mzdy's leaves gate on the payroll arm instead — see the last case in this file. */
+const PAYROLL_GATE = new Set(["payrollScope"])
+
+/**
  * The three surfaces spec §2.6.1 grants the seat, each with the reason it is
  * safe — which is never "it has no company data on it", but always "the DATA
  * LAYER narrows it for this viewer".
@@ -90,6 +112,27 @@ const SEAT_REACHABLE: Record<string, string> = {
   nastaveni: "spec §2.6.1 exception — Účet is the viewer, not the company",
 }
 
+/**
+ * Leaves INSIDE an allowlisted module.
+ *
+ * Allowlisting a module root says the seat may reach the module; it says
+ * nothing about what hangs under it. The previous version of this fence checked
+ * the three leaf names that happened to exist the day it was written
+ * (`dokumenty/firma`, `dokumenty/stavby`, `nastaveni/spolecnost`) — a leaf added
+ * afterwards was covered by nothing at all, inside precisely the three modules
+ * a seat can walk into. Every leaf under an allowlisted module is now walked and
+ * must either call a gate or be listed here with the reason.
+ *
+ * `mzdy` is exempt from THIS list because its leaves are gated on a different
+ * axis — the payroll arm — and have their own case below.
+ */
+const SEAT_REACHABLE_LEAVES: Record<string, string> = {
+  "nastaveni/ucet":
+    "spec §2.6.1 exception — the viewer's own password and second factor",
+  "nastaveni/lide":
+    "`peopleForScope` 404s for every guest, seat included — a data-layer refusal, not a page gate",
+}
+
 /** Module roots that are pages rather than layouts get checked as pages. */
 function moduleRootFiles(dir: string): string[] {
   return ["layout.tsx", "page.tsx"]
@@ -97,21 +140,35 @@ function moduleRootFiles(dir: string): string[] {
     .filter((file) => existsSync(file))
 }
 
-function callsAnyGate(file: string): boolean {
-  const source = ts.createSourceFile(
+function parseTsx(file: string): ts.SourceFile {
+  return ts.createSourceFile(
     file,
     readFileSync(file, "utf8"),
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TSX,
   )
+}
+
+/**
+ * Does this file contain a REAL call to one of `names`?
+ *
+ * `accept` narrows further where the argument matters — the payroll arm cares
+ * that the call is `payrollScope(scope)` and not `payrollScope(somethingElse)`.
+ */
+function callsAnyOf(
+  file: string,
+  names: ReadonlySet<string>,
+  accept: (call: ts.CallExpression) => boolean = () => true,
+): boolean {
+  const source = parseTsx(file)
 
   let found = false
   const visit = (node: ts.Node): void => {
     if (found) return
     if (ts.isCallExpression(node)) {
       const callee = node.expression
-      if (ts.isIdentifier(callee) && SEAT_GATES.has(callee.text)) {
+      if (ts.isIdentifier(callee) && names.has(callee.text) && accept(node)) {
         found = true
         return
       }
@@ -119,6 +176,51 @@ function callsAnyGate(file: string): boolean {
     ts.forEachChild(node, visit)
   }
   visit(source)
+  return found
+}
+
+function callsAnyGate(file: string): boolean {
+  return callsAnyOf(file, SEAT_GATES)
+}
+
+/**
+ * Is this leaf refused, by its own page or by a layout ABOVE it inside the
+ * module?
+ *
+ * A sub-layout is a real gate — Next renders it for the whole subtree — so
+ * demanding the call on the page itself would push a contributor into writing a
+ * redundant second check, and the usual outcome of a fence that asks for
+ * redundant work is a contributor who deletes the case instead. The module root
+ * is excluded from the walk: the module is on `SEAT_REACHABLE` precisely because
+ * its root does NOT refuse the seat.
+ */
+function leafIsGated(leaf: string): boolean {
+  if (callsAnyGate(join(ORG_TREE, leaf, "page.tsx"))) return true
+
+  const segments = leaf.split("/")
+  // Start below the module root, stop above the leaf's own directory.
+  for (let depth = 2; depth <= segments.length; depth += 1) {
+    const layout = join(ORG_TREE, ...segments.slice(0, depth), "layout.tsx")
+    if (existsSync(layout) && callsAnyGate(layout)) return true
+  }
+  return false
+}
+
+/**
+ * Every route leaf under `dir`, as a path relative to the org tree — nested and
+ * dynamic segments included. A one-level `readdirSync` finds `mzdy/vyplatnice`
+ * and stops; it does not find `finance/partneri/[partnerId]`, and a dynamic
+ * segment is exactly where a row id arrives from a URL a seat can type.
+ */
+function routeLeaves(dir: string, prefix: string): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith("_")) continue
+    const child = join(dir, entry.name)
+    const rel = `${prefix}/${entry.name}`
+    if (existsSync(join(child, "page.tsx"))) found.push(rel)
+    found.push(...routeLeaves(child, rel))
+  }
   return found
 }
 
@@ -148,15 +250,34 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
     for (const name of moduleDirectories()) {
       if (name in SEAT_REACHABLE) continue
 
-      const roots = moduleRootFiles(join(ORG_TREE, name))
+      const dir = join(ORG_TREE, name)
+      const roots = moduleRootFiles(dir)
       if (roots.length === 0) {
         ungated.push(`${name} (no layout.tsx or page.tsx at the module root)`)
         continue
       }
       if (!roots.some(callsAnyGate)) {
-        ungated.push(
-          `${name} (module root calls neither assertNotEmployeeSeat nor requireOwner)`,
+        ungated.push(`${name} (module root calls none of ${GATE_LIST})`)
+        continue
+      }
+
+      // A LAYOUT covers its whole subtree. A PAGE covers exactly one route —
+      // its own — so a module gated only by `page.tsx` leaves every nested leaf
+      // under it with nothing between the seat and the data: `majetek/[assetId]`
+      // and `finance/partneri/[partnerId]` are that shape of route, and both are
+      // safe today only because their modules happen to gate in a layout. The
+      // check above cannot see the difference; it accepts either root file and
+      // calls the module done. This is the case that notices, and the leak it
+      // catches is the invisible kind — the module still passes.
+      if (!existsSync(join(dir, "layout.tsx"))) {
+        const leaking = routeLeaves(dir, name).filter(
+          (leaf) => !callsAnyGate(join(ORG_TREE, leaf, "page.tsx")),
         )
+        if (leaking.length > 0) {
+          ungated.push(
+            `${name} (gated by page.tsx only, which does not cover its nested leaves: ${leaking.join(", ")})`,
+          )
+        }
       }
     }
 
@@ -165,6 +286,100 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
       "every module under [orgSlug] must refuse the employee seat at its root, " +
         "or be added to SEAT_REACHABLE with the reason it is safe",
     ).toEqual([])
+  })
+
+  it("counts a real call and not a mention of one (non-vacuous)", () => {
+    // The upgrade this case pins: `text.includes("payrollScope(scope)")` was
+    // satisfied by prose. Written to a temp file rather than asserted against a
+    // string, because `callsAnyOf` is what the fence actually runs and reading
+    // the file is half of it.
+    const dir = mkdtempSync(join(tmpdir(), "seat-fence-"))
+    const write = (name: string, source: string): string => {
+      const file = join(dir, name)
+      writeFileSync(file, source, "utf8")
+      return file
+    }
+
+    const prose = write(
+      "prose.tsx",
+      `/** This page used to call payrollScope(scope); it no longer does. */
+       const label = "assertNotEmployeeSeat"
+       export default function Page() { return null }`,
+    )
+    expect(callsAnyOf(prose, PAYROLL_GATE)).toBe(false)
+    expect(callsAnyGate(prose)).toBe(false)
+
+    const real = write(
+      "real.tsx",
+      `export default function Page({ scope }) {
+         if (payrollScope(scope).kind !== "all") notFound()
+         return null
+       }`,
+    )
+    expect(callsAnyOf(real, PAYROLL_GATE)).toBe(true)
+
+    // And the argument narrowing is not decorative either.
+    const wrongArgument = write(
+      "wrong-arg.tsx",
+      `export default function Page() { return payrollScope(someoneElse) }`,
+    )
+    const scopeArgument = (call: ts.CallExpression): boolean => {
+      const [argument] = call.arguments
+      return (
+        argument !== undefined &&
+        ts.isIdentifier(argument) &&
+        argument.text === "scope"
+      )
+    }
+    expect(callsAnyOf(wrongArgument, PAYROLL_GATE, scopeArgument)).toBe(false)
+    expect(callsAnyOf(real, PAYROLL_GATE, scopeArgument)).toBe(true)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("finds the leaves inside the allowlisted modules (non-vacuous)", () => {
+    // The leaf walk below is a filter over this list. If `routeLeaves` ever
+    // returned nothing — a rename, a `_`-prefix convention change — every leaf
+    // assertion would pass over an empty set and say so cheerfully.
+    const leaves = Object.keys(SEAT_REACHABLE).flatMap((name) =>
+      routeLeaves(join(ORG_TREE, name), name),
+    )
+    expect(leaves).toContain("dokumenty/firma")
+    expect(leaves).toContain("dokumenty/stavby")
+    expect(leaves).toContain("nastaveni/spolecnost")
+    expect(leaves).toContain("nastaveni/ucet")
+    expect(leaves).toContain("mzdy/moje-mzda")
+  })
+
+  it("gates every leaf inside an allowlisted module", () => {
+    const ungated: string[] = []
+
+    for (const name of Object.keys(SEAT_REACHABLE)) {
+      // Mzdy's leaves are gated on the payroll arm rather than on a seat gate,
+      // and have their own case at the bottom of this file.
+      if (name === "mzdy") continue
+      for (const leaf of routeLeaves(join(ORG_TREE, name), name)) {
+        if (leaf in SEAT_REACHABLE_LEAVES) continue
+        if (!leafIsGated(leaf)) ungated.push(leaf)
+      }
+    }
+
+    expect(
+      ungated,
+      `every leaf under an allowlisted module must call one of ${GATE_LIST}, ` +
+        "or be listed in SEAT_REACHABLE_LEAVES with the reason the seat is entitled to it",
+    ).toEqual([])
+  })
+
+  it("keeps the Nastavení exception to exactly Účet and Lidé", () => {
+    // §2.6.1 grants the seat ONE Nastavení surface, and `lide` sits beside it
+    // for a different reason (it refuses every guest in the data layer, not at
+    // the page). Pinning the list makes a widened exception a diff a reviewer
+    // sees, rather than one more key in a map nobody reads.
+    expect(Object.keys(SEAT_REACHABLE_LEAVES).sort()).toEqual([
+      "nastaveni/lide",
+      "nastaveni/ucet",
+    ])
   })
 
   it("keeps Asistent's own gate exclusive of guests, and therefore of seats", () => {
@@ -187,48 +402,155 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
     expect(roles?.[1]).toContain("owner")
   })
 
-  it("gates the company sub-tabs of Dokumenty, which the seat DOES reach", () => {
-    // `dokumenty` is allowlisted at the module root because the seat is
-    // entitled to its own uploads. Its two COMPANY tabs are not, and their
-    // narrowing is a page-level gate rather than a data-layer filter.
-    for (const leaf of ["firma", "stavby"]) {
-      const file = join(ORG_TREE, "dokumenty", leaf, "page.tsx")
-      expect(existsSync(file), `${leaf} page exists`).toBe(true)
-      expect(callsAnyGate(file), `dokumenty/${leaf} refuses the seat`).toBe(
-        true,
-      )
-    }
-  })
-
-  it("gates Nastavení › Společnost, which the seat DOES reach the section of", () => {
-    const file = join(ORG_TREE, "nastaveni", "spolecnost", "page.tsx")
-    expect(callsAnyGate(file)).toBe(true)
-  })
-
   it("requires every Mzdy leaf to name the payroll arm it serves", () => {
     // Mzdy is allowlisted, so the module-root walk skips it — but its layout
     // deliberately admits BOTH `all` and `employee`, which means each leaf is
     // its own gate. A leaf that tested nothing would render a management page
     // for an employee seat.
-    const mzdy = join(ORG_TREE, "mzdy")
-    const leaves = readdirSync(mzdy, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
-      .map((entry) => entry.name)
-
-    // The module root (Přehled mezd) plus every leaf directory.
-    const pages = [join(mzdy, "page.tsx")].concat(
-      leaves.map((leaf) => join(mzdy, leaf, "page.tsx")),
+    //
+    // THIS IS AN AST CHECK, not `text.includes("payrollScope(scope)")`. Half the
+    // pages in this module discuss `payrollScope(scope)` at length in their
+    // header comments — `mzdy/layout.tsx` spells the exact call inside a
+    // sentence about what it does NOT do — so a page that deleted its gate and
+    // kept its prose passed the substring test with room to spare. A parser
+    // counts the call and ignores the essay.
+    const pages = [join(ORG_TREE, "mzdy", "page.tsx")].concat(
+      routeLeaves(join(ORG_TREE, "mzdy"), "mzdy").map((leaf) =>
+        join(ORG_TREE, leaf, "page.tsx"),
+      ),
     )
+    expect(pages.length).toBeGreaterThan(4)
 
-    const missing = pages.filter((file) => {
-      const text = readFileSync(file, "utf8")
-      return !text.includes("payrollScope(scope)")
-    })
+    const missing = pages.filter(
+      (file) =>
+        !callsAnyOf(
+          file,
+          PAYROLL_GATE,
+          // `payrollScope(scope)` and nothing else: passing some other object
+          // would answer a question about a viewer this request is not.
+          (call) => {
+            const [argument] = call.arguments
+            return (
+              argument !== undefined &&
+              ts.isIdentifier(argument) &&
+              argument.text === "scope"
+            )
+          },
+        ),
+    )
 
     expect(
       missing.map((file) => relative(BETA_ROOT, file)),
-      "every Mzdy page must gate on payrollScope: management leaves on " +
+      "every Mzdy page must gate on payrollScope(scope): management leaves on " +
         "`kind !== 'all'`, moje-mzda on `kind !== 'employee'`",
     ).toEqual([])
+  })
+})
+
+/**
+ * SF-5 CARRY-IN — THE ROUTE WALK ABOVE SEES PAGES, AND THE SEAT ALSO HAS A
+ * NETWORK.
+ *
+ * `app/api/orgs/[orgSlug]/**` is a second, complete surface onto the same
+ * tenant: a signed-in seat can `fetch()` every one of these handlers with a
+ * hand-typed URL and no page in the way. The module walk never looked at them,
+ * so a route added with no narrowing at all would have failed nothing.
+ *
+ * These handlers do NOT gate the way pages do, and requiring them to would be
+ * dishonest: none of them calls `assertNotEmployeeSeat`, because each one is a
+ * thin wrapper over a data-layer function that already narrows for the viewer
+ * (`uploadDocument` refuses through `canUploadDocuments`, `listDocuments` and
+ * `openDocumentFile` narrow through filter 5 of `visibleDocuments`,
+ * `openPayslipFile` gates on `payrollScope`, Asistent asks `assistantVisibleTo`,
+ * and the payslip UPLOAD is owner-only). Enforcing "call a page gate" would push
+ * contributors into adding a redundant second check, or into deleting the case.
+ *
+ * So the fence is a REGISTRATION: every route under `orgs/[orgSlug]` names the
+ * narrowing it leans on, that name is checked to be a real call in the handler,
+ * and a route with no entry fails by default — the same direction as the module
+ * walk. What it cannot prove is that the named function narrows correctly; that
+ * is what `documents.test.ts`, `payslips.test.ts` and `assistant.test.ts` are
+ * for. What it does prove is that no route reaches the tenant with NOTHING.
+ */
+const API_TREE = join(BETA_ROOT, "app", "api", "orgs", "[orgSlug]")
+
+const API_SEAT_NARROWING: Record<string, readonly string[]> = {
+  /** Spec §2.8 — `assistantVisibleTo` admits owner/admin/member, so a guest 404s. */
+  "asistent/route.ts": ["assistantVisibleTo"],
+  /**
+   * POST is `uploadDocument` (refuses through `canUploadDocuments`, and stamps
+   * `uploaded_by_user_id` on what it does accept); GET is `listDocuments`, whose
+   * rows come from `visibleDocuments` filter 5.
+   */
+  "documents/route.ts": ["uploadDocument", "listDocuments"],
+  /** The bytes behind one row — `openDocumentFile` applies the same filter 5. */
+  "documents/[documentId]/file/route.ts": ["openDocumentFile"],
+  /** Payslip upload is the office's write: owner-only, outright. */
+  "payroll/payslips/route.ts": ["requireOwner"],
+  /** `openPayslipFile` gates on `payrollScope`, so a seat gets its own payslip and no other. */
+  "payroll/payslips/[documentId]/file/route.ts": ["openPayslipFile"],
+}
+
+function apiRoutes(dir: string, prefix = ""): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`
+    if (entry.isDirectory())
+      found.push(...apiRoutes(join(dir, entry.name), rel))
+    else if (entry.name === "route.ts") found.push(rel)
+  }
+  return found
+}
+
+describe("employee-seat fence — the org API surface", () => {
+  it("finds the org API tree it is meant to be walking", () => {
+    const routes = apiRoutes(API_TREE)
+    expect(routes.length).toBeGreaterThan(3)
+    expect(routes).toContain("documents/route.ts")
+  })
+
+  it("registers a narrowing for every org-scoped API route", () => {
+    const unregistered = apiRoutes(API_TREE).filter(
+      (route) => !(route in API_SEAT_NARROWING),
+    )
+    expect(
+      unregistered,
+      "a new route under app/api/orgs/[orgSlug] must be added to " +
+        "API_SEAT_NARROWING, naming the data-layer function that narrows it " +
+        "for an employee seat",
+    ).toEqual([])
+  })
+
+  it("calls the narrowing each route claims", () => {
+    // The registration is only worth the paper it is written on if the named
+    // function is actually reached. A route that kept its entry and dropped the
+    // call would otherwise pass forever.
+    const broken: string[] = []
+    for (const [route, names] of Object.entries(API_SEAT_NARROWING)) {
+      const file = join(API_TREE, ...route.split("/"))
+      expect(existsSync(file), `${route} exists`).toBe(true)
+      for (const name of names) {
+        if (!callsAnyOf(file, new Set([name]))) {
+          broken.push(`${route} no longer calls ${name}`)
+        }
+      }
+    }
+    expect(broken).toEqual([])
+  })
+
+  it("resolves the scope from the URL segment in every route (non-vacuous)", () => {
+    // Every handler above narrows against a scope, and every one of them gets
+    // that scope from `resolveOrgScope(orgSlug)` — which is what turns "the URL
+    // named an org" into "this session has a membership there". A handler that
+    // built a scope some other way would not be covered by any of the reasoning
+    // above, so the shared premise is asserted rather than assumed.
+    const missing = apiRoutes(API_TREE).filter(
+      (route) =>
+        !callsAnyOf(
+          join(API_TREE, ...route.split("/")),
+          new Set(["resolveOrgScope"]),
+        ),
+    )
+    expect(missing).toEqual([])
   })
 })

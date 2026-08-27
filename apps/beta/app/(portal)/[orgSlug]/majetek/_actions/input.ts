@@ -76,8 +76,39 @@ export function formDate(formData: FormData, key: string): string | null {
  */
 const MONEY = /^-?\d{1,12}(\.\d{1,2})?$/
 
+/**
+ * Czech-written money in, `numeric` syntax out.
+ *
+ * THE FORM USED TO REFUSE ITS OWN DISPLAY FORMAT. Every amount in Majetek is
+ * rendered through `format.number(value, "currency")`, which emits Czech
+ * grouping — `650 000,00 Kč` — while the gate above accepts only
+ * `650000.00`. A client who read a figure off the Přehled and typed it back
+ * got "Neplatný vstup." with nothing on screen explaining which character was
+ * wrong, and `inputMode="decimal"` on a `cs` keyboard offers a comma, not a
+ * dot. So the separators are normalised here, before the gate, rather than the
+ * gate being loosened: what reaches Postgres is still exactly `numeric(14,2)`
+ * syntax.
+ *
+ * `\s` is the right class rather than a literal " ": it already covers U+00A0
+ * and U+202F, and those — not the ASCII space — are what
+ * `Intl.NumberFormat("cs-CZ")` actually puts between groups, so they are what
+ * lands in the field on a copy-paste off the Přehled.
+ *
+ * DELIBERATELY NOT NORMALISED: a lone `.` stays a decimal point. `1.234` is
+ * ambiguous (1234 written Czech-style, or 1.234 written with three decimals)
+ * and is left to fail the gate as before — an ambiguous amount is a refusal
+ * the client can see and correct, never a guess this layer makes on their
+ * behalf. Dots are treated as grouping only when a comma proves they were
+ * (`1.234,56`).
+ */
+function normalizeMoney(value: string): string {
+  const ungrouped = value.replace(/\s/g, "")
+  if (!ungrouped.includes(",")) return ungrouped
+  return ungrouped.replace(/\./g, "").replace(",", ".")
+}
+
 export function formMoney(formData: FormData, key: string): string | null {
-  const value = formString(formData, key)
+  const value = normalizeMoney(formString(formData, key))
   return MONEY.test(value) ? value : null
 }
 
@@ -88,7 +119,8 @@ export function formOptionalMoney(
 ): string | null | undefined {
   const raw = formString(formData, key)
   if (raw.length === 0) return null
-  return MONEY.test(raw) ? raw : undefined
+  const value = normalizeMoney(raw)
+  return MONEY.test(value) ? value : undefined
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

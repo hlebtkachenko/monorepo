@@ -54,6 +54,20 @@ if [ -n "$DOCKER_OK" ]; then
     sleep 1
   done
 
+  # Everything below bootstraps the database through `docker compose exec` (which
+  # always reaches the container) but hands the app a localhost:5432 URL. If a
+  # second Postgres holds the loopback address — a native `brew services`
+  # postgresql@18 binds 127.0.0.1/[::1] specifically, while the container binds
+  # the wildcard — the bootstrap succeeds and the app silently talks to the wrong
+  # server. Fail loudly here instead. app_owner exists only in the container.
+  if command -v psql >/dev/null 2>&1 \
+     && ! psql "postgres://app_owner:dev_owner@localhost:5432/app_dev" -tAc "SELECT 1" >/dev/null 2>&1; then
+    echo "ERROR: localhost:5432 does not reach the dev Postgres container." >&2
+    echo "       Another Postgres is bound to the loopback address. On macOS:" >&2
+    echo "         brew services stop postgresql@18" >&2
+    exit 1
+  fi
+
   echo "==> create + bootstrap database ${WS_DB}"
   if ! docker compose -f "$COMPOSE" exec -T postgres \
         psql -tAqU app_owner -d app_dev -c "SELECT 1 FROM pg_database WHERE datname='${WS_DB}'" 2>/dev/null | grep -q 1; then

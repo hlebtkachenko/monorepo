@@ -126,10 +126,22 @@ const DRIZZLE_OP_BUILDERS: Record<"values" | "set", readonly string[]> = {
   set: ["staffFlagPayload", "accountDisabledPayload"],
 }
 
+/**
+ * `scripts` joins `migrations` for the same reason `migrations` is here: this
+ * fence is about payloads a REQUEST can influence, and neither directory is
+ * reachable from one. Both are operator tooling run by hand against a database
+ * — `scripts/demo-seed.ts` writes `app_user` in raw SQL exactly as a migration
+ * would, with no request, no session and no client-supplied field anywhere near
+ * it. What keeps the exemption from becoming a hole is that nothing shipped can
+ * reach the exempt code: `db/demo-seed.test.ts` asserts that no module outside
+ * `scripts/` imports from `scripts/`, so a script cannot become a request path
+ * by being imported into one.
+ */
 const SKIP_DIRS = new Set([
   "node_modules",
   ".next",
   "migrations",
+  "scripts",
   "fonts",
   "public",
   "tests",

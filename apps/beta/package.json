@@ -13,6 +13,7 @@
     "test:watch": "vitest",
     "db:migrate": "node db/migrate.mjs",
     "db:purge-expired-chats": "node db/purge-expired-chats.mjs",
+    "db:seed:demo": "tsx scripts/demo-seed.ts",
     "db:generate": "node -e \"console.error('drizzle-kit generate is forbidden in this repo. Beta migrations are handwritten SQL in apps/beta/db/migrations/. See ADR-0009.'); process.exit(1)\"",
     "db:push": "node -e \"console.error('drizzle-kit push is forbidden in this repo. Apply migrations via pnpm --filter beta db:migrate. See ADR-0009.'); process.exit(1)\""
   },

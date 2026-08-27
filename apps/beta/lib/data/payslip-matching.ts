@@ -34,7 +34,7 @@ export type PayslipMatchCandidate = {
  * confidence describes how much of ONE candidate's name was found, not how
  * sure the function is that candidate is the only one who could fit.
  */
-export type PayslipMatchConfidence = "high" | "low"
+type PayslipMatchConfidence = "high" | "low"
 
 export type PayslipMatch = {
   readonly employeeId: string

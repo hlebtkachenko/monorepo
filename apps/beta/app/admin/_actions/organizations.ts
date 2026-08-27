@@ -31,9 +31,9 @@ import type { AdminActionState } from "./state"
  *
  * There is NO delete here. Deleting an organization is an owner act inside the
  * book, behind a multistep typed confirmation, and it has to purge S3 including
- * noncurrent versions (plan Part 4 / B4-5, spec §2.10 danger zone) — PR 37's
- * work, with PR 38's storage. Archiving is the office-side act, and it is
- * reversible.
+ * noncurrent versions (plan Part 4 / B4-5, spec §2.10 danger zone). The storage
+ * half landed with item 38 (`purgeOrganization`); the product surface has not.
+ * Archiving is the office-side act, and it is reversible.
  */
 
 export async function createOrganizationAction(

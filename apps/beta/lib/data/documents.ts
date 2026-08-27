@@ -20,7 +20,8 @@ import "server-only"
  *      the URL is never used alone; it is always ANDed with the scope's org, so
  *      a valid id from another book returns no row and the route answers 404.
  *   2. `deleted_at IS NULL` — a soft-deleted document is not "hidden in the UI",
- *      it is gone from the data layer. The bytes survive until PR 37's purge.
+ *      it is gone from the data layer. The bytes survive it: only
+ *      `purgeOrganization` (`lib/storage/document-store.ts`) destroys those.
  *   3. `doc_type <> 'payslip'` — spec §2.2, verbatim: payslip rows are excluded
  *      from every Dokumenty view SERVER-SIDE. They are reachable through Mzdy ›
  *      Výplatnice under `payrollScope()` (`lib/data/payslips.ts`), which is a

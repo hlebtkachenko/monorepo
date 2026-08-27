@@ -5,11 +5,24 @@
  * in the app tree is a fake one misconfiguration away from being the real store
  * (see the note on the test seam in `lib/storage/store.ts`).
  *
- * It is not a stub — it enforces the same two invariants the S3 implementation
- * does, so a test that passes here is testing the contract rather than the
- * mock: the org-prefix containment check runs on every read and delete, and the
- * body is CONSUMED as a stream, so a body that errors mid-flight (the 25 MiB
- * abort) makes `put` reject exactly as a real multipart upload would.
+ * It is not a stub — it enforces the same invariants the S3 implementation does,
+ * so a test that passes here is testing the contract rather than the mock: the
+ * org-prefix containment check runs on every read and delete, and the body is
+ * CONSUMED as a stream, so a body that errors mid-flight (the 25 MiB abort)
+ * makes `put` reject exactly as a real multipart upload would.
+ *
+ * AND IT IS VERSIONED, BECAUSE THE REAL BUCKET IS. This used to be a flat
+ * `Map<key, bytes>` where `delete` removed the entry and the object was gone —
+ * which is not what S3 does to a versioned bucket, and it is the difference
+ * that matters most here. A fake that forgets bytes on `delete` cannot fail the
+ * way production fails: a purge implemented as a loop over `delete()` would
+ * pass every test against a flat map and leave thirty days of recoverable
+ * noncurrent versions in the real bucket.
+ *
+ * So each key holds a STACK of versions, `delete` pushes a delete marker rather
+ * than dropping anything, `get` reads the top of the stack (and 404s when that
+ * is a marker), and only `purgeOrganization` removes bytes. `versionCount()`
+ * exists so a test can assert the distinction directly.
  */
 import type { Readable } from "node:stream"
 import { Readable as NodeReadable } from "node:stream"
@@ -17,22 +30,47 @@ import { Readable as NodeReadable } from "node:stream"
 import {
   assertKeyBelongsTo,
   documentObjectKey,
+  organizationPrefix,
   type BetaDocumentStore,
+  type PurgeResult,
   type PutDocumentInput,
 } from "@/lib/storage/document-store"
 
+type Version =
+  | { kind: "object"; bytes: Buffer; contentType: string }
+  | { kind: "deleteMarker" }
+
 export type MemoryDocumentStore = BetaDocumentStore & {
-  /** Every key currently held, in insertion order. */
+  /** Every LIVE key, in insertion order — a deleted key is not live. */
   keys(): string[]
   bytesOf(key: string): Buffer | undefined
   contentTypeOf(key: string): string | undefined
   /** How many objects were removed by a compensating delete. */
   deleteCount(): number
+  /**
+   * Total stored versions across every key, delete markers included — the
+   * number that stays above zero after a `delete` and only reaches zero after a
+   * purge. Zero for a key that never existed.
+   */
+  versionCount(prefix?: string): number
 }
 
 export function createMemoryDocumentStore(): MemoryDocumentStore {
-  const objects = new Map<string, { bytes: Buffer; contentType: string }>()
+  const objects = new Map<string, Version[]>()
   let deletes = 0
+
+  const live = (
+    key: string,
+  ): Extract<Version, { kind: "object" }> | undefined => {
+    const top = objects.get(key)?.at(-1)
+    return top?.kind === "object" ? top : undefined
+  }
+
+  const push = (key: string, version: Version): void => {
+    const stack = objects.get(key)
+    if (stack) stack.push(version)
+    else objects.set(key, [version])
+  }
 
   return {
     async put(input: PutDocumentInput) {
@@ -41,7 +79,8 @@ export function createMemoryDocumentStore(): MemoryDocumentStore {
       for await (const chunk of input.body) {
         chunks.push(Buffer.from(chunk as Uint8Array))
       }
-      objects.set(key, {
+      push(key, {
+        kind: "object",
         bytes: Buffer.concat(chunks),
         contentType: input.contentType,
       })
@@ -50,20 +89,40 @@ export function createMemoryDocumentStore(): MemoryDocumentStore {
 
     async get(key: string, organizationId: string): Promise<Readable> {
       assertKeyBelongsTo(key, organizationId)
-      const stored = objects.get(key)
+      const stored = live(key)
       if (!stored) throw new Error(`no such object: ${key}`)
       return NodeReadable.from([stored.bytes])
     },
 
     async delete(key: string, organizationId: string): Promise<void> {
       assertKeyBelongsTo(key, organizationId)
-      if (objects.delete(key)) deletes += 1
+      // A delete marker, not a removal — the bytes are still there, exactly as
+      // they are in the bucket after the same call.
+      if (live(key)) {
+        push(key, { kind: "deleteMarker" })
+        deletes += 1
+      }
     },
 
-    keys: () => [...objects.keys()],
-    bytesOf: (key) => objects.get(key)?.bytes,
-    contentTypeOf: (key) => objects.get(key)?.contentType,
+    async purgeOrganization(organizationId: string): Promise<PurgeResult> {
+      const prefix = organizationPrefix(organizationId)
+      let removed = 0
+      for (const [key, versions] of [...objects]) {
+        if (!key.startsWith(prefix)) continue
+        removed += versions.length
+        objects.delete(key)
+      }
+      return { removed }
+    },
+
+    keys: () => [...objects.keys()].filter((key) => live(key) !== undefined),
+    bytesOf: (key) => live(key)?.bytes,
+    contentTypeOf: (key) => live(key)?.contentType,
     deleteCount: () => deletes,
+    versionCount: (prefix) =>
+      [...objects]
+        .filter(([key]) => prefix === undefined || key.startsWith(prefix))
+        .reduce((total, [, versions]) => total + versions.length, 0),
   }
 }
 

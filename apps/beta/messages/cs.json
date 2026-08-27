@@ -8,6 +8,11 @@
     "mainContent": "Hlavní obsah",
     "primaryNav": "Hlavní navigace"
   },
+  "entry": {
+    "cancel": "Zrušit",
+    "pending": "Ukládám…",
+    "close": "Zavřít"
+  },
   "nav": {
     "prehled": "Přehled",
     "dokumenty": "Dokumenty",
@@ -822,6 +827,7 @@
     "periodSemiannual": "pololetně",
     "periodAnnual": "ročně",
     "newLoanTitle": "Nová smlouva",
+    "newLoanDescription": "Instituce, typ, jistina a splátky nové smlouvy.",
     "newLoanSubmit": "Přidat smlouvu",
     "editTitle": "Upravit smlouvu",
     "editSubmit": "Uložit",

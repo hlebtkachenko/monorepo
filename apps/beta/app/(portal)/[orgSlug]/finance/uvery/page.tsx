@@ -1,12 +1,7 @@
 import { getFormatter } from "next-intl/server"
 
 import { Badge } from "@workspace/ui/components/badge"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
+import { Card, CardContent } from "@workspace/ui/components/card"
 import {
   Table,
   TableBody,
@@ -24,10 +19,12 @@ import {
   LOAN_KIND_LABEL_KEY,
 } from "@/lib/loan-labels"
 
+import { EntrySheet } from "../../_components/entry-sheet"
 import { PageHeader } from "../../../../_components/page-header"
 import { resolveOrgScope } from "../../_lib/org-scope"
 
 import { createLoanAction, updateLoanAction } from "./_actions/loans"
+import { UVERY_ACTION_IDLE } from "./_actions/state"
 import { LoanActionForm } from "./_components/loan-action-form"
 import { LoanFields } from "./_components/loan-fields"
 
@@ -53,6 +50,13 @@ import { LoanFields } from "./_components/loan-fields"
  * reads the same table without them (§3.3: client pages are read-only), and
  * `lib/data/loans.ts`'s writes take an `OwnerScope` regardless of what this page
  * renders.
+ *
+ * CREATE runs through `EntrySheet` (manual-entry plan §2.1/W0) — this page is
+ * that primitive's first, reference conversion, in the header's `actions`
+ * slot as the primary "Zadat ručně". EDIT stays the JS-free `<details>` +
+ * `LoanActionForm` it always was: W0 converts one form, not every form (see
+ * the plan's W7 note on why the no-JS property is worth keeping where it
+ * already works).
  */
 export default async function UveryPage({
   params,
@@ -81,27 +85,26 @@ export default async function UveryPage({
 
   return (
     <div className="grid gap-6 p-6">
-      <PageHeader title={t("uvery.title")} intro={t("uvery.intro")} />
-
-      {isOwner ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-base">
-              {t("uvery.newLoanTitle")}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LoanActionForm
+      <PageHeader
+        title={t("uvery.title")}
+        intro={t("uvery.intro")}
+        actions={
+          isOwner ? (
+            <EntrySheet
               action={createLoanAction}
+              idle={UVERY_ACTION_IDLE}
+              hidden={{ orgSlug }}
+              triggerLabel={t("uvery.newLoanTitle")}
+              triggerVariant="default"
+              title={t("uvery.newLoanTitle")}
+              description={t("uvery.newLoanDescription")}
               submitLabel={t("uvery.newLoanSubmit")}
-              className="sm:grid-cols-2"
             >
-              <input type="hidden" name="orgSlug" value={orgSlug} />
               <LoanFields t={t} idPrefix="new-loan" />
-            </LoanActionForm>
-          </CardContent>
-        </Card>
-      ) : null}
+            </EntrySheet>
+          ) : null
+        }
+      />
 
       {loans.length === 0 ? (
         <Card>

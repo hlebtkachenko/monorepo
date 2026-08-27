@@ -24,15 +24,6 @@ export function formString(formData: FormData, key: string): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
-/** Empty input reads as "not provided" — an unstated nástup/ukončení date. */
-export function formOptionalString(
-  formData: FormData,
-  key: string,
-): string | null {
-  const value = formString(formData, key)
-  return value.length === 0 ? null : value
-}
-
 /**
  * Postgres answers a non-uuid `= $1` against a uuid column with 22P02, which
  * reaches the browser as a 500. A malformed id has to be an ordinary refusal.

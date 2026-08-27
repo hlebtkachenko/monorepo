@@ -6,10 +6,11 @@ import type { BetaMessageKey } from "@/i18n/messages"
  * `dane-nav.ts` use — a row of links inside one module, not the
  * `@workspace/ui` sidebar-panel machinery (`BetaShell` passes no `sidebar`).
  *
- * ONLY THE THREE LEAVES THIS PR BUILDS. Zaměstnanci and Výplatnice land in the
- * next payroll UI PR — the module-build comment on `beta-nav.ts` states the
- * rule this file follows too: a tab exists together with its route, never as
- * a dead link ahead of it.
+ * ALL FIVE LEAVES NOW LAND TOGETHER with their routes — the module-build
+ * comment on `beta-nav.ts` states the rule this file follows: a tab exists
+ * together with its route, never as a dead link ahead of it. Zaměstnanci and
+ * Výplatnice were the two the first Mzdy UI PR routed forward; this PR builds
+ * both routes and adds their tabs in the same change.
  *
  * PŘEHLED MEZD IS THE MODULE ROOT (`slug: ""`), matching Rozvaha in Výkazy and
  * Souhrn in Daně: the rail entry points at `/[orgSlug]/mzdy` and lands on the
@@ -25,6 +26,8 @@ export const MZDY_NAV: readonly MzdyNavItem[] = [
   { labelKey: "mzdy.navPrehled", slug: "" },
   { labelKey: "mzdy.navPlatby", slug: "platby-a-terminy" },
   { labelKey: "mzdy.navPodklady", slug: "podklady" },
+  { labelKey: "mzdy.navZamestnanci", slug: "zamestnanci" },
+  { labelKey: "mzdy.navVyplatnice", slug: "vyplatnice" },
 ]
 
 export function mzdyHref(orgSlug: string, slug: string): string {

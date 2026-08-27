@@ -22,6 +22,7 @@ import {
   createLiabilityRow,
   createMonthPeriod,
   endFixtures,
+  publishPayrollFixture,
   seedOrganization,
   type TestOrganization,
 } from "../../../../tests/fixtures"
@@ -229,5 +230,66 @@ describe("the rest of the model", () => {
     expect(data.tasks).toEqual([])
     expect(data.documents.total).toBe(0)
     expect(data.obligations.totals.total).toBe("0.00")
+  })
+})
+
+describe("payroll — the mzdové náklady tile's feeder", () => {
+  it("is null when the book has no published payroll batch", async () => {
+    const data = await loadFor(await seedOrganization())
+    expect(data.payroll).toBeNull()
+  })
+
+  it("carries the newest published period and its summary", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await publishPayrollFixture(target.organizationId, periodId, {
+      summary: { employerCostTotal: "123456.00" },
+    })
+
+    const data = await loadFor(target)
+
+    expect(data.payroll?.period.id).toBe(periodId)
+    expect(data.payroll?.summary?.employerCostTotal).toBe("123456.00")
+  })
+
+  it("carries the period even when the batch has no summary row at all", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    // `publishPayrollFixture` always inserts a (possibly all-null) summary
+    // row — the genuinely ABSENT case needs the batch published on its own,
+    // the same shape an agent run that has only sent employee lines so far
+    // would leave behind.
+    await createImportBatchRow(target.organizationId, periodId, {
+      dataset: "payroll",
+      status: "published",
+    })
+
+    const data = await loadFor(target)
+
+    expect(data.payroll?.period.id).toBe(periodId)
+    expect(data.payroll?.summary).toBeNull()
+  })
+
+  it("is null for a guest — payrollScope fails closed the same as every other payroll read", async () => {
+    const target = await seedOrganization()
+    const periodId = await createMonthPeriod(target.organizationId)
+    await publishPayrollFixture(target.organizationId, periodId, {
+      summary: { employerCostTotal: "1000.00" },
+    })
+
+    as(target.members.guest.headers)
+    const data = await loadPrehled(await requireScope(target.slug))
+    expect(data.payroll).toBeNull()
+  })
+
+  it("never crosses organizations", async () => {
+    const other = await seedOrganization()
+    const otherPeriodId = await createMonthPeriod(other.organizationId)
+    await publishPayrollFixture(other.organizationId, otherPeriodId, {
+      summary: { employerCostTotal: "999.00" },
+    })
+
+    const data = await loadFor(shared)
+    expect(data.payroll).toBeNull()
   })
 })

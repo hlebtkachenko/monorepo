@@ -15,11 +15,13 @@ describe("MZDY_NAV", () => {
     }
   })
 
-  it("carries exactly the three leaves this PR builds, Přehled mezd at the module root", () => {
+  it("carries all five spec §2.6 leaves, Přehled mezd at the module root", () => {
     expect(MZDY_NAV.map((item) => item.slug)).toEqual([
       "",
       "platby-a-terminy",
       "podklady",
+      "zamestnanci",
+      "vyplatnice",
     ])
   })
 
@@ -31,7 +33,7 @@ describe("MZDY_NAV", () => {
 })
 
 describe("isActiveMzdyNav", () => {
-  const [prehled, platby, podklady] = MZDY_NAV
+  const [prehled, platby, podklady, zamestnanci, vyplatnice] = MZDY_NAV
 
   it("matches Přehled mezd only on its exact path, never on a sibling subpath", () => {
     expect(isActiveMzdyNav(prehled!, "acme-sro", "/acme-sro/mzdy")).toBe(true)
@@ -51,11 +53,27 @@ describe("isActiveMzdyNav", () => {
     expect(
       isActiveMzdyNav(podklady!, "acme-sro", "/acme-sro/mzdy/podklady"),
     ).toBe(true)
+    expect(
+      isActiveMzdyNav(zamestnanci!, "acme-sro", "/acme-sro/mzdy/zamestnanci"),
+    ).toBe(true)
+    expect(
+      isActiveMzdyNav(vyplatnice!, "acme-sro", "/acme-sro/mzdy/vyplatnice"),
+    ).toBe(true)
+    expect(
+      isActiveMzdyNav(zamestnanci!, "acme-sro", "/acme-sro/mzdy/vyplatnice"),
+    ).toBe(false)
   })
 
   it("stays active on a deeper path under its own tab", () => {
     expect(
       isActiveMzdyNav(podklady!, "acme-sro", "/acme-sro/mzdy/podklady/123"),
+    ).toBe(true)
+    expect(
+      isActiveMzdyNav(
+        vyplatnice!,
+        "acme-sro",
+        "/acme-sro/mzdy/vyplatnice/upload",
+      ),
     ).toBe(true)
   })
 })

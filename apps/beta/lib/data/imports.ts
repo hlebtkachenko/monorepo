@@ -1,6 +1,6 @@
 import "server-only"
 
-import { aliasedTable, and, asc, desc, eq, inArray } from "drizzle-orm"
+import { aliasedTable, and, asc, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { betaDb, type BetaExecutor } from "@/db/client"
 import {
@@ -1338,6 +1338,178 @@ export async function deleteDraftBatch(
     .returning({ id: import_batch.id })
 
   return deleted.length > 0
+}
+
+// ---------------------------------------------------------------------------
+// Saldokonto row writes (manual-entry plan §3, W2) — add / edit / remove ONE
+// `partner_saldo` row on an EXISTING draft batch, the row-level counterpart to
+// `createDraftBatch`'s bulk insert above.
+// ---------------------------------------------------------------------------
+
+/**
+ * The batch a row write targets, or `null` for every reason it might not be
+ * writable — unknown id, another organization's, the wrong dataset, or no
+ * longer a draft. Collapsed into one answer for the same reason
+ * `readableBatchId` gives: nothing here needs to distinguish "not yours" from
+ * "not draft anymore" from "does not exist", and a caller that could would be
+ * a caller that could probe for the difference.
+ *
+ * Returns `periodId` because `partner_saldo.period_id` is a NOT NULL,
+ * denormalised column an INSERT has to state — the same value `createDraftBatch`
+ * takes as a parameter, read here instead because a row add names a BATCH, not
+ * a period.
+ */
+async function draftSaldokontoBatch(
+  executor: BetaExecutor,
+  owner: OwnerScope,
+  batchId: string,
+): Promise<{ id: string; periodId: string } | null> {
+  const [row] = await executor
+    .select({ id: import_batch.id, period_id: import_batch.period_id })
+    .from(import_batch)
+    .where(
+      and(
+        eq(import_batch.id, batchId),
+        eq(import_batch.organization_id, owner.organizationId),
+        eq(import_batch.dataset, "saldokonto"),
+        eq(import_batch.status, "draft"),
+      ),
+    )
+    .limit(1)
+
+  return row ? { id: row.id, periodId: row.period_id } : null
+}
+
+/**
+ * Add one partner to a draft saldokonto batch.
+ *
+ * `partner_saldo_requires_draft_batch` (migration 0015, reusing 0007's shared
+ * trigger) is the floor under the draft check above — this function's own
+ * lookup is what lets it name `period_id` for the INSERT, not what makes the
+ * insert safe on its own; a batch that left `draft` between the lookup and the
+ * INSERT is still refused, by the trigger, as a `check_violation` the caller
+ * wraps in a Czech sentence the same way every other guard in this module is.
+ *
+ * `row_count` is an ATOMIC `+ 1` in the same transaction, never a
+ * read-then-write: `createDraftBatch` writes it once at insert time and
+ * nothing else touches it, so a row added afterwards (this function's whole
+ * reason to exist) has to keep it in step itself or the completeness matrix
+ * and the batch preview's own header would under-report a batch this program
+ * built rows into one at a time.
+ */
+export async function addPartnerSaldoRow(
+  owner: OwnerScope,
+  batchId: string,
+  input: PartnerSaldoLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string } | null> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftSaldokontoBatch(tx, owner, batchId)
+    if (!batch) return null
+
+    const [row] = await tx
+      .insert(partner_saldo)
+      .values({
+        organization_id: owner.organizationId,
+        import_batch_id: batch.id,
+        period_id: batch.periodId,
+        partner_id: input.partnerId,
+        receivable_total: input.receivableTotal ?? null,
+        payable_total: input.payableTotal ?? null,
+        oldest_due: input.oldestDue ?? null,
+      })
+      .returning({ id: partner_saldo.id })
+
+    if (!row) throw new Error("partner_saldo insert returned no row")
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} + 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return { id: row.id }
+  })
+}
+
+/**
+ * Edit one partner's saldo row.
+ *
+ * NO PRE-CHECK OF THE BATCH'S STATUS HERE, unlike `addPartnerSaldoRow` above —
+ * an edit needs no `period_id` from the batch, so the only thing a lookup would
+ * buy is a friendlier refusal, and `partner_saldo_requires_draft_batch` already
+ * fires on UPDATE (unlike DELETE, see below) and refuses a row whose batch has
+ * left draft. `import_batch_id` stays in the WHERE clause regardless, so a
+ * `rowId` alone can never edit a row of a batch its own `batchId` did not name.
+ */
+export async function updatePartnerSaldoRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  input: PartnerSaldoLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  const updated = await executor
+    .update(partner_saldo)
+    .set({
+      partner_id: input.partnerId,
+      receivable_total: input.receivableTotal ?? null,
+      payable_total: input.payableTotal ?? null,
+      oldest_due: input.oldestDue ?? null,
+    })
+    .where(
+      and(
+        eq(partner_saldo.id, rowId),
+        eq(partner_saldo.import_batch_id, batchId),
+        eq(partner_saldo.organization_id, owner.organizationId),
+      ),
+    )
+    .returning({ id: partner_saldo.id })
+
+  return updated.length > 0
+}
+
+/**
+ * Remove one partner's saldo row from a draft batch.
+ *
+ * `beta_import_line_requires_draft_batch`'s own header states it explicitly:
+ * the trigger guards INSERT and UPDATE "DELIBERATELY" and not DELETE, reasoned
+ * as unreachable because nothing before this function ever deleted a single
+ * payload row (`deleteDraftBatch` removes the whole batch, cascade). This
+ * function IS that first caller, so the draft check the trigger gives every
+ * other write here has to be taken EXPLICITLY — inside the same transaction as
+ * the delete, via `draftSaldokontoBatch`, rather than assumed from the
+ * trigger's coverage.
+ */
+export async function deletePartnerSaldoRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftSaldokontoBatch(tx, owner, batchId)
+    if (!batch) return false
+
+    const deleted = await tx
+      .delete(partner_saldo)
+      .where(
+        and(
+          eq(partner_saldo.id, rowId),
+          eq(partner_saldo.import_batch_id, batch.id),
+          eq(partner_saldo.organization_id, owner.organizationId),
+        ),
+      )
+      .returning({ id: partner_saldo.id })
+
+    if (deleted.length === 0) return false
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} - 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return true
+  })
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   statementLinesForBatch,
   trialBalanceLinesForBatch,
 } from "@/lib/data/imports"
+import { partnersForOwner } from "@/lib/data/partners"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import {
   IMPORT_DATASET_LABEL_KEY,
@@ -77,7 +78,7 @@ export default async function BatchPreviewPage({
   const batch = await officeBatchFor(owner, batchId)
   if (!batch) notFound()
 
-  const [aktiva, pasiva, vzz, trialBalance, partnerSaldoLines] =
+  const [aktiva, pasiva, vzz, trialBalance, partnerSaldoLines, partners] =
     await Promise.all([
       batch.dataset === "rozvaha"
         ? statementLinesForBatch(owner, batch.id, {
@@ -97,6 +98,11 @@ export default async function BatchPreviewPage({
         : Promise.resolve([]),
       batch.dataset === "saldokonto"
         ? partnerSaldoLinesForBatch(owner, batch.id)
+        : Promise.resolve([]),
+      // The row drawer's (W2) partner picker — only fetched for the one
+      // dataset it applies to.
+      batch.dataset === "saldokonto"
+        ? partnersForOwner(owner)
         : Promise.resolve([]),
     ])
 
@@ -202,7 +208,13 @@ export default async function BatchPreviewPage({
       ) : null}
 
       {batch.dataset === "saldokonto" ? (
-        <PartnerSaldoBatchTable lines={partnerSaldoLines} />
+        <PartnerSaldoBatchTable
+          lines={partnerSaldoLines}
+          orgSlug={orgSlug}
+          batchId={batch.id}
+          isDraft={batch.status === "draft"}
+          partners={partners}
+        />
       ) : null}
     </div>
   )

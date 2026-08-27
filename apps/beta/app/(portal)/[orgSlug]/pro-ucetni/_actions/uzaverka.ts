@@ -9,21 +9,25 @@ import type { BetaImportDataset } from "@/db/schema"
 import {
   addPartnerSaldoRow,
   addPayrollLineToBatch,
+  addStatementLineRow,
   addTrialBalanceLineRow,
   createDraftBatch,
   deleteDraftBatch,
   deletePartnerSaldoRow,
   deletePayrollLineFromBatch,
+  deleteStatementLineRow,
   deleteTrialBalanceLineRow,
   officeBatchFor,
   publishBatch,
   rollbackDataset,
   updatePartnerSaldoRow,
   updatePayrollLineInBatch,
+  updateStatementLineRow,
   updateTrialBalanceLineRow,
   type PartnerSaldoLineInput,
   type PayrollLineInput,
   type PayrollSummaryInput,
+  type StatementLineInput,
   type TrialBalanceLineInput,
 } from "@/lib/data/imports"
 import { ensureReportingPeriod } from "@/lib/data/reporting-periods"
@@ -41,11 +45,14 @@ import {
 
 import {
   formAccountCode,
+  formCappedText,
+  formChecked,
   formDecimal,
   formInteger,
   formOptionalDate,
   formOptionalText,
   formPeriodKind,
+  formStatementKind,
   formString,
   formUuid,
 } from "./input"
@@ -1027,31 +1034,187 @@ export async function deletePayrollLineAction(
 }
 
 // ---------------------------------------------------------------------------
-// The předvaha row drawer (manual-entry plan §3, W5a) — add / edit / remove
-// ONE account row of a draft předvaha batch. Same shape as the saldokonto row
-// drawer above.
+// The výkazy row drawer (manual-entry plan §3, W5) — add / edit / remove ONE
+// row of a rozvaha, VZZ or předvaha draft batch. Same shape as the
+// saldokonto row drawer above.
 // ---------------------------------------------------------------------------
 
 /**
- * Shared by every výkazy row-drawer action (this předvaha wave and the W5b
- * statement wave that follows it): a returned `error` state distinct from
- * `SALDO_ROW_INVALID` above, and every path that touches a statement or
- * předvaha batch's rows.
+ * Narrowed to the `"error"` arm, unlike `SALDO_ROW_INVALID` above — this one
+ * is also returned directly from `readStatementRowForm` /
+ * `readTrialBalanceRowForm`'s `{ ok: false; error: … }` shape, which needs
+ * exactly `StartManualBatchState & { status: "error" }`, not the wider union.
  */
 const VYKAZY_ROW_INVALID: StartManualBatchState & { status: "error" } = {
   status: "error",
   error: "vykazyZadani.rowErrorInvalidInput",
 }
 
+/** Every path that touches a statement or předvaha batch's rows. */
 function revalidateVykazyBatch(orgSlug: string, batchId: string): void {
   revalidateUzaverka(orgSlug)
   revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batchId}`)
 }
 
 /**
- * `trial_balance_line_identity_unique` (org, batch, account_code) is a
- * UNIQUE index, not a CHECK, so it needs its own arm alongside `guarded()`'s
+ * `statement_line_identity_unique` (one row per batch, kind and row_code) is
+ * a UNIQUE index, not a CHECK, so it needs its own arm alongside `guarded()`'s
  * — same reason `guardedSaldoRowWrite` exists above.
+ */
+async function guardedStatementRowWrite(
+  write: () => Promise<StartManualBatchState>,
+): Promise<StartManualBatchState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { status: "error", error: "vykazyZadani.rowErrorDuplicate" }
+    }
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "uzaverka.errorRejected" }
+    }
+    throw error
+  }
+}
+
+/** Everything an add or an edit of a statement row reads, or the Czech refusal the form gets back. */
+function readStatementRowForm(
+  formData: FormData,
+):
+  | { ok: true; value: StatementLineInput }
+  | { ok: false; error: StartManualBatchState & { status: "error" } } {
+  const statementKind = formStatementKind(formData, "statementKind")
+  // `formCappedText` reads `null` for "correctly empty" and `false` for
+  // "too long" — for this REQUIRED field both collapse to "refuse".
+  const rowCode = formCappedText(formData, "rowCode", 10)
+  const rowLabel = formString(formData, "rowLabel")
+  const sortOrder = formInteger(formData, "sortOrder", { min: 1, max: 9999 })
+  const indentRaw = formString(formData, "indent")
+  const indent =
+    indentRaw.length === 0
+      ? 0
+      : formInteger(formData, "indent", { min: 0, max: 8 })
+  const isBold = formChecked(formData, "isBold")
+  // Optional: `null` (empty, a spacer row's ozn) is a valid value, `false`
+  // (over the varchar(16) bound) is the only refusal.
+  const ozn = formCappedText(formData, "ozn", 16)
+  const brutto = formDecimal(formData, "brutto")
+  const korekce = formDecimal(formData, "korekce")
+  const netto = formDecimal(formData, "netto")
+  const bezne = formDecimal(formData, "bezne")
+  const minule = formDecimal(formData, "minule")
+
+  if (
+    statementKind === null ||
+    rowCode === null ||
+    rowCode === false ||
+    rowLabel.length === 0 ||
+    sortOrder === null ||
+    indent === null ||
+    ozn === false ||
+    !brutto.ok ||
+    !korekce.ok ||
+    !netto.ok ||
+    !bezne.ok ||
+    !minule.ok
+  ) {
+    return { ok: false, error: VYKAZY_ROW_INVALID }
+  }
+
+  return {
+    ok: true,
+    value: {
+      statementKind,
+      ozn,
+      rowCode,
+      rowLabel,
+      sortOrder,
+      indent,
+      isBold,
+      brutto: brutto.value,
+      korekce: korekce.value,
+      netto: netto.value,
+      bezne: bezne.value,
+      minule: minule.value,
+    },
+  }
+}
+
+export async function addStatementLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  if (batchId === null) return VYKAZY_ROW_INVALID
+
+  const fields = readStatementRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedStatementRowWrite(async () => {
+    const row = await addStatementLineRow(owner, batchId, fields.value)
+    if (!row) {
+      return { status: "error", error: "vykazyZadani.rowErrorNotEditable" }
+    }
+
+    revalidateVykazyBatch(orgSlug, batchId)
+    return { status: "ok", message: "vykazyZadani.rowOkAdded" }
+  })
+}
+
+export async function updateStatementLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return VYKAZY_ROW_INVALID
+
+  const fields = readStatementRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedStatementRowWrite(async () => {
+    const updated = await updateStatementLineRow(
+      owner,
+      batchId,
+      rowId,
+      fields.value,
+    )
+    if (!updated) {
+      return { status: "error", error: "vykazyZadani.rowErrorNotEditable" }
+    }
+
+    revalidateVykazyBatch(orgSlug, batchId)
+    return { status: "ok", message: "vykazyZadani.rowOkUpdated" }
+  })
+}
+
+/** Remove one statement row. No guard — same reasoning as `deletePartnerSaldoRowAction`. */
+export async function deleteStatementLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return VYKAZY_ROW_INVALID
+
+  const deleted = await deleteStatementLineRow(owner, batchId, rowId)
+  if (!deleted) {
+    return { status: "error", error: "vykazyZadani.rowErrorNotEditable" }
+  }
+
+  revalidateVykazyBatch(orgSlug, batchId)
+  return { status: "ok", message: "vykazyZadani.rowOkDeleted" }
+}
+
+/**
+ * `trial_balance_line_identity_unique` (org, batch, account_code) is a
+ * UNIQUE index, not a CHECK — same reasoning as `guardedStatementRowWrite`.
  */
 async function guardedTrialBalanceRowWrite(
   write: () => Promise<StartManualBatchState>,

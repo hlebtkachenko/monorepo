@@ -1724,15 +1724,164 @@ export async function deletePayrollLineFromBatch(
 }
 
 // ---------------------------------------------------------------------------
-// The předvaha row drawer (manual-entry plan §3, W5a) — add / edit / remove
-// ONE account row of a předvaha draft batch. Same shape as the saldokonto row
-// drawer above: a private draft-batch lookup for the INSERT (which needs
-// `period_id`), a plain `UPDATE` relying on
+// The výkazy row drawer (manual-entry plan §3, W5) — add / edit / remove ONE
+// row of a rozvaha, VZZ or předvaha draft batch. Same shape as the saldokonto
+// row drawer immediately above: a private draft-batch lookup for the INSERT
+// (which needs `period_id`), a plain `UPDATE` relying on
 // `beta_import_line_requires_draft_batch` (BEFORE INSERT OR UPDATE) as its
-// own floor, and an explicit draft check inside the DELETE transaction — that
-// trigger deliberately does not cover DELETE (see `deletePartnerSaldoRow`'s
-// own comment).
+// own floor, and an explicit draft check inside the DELETE transaction —
+// that trigger deliberately does not cover DELETE (see
+// `deletePartnerSaldoRow`'s own comment).
 // ---------------------------------------------------------------------------
+
+/**
+ * The draft batch a statement row belongs to, by id alone — NOT filtered to
+ * `rozvaha` or `vzz` specifically. `beta_statement_line_matches_dataset`
+ * (migration 0007) is the floor that refuses a `vzz` row inside a `rozvaha`
+ * batch or vice versa; this lookup only needs to prove the batch exists, is
+ * this organization's, and is still a draft, so a single caller serves
+ * `addStatementLineRow` and `deleteStatementLineRow` for either dataset.
+ */
+async function draftStatementBatch(
+  executor: BetaExecutor,
+  owner: OwnerScope,
+  batchId: string,
+): Promise<{ id: string; periodId: string } | null> {
+  const [row] = await executor
+    .select({ id: import_batch.id, period_id: import_batch.period_id })
+    .from(import_batch)
+    .where(
+      and(
+        eq(import_batch.id, batchId),
+        eq(import_batch.organization_id, owner.organizationId),
+        inArray(import_batch.dataset, ["rozvaha", "vzz"]),
+        eq(import_batch.status, "draft"),
+      ),
+    )
+    .limit(1)
+
+  return row ? { id: row.id, periodId: row.period_id } : null
+}
+
+/** Add one row to a draft rozvaha or VZZ batch. */
+export async function addStatementLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  input: StatementLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string } | null> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftStatementBatch(tx, owner, batchId)
+    if (!batch) return null
+
+    const [row] = await tx
+      .insert(statement_line)
+      .values({
+        organization_id: owner.organizationId,
+        import_batch_id: batch.id,
+        period_id: batch.periodId,
+        statement_kind: input.statementKind,
+        ozn: input.ozn ?? null,
+        row_code: input.rowCode,
+        row_label: input.rowLabel,
+        sort_order: input.sortOrder,
+        indent: input.indent ?? 0,
+        is_bold: input.isBold ?? false,
+        value_brutto: input.brutto ?? null,
+        value_korekce: input.korekce ?? null,
+        value_netto: input.netto ?? null,
+        value_bezne: input.bezne ?? null,
+        value_minule: input.minule ?? null,
+      })
+      .returning({ id: statement_line.id })
+
+    if (!row) throw new Error("statement_line insert returned no row")
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} + 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return { id: row.id }
+  })
+}
+
+/**
+ * Edit one statement row.
+ *
+ * NO PRE-CHECK OF THE BATCH'S STATUS HERE, same reasoning
+ * `updatePartnerSaldoRow` states for its own: `beta_import_line_requires_draft_batch`
+ * already fires on UPDATE, and `import_batch_id` stays in the WHERE clause so
+ * a `rowId` alone can never edit a row of a batch its own `batchId` did not
+ * name.
+ */
+export async function updateStatementLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  input: StatementLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  const updated = await executor
+    .update(statement_line)
+    .set({
+      statement_kind: input.statementKind,
+      ozn: input.ozn ?? null,
+      row_code: input.rowCode,
+      row_label: input.rowLabel,
+      sort_order: input.sortOrder,
+      indent: input.indent ?? 0,
+      is_bold: input.isBold ?? false,
+      value_brutto: input.brutto ?? null,
+      value_korekce: input.korekce ?? null,
+      value_netto: input.netto ?? null,
+      value_bezne: input.bezne ?? null,
+      value_minule: input.minule ?? null,
+    })
+    .where(
+      and(
+        eq(statement_line.id, rowId),
+        eq(statement_line.import_batch_id, batchId),
+        eq(statement_line.organization_id, owner.organizationId),
+      ),
+    )
+    .returning({ id: statement_line.id })
+
+  return updated.length > 0
+}
+
+/** Remove one statement row from a draft batch. Same shape as `deletePartnerSaldoRow`. */
+export async function deleteStatementLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftStatementBatch(tx, owner, batchId)
+    if (!batch) return false
+
+    const deleted = await tx
+      .delete(statement_line)
+      .where(
+        and(
+          eq(statement_line.id, rowId),
+          eq(statement_line.import_batch_id, batch.id),
+          eq(statement_line.organization_id, owner.organizationId),
+        ),
+      )
+      .returning({ id: statement_line.id })
+
+    if (deleted.length === 0) return false
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} - 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return true
+  })
+}
 
 /** The draft předvaha batch a trial balance row belongs to, by id. */
 async function draftTrialBalanceBatch(
@@ -1793,7 +1942,7 @@ export async function addTrialBalanceLineRow(
   })
 }
 
-/** Edit one předvaha account row. No pre-check — `import_batch_id` stays in the WHERE clause. */
+/** Edit one předvaha account row. No pre-check, same reasoning as `updateStatementLineRow`. */
 export async function updateTrialBalanceLineRow(
   owner: OwnerScope,
   batchId: string,

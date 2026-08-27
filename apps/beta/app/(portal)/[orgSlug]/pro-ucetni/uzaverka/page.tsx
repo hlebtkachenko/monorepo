@@ -98,12 +98,44 @@ export default async function UzaverkaPage({
               />
             </EntrySheet>
             {/*
-              predvaha (manual-entry plan §3, W5a) — `startManualBatchAction`
-              is already generic over all four datasets (W1); this is the
-              wave that wires the předvaha trigger. Row entry happens on the
-              batch preview it redirects to (`TrialBalanceBatchTable`). W5b
-              adds the matching rozvaha/vzz triggers alongside this one.
+              rozvaha / vzz / predvaha (manual-entry plan §3, W5) —
+              `startManualBatchAction` is already generic over all four
+              datasets (W1); this is the wave that wires the last three
+              triggers. Row entry happens on the batch preview these redirect
+              to (`StatementBatchTable` / `TrialBalanceBatchTable`).
             */}
+            <EntrySheet
+              action={startManualBatchAction}
+              idle={START_MANUAL_BATCH_IDLE}
+              hidden={{ orgSlug, dataset: "rozvaha", periodKind: "month" }}
+              triggerLabel={t("vykazyZadani.startRozvahaTrigger")}
+              title={t("vykazyZadani.startRozvahaTitle")}
+              description={t("vykazyZadani.startRozvahaDescription")}
+              submitLabel={t("vykazyZadani.startRozvahaSubmit")}
+            >
+              <ManualBatchPeriodFields
+                t={t}
+                idPrefix="start-rozvaha-uzaverka"
+                defaultMonth={view.period?.month ?? now.getMonth() + 1}
+                defaultYear={view.period?.year ?? now.getFullYear()}
+              />
+            </EntrySheet>
+            <EntrySheet
+              action={startManualBatchAction}
+              idle={START_MANUAL_BATCH_IDLE}
+              hidden={{ orgSlug, dataset: "vzz", periodKind: "month" }}
+              triggerLabel={t("vykazyZadani.startVzzTrigger")}
+              title={t("vykazyZadani.startVzzTitle")}
+              description={t("vykazyZadani.startVzzDescription")}
+              submitLabel={t("vykazyZadani.startVzzSubmit")}
+            >
+              <ManualBatchPeriodFields
+                t={t}
+                idPrefix="start-vzz-uzaverka"
+                defaultMonth={view.period?.month ?? now.getMonth() + 1}
+                defaultYear={view.period?.year ?? now.getFullYear()}
+              />
+            </EntrySheet>
             <EntrySheet
               action={startManualBatchAction}
               idle={START_MANUAL_BATCH_IDLE}

@@ -51,8 +51,12 @@ vi.mock("next/headers", () => ({
 }))
 
 const { requireScope, requireOwner } = await import("./scope")
-const { payslipDocumentsForScope, openPayslipFile, uploadPayslipDocument } =
-  await import("./payslips")
+const {
+  payslipDocumentsForScope,
+  openPayslipFile,
+  uploadPayslipDocument,
+  withdrawPayslip,
+} = await import("./payslips")
 const { setDocumentStoreForTests } = await import("@/lib/storage/store")
 
 type Role = "owner" | "admin" | "member" | "guest"
@@ -127,6 +131,89 @@ async function seedPayrollWorld(org: TestOrganization) {
   await publishPayrollFixture(org.organizationId, periodId)
   return { periodId, employeeId }
 }
+
+/**
+ * ITEM-38 CARRY-IN: `softDeleteDocument` was the mechanism for undoing a
+ * payslip mis-assignment the whole time and had NO CALLER at all, so the
+ * remediation for this module's own sharpest failure existed only as a function
+ * nobody could find from here.
+ *
+ * The function is named for what it CHECKS (`doc_type = 'payslip'`) rather than
+ * for the mis-assignment that motivates it — it makes no assertion about
+ * whether the assignment was wrong, and a correctly-assigned payslip withdrawn
+ * for some other reason is a legitimate call.
+ */
+describe("withdrawPayslip", () => {
+  it("takes the payslip out of every payslip read at once", async () => {
+    const { periodId, employeeId } = await seedPayrollWorld(orgA)
+    const documentId = await createDocumentRow(orgA.organizationId, {
+      docType: "payslip",
+      payslipEmployeeId: employeeId,
+      payslipPeriodId: periodId,
+    })
+
+    const owner = await ownerScopeOf(orgA)
+    expect(
+      (await payslipDocumentsForScope(owner)).map((row) => row.id),
+    ).toContain(documentId)
+
+    expect(await withdrawPayslip(owner, documentId)).toBe(true)
+
+    // The list AND the file door, because they are separate queries and a
+    // withdrawal that only cleared the list would leave the bytes one URL away
+    // from the person who should never have had them.
+    expect(
+      (await payslipDocumentsForScope(owner)).map((row) => row.id),
+    ).not.toContain(documentId)
+    expect(await openPayslipFile(owner, documentId)).toBeNull()
+  })
+
+  it("refuses a document that is not a payslip", async () => {
+    // The reason this is a named function rather than a `softDeleteDocument`
+    // call at the call site: that one withdraws ANY document in the book, so a
+    // payroll-remediation surface wired straight to it could delete invoices.
+    const invoiceId = await createDocumentRow(orgA.organizationId, {
+      docType: "invoice_in",
+    })
+
+    const owner = await ownerScopeOf(orgA)
+    expect(await withdrawPayslip(owner, invoiceId)).toBe(false)
+  })
+
+  it("refuses a payslip id from another organization, id in hand", async () => {
+    const { periodId, employeeId } = await seedPayrollWorld(orgB)
+    const theirs = await createDocumentRow(orgB.organizationId, {
+      docType: "payslip",
+      payslipEmployeeId: employeeId,
+      payslipPeriodId: periodId,
+    })
+
+    expect(await withdrawPayslip(await ownerScopeOf(orgA), theirs)).toBe(false)
+    // And it is still there for the book that owns it.
+    expect(
+      (await payslipDocumentsForScope(await ownerScopeOf(orgB))).map(
+        (row) => row.id,
+      ),
+    ).toContain(theirs)
+  })
+
+  it("is idempotent, and answers false for a malformed or unknown id", async () => {
+    const { periodId, employeeId } = await seedPayrollWorld(orgA)
+    const documentId = await createDocumentRow(orgA.organizationId, {
+      docType: "payslip",
+      payslipEmployeeId: employeeId,
+      payslipPeriodId: periodId,
+    })
+    const owner = await ownerScopeOf(orgA)
+
+    expect(await withdrawPayslip(owner, documentId)).toBe(true)
+    expect(await withdrawPayslip(owner, documentId)).toBe(false)
+
+    for (const hostile of ["", "not-a-uuid", "' OR 1=1 --"]) {
+      expect(await withdrawPayslip(owner, hostile)).toBe(false)
+    }
+  })
+})
 
 describe("payslipDocumentsForScope — visibility (spec §2.6.1)", () => {
   it("answers [] for a guest — no employee link exists yet", async () => {

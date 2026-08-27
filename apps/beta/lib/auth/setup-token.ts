@@ -853,14 +853,23 @@ export async function consumeSetupToken(
       // 5b. THE EMPLOYEE SEAT'S LINK (spec §2.6.1: "consume creates user +
       //     guest membership + link in one transaction").
       //
-      //     IT IS THE ONLY WRITER OF `payroll_employee.app_user_id` IN THIS
-      //     APPLICATION. `updatePayrollEmployee` has no arm for the column and
-      //     the agent ingestion API cannot state it (`lib/data/payroll.ts`), so
-      //     "which person is this account" is settled exactly once, inside the
-      //     same transaction that created the account and granted the
-      //     membership. A crash anywhere here rolls all three back together:
-      //     there is no state in which a seat exists without its link, which
-      //     would be a `guest` quietly holding an external viewer's access.
+      //     IT IS THE ONLY WRITER THAT SETS `payroll_employee.app_user_id`.
+      //     `updatePayrollEmployee` has no arm for the column and the agent
+      //     ingestion API cannot state it (`lib/data/payroll.ts`), so "which
+      //     person is this account" is settled exactly once, inside the same
+      //     transaction that created the account and granted the membership. A
+      //     crash anywhere here rolls all three back together: there is no
+      //     state in which a seat exists without its link, which would be a
+      //     `guest` quietly holding an external viewer's access.
+      //
+      //     THE ONE OTHER WRITER CLEARS IT AND CANNOT SET IT.
+      //     `revokeEmployeeSeat` (`lib/data/office/employee-seats.ts`) NULLs the
+      //     column as the office-side remediation for a mis-binding, takes an
+      //     `OfficeScope` rather than any organization role, and has no
+      //     parameter that could name an account to bind. So the invariant this
+      //     comment is really about — that no role-write path can decide whose
+      //     payslips an account reads — is unchanged: one path binds, one path
+      //     unbinds, neither is reachable from a role.
       //
       //     THE `WHERE` IS THE RE-BINDING FENCE. `app_user_id IS NULL OR = me`
       //     means a link can CLAIM an unbound employee row or re-affirm its own,

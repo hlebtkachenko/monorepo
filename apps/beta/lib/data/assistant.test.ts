@@ -21,7 +21,7 @@ import { eq } from "drizzle-orm"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import { betaDb } from "@/db/client"
-import { chat, chat_message, chat_usage } from "@/db/schema"
+import { chat, chat_message, chat_usage, organization } from "@/db/schema"
 
 import {
   endFixtures,
@@ -741,6 +741,52 @@ describe("purgeExpiredChats — the 12-month retention", () => {
         .select({ id: chat_message.id })
         .from(chat_message)
         .where(eq(chat_message.chat_id, stale!.id)),
+    ).toHaveLength(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Org deletion
+// ---------------------------------------------------------------------------
+
+describe("deleting an organization", () => {
+  it("purges every chat, transcript and usage row with it", async () => {
+    const org = await seedOrganization()
+    const scope = await scopeFor(org, "owner")
+    const created = await createChat(scope)
+    await appendChatMessage(scope, created.id, {
+      role: "user",
+      content: "dotaz pred smazanim organizace",
+    })
+    await recordAssistantUsage(scope, { inputTokens: 10, outputTokens: 5 })
+
+    // A direct DB delete, not a Server Action: the office act that deletes an
+    // organization (spec §2.10 danger zone) is PR 37/38 UI work. What this
+    // proves is the FK cascade every one of those paths will rely on — `chat`,
+    // `chat_message` and `chat_usage` each carry their own
+    // `organization_id` REFERENCES … ON DELETE CASCADE (db/schema/chat*.ts),
+    // so the purge needs no application code of its own.
+    await betaDb()
+      .delete(organization)
+      .where(eq(organization.id, org.organizationId))
+
+    expect(
+      await betaDb()
+        .select({ id: chat.id })
+        .from(chat)
+        .where(eq(chat.id, created.id)),
+    ).toHaveLength(0)
+    expect(
+      await betaDb()
+        .select({ id: chat_message.id })
+        .from(chat_message)
+        .where(eq(chat_message.chat_id, created.id)),
+    ).toHaveLength(0)
+    expect(
+      await betaDb()
+        .select({ organizationId: chat_usage.organization_id })
+        .from(chat_usage)
+        .where(eq(chat_usage.organization_id, org.organizationId)),
     ).toHaveLength(0)
   })
 })

@@ -125,7 +125,22 @@ describe("BetaAppStack", () => {
   const { appStack } = buildBetaApp()
   const template = Template.fromStack(appStack)
 
-  it("runs one Fargate service with a 256/512 arm64 task", () => {
+  // The stack now defines TWO task definitions — the long-running app
+  // service and the daily Asistent-retention scheduled task — so every
+  // assertion below finds the app one BY its containers rather than assuming
+  // array position, which CDK's synth output does not guarantee.
+  function findAppTaskDefContainers(): { Name: string }[] {
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    for (const def of Object.values(taskDefs)) {
+      const containers = (def.Properties?.ContainerDefinitions ?? []) as {
+        Name: string
+      }[]
+      if (containers.some((c) => c.Name === "cloudflared")) return containers
+    }
+    throw new Error("no task definition with a cloudflared container found")
+  }
+
+  it("runs one Fargate service with a 256/512 arm64 app task", () => {
     template.resourceCountIs("AWS::ECS::Service", 1)
     template.hasResourceProperties("AWS::ECS::TaskDefinition", {
       Cpu: "256",
@@ -134,13 +149,14 @@ describe("BetaAppStack", () => {
         CpuArchitecture: "ARM64",
         OperatingSystemFamily: "LINUX",
       },
+      ContainerDefinitions: Match.arrayWith([
+        Match.objectLike({ Name: "cloudflared" }),
+      ]),
     })
   })
 
   it("defines exactly two containers: the beta app and its own cloudflared", () => {
-    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
-    const containers = Object.values(taskDefs)[0]?.Properties
-      ?.ContainerDefinitions as { Name: string }[]
+    const containers = findAppTaskDefContainers()
     expect(containers.map((c) => c.Name).sort()).toEqual([
       "beta",
       "cloudflared",
@@ -148,9 +164,7 @@ describe("BetaAppStack", () => {
   })
 
   it("reads the tunnel token from beta's own SSM SecureString parameter", () => {
-    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
-    const containers = Object.values(taskDefs)[0]?.Properties
-      ?.ContainerDefinitions as {
+    const containers = findAppTaskDefContainers() as {
       Name: string
       Secrets?: { Name: string; ValueFrom: unknown }[]
     }[]
@@ -164,12 +178,36 @@ describe("BetaAppStack", () => {
   it("never sets a cross-subdomain auth cookie domain", () => {
     // A leading-dot `.afframe.com` cookie here would collide with the main
     // app's SSO cookie on the same apex (plan Part 1 addendum / B4-2).
-    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
-    const containers = Object.values(taskDefs)[0]?.Properties
-      ?.ContainerDefinitions as { Environment?: { Name: string }[] }[]
+    const containers = findAppTaskDefContainers() as {
+      Environment?: { Name: string }[]
+    }[]
     const names = containers.flatMap((c) =>
       (c.Environment ?? []).map((e) => e.Name),
     )
     expect(names).not.toContain("BETTER_AUTH_COOKIE_DOMAIN")
+  })
+
+  it("schedules the Asistent retention sweep once a day, against its own task", () => {
+    template.resourceCountIs("AWS::Events::Rule", 1)
+    template.hasResourceProperties("AWS::Events::Rule", {
+      ScheduleExpression: "cron(0 2 * * ? *)",
+    })
+
+    const taskDefs = template.findResources("AWS::ECS::TaskDefinition")
+    const purgeDef = Object.values(taskDefs).find((def) => {
+      const containers = (def.Properties?.ContainerDefinitions ?? []) as {
+        Name: string
+      }[]
+      return containers.some((c) => c.Name === "purge")
+    })
+    expect(purgeDef).toBeDefined()
+    const containers = purgeDef!.Properties!.ContainerDefinitions as {
+      Name: string
+      Command?: string[]
+    }[]
+    expect(containers).toHaveLength(1)
+    expect(containers[0]?.Command?.[0]).toContain(
+      "purge/purge-expired-chats.mjs",
+    )
   })
 })

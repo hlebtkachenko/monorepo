@@ -14,9 +14,15 @@ import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
 import { PageHeader, SectionTitle } from "../../../../_components/page-header"
 
+import { EntrySheet } from "../../_components/entry-sheet"
+import { ManualBatchPeriodFields } from "../../_components/manual-batch-period-fields"
 import { resolveOrgScope } from "../../_lib/org-scope"
 
-import { uploadCsvBatchAction } from "../_actions/uzaverka"
+import {
+  startManualBatchAction,
+  uploadCsvBatchAction,
+} from "../_actions/uzaverka"
+import { START_MANUAL_BATCH_IDLE } from "../_actions/uzaverka-state"
 
 import { BatchHistory } from "./_components/batch-history"
 import { CompletenessMatrix } from "./_components/completeness-matrix"
@@ -69,7 +75,29 @@ export default async function UzaverkaPage({
 
   return (
     <div className="grid gap-6 p-6">
-      <PageHeader title={t("uzaverka.title")} intro={t("uzaverka.intro")} />
+      <PageHeader
+        title={t("uzaverka.title")}
+        intro={t("uzaverka.intro")}
+        actions={
+          <EntrySheet
+            action={startManualBatchAction}
+            idle={START_MANUAL_BATCH_IDLE}
+            hidden={{ orgSlug, dataset: "saldokonto", periodKind: "month" }}
+            triggerLabel={t("uzaverka.startSaldokontoTrigger")}
+            triggerVariant="default"
+            title={t("uzaverka.startSaldokontoTitle")}
+            description={t("uzaverka.startSaldokontoDescription")}
+            submitLabel={t("uzaverka.startSaldokontoSubmit")}
+          >
+            <ManualBatchPeriodFields
+              t={t}
+              idPrefix="start-saldokonto-uzaverka"
+              defaultMonth={view.period?.month ?? now.getMonth() + 1}
+              defaultYear={view.period?.year ?? now.getFullYear()}
+            />
+          </EntrySheet>
+        }
+      />
 
       {view.periods.length > 0 ? (
         <nav

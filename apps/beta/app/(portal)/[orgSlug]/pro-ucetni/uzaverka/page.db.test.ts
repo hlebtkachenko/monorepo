@@ -279,6 +279,9 @@ describe("UzaverkaPage — the owner gate", () => {
     expect(html).toContain("uzaverka.matrixTitle")
     expect(html).toContain("uzaverka.historyTitle")
     expect(html).toContain("uzaverka.uploadTitle")
+    // The manual-batch-start trigger (manual-entry plan §3, W1) — a Sheet, so
+    // only the trigger itself (not its portalled content) is in this markup.
+    expect(html).toContain("uzaverka.startSaldokontoTrigger")
     // The published VZZ row shows its state, its file and its row count.
     expect(html).toContain("uzaverka.statePublished")
     expect(html).toContain("vysledovka-07-2026.csv")

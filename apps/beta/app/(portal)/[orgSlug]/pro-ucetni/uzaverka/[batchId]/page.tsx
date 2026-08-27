@@ -9,6 +9,7 @@ import { formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import {
   officeBatchFor,
+  partnerSaldoLinesForBatch,
   statementLinesForBatch,
   trialBalanceLinesForBatch,
 } from "@/lib/data/imports"
@@ -32,6 +33,7 @@ import {
 } from "../../_actions/uzaverka"
 
 import { ConfirmActionForm } from "../_components/confirm-action-form"
+import { PartnerSaldoBatchTable } from "../_components/partner-saldo-batch-table"
 
 /**
  * One batch, with its rows — the preview step of spec §3.2's manual fallback,
@@ -75,24 +77,28 @@ export default async function BatchPreviewPage({
   const batch = await officeBatchFor(owner, batchId)
   if (!batch) notFound()
 
-  const [aktiva, pasiva, vzz, trialBalance] = await Promise.all([
-    batch.dataset === "rozvaha"
-      ? statementLinesForBatch(owner, batch.id, {
-          statementKind: "rozvaha_aktiva",
-        })
-      : Promise.resolve([]),
-    batch.dataset === "rozvaha"
-      ? statementLinesForBatch(owner, batch.id, {
-          statementKind: "rozvaha_pasiva",
-        })
-      : Promise.resolve([]),
-    batch.dataset === "vzz"
-      ? statementLinesForBatch(owner, batch.id, { statementKind: "vzz" })
-      : Promise.resolve([]),
-    batch.dataset === "predvaha"
-      ? trialBalanceLinesForBatch(owner, batch.id)
-      : Promise.resolve([]),
-  ])
+  const [aktiva, pasiva, vzz, trialBalance, partnerSaldoLines] =
+    await Promise.all([
+      batch.dataset === "rozvaha"
+        ? statementLinesForBatch(owner, batch.id, {
+            statementKind: "rozvaha_aktiva",
+          })
+        : Promise.resolve([]),
+      batch.dataset === "rozvaha"
+        ? statementLinesForBatch(owner, batch.id, {
+            statementKind: "rozvaha_pasiva",
+          })
+        : Promise.resolve([]),
+      batch.dataset === "vzz"
+        ? statementLinesForBatch(owner, batch.id, { statementKind: "vzz" })
+        : Promise.resolve([]),
+      batch.dataset === "predvaha"
+        ? trialBalanceLinesForBatch(owner, batch.id)
+        : Promise.resolve([]),
+      batch.dataset === "saldokonto"
+        ? partnerSaldoLinesForBatch(owner, batch.id)
+        : Promise.resolve([]),
+    ])
 
   return (
     <div className="grid gap-6 p-6">
@@ -193,6 +199,10 @@ export default async function BatchPreviewPage({
 
       {batch.dataset === "predvaha" ? (
         <TrialBalanceTable lines={trialBalance} />
+      ) : null}
+
+      {batch.dataset === "saldokonto" ? (
+        <PartnerSaldoBatchTable lines={partnerSaldoLines} />
       ) : null}
     </div>
   )

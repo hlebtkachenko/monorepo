@@ -1773,6 +1773,49 @@ export function partnerSaldoView(
   }
 }
 
+/**
+ * One partner_saldo row of a BATCH — not "the newest published for this
+ * organization" (that is `PartnerSaldoView`, above), but the rows of one
+ * specific `import_batch_id`, published or still a draft. The office's own
+ * preview of a saldokonto batch (`uzaverka/[batchId]`, manual-entry plan §3
+ * W1) reads this shape: `saldokontoForScope`'s aging classification and
+ * window-sum totals are a CLIENT reading of "the current position" and mean
+ * nothing for a draft that has not gone live, or for a superseded batch being
+ * reviewed as history.
+ *
+ * Mirrors `TrialBalanceLineView`'s shape and the same money-as-string rule:
+ * `numeric(14,2)`, never parsed, a null an unstated side rather than a zero.
+ */
+export type PartnerSaldoLineView = {
+  id: string
+  partnerId: string
+  partnerName: string
+  /** "Dlužné nám". */
+  receivableTotal: string | null
+  /** "Dlužíme". */
+  payableTotal: string | null
+  /** The oldest unpaid splatnost, or null when none was stated. */
+  oldestDue: string | null
+}
+
+export function partnerSaldoLineView(
+  row: Pick<
+    PartnerSaldoRow,
+    "id" | "partner_id" | "receivable_total" | "payable_total" | "oldest_due"
+  > & {
+    partner_name: string
+  },
+): PartnerSaldoLineView {
+  return {
+    id: row.id,
+    partnerId: row.partner_id,
+    partnerName: row.partner_name,
+    receivableTotal: row.receivable_total,
+    payableTotal: row.payable_total,
+    oldestDue: row.oldest_due,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Payroll — Mzdy (spec §2.6, §2.6.1, §5)
 // ---------------------------------------------------------------------------

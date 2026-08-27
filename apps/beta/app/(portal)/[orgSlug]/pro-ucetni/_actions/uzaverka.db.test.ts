@@ -45,6 +45,7 @@ const { requireOwner, requireScope } = await import("@/lib/data/scope")
 const {
   createDraftBatch,
   officeBatchHistoryFor,
+  partnerSaldoLinesForBatch,
   publishBatch,
   publishedBatchFor,
   statementLinesForBatch,
@@ -459,6 +460,129 @@ describe("publish and rollback — the effect a client sees", () => {
         fd({ orgSlug: fresh.slug, periodId: "nope", dataset: "vzz" }),
       ),
     ).toEqual({ status: "error", error: "uzaverka.errorInvalidInput" })
+  })
+})
+
+describe("startManualBatchAction — an empty draft, straight to its preview", () => {
+  it("starts an empty saldokonto draft, creates its period, and redirects to the preview", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+
+    const digest = await expectRedirect(() =>
+      actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "saldokonto",
+          periodKind: "month",
+          year: "2026",
+          month: "7",
+        }),
+      ),
+    )
+    expect(digest).toContain(`/${fresh.slug}/pro-ucetni/uzaverka/`)
+
+    // The period the start named did not exist before it.
+    const periods = await reportingPeriodsForScope(owner, { kind: "month" })
+    expect(periods.map((period) => period.month)).toContain(7)
+
+    const history = await officeBatchHistoryFor(owner, {
+      dataset: "saldokonto",
+    })
+    expect(history).toHaveLength(1)
+    const draft = history[0]!
+    expect(draft.status).toBe("draft")
+    expect(draft.source).toBe("manual")
+    expect(draft.filename).toBeNull()
+    expect(draft.rowCount).toBe(0)
+
+    // No rows yet — W2 (the row drawer) adds them on this exact draft.
+    expect(await partnerSaldoLinesForBatch(owner, draft.id)).toEqual([])
+
+    // A draft is invisible to the client — the same rule the CSV fallback obeys.
+    as(fresh.members.member.headers)
+    const clientScope = await requireScope(fresh.slug)
+    expect(
+      await publishedBatchFor(clientScope, {
+        periodId: draft.period.id,
+        dataset: "saldokonto",
+      }),
+    ).toBeNull()
+  })
+
+  it("refuses payroll — its summary is required, so an empty start cannot express it", async () => {
+    const fresh = await seedOrganization()
+    await ownerScope(fresh)
+
+    expect(
+      await actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "payroll",
+          periodKind: "month",
+          year: "2026",
+          month: "7",
+        }),
+      ),
+    ).toEqual({ status: "error", error: "uzaverka.errorInvalidInput" })
+  })
+
+  it("refuses an unrecognised dataset and a bad period", async () => {
+    const fresh = await seedOrganization()
+    await ownerScope(fresh)
+
+    expect(
+      await actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "nope",
+          periodKind: "month",
+          year: "2026",
+          month: "7",
+        }),
+      ),
+    ).toEqual({ status: "error", error: "uzaverka.errorInvalidInput" })
+
+    expect(
+      await actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "saldokonto",
+          periodKind: "month",
+          year: "2026",
+          month: "13",
+        }),
+      ),
+    ).toEqual({ status: "error", error: "uzaverka.errorPeriodInvalid" })
+  })
+
+  it("refuses every non-owner role", async () => {
+    const fresh = await seedOrganization()
+    await ownerScope(fresh)
+
+    for (const role of ["admin", "member", "guest"] as const) {
+      as(fresh.members[role].headers)
+      await expect404(
+        () =>
+          actions.startManualBatchAction(
+            IDLE,
+            fd({
+              orgSlug: fresh.slug,
+              dataset: "saldokonto",
+              periodKind: "month",
+              year: "2026",
+              month: "7",
+            }),
+          ),
+        `${role} must not start a manual batch`,
+      )
+    }
+
+    const owner = await ownerScope(fresh)
+    expect(await officeBatchHistoryFor(owner)).toEqual([])
   })
 })
 

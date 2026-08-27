@@ -43,6 +43,26 @@ export type UzaverkaActionState =
 export const UZAVERKA_ACTION_IDLE: UzaverkaActionState = { status: "idle" }
 
 /**
+ * `startManualBatchAction`'s own return shape — `UzaverkaActionState` MINUS
+ * `csv_rejected`, the CSV fallback's own multi-line refusal shape that action
+ * never produces. `EntrySheet` (manual-entry plan §2.1/W0) is generic over a
+ * CLOSED `idle | ok | error` state; a return type that still carried the
+ * fourth arm would fail EntrySheet's own generic constraint structurally,
+ * even though the action never returns it — so the type states the same
+ * thing the runtime already guarantees. A dedicated idle constant travels
+ * with it: `UZAVERKA_ACTION_IDLE` above is typed as the WIDER
+ * `UzaverkaActionState`, which is not assignable to this narrower one.
+ */
+export type StartManualBatchState = Exclude<
+  UzaverkaActionState,
+  { status: "csv_rejected" }
+>
+
+export const START_MANUAL_BATCH_IDLE: StartManualBatchState = {
+  status: "idle",
+}
+
+/**
  * How many row issues are listed before the rest become a count.
  *
  * A file with 300 bad rows has one cause, not 300, and a screen of identical

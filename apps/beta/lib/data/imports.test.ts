@@ -22,6 +22,7 @@ import {
 import {
   createImportBatchRow,
   createMonthPeriod,
+  createPartnerRow,
   createReportingPeriod,
   createTrialBalanceLineRow,
   endFixtures,
@@ -85,6 +86,7 @@ const {
   deleteDraftBatch,
   officeBatchFor,
   officeBatchHistoryFor,
+  partnerSaldoLinesForBatch,
   publishBatch,
   publishedBatchFor,
   publishedPeriodsForDataset,
@@ -1020,6 +1022,95 @@ describe("reads — drafts are never served, and never leak", () => {
     const scope = await ownerScope(orgA)
     expect(await trialBalanceLinesForBatch(scope, foreignBatch)).toEqual([])
     expect(await statementLinesForBatch(scope, foreignBatch)).toEqual([])
+    expect(await partnerSaldoLinesForBatch(scope, foreignBatch)).toEqual([])
+  })
+})
+
+describe("partnerSaldoLinesForBatch — the saldokonto batch preview (manual-entry plan §3, W1)", () => {
+  it("joins each row to its partner and returns the office's own figures verbatim, by partner name", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+    const acme = await createPartnerRow(org.organizationId, {
+      name: "ACME s.r.o.",
+    })
+    const beta = await createPartnerRow(org.organizationId, {
+      name: "Beta Trading",
+    })
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [
+        {
+          partnerId: beta,
+          receivableTotal: "12500.50",
+          payableTotal: null,
+          oldestDue: null,
+        },
+        {
+          partnerId: acme,
+          receivableTotal: null,
+          payableTotal: "3400.00",
+          oldestDue: "2026-05-01",
+        },
+      ],
+    })
+
+    const lines = await partnerSaldoLinesForBatch(scope, batch.id)
+    // Ordered by partner NAME, not insertion order — ACME before Beta.
+    expect(lines.map((line) => line.partnerName)).toEqual([
+      "ACME s.r.o.",
+      "Beta Trading",
+    ])
+    expect(lines[0]).toEqual({
+      id: expect.any(String),
+      partnerId: acme,
+      partnerName: "ACME s.r.o.",
+      receivableTotal: null,
+      payableTotal: "3400.00",
+      oldestDue: "2026-05-01",
+    })
+    expect(lines[1]).toMatchObject({
+      partnerId: beta,
+      partnerName: "Beta Trading",
+      receivableTotal: "12500.50",
+      payableTotal: null,
+    })
+  })
+
+  it("is invisible to a non-owner while the batch is a draft", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const owner = await ownerScope(org)
+    const partnerId = await createPartnerRow(org.organizationId)
+    const batch = await createDraftBatch(owner, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [{ partnerId, receivableTotal: "100.00" }],
+    })
+
+    as(org.members.member.headers)
+    const scope = await requireScope(org.slug)
+    expect(await partnerSaldoLinesForBatch(scope, batch.id)).toEqual([])
+  })
+
+  it("returns an empty array for an empty manual draft, the `startManualBatchAction` shape", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [],
+    })
+
+    expect(batch.rowCount).toBe(0)
+    expect(await partnerSaldoLinesForBatch(scope, batch.id)).toEqual([])
   })
 })
 

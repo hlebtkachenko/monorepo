@@ -26,6 +26,7 @@ import {
   CSV_ISSUE_LIMIT,
   CSV_ISSUE_MESSAGE_KEY,
   CSV_STRUCTURAL_MESSAGE_KEY,
+  type StartManualBatchState,
   type UzaverkaActionState,
 } from "./uzaverka-state"
 
@@ -375,6 +376,123 @@ const IMPORT_DATASETS: readonly BetaImportDataset[] = [
 function formDataset(formData: FormData): BetaImportDataset | null {
   const value = formString(formData, "dataset")
   return IMPORT_DATASETS.find((dataset) => dataset === value) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// The manual batch start (manual-entry plan §3, W1) — an EMPTY draft, rows
+// added afterwards on its own preview
+// ---------------------------------------------------------------------------
+
+/**
+ * Datasets `startManualBatchAction` may open with an EMPTY payload.
+ *
+ * `payroll` IS DELIBERATELY ABSENT. `ImportBatchPayload`'s payroll arm makes
+ * `payrollSummary` REQUIRED (`imports.ts`'s own comment states why: a payroll
+ * batch with lines and no summary would render Přehled mezd and Zaměstnanci
+ * disagreeing about whether the period exists), so an empty payroll batch is
+ * not a value that type can express. W4 (the plan's payroll-period wave)
+ * extends this action with the summary fields rather than reusing an empty
+ * start.
+ */
+const MANUAL_START_DATASETS = [
+  "predvaha",
+  "rozvaha",
+  "vzz",
+  "saldokonto",
+] as const
+
+type ManualStartDataset = (typeof MANUAL_START_DATASETS)[number]
+
+function formManualStartDataset(formData: FormData): ManualStartDataset | null {
+  const value = formString(formData, "dataset")
+  return MANUAL_START_DATASETS.find((dataset) => dataset === value) ?? null
+}
+
+/**
+ * An empty payload for one of the four datasets above.
+ *
+ * A `switch` over the literal dataset, mirroring `writeDraft`'s own: spreading
+ * a generic object into `ImportBatchInput` would launder the exact guarantee
+ * that discriminated union exists to give — a dataset paired with the WRONG
+ * array is a compile error here, not a runtime one.
+ */
+function emptyManualBatch(
+  owner: OwnerScope,
+  dataset: ManualStartDataset,
+  periodId: string,
+): ReturnType<typeof createDraftBatch> {
+  const common = { periodId, source: "manual" as const }
+  switch (dataset) {
+    case "predvaha":
+      return createDraftBatch(owner, {
+        ...common,
+        dataset,
+        trialBalanceLines: [],
+      })
+    case "rozvaha":
+    case "vzz":
+      return createDraftBatch(owner, {
+        ...common,
+        dataset,
+        statementLines: [],
+      })
+    case "saldokonto":
+      return createDraftBatch(owner, {
+        ...common,
+        dataset,
+        partnerSaldoLines: [],
+      })
+  }
+}
+
+/**
+ * Start a manual batch with NOTHING in it, and send the office straight to its
+ * rows — the `uploadCsvBatchAction` idiom above with the file step removed.
+ *
+ * AN EMPTY DRAFT IS A LEGAL DRAFT: `createDraftBatch` only inserts a dataset's
+ * rows `if (length > 0)`, so this needs no special case at the data layer —
+ * exactly the property the plan's W1 section confirms before relying on it.
+ * `row_count` lands at `0`, which the completeness matrix already renders
+ * correctly (a draft with nothing published yet).
+ *
+ * NEVER PUBLISHES, same as the CSV fallback: the batch stays invisible to
+ * every client until the office adds rows on its own preview and clicks
+ * publish there.
+ */
+export async function startManualBatchAction(
+  _previous: UzaverkaActionState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const dataset = formManualStartDataset(formData)
+  if (dataset === null) {
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+  }
+
+  const period = readPeriodFields(formData)
+  if (period === null) {
+    return { status: "error", error: "uzaverka.errorPeriodInvalid" }
+  }
+
+  let draftId: string
+  try {
+    const reportingPeriod = await ensureReportingPeriod(owner, period)
+    const draft = await emptyManualBatch(owner, dataset, reportingPeriod.id)
+    draftId = draft.id
+  } catch (error) {
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "uzaverka.errorRejected" }
+    }
+    throw error
+  }
+
+  revalidateUzaverka(orgSlug)
+  // OUTSIDE the try, for the same reason `uploadCsvBatchAction` states it:
+  // `redirect` throws, and catching it alongside the database refusals above
+  // would turn a successful start into an error about a constraint that was
+  // never violated.
+  redirect(`/${orgSlug}/pro-ucetni/uzaverka/${draftId}`)
 }
 
 /**

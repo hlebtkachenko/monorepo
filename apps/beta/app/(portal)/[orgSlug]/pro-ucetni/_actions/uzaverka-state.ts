@@ -52,6 +52,12 @@ export const UZAVERKA_ACTION_IDLE: UzaverkaActionState = { status: "idle" }
  * thing the runtime already guarantees. A dedicated idle constant travels
  * with it: `UZAVERKA_ACTION_IDLE` above is typed as the WIDER
  * `UzaverkaActionState`, which is not assignable to this narrower one.
+ *
+ * SHARED, since W2: the saldokonto row actions (`addPartnerSaldoRowAction` /
+ * `updatePartnerSaldoRowAction` / `deletePartnerSaldoRowAction`) return this
+ * same type rather than a second, structurally identical alias — they never
+ * produce `csv_rejected` either, and they live in the same `uzaverka.ts` file
+ * this type was built for.
  */
 export type StartManualBatchState = Exclude<
   UzaverkaActionState,

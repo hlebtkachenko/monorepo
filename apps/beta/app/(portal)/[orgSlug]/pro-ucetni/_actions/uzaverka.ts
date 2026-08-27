@@ -7,21 +7,32 @@ import { redirect } from "next/navigation"
 
 import type { BetaImportDataset } from "@/db/schema"
 import {
+  addPartnerSaldoRow,
   createDraftBatch,
   deleteDraftBatch,
+  deletePartnerSaldoRow,
   publishBatch,
   rollbackDataset,
+  updatePartnerSaldoRow,
+  type PartnerSaldoLineInput,
 } from "@/lib/data/imports"
 import { ensureReportingPeriod } from "@/lib/data/reporting-periods"
 import { requireOwner, requireScope, type OwnerScope } from "@/lib/data/scope"
-import { isCheckViolation } from "@/lib/pg-error"
+import { isCheckViolation, isUniqueViolation } from "@/lib/pg-error"
 import {
   isCsvDataset,
   readDatasetCsv,
   type CsvDatasetResult,
 } from "@/lib/import/datasets"
 
-import { formInteger, formPeriodKind, formString, formUuid } from "./input"
+import {
+  formDecimal,
+  formInteger,
+  formOptionalDate,
+  formPeriodKind,
+  formString,
+  formUuid,
+} from "./input"
 import {
   CSV_ISSUE_LIMIT,
   CSV_ISSUE_MESSAGE_KEY,
@@ -528,4 +539,201 @@ function readPeriodFields(formData: FormData): {
   }
 
   return { kind, year, month, quarter }
+}
+
+// ---------------------------------------------------------------------------
+// The saldokonto row drawer (manual-entry plan §3, W2) — add / edit / remove
+// ONE partner on an EXISTING draft batch, the row-level counterpart to
+// `startManualBatchAction`'s empty start above.
+// ---------------------------------------------------------------------------
+
+/**
+ * A stated total that reads as zero — `"0"`, `"0.0"`, `"0.00"`, the only forms
+ * `formDecimal`'s own shape check lets through. Matches
+ * `partner_saldo_payable_has_oldest_due`'s own `payable_total = 0` exception
+ * exactly: a settled supplier owes no deadline. `Number(...)` is deliberately
+ * NOT used for this — this module keeps money as the string the office typed,
+ * never a float, even for a comparison that never reaches Postgres.
+ */
+const ZERO_DECIMAL = /^0(\.0{1,2})?$/
+
+/**
+ * `INVALID` narrowed to `StartManualBatchState` — `INVALID` itself is typed as
+ * the WIDER `UzaverkaActionState` (it is shared with `publishBatchAction` and
+ * friends, whose `csv_rejected` arm this file's row actions never produce), so
+ * it is not assignable to the narrower return type `EntrySheet` requires. Same
+ * split `START_MANUAL_BATCH_IDLE` makes against `UZAVERKA_ACTION_IDLE`.
+ */
+const SALDO_ROW_INVALID: StartManualBatchState = {
+  status: "error",
+  error: "uzaverka.errorInvalidInput",
+}
+
+/** Everything all three row actions read, or the Czech refusal the form gets back. */
+function readSaldoRowForm(
+  formData: FormData,
+):
+  | { ok: true; value: PartnerSaldoLineInput }
+  | { ok: false; error: StartManualBatchState & { status: "error" } } {
+  const partnerId = formUuid(formData, "partnerId")
+  const receivable = formDecimal(formData, "receivableTotal")
+  const payable = formDecimal(formData, "payableTotal")
+  const oldestDue = formOptionalDate(formData, "oldestDue")
+
+  if (partnerId === null || !receivable.ok || !payable.ok || !oldestDue.ok) {
+    return {
+      ok: false,
+      error: { status: "error", error: "uzaverka.saldoRowErrorInvalidInput" },
+    }
+  }
+
+  // `partner_saldo_states_something` — resolved HERE, matching `loans.ts`'s
+  // own both-or-neither pairs, so the office reads a Czech sentence about the
+  // row it just typed rather than a database refusal on submit.
+  if (receivable.value === null && payable.value === null) {
+    return {
+      ok: false,
+      error: {
+        status: "error",
+        error: "uzaverka.saldoRowErrorStatesNothing",
+      },
+    }
+  }
+
+  // `partner_saldo_payable_has_oldest_due` — a stated, NON-ZERO payable
+  // carries the date it is due.
+  if (
+    payable.value !== null &&
+    !ZERO_DECIMAL.test(payable.value) &&
+    oldestDue.value === null
+  ) {
+    return {
+      ok: false,
+      error: {
+        status: "error",
+        error: "uzaverka.saldoRowErrorPayableNeedsOldestDue",
+      },
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      partnerId,
+      receivableTotal: receivable.value,
+      payableTotal: payable.value,
+      oldestDue: oldestDue.value,
+    },
+  }
+}
+
+/**
+ * Add or edit's own guard: `partner_saldo_identity_unique` (one row per
+ * partner per batch) is a UNIQUE index, not a CHECK, so it fails
+ * `isCheckViolation` and needs its own arm alongside `guarded()`'s. A
+ * dedicated helper rather than widening `guarded()` itself — `publishBatch`
+ * and `rollbackDataset` already turn their own unique-index races into a typed
+ * `PublishOutcome`/`RollbackOutcome` before `guarded()` ever sees them, so no
+ * existing caller of `guarded()` needs a second arm it would never take.
+ */
+async function guardedSaldoRowWrite(
+  write: () => Promise<StartManualBatchState>,
+): Promise<StartManualBatchState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return { status: "error", error: "uzaverka.saldoRowErrorDuplicate" }
+    }
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "uzaverka.errorRejected" }
+    }
+    throw error
+  }
+}
+
+/** Every path that touches a saldokonto batch's rows. */
+function revalidateSaldoBatch(orgSlug: string, batchId: string): void {
+  revalidateUzaverka(orgSlug)
+  revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batchId}`)
+}
+
+export async function addPartnerSaldoRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  if (batchId === null) return SALDO_ROW_INVALID
+
+  const fields = readSaldoRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedSaldoRowWrite(async () => {
+    const row = await addPartnerSaldoRow(owner, batchId, fields.value)
+    if (!row) {
+      return { status: "error", error: "uzaverka.saldoRowErrorNotEditable" }
+    }
+
+    revalidateSaldoBatch(orgSlug, batchId)
+    return { status: "ok", message: "uzaverka.saldoRowOkAdded" }
+  })
+}
+
+export async function updatePartnerSaldoRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return SALDO_ROW_INVALID
+
+  const fields = readSaldoRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedSaldoRowWrite(async () => {
+    const updated = await updatePartnerSaldoRow(
+      owner,
+      batchId,
+      rowId,
+      fields.value,
+    )
+    if (!updated) {
+      return { status: "error", error: "uzaverka.saldoRowErrorNotEditable" }
+    }
+
+    revalidateSaldoBatch(orgSlug, batchId)
+    return { status: "ok", message: "uzaverka.saldoRowOkUpdated" }
+  })
+}
+
+/**
+ * Remove one partner from a draft batch.
+ *
+ * NO `guardedSaldoRowWrite` HERE. `deletePartnerSaldoRow`'s own header states
+ * why: unlike INSERT/UPDATE, a DELETE is not covered by
+ * `beta_import_line_requires_draft_batch`, so the data layer takes the draft
+ * check itself and reports "not editable" as an ordinary `false`, never a
+ * thrown exception — there is nothing here for a catch block to translate.
+ */
+export async function deletePartnerSaldoRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return SALDO_ROW_INVALID
+
+  const deleted = await deletePartnerSaldoRow(owner, batchId, rowId)
+  if (!deleted) {
+    return { status: "error", error: "uzaverka.saldoRowErrorNotEditable" }
+  }
+
+  revalidateSaldoBatch(orgSlug, batchId)
+  return { status: "ok", message: "uzaverka.saldoRowOkDeleted" }
 }

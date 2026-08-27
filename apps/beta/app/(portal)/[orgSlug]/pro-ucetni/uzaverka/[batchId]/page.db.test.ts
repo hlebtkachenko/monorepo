@@ -213,9 +213,20 @@ describe("BatchPreviewPage", () => {
     expect(html).toContain("Zveřejnit")
     expect(html).toContain("Zahodit")
     expect(html).not.toContain("Vrátit poslední import")
+
+    // The row drawer (W2): an add trigger above the table and an edit trigger
+    // per row, both owner-only and both gated on the batch still being a
+    // draft. `EntrySheet`'s `triggerLabel` is resolved by this page's own
+    // (mocked, raw-key) server translator and passed through as a plain
+    // string prop — but the delete form's button calls `useBetaTranslations()`
+    // ITSELF, bound to the real catalog via `NextIntlClientProvider`
+    // (`ConfirmActionForm`'s own pattern), so it renders as real Czech.
+    expect(html).toContain("uzaverka.saldoRowAddTrigger")
+    expect(html).toContain("uzaverka.saldoRowEditTrigger")
+    expect(html).toContain("Smazat")
   })
 
-  it("renders the empty state for a manual saldokonto draft with no rows yet", async () => {
+  it("renders the empty state for a manual saldokonto draft with no rows yet, and still offers the add trigger", async () => {
     const owner = await ownerScope(org)
     const periodId = await createMonthPeriod(org.organizationId)
 
@@ -228,6 +239,38 @@ describe("BatchPreviewPage", () => {
 
     const html = await render(await open(org.slug, draft.id))
     expect(html).toContain("uzaverka.saldokontoBatchEmpty")
+    expect(html).toContain("uzaverka.saldoRowAddTrigger")
+  })
+
+  it("previews a PUBLISHED saldokonto and hides every row-drawer control", async () => {
+    const owner = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    const acme = await createPartnerRow(org.organizationId, {
+      name: "Zveřejněný Partner s.r.o.",
+    })
+
+    const batch = await createDraftBatch(owner, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [
+        {
+          partnerId: acme,
+          receivableTotal: "1000.00",
+          payableTotal: null,
+          oldestDue: null,
+        },
+      ],
+    })
+    await publishBatch(owner, batch.id)
+
+    const html = await render(await open(org.slug, batch.id))
+
+    expect(html).toContain("Zveřejněný Partner s.r.o.")
+    expect(html).toContain("uzaverka.statusPublished")
+    expect(html).not.toContain("uzaverka.saldoRowAddTrigger")
+    expect(html).not.toContain("uzaverka.saldoRowEditTrigger")
+    expect(html).not.toContain("Smazat")
   })
 
   it("answers 404 to every non-owner role", async () => {

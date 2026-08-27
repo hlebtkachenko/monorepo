@@ -14,6 +14,7 @@ import {
 } from "@/lib/data/employee-seat"
 import { requireScope } from "@/lib/data/scope"
 
+import { formString, formUuid } from "./input"
 import type { MzdyActionState } from "./state"
 
 /**
@@ -77,30 +78,6 @@ export async function inviteEmployeeSeatAction(
     email: result.link.email,
     expiresAt: result.link.expiresAt.toISOString(),
   }
-}
-
-/**
- * Reading the two fields this boundary accepts.
- *
- * Duplicated from `nastaveni/_actions/input.ts` for the reason that file states
- * about ITS duplication from `admin/_actions/input.ts`: each write boundary
- * declares which fields it reads, and a shared "form input" module is how one
- * surface ends up accepting a field the other never meant to offer.
- */
-function formString(formData: FormData, key: string): string {
-  const value = formData.get(key)
-  return typeof value === "string" ? value.trim() : ""
-}
-
-/**
- * Postgres answers a non-uuid `= $1` against a uuid column with 22P02, which
- * reaches the browser as a 500. A malformed id has to be an ordinary refusal.
- */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-function formUuid(formData: FormData, key: string): string | null {
-  const value = formString(formData, key)
-  return UUID.test(value) ? value : null
 }
 
 function inviteErrorKey(reason: EmployeeSeatInviteRejection): BetaMessageKey {

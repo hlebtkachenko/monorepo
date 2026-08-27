@@ -10,8 +10,6 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import type { BetaPayrollContractType } from "@/db/schema"
-import type { BetaMessageKey } from "@/i18n/messages"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { managesPeople } from "@/lib/auth/invite-policy"
 import {
@@ -22,29 +20,31 @@ import {
 } from "@/lib/data/payroll"
 import { formatBetaDate } from "@/lib/format/date"
 import { formatBetaMoney } from "@/lib/format/money"
+import { PAYROLL_CONTRACT_TYPE_LABEL_KEY } from "@/lib/payroll-labels"
 
+import { EntrySheet } from "../../_components/entry-sheet"
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { PeriodPicker } from "../_components/period-picker"
 import { PERIOD_PARAM, selectPeriod } from "../_lib/period-selection"
 
+import {
+  createPayrollEmployeeAction,
+  updatePayrollEmployeeAction,
+} from "../_actions/employees"
+import { EMPLOYEE_ACTION_IDLE } from "../_actions/employee-state"
+import { EmployeeFields } from "../_components/employee-fields"
 import { EmployeeSeatInvite } from "./_components/employee-seat-invite"
-
-const CONTRACT_TYPE_LABEL: Record<BetaPayrollContractType, BetaMessageKey> = {
-  hpp: "mzdy.contractHpp",
-  dpc: "mzdy.contractDpc",
-  dpp: "mzdy.contractDpp",
-}
 
 /**
  * Zaměstnanci (spec §2.6): "employee register + per-employee monthly lines
  * (hrubá, srážky, čistá, náklad), month picker; import via uzávěrka payroll
  * dataset or manual. Management seats see all."
  *
- * READ-ONLY, MANAGEMENT SEATS ONLY. `mzdy/layout.tsx` already refuses every
- * other role before a browser reaches this page; the `payrollScope` check is
- * repeated here for the same reason `mzdy/page.tsx` repeats it — a page-level
- * test calls this function directly, and the gate that answers a definitive
- * 404 must be provable on its own terms.
+ * MANAGEMENT SEATS ONLY. `mzdy/layout.tsx` already refuses every other role
+ * before a browser reaches this page; the `payrollScope` check is repeated
+ * here for the same reason `mzdy/page.tsx` repeats it — a page-level test
+ * calls this function directly, and the gate that answers a definitive 404
+ * must be provable on its own terms.
  *
  * THE REGISTER, NOT THE MONTH, DRIVES THE ROW LIST. Every employee this
  * organization has ever had — leavers included, spec §2.6.1's "ended_on and
@@ -73,12 +73,13 @@ const CONTRACT_TYPE_LABEL: Record<BetaPayrollContractType, BetaMessageKey> = {
  * deactivating it is Nastavení › Lidé's `setMemberActive`, where every other
  * membership write already lives and where the ceiling is already enforced.
  *
- * EDITING THE REGISTER IS NOT THIS PAGE'S JOB. `payroll.ts` already exposes
- * `createPayrollEmployee` / `updatePayrollEmployee` (owner-only writes), but
- * spec's own §3.3 form list for Pro účetní › Zadávání dat does not name
- * `payroll_employee` yet — building an edit affordance here would be inventing
- * a workflow the spec has not placed. This page stays read-only, the same
- * depth spec's own map gives every OTHER Mzdy leaf.
+ * REGISTER WRITES (manual-entry plan §3.3, W3): a page-header "Přidat
+ * zaměstnance" `EntrySheet` and, per row, an "Upravit" one — both owner-only
+ * (`isOwner`, mirroring `finance/uvery/page.tsx`'s own gate; `payroll.ts`'s
+ * `createPayrollEmployee`/`updatePayrollEmployee` already take an
+ * `OwnerScope` regardless of what this page renders). `external_ref` is not a
+ * field either sheet exposes — `employees.ts`'s header states why a
+ * hand-typed row must stay unreachable by the agent's own match key.
  */
 export default async function ZamestnanciPage({
   params,
@@ -115,12 +116,28 @@ export default async function ZamestnanciPage({
   const notStated = t("mzdy.amountNotStated")
   const money = (value: string | null | undefined) =>
     (value ? formatBetaMoney(value) : null) ?? notStated
+  const isOwner = scope.role === "owner"
 
   return (
     <div className="grid gap-4">
-      <h1 className="font-heading text-lg font-semibold">
-        {t("mzdy.zamestnanciTitle")}
-      </h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="font-heading text-lg font-semibold">
+          {t("mzdy.zamestnanciTitle")}
+        </h1>
+        {isOwner ? (
+          <EntrySheet
+            action={createPayrollEmployeeAction}
+            idle={EMPLOYEE_ACTION_IDLE}
+            hidden={{ orgSlug }}
+            triggerLabel={t("mzdy.zamestnanciAddTitle")}
+            title={t("mzdy.zamestnanciAddTitle")}
+            description={t("mzdy.zamestnanciAddDescription")}
+            submitLabel={t("mzdy.zamestnanciAddSubmit")}
+          >
+            <EmployeeFields t={t} idPrefix="new-employee" />
+          </EntrySheet>
+        ) : null}
+      </div>
 
       {periods.length > 0 ? (
         <PeriodPicker basePath={basePath} periods={periods} current={period} />
@@ -176,9 +193,28 @@ export default async function ZamestnanciPage({
                         {t("mzdy.seatEndedWarning")}
                       </span>
                     ) : null}
+                    {isOwner ? (
+                      <div className="mt-1">
+                        <EntrySheet
+                          action={updatePayrollEmployeeAction}
+                          idle={EMPLOYEE_ACTION_IDLE}
+                          hidden={{ orgSlug, employeeId: employee.id }}
+                          triggerLabel={t("mzdy.zamestnanciEditTitle")}
+                          title={t("mzdy.zamestnanciEditTitle")}
+                          description={t("mzdy.zamestnanciEditDescription")}
+                          submitLabel={t("mzdy.zamestnanciEditSubmit")}
+                        >
+                          <EmployeeFields
+                            t={t}
+                            idPrefix={`employee-${employee.id}`}
+                            employee={employee}
+                          />
+                        </EntrySheet>
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell>
-                    {t(CONTRACT_TYPE_LABEL[employee.contractType])}
+                    {t(PAYROLL_CONTRACT_TYPE_LABEL_KEY[employee.contractType])}
                   </TableCell>
                   <TableCell>
                     {employee.startedOn

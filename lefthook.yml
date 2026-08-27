@@ -106,14 +106,19 @@ pre-push:
       # non-release PR must add one fragment under changelog.d/. Release PRs
       # with a `chore(release): vX.Y.Z` title are exempt because they run the
       # collector, which consumes fragments into a versioned section.
+      #
+      # Base is resolved dynamically (scripts/ci/resolve-base.sh) instead of
+      # hardcoded origin/main: on a beta/* branch (base main-beta) pinning
+      # origin/main measures the whole main<->main-beta divergence.
       glob: "*"
       run: |
-        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
-          echo "[lefthook changelog-fragment] origin/main not fetched — skipping. Run: git fetch origin main"
+        base="$(bash scripts/ci/resolve-base.sh)"
+        if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+          echo "[lefthook changelog-fragment] $base not fetched — skipping. Run: git fetch origin main main-beta"
           exit 0
         fi
         node scripts/governance/check-changelog-fragment.mjs \
-          --base origin/main \
+          --base "$base" \
           --head HEAD \
           --title "$(git log -1 --format='%s')"
     nav-drift:
@@ -190,16 +195,21 @@ pre-push:
       run: pnpm turbo boundaries
     size-cap:
       # Mirrors `.github/workflows/size-cap.yml`. Hard cap 2000 lines added
-      # (warn at 800) vs origin/main. Common review-burden gate. Excludes
-      # the same noise paths as the workflow (lockfile, migrations meta,
-      # binary assets). Sub-second.
+      # (warn at 800) vs the resolved base. Common review-burden gate.
+      # Excludes the same noise paths as the workflow (lockfile, migrations
+      # meta, binary assets). Sub-second.
+      #
+      # Base is resolved dynamically (scripts/ci/resolve-base.sh) instead of
+      # hardcoded origin/main: on a beta/* branch (base main-beta) pinning
+      # origin/main measures the whole main<->main-beta divergence.
       glob: "*"
       run: |
-        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
-          echo "[lefthook size-cap] origin/main not fetched — skipping. Run: git fetch origin main"
+        base="$(bash scripts/ci/resolve-base.sh)"
+        if ! git rev-parse --verify --quiet "$base" >/dev/null; then
+          echo "[lefthook size-cap] $base not fetched — skipping. Run: git fetch origin main main-beta"
           exit 0
         fi
-        stat=$(git diff --shortstat origin/main...HEAD -- \
+        stat=$(git diff --shortstat "$base"...HEAD -- \
           ':!pnpm-lock.yaml' \
           ':!**/migrations/meta/**' \
           ':!**/*.svg' \
@@ -221,15 +231,20 @@ pre-push:
       # 32/32 cold rebuild. Warn (never block) when a PR mixes such a file with
       # feature code, so the split is a conscious choice — a lockfile bump does
       # sometimes legitimately ride with a dep-using feature. Sub-second.
+      #
+      # Base is resolved dynamically (scripts/ci/resolve-base.sh) instead of
+      # hardcoded origin/main: on a beta/* branch (base main-beta) pinning
+      # origin/main measures the whole main<->main-beta divergence.
       glob: "*"
       run: |
-        if ! git rev-parse --verify --quiet origin/main >/dev/null; then
+        base="$(bash scripts/ci/resolve-base.sh)"
+        if ! git rev-parse --verify --quiet "$base" >/dev/null; then
           exit 0
         fi
-        busters=$(git diff --name-only origin/main...HEAD -- \
+        busters=$(git diff --name-only "$base"...HEAD -- \
           turbo.json '**/tsconfig*.json' eslint.config.js pnpm-workspace.yaml \
           .npmrc pnpm-lock.yaml package.json)
-        code=$(git diff --name-only origin/main...HEAD -- 'apps/**' 'packages/**' \
+        code=$(git diff --name-only "$base"...HEAD -- 'apps/**' 'packages/**' \
           | grep -vE '\.(md|snap)$' || true)
         if [ -n "${busters}" ] && [ -n "${code}" ]; then
           echo "[lefthook cache-buster] WARN: this PR mixes a cache-buster with feature code — isolate per PR-WORKFLOW rule 2 (advisory)."

@@ -8,6 +8,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 
 import {
+  addMembership,
+  createPayrollEmployeeRow,
   disableAccount,
   endFixtures,
   seedOrganization,
@@ -123,5 +125,81 @@ describe("notifiableOrgMembers", () => {
         fresh.members.member.userId,
       ]),
     )
+  })
+
+  /**
+   * THE SEAT LEAK THIS FUNCTION'S OWN COMMENT PREDICTED AND THEN DID NOT CLOSE.
+   *
+   * The version before PR 38 said the seat link "does not exist yet … the day
+   * PR 32 adds the link, this is the one place that exclusion joins in". The
+   * link landed in PR 33 and the exclusion did not, so every employee seat was
+   * on the recipient list for all three §2.11 events purely by being a `guest`.
+   *
+   * An email is a surface no route gate covers: "období bylo publikováno" lands
+   * in a bricklayer's inbox whether or not they ever open the portal, and it is
+   * exactly the company fact §2.6.1 does not admit them to.
+   */
+  it("excludes an employee seat — a guest linked to a payroll_employee row", async () => {
+    const fresh = await seedOrganization()
+    await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Zedník Na Sedadle",
+      appUserId: fresh.members.guest.userId,
+    })
+
+    const recipients = await notifiableOrgMembers(fresh.organizationId)
+    expect(recipients.map((r) => r.userId)).not.toContain(
+      fresh.members.guest.userId,
+    )
+    // And nobody else lost their mail on the way.
+    expect(recipients.map((r) => r.userId).sort()).toEqual(
+      [fresh.members.admin.userId, fresh.members.member.userId].sort(),
+    )
+  })
+
+  it("keeps a MEMBER who is also on the payroll — the filter is the seat, not the link", async () => {
+    // An office manager who draws a salary is still management. Dropping every
+    // account with a `payroll_employee` row would silently unsubscribe them,
+    // which is why the condition is `role = 'guest' AND linked` rather than
+    // `linked` — the SQL spelling of `isEmployeeSeat`.
+    const fresh = await seedOrganization()
+    await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Vedoucí Na Mzdě",
+      appUserId: fresh.members.member.userId,
+    })
+
+    const recipients = await notifiableOrgMembers(fresh.organizationId)
+    expect(recipients.map((r) => r.userId)).toContain(
+      fresh.members.member.userId,
+    )
+  })
+
+  it("keeps a plain guest, and does not confuse the two books a person sits in", async () => {
+    // A person can be an employee at one client and an external viewer at
+    // another. The join carries `organization_id`, so the seat exclusion must
+    // not follow them across the boundary.
+    const [employer, elsewhere] = await Promise.all([
+      seedOrganization(),
+      seedOrganization(),
+    ])
+    await addMembership(
+      elsewhere.organizationId,
+      employer.members.guest.userId,
+      "guest",
+    )
+    await createPayrollEmployeeRow(employer.organizationId, {
+      fullName: "Zedník Ve Dvou Knihách",
+      appUserId: employer.members.guest.userId,
+    })
+
+    expect(
+      (await notifiableOrgMembers(employer.organizationId)).map(
+        (r) => r.userId,
+      ),
+    ).not.toContain(employer.members.guest.userId)
+    expect(
+      (await notifiableOrgMembers(elsewhere.organizationId)).map(
+        (r) => r.userId,
+      ),
+    ).toContain(employer.members.guest.userId)
   })
 })

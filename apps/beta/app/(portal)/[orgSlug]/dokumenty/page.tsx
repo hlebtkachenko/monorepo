@@ -111,9 +111,12 @@ export default async function DokumentyPage({
             <EmptyDescription>
               {filtered
                 ? t("dokumenty.emptyFilteredBody")
-                : // A `guest` cannot upload (spec §5), so telling them to would
-                  // be an instruction they cannot follow. The employee seat of
-                  // §2.6.1 narrows this further in PR 32.
+                : // A plain `guest` cannot upload (spec §5), so telling them to
+                  // would be an instruction they cannot follow. The employee
+                  // seat of §2.6.1 is the one guest that CAN — it uploads its
+                  // own podklady — and `canUploadDocuments` already carries
+                  // that distinction, so this reads the answer rather than the
+                  // role.
                   canUpload
                   ? t("dokumenty.emptyBody")
                   : t("dokumenty.emptyBodyReadOnly")}

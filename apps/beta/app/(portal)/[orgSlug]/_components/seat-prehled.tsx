@@ -36,8 +36,16 @@ import { RecentDocuments } from "./recent-documents"
  * would show a bricklayer what their employer's accountant is chasing the
  * company for, which is the opposite of "no company financials". The honest
  * options were "nothing" or "invent a per-user task model", and inventing one is
- * out of this PR's scope. It is routed to PR 38 as an open question rather than
+ * out of this PR's scope. It was routed to PR 38 as an open question rather than
  * quietly satisfied with the wrong rows.
+ *
+ * PR 38 ANSWERED IT: "nothing", and moved the answer OUT of this component.
+ * `openClientTasksForScope` (`lib/data/client-tasks.ts`) now returns `[]` for a
+ * seat by itself. Until then the seat saw no tasks only because `page.tsx`
+ * branches here before it reaches `loadPrehled` — one `if` in a module the data
+ * layer knows nothing about, which any second caller would have walked past. A
+ * per-user task model remains un-invented, and is still the only thing that
+ * could make this section exist.
  */
 export async function SeatPrehled({
   scope,

@@ -22,9 +22,9 @@ import { betaRailNav, type BetaNavLabelKey } from "./beta-nav"
  * carries them — hence the separate union rather than widening
  * `BetaNavLabelKey` itself.
  */
-export type BetaBottomNavLabelKey = BetaNavLabelKey | "nahrat" | "vice"
+type BetaBottomNavLabelKey = BetaNavLabelKey | "nahrat" | "vice"
 
-export interface BetaBottomNavLink {
+interface BetaBottomNavLink {
   labelKey: BetaBottomNavLabelKey
   icon: IconName
   href: string

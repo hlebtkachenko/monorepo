@@ -7,12 +7,14 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { formatAmount, formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { saldokontoForScope } from "@/lib/data/partners"
-import { betaTodayIso } from "@/lib/format/date"
+import { betaTodayIso, formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import { freshnessBand } from "@/lib/freshness"
+
+import { PageHeader } from "../../../../_components/page-header"
 
 import { EntrySheet } from "../../_components/entry-sheet"
 import { ManualBatchPeriodFields } from "../../_components/manual-batch-period-fields"
@@ -72,11 +74,10 @@ export default async function PohledavkyAZavazkyPage({
 
   return (
     <div className="grid gap-4 p-6">
-      <header className="grid gap-1">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="font-heading text-xl font-semibold">
-            {t("finance.pohledavkyTitle")}
-          </h1>
+      <PageHeader
+        title={t("finance.pohledavkyTitle")}
+        intro={t("finance.pohledavkyIntro")}
+        actions={
           <div className="flex flex-wrap items-baseline gap-3">
             {view.period && view.batch ? (
               <p className="text-xs text-muted-foreground">
@@ -109,11 +110,8 @@ export default async function PohledavkyAZavazkyPage({
               </EntrySheet>
             ) : null}
           </div>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {t("finance.pohledavkyIntro")}
-        </p>
-      </header>
+        }
+      />
 
       {view.period === null ? (
         <Card>

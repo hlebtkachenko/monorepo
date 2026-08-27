@@ -10,6 +10,8 @@ import {
 } from "@/lib/data/payroll"
 import { payslipDocumentsForScope } from "@/lib/data/payslips"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { PeriodPicker } from "../_components/period-picker"
 import { PERIOD_PARAM, selectPeriod } from "../_lib/period-selection"
@@ -62,14 +64,10 @@ export default async function VyplatnicePage({
 
   return (
     <div className="grid gap-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("mzdy.vyplatniceTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("mzdy.vyplatniceIntro")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("mzdy.vyplatniceTitle")}
+        intro={t("mzdy.vyplatniceIntro")}
+      />
 
       {periods.length > 0 ? (
         <PeriodPicker basePath={basePath} periods={periods} current={period} />

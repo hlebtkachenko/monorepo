@@ -11,6 +11,8 @@ import {
 } from "@/lib/data/payroll"
 import { formatBetaDateTime } from "@/lib/format/date"
 
+import { PageHeader, SectionTitle } from "../../../_components/page-header"
+
 import { EntrySheet } from "../_components/entry-sheet"
 import { ManualBatchPeriodFields } from "../_components/manual-batch-period-fields"
 import { PayrollSummaryCard } from "../_components/payroll-summary-card"
@@ -99,12 +101,7 @@ export default async function PrehledMezdPage({
   if (!period) {
     return (
       <div className="grid gap-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="font-heading text-lg font-semibold">
-            {t("mzdy.title")}
-          </h1>
-          {startTrigger}
-        </div>
+        <PageHeader title={t("mzdy.title")} actions={startTrigger} />
         <Card>
           <CardContent className="grid gap-1 py-10 text-center text-sm text-muted-foreground">
             <p className="font-medium text-foreground">
@@ -136,25 +133,25 @@ export default async function PrehledMezdPage({
   return (
     <div className="grid gap-6">
       <div className="grid gap-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="font-heading text-lg font-semibold">
-            {t("mzdy.title")}
-          </h1>
-          <div className="flex flex-wrap items-baseline gap-3">
-            {batch?.publishedAt ? (
-              <p className="text-xs text-muted-foreground">
-                {t("mzdy.publishedAt")} {formatBetaDateTime(batch.publishedAt)}{" "}
-                ·{" "}
-                {t(
-                  batch.source === "agent"
-                    ? "mzdy.sourceAgent"
-                    : "mzdy.sourceManual",
-                )}
-              </p>
-            ) : null}
-            {startTrigger}
-          </div>
-        </div>
+        <PageHeader
+          title={t("mzdy.title")}
+          actions={
+            <div className="flex flex-wrap items-baseline gap-3">
+              {batch?.publishedAt ? (
+                <p className="text-xs text-muted-foreground">
+                  {t("mzdy.publishedAt")}{" "}
+                  {formatBetaDateTime(batch.publishedAt)} ·{" "}
+                  {t(
+                    batch.source === "agent"
+                      ? "mzdy.sourceAgent"
+                      : "mzdy.sourceManual",
+                  )}
+                </p>
+              ) : null}
+              {startTrigger}
+            </div>
+          }
+        />
         <PeriodPicker basePath={basePath} periods={periods} current={period} />
       </div>
 
@@ -173,9 +170,7 @@ export default async function PrehledMezdPage({
 
       {trendRows.length > 0 ? (
         <div className="grid gap-2">
-          <h2 className="font-heading text-sm font-semibold">
-            {t("mzdy.trendTitle")}
-          </h2>
+          <SectionTitle>{t("mzdy.trendTitle")}</SectionTitle>
           <PayrollTrendTable rows={trendRows} />
         </div>
       ) : null}

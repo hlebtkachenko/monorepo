@@ -95,6 +95,12 @@ export default async function MajetekDetailPage({
 
   return (
     <div className="grid gap-6 p-6">
+      {/* The visible title is `CardTitle` below, sized for its card rather
+          than the page (spec's Karta majetku is a detail card, not a
+          PageHeader-scale surface) — this is the one real heading a screen
+          reader's document outline needs, without a second, larger-looking
+          title duplicating it. */}
+      <h1 className="sr-only">{item.name}</h1>
       <div>
         <Link
           href={`/${orgSlug}/majetek`}

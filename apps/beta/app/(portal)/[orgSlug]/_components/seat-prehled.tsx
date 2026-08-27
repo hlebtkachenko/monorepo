@@ -7,6 +7,8 @@ import { EMPLOYEE_SEAT_HOME } from "@/lib/auth/first-login"
 import { listDocuments } from "@/lib/data/documents"
 import type { OrgScope } from "@/lib/data/scope"
 
+import { PageHeader } from "../../../_components/page-header"
+
 import { RecentDocuments } from "./recent-documents"
 
 /**
@@ -61,14 +63,10 @@ export async function SeatPrehled({
 
   return (
     <div className="grid gap-6 p-6">
-      <div className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("prehled.seatTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("prehled.seatIntro")}
-        </p>
-      </div>
+      <PageHeader
+        title={t("prehled.seatTitle")}
+        intro={t("prehled.seatIntro")}
+      />
 
       <Card>
         <CardContent className="flex flex-wrap gap-4 py-4 text-sm">

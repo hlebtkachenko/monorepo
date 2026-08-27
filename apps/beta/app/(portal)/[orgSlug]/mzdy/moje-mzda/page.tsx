@@ -23,6 +23,8 @@ import { formatBetaDate } from "@/lib/format/date"
 import { formatBetaMoney } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 
 const CONTRACT_TYPE_LABEL: Record<BetaPayrollContractType, BetaMessageKey> = {
@@ -95,14 +97,10 @@ export default async function MojeMzdaPage({
 
   return (
     <div className="grid gap-6">
-      <div className="grid gap-1">
-        <h1 className="font-heading text-lg font-semibold">
-          {t("mzdy.mojeMzdaTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("mzdy.mojeMzdaIntro")}
-        </p>
-      </div>
+      <PageHeader
+        title={t("mzdy.mojeMzdaTitle")}
+        intro={t("mzdy.mojeMzdaIntro")}
+      />
 
       {me ? (
         <Card>

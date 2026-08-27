@@ -15,6 +15,8 @@ import { payrollScope } from "@/lib/data/payroll"
 import { FilingTable } from "@/app/_components/filing-table"
 import { ObligationGroupCard } from "@/app/_components/obligation-group-card"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 
 /**
@@ -59,12 +61,7 @@ export default async function PlatbyATerminyPage({
 
   return (
     <div className="grid gap-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("mzdy.platbyTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">{t("mzdy.platbyIntro")}</p>
-      </header>
+      <PageHeader title={t("mzdy.platbyTitle")} intro={t("mzdy.platbyIntro")} />
 
       {payrollObligations ? (
         <ObligationGroupCard group={payrollObligations} />

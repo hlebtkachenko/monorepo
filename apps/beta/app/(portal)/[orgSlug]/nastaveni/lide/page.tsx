@@ -16,6 +16,8 @@ import {
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { peopleForScope } from "@/lib/data/people"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import {
   changeMemberRoleAction,
@@ -66,6 +68,8 @@ export default async function LidePage({
 
   return (
     <div className="grid gap-6">
+      <PageHeader title={t("nastaveni.navLide")} />
+
       <section className="grid gap-3">
         <h2 className="text-base font-medium text-foreground">
           {t("nastaveni.peopleTitle")}

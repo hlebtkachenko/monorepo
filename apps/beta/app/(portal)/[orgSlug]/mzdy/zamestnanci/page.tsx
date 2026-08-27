@@ -22,6 +22,8 @@ import { formatBetaDate } from "@/lib/format/date"
 import { formatBetaMoney } from "@/lib/format/money"
 import { PAYROLL_CONTRACT_TYPE_LABEL_KEY } from "@/lib/payroll-labels"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { EntrySheet } from "../../_components/entry-sheet"
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { PeriodPicker } from "../_components/period-picker"
@@ -120,24 +122,24 @@ export default async function ZamestnanciPage({
 
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="font-heading text-lg font-semibold">
-          {t("mzdy.zamestnanciTitle")}
-        </h1>
-        {isOwner ? (
-          <EntrySheet
-            action={createPayrollEmployeeAction}
-            idle={EMPLOYEE_ACTION_IDLE}
-            hidden={{ orgSlug }}
-            triggerLabel={t("mzdy.zamestnanciAddTitle")}
-            title={t("mzdy.zamestnanciAddTitle")}
-            description={t("mzdy.zamestnanciAddDescription")}
-            submitLabel={t("mzdy.zamestnanciAddSubmit")}
-          >
-            <EmployeeFields t={t} idPrefix="new-employee" />
-          </EntrySheet>
-        ) : null}
-      </div>
+      <PageHeader
+        title={t("mzdy.zamestnanciTitle")}
+        actions={
+          isOwner ? (
+            <EntrySheet
+              action={createPayrollEmployeeAction}
+              idle={EMPLOYEE_ACTION_IDLE}
+              hidden={{ orgSlug }}
+              triggerLabel={t("mzdy.zamestnanciAddTitle")}
+              title={t("mzdy.zamestnanciAddTitle")}
+              description={t("mzdy.zamestnanciAddDescription")}
+              submitLabel={t("mzdy.zamestnanciAddSubmit")}
+            >
+              <EmployeeFields t={t} idPrefix="new-employee" />
+            </EntrySheet>
+          ) : null
+        }
+      />
 
       {periods.length > 0 ? (
         <PeriodPicker basePath={basePath} periods={periods} current={period} />

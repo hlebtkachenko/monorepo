@@ -4,6 +4,8 @@ import { formatBetaMoney } from "@/lib/format/money"
 import { isEmployeeSeat } from "@/lib/data/scope"
 import { ORG_ROLE_LABEL_KEY } from "@/lib/role-labels"
 
+import { PageHeader } from "../../_components/page-header"
+
 import { ClientTaskList } from "./_components/client-task-list"
 import { CompanyCard } from "./_components/company-card"
 import { DataPresence } from "./_components/data-presence"
@@ -136,10 +138,15 @@ export default async function OrgHomePage({
 
   return (
     <div className="grid gap-4 p-6">
-      <p className="text-sm text-muted-foreground">
-        {t("org.greetingPrefix")}, {viewer.name || viewer.email}.{" "}
-        {t("org.roleLabelPrefix")}: {t(ORG_ROLE_LABEL_KEY[scope.role])}.
-      </p>
+      <PageHeader
+        title={t("nav.prehled")}
+        intro={
+          <>
+            {t("org.greetingPrefix")}, {viewer.name || viewer.email}.{" "}
+            {t("org.roleLabelPrefix")}: {t(ORG_ROLE_LABEL_KEY[scope.role])}.
+          </>
+        }
+      />
 
       <ClientTaskList orgSlug={orgSlug} tasks={data.tasks} />
 

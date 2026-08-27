@@ -14,6 +14,8 @@ import { formatBetaMoney } from "@/lib/format/money"
 
 import { FilingTable } from "@/app/_components/filing-table"
 
+import { PageHeader } from "../../../_components/page-header"
+
 import { resolveOrgScope } from "../_lib/org-scope"
 
 import { resolveVisibleFilingFamilies } from "./_lib/dane-scope"
@@ -77,6 +79,8 @@ export default async function DaneSouhrnPage({
 
   return (
     <>
+      <PageHeader title={t("dane.navSouhrn")} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardHeader>

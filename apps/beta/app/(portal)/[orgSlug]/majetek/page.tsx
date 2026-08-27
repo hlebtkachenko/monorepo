@@ -35,7 +35,7 @@ import {
 import { assetsForScope, type AssetFilter } from "@/lib/data/assets"
 import type { BetaAssetCategory } from "@/db/schema"
 
-import { SectionTitle } from "../../../_components/page-header"
+import { PageHeader, SectionTitle } from "../../../_components/page-header"
 
 import { resolveOrgScope } from "../_lib/org-scope"
 
@@ -93,6 +93,8 @@ export default async function MajetekOverviewPage({
 
   return (
     <div className="grid gap-6 p-6">
+      <PageHeader title={t("nav.majetek")} />
+
       {scope.role === "owner" ? (
         <Card>
           <CardHeader>

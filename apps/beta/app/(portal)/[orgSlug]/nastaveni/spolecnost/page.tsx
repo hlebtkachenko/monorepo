@@ -8,7 +8,7 @@ import { financniUradName } from "@/lib/tax-office"
 
 import { assertNotEmployeeSeat } from "@/lib/data/scope"
 
-import { SectionTitle } from "../../../../_components/page-header"
+import { PageHeader, SectionTitle } from "../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { AresPanel } from "../_components/ares-panel"
@@ -88,6 +88,8 @@ export default async function SpolecnostPage({
 
   return (
     <div className="grid gap-6">
+      <PageHeader title={t("nastaveni.navSpolecnost")} />
+
       <section className="grid gap-3">
         <SectionTitle>{t("nastaveni.companyTitle")}</SectionTitle>
         <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-[minmax(0,14rem)_1fr]">

@@ -18,10 +18,11 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount, formatDate, formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { documentsForPartner } from "@/lib/data/documents"
 import { partnerForScope, partnerSaldoHistory } from "@/lib/data/partners"
+import { formatDate, formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import {
   PARTNER_AGING_LABEL_KEY,
@@ -83,6 +84,11 @@ export default async function PartnerDetailPage({
 
   return (
     <div className="grid gap-6 p-6">
+      {/* The visible title is `CardTitle` below, sized for its card rather
+          than the page — this is the one real heading a screen reader's
+          document outline needs, without a second, larger-looking title
+          duplicating it. */}
+      <h1 className="sr-only">{partner.name}</h1>
       <div>
         <Link
           href={`/${orgSlug}/finance/partneri`}

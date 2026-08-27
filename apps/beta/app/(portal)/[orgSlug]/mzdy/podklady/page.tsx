@@ -12,6 +12,8 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { listPayrollSupportingDocuments } from "@/lib/data/documents"
 import { payrollScope } from "@/lib/data/payroll"
 
+import { PageHeader } from "../../../../_components/page-header"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 
 import { PodkladyDocumentsTable } from "../_components/podklady-documents-table"
@@ -78,14 +80,10 @@ export default async function PodkladyPage({
 
   return (
     <div className="grid gap-6">
-      <header className="grid gap-1">
-        <h1 className="font-heading text-xl font-semibold">
-          {t("mzdy.podkladyTitle")}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {t("mzdy.podkladyIntro")}
-        </p>
-      </header>
+      <PageHeader
+        title={t("mzdy.podkladyTitle")}
+        intro={t("mzdy.podkladyIntro")}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         {checklist.map((item) => (

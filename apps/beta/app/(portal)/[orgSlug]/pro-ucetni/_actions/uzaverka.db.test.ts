@@ -23,6 +23,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import type { BetaOrgRole } from "@/db/schema"
 import {
   createMonthPeriod,
+  createPayrollEmployeeRow,
   endFixtures,
   readImportBatchRow,
   seedOrganization,
@@ -46,6 +47,8 @@ const {
   createDraftBatch,
   officeBatchHistoryFor,
   partnerSaldoLinesForBatch,
+  payrollLinesForBatch,
+  payrollSummaryForBatch,
   publishBatch,
   publishedBatchFor,
   statementLinesForBatch,
@@ -53,6 +56,11 @@ const {
 } = await import("@/lib/data/imports")
 const { reportingPeriodsForScope } =
   await import("@/lib/data/reporting-periods")
+const {
+  payrollLinesForEmployee,
+  payrollLinesForPeriod,
+  payrollSummaryForPeriod,
+} = await import("@/lib/data/payroll")
 
 const IDLE = { status: "idle" } as const
 const NOT_FOUND_DIGEST = "NEXT_HTTP_ERROR_FALLBACK;404"
@@ -510,7 +518,75 @@ describe("startManualBatchAction — an empty draft, straight to its preview", (
     ).toBeNull()
   })
 
-  it("refuses payroll — its summary is required, so an empty start cannot express it", async () => {
+  it("starts a payroll draft carrying its required summary (manual-entry plan W4)", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+
+    const digest = await expectRedirect(() =>
+      actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "payroll",
+          periodKind: "month",
+          year: "2026",
+          month: "7",
+          grossTotal: "500000.00",
+          employerSocial: "124000.00",
+          headcountHpp: "12",
+          noteClient: "Kontrola před odesláním",
+        }),
+      ),
+    )
+    expect(digest).toContain(`/${fresh.slug}/pro-ucetni/uzaverka/`)
+
+    const history = await officeBatchHistoryFor(owner, { dataset: "payroll" })
+    expect(history).toHaveLength(1)
+    const draft = history[0]!
+    expect(draft.status).toBe("draft")
+    expect(draft.source).toBe("manual")
+    // The summary row counts as one (`batchRowCount`'s own rule).
+    expect(draft.rowCount).toBe(1)
+
+    const summary = await payrollSummaryForBatch(owner, draft.id)
+    expect(summary?.grossTotal).toBe("500000.00")
+    expect(summary?.employerSocial).toBe("124000.00")
+    expect(summary?.headcountHpp).toBe(12)
+    expect(summary?.noteClient).toBe("Kontrola před odesláním")
+    // Every unstated figure is NULL, never a zero (spec §0.4).
+    expect(summary?.employerHealth).toBeNull()
+
+    // No lines yet — `addPayrollLineAction` adds them on this exact draft.
+    expect(await payrollLinesForBatch(owner, draft.id)).toEqual([])
+  })
+
+  it("starts a payroll draft with every summary figure left unstated", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+
+    const digest = await expectRedirect(() =>
+      actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "payroll",
+          periodKind: "month",
+          year: "2026",
+          month: "8",
+        }),
+      ),
+    )
+    expect(digest).toContain(`/${fresh.slug}/pro-ucetni/uzaverka/`)
+
+    const history = await officeBatchHistoryFor(owner, { dataset: "payroll" })
+    const draft = history[0]!
+    const summary = await payrollSummaryForBatch(owner, draft.id)
+    expect(summary).not.toBeNull()
+    expect(summary?.grossTotal).toBeNull()
+    expect(summary?.headcountHpp).toBeNull()
+  })
+
+  it("refuses a malformed payroll summary figure", async () => {
     const fresh = await seedOrganization()
     await ownerScope(fresh)
 
@@ -523,6 +599,7 @@ describe("startManualBatchAction — an empty draft, straight to its preview", (
           periodKind: "month",
           year: "2026",
           month: "7",
+          grossTotal: "not-a-number",
         }),
       ),
     ).toEqual({ status: "error", error: "uzaverka.errorInvalidInput" })
@@ -883,5 +960,326 @@ describe("the manual CSV fallback — file to draft to published", () => {
         }),
       ),
     ).toEqual({ status: "error", error: "uzaverka.errorPeriodInvalid" })
+  })
+})
+
+describe("payroll lines (manual-entry plan §3, W4) — a draft batch's own writes", () => {
+  async function payrollDraft(
+    owner: Awaited<ReturnType<typeof ownerScope>>,
+    org: TestOrganization,
+  ): Promise<string> {
+    const periodId = await createMonthPeriod(org.organizationId)
+    const draft = await createDraftBatch(owner, {
+      periodId,
+      source: "manual",
+      dataset: "payroll",
+      payrollSummary: {},
+      payrollLines: [],
+    })
+    return draft.id
+  }
+
+  it("adds a line, and the batch's own read returns it", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Jana Nováková",
+    })
+
+    const result = await actions.addPayrollLineAction(
+      IDLE,
+      fd({
+        orgSlug: fresh.slug,
+        batchId,
+        payrollEmployeeId: employeeId,
+        gross: "45000.00",
+        deductionsTotal: "6750.00",
+        net: "38250.00",
+        employerCost: "60300.00",
+      }),
+    )
+    expect(result.status).toBe("ok")
+
+    const lines = await payrollLinesForBatch(owner, batchId)
+    expect(lines).toHaveLength(1)
+    expect(lines[0]?.employeeName).toBe("Jana Nováková")
+    expect(lines[0]?.gross).toBe("45000.00")
+    expect(lines[0]?.net).toBe("38250.00")
+  })
+
+  it("refuses an employee id from another organization", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+
+    const other = await seedOrganization()
+    const foreignEmployeeId = await createPayrollEmployeeRow(
+      other.organizationId,
+    )
+
+    expect(
+      await actions.addPayrollLineAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          batchId,
+          payrollEmployeeId: foreignEmployeeId,
+          gross: "10000.00",
+        }),
+      ),
+    ).toEqual({ status: "error", error: "mzdyZadani.errorUnknownEmployee" })
+  })
+
+  it("refuses a second line for the same employee in the same batch", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId)
+
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+    )
+
+    expect(
+      await actions.addPayrollLineAction(
+        IDLE,
+        fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+      ),
+    ).toEqual({
+      status: "error",
+      error: "mzdyZadani.errorEmployeeAlreadyInBatch",
+    })
+  })
+
+  it("refuses every non-owner role, for add/update/delete alike", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId)
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+    )
+    const [line] = await payrollLinesForBatch(owner, batchId)
+
+    for (const role of ["admin", "member", "guest"] as const) {
+      as(fresh.members[role].headers)
+      await expect404(
+        () =>
+          actions.addPayrollLineAction(
+            IDLE,
+            fd({
+              orgSlug: fresh.slug,
+              batchId,
+              payrollEmployeeId: employeeId,
+            }),
+          ),
+        `${role} must not add a payroll line`,
+      )
+      await expect404(
+        () =>
+          actions.updatePayrollLineAction(
+            IDLE,
+            fd({ orgSlug: fresh.slug, batchId, lineId: line!.id, gross: "1" }),
+          ),
+        `${role} must not update a payroll line`,
+      )
+      await expect404(
+        () =>
+          actions.deletePayrollLineAction(
+            IDLE,
+            fd({ orgSlug: fresh.slug, batchId, lineId: line!.id }),
+          ),
+        `${role} must not delete a payroll line`,
+      )
+    }
+  })
+
+  it("refuses a line against a PUBLISHED batch", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId)
+    await publishBatch(owner, batchId)
+
+    expect(
+      await actions.addPayrollLineAction(
+        IDLE,
+        fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+      ),
+    ).toEqual({ status: "error", error: "uzaverka.errorUnknownBatch" })
+  })
+
+  it("updates a line's figures, and re-points it at a different employee", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const first = await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Petr První",
+    })
+    const second = await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Pavel Druhý",
+    })
+
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({
+        orgSlug: fresh.slug,
+        batchId,
+        payrollEmployeeId: first,
+        gross: "30000.00",
+      }),
+    )
+    const [line] = await payrollLinesForBatch(owner, batchId)
+
+    const result = await actions.updatePayrollLineAction(
+      IDLE,
+      fd({
+        orgSlug: fresh.slug,
+        batchId,
+        lineId: line!.id,
+        payrollEmployeeId: second,
+        gross: "35000.00",
+      }),
+    )
+    expect(result.status).toBe("ok")
+
+    const [updated] = await payrollLinesForBatch(owner, batchId)
+    expect(updated?.employeeName).toBe("Pavel Druhý")
+    expect(updated?.gross).toBe("35000.00")
+  })
+
+  it("says so when updating a line that is not in this batch", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+
+    expect(
+      await actions.updatePayrollLineAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          batchId,
+          lineId: "01920000-0000-7000-8000-000000000000",
+          payrollEmployeeId: await createPayrollEmployeeRow(
+            fresh.organizationId,
+          ),
+        }),
+      ),
+    ).toEqual({ status: "error", error: "mzdyZadani.errorLineNotFound" })
+  })
+
+  it("deletes a line", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId)
+
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+    )
+    const [line] = await payrollLinesForBatch(owner, batchId)
+
+    const result = await actions.deletePayrollLineAction(
+      IDLE,
+      fd({ orgSlug: fresh.slug, batchId, lineId: line!.id }),
+    )
+    expect(result).toEqual({
+      status: "ok",
+      message: "mzdyZadani.okLineDeleted",
+    })
+    expect(await payrollLinesForBatch(owner, batchId)).toEqual([])
+  })
+
+  it("refuses deleting a line from a PUBLISHED batch — no trigger covers DELETE", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+    const batchId = await payrollDraft(owner, fresh)
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId)
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({ orgSlug: fresh.slug, batchId, payrollEmployeeId: employeeId }),
+    )
+    const [line] = await payrollLinesForBatch(owner, batchId)
+    await publishBatch(owner, batchId)
+
+    expect(
+      await actions.deletePayrollLineAction(
+        IDLE,
+        fd({ orgSlug: fresh.slug, batchId, lineId: line!.id }),
+      ),
+    ).toEqual({ status: "error", error: "uzaverka.errorUnknownBatch" })
+
+    // Still there — the action's own draft check protected it, not a trigger.
+    expect(await payrollLinesForBatch(owner, batchId)).toHaveLength(1)
+  })
+})
+
+describe("payroll round trip — Přehled mezd, Zaměstnanci, Moje mzda and the KPI all read the manual figures after publish", () => {
+  it("publishes a manually entered payroll batch and every downstream read sees it", async () => {
+    const fresh = await seedOrganization()
+    const owner = await ownerScope(fresh)
+
+    await expectRedirect(() =>
+      actions.startManualBatchAction(
+        IDLE,
+        fd({
+          orgSlug: fresh.slug,
+          dataset: "payroll",
+          periodKind: "month",
+          year: "2026",
+          month: "9",
+          grossTotal: "800000.00",
+          employerCostTotal: "1072000.00",
+          headcountHpp: "10",
+        }),
+      ),
+    )
+    const started = await officeBatchHistoryFor(owner, { dataset: "payroll" })
+    const batchId = started[0]!.id
+
+    const employeeId = await createPayrollEmployeeRow(fresh.organizationId, {
+      fullName: "Karel Účetní",
+    })
+    await actions.addPayrollLineAction(
+      IDLE,
+      fd({
+        orgSlug: fresh.slug,
+        batchId,
+        payrollEmployeeId: employeeId,
+        gross: "40000.00",
+        net: "34000.00",
+        employerCost: "53600.00",
+      }),
+    )
+
+    await publishBatch(owner, batchId)
+
+    const published = await officeBatchHistoryFor(owner, {
+      dataset: "payroll",
+    })
+    const periodId = published.find((b) => b.id === batchId)!.period.id
+
+    // Přehled mezd + the KPI tile — `_lib/load-prehled.ts` calls this exact
+    // function for "mzdové náklady".
+    const periodSummary = await payrollSummaryForPeriod(owner, periodId)
+    expect(periodSummary?.grossTotal).toBe("800000.00")
+    expect(periodSummary?.employerCostTotal).toBe("1072000.00")
+    expect(periodSummary?.headcountHpp).toBe(10)
+
+    // Zaměstnanci's figure columns.
+    const periodLines = await payrollLinesForPeriod(owner, periodId)
+    expect(periodLines).toHaveLength(1)
+    expect(periodLines[0]?.employeeName).toBe("Karel Účetní")
+    expect(periodLines[0]?.net).toBe("34000.00")
+
+    // Moje mzda — the employee's own history read.
+    const employeeHistory = await payrollLinesForEmployee(owner, employeeId)
+    expect(employeeHistory).toHaveLength(1)
+    expect(employeeHistory[0]?.gross).toBe("40000.00")
+    expect(employeeHistory[0]?.period.id).toBe(periodId)
   })
 })

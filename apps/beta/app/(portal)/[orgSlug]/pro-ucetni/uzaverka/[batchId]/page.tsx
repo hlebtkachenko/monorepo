@@ -10,10 +10,13 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import {
   officeBatchFor,
   partnerSaldoLinesForBatch,
+  payrollLinesForBatch,
+  payrollSummaryForBatch,
   statementLinesForBatch,
   trialBalanceLinesForBatch,
 } from "@/lib/data/imports"
 import { partnersForOwner } from "@/lib/data/partners"
+import { payrollEmployeesForScope } from "@/lib/data/payroll"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import {
   IMPORT_DATASET_LABEL_KEY,
@@ -22,19 +25,25 @@ import {
 } from "@/lib/import-labels"
 import { requireOwner } from "@/lib/data/scope"
 
+import { EntrySheet } from "../../../_components/entry-sheet"
+import { PayrollSummaryCard } from "../../../_components/payroll-summary-card"
 import { PageHeader } from "../../../../../_components/page-header"
 
 import { resolveOrgScope } from "../../../_lib/org-scope"
 
 import { isUuid } from "../../_actions/input"
 import {
+  addPayrollLineAction,
   discardDraftAction,
   publishBatchAction,
   rollbackDatasetAction,
 } from "../../_actions/uzaverka"
+import { START_MANUAL_BATCH_IDLE } from "../../_actions/uzaverka-state"
 
 import { ConfirmActionForm } from "../_components/confirm-action-form"
 import { PartnerSaldoBatchTable } from "../_components/partner-saldo-batch-table"
+import { PayrollBatchLinesTable } from "../_components/payroll-batch-lines-table"
+import { PayrollLineFields } from "../_components/payroll-line-fields"
 
 /**
  * One batch, with its rows — the preview step of spec §3.2's manual fallback,
@@ -78,33 +87,54 @@ export default async function BatchPreviewPage({
   const batch = await officeBatchFor(owner, batchId)
   if (!batch) notFound()
 
-  const [aktiva, pasiva, vzz, trialBalance, partnerSaldoLines, partners] =
-    await Promise.all([
-      batch.dataset === "rozvaha"
-        ? statementLinesForBatch(owner, batch.id, {
-            statementKind: "rozvaha_aktiva",
-          })
-        : Promise.resolve([]),
-      batch.dataset === "rozvaha"
-        ? statementLinesForBatch(owner, batch.id, {
-            statementKind: "rozvaha_pasiva",
-          })
-        : Promise.resolve([]),
-      batch.dataset === "vzz"
-        ? statementLinesForBatch(owner, batch.id, { statementKind: "vzz" })
-        : Promise.resolve([]),
-      batch.dataset === "predvaha"
-        ? trialBalanceLinesForBatch(owner, batch.id)
-        : Promise.resolve([]),
-      batch.dataset === "saldokonto"
-        ? partnerSaldoLinesForBatch(owner, batch.id)
-        : Promise.resolve([]),
-      // The row drawer's (W2) partner picker — only fetched for the one
-      // dataset it applies to.
-      batch.dataset === "saldokonto"
-        ? partnersForOwner(owner)
-        : Promise.resolve([]),
-    ])
+  const [
+    aktiva,
+    pasiva,
+    vzz,
+    trialBalance,
+    partnerSaldoLines,
+    partners,
+    payrollSummary,
+    payrollLines,
+    payrollEmployees,
+  ] = await Promise.all([
+    batch.dataset === "rozvaha"
+      ? statementLinesForBatch(owner, batch.id, {
+          statementKind: "rozvaha_aktiva",
+        })
+      : Promise.resolve([]),
+    batch.dataset === "rozvaha"
+      ? statementLinesForBatch(owner, batch.id, {
+          statementKind: "rozvaha_pasiva",
+        })
+      : Promise.resolve([]),
+    batch.dataset === "vzz"
+      ? statementLinesForBatch(owner, batch.id, { statementKind: "vzz" })
+      : Promise.resolve([]),
+    batch.dataset === "predvaha"
+      ? trialBalanceLinesForBatch(owner, batch.id)
+      : Promise.resolve([]),
+    batch.dataset === "saldokonto"
+      ? partnerSaldoLinesForBatch(owner, batch.id)
+      : Promise.resolve([]),
+    // The row drawer's (W2) partner picker — only fetched for the one
+    // dataset it applies to.
+    batch.dataset === "saldokonto"
+      ? partnersForOwner(owner)
+      : Promise.resolve([]),
+    batch.dataset === "payroll"
+      ? payrollSummaryForBatch(owner, batch.id)
+      : Promise.resolve(null),
+    batch.dataset === "payroll"
+      ? payrollLinesForBatch(owner, batch.id)
+      : Promise.resolve([]),
+    // Only a DRAFT needs the register — a published/superseded batch's own
+    // lines table has nothing editable, so `PayrollBatchLinesTable` never
+    // renders the employee picker for it.
+    batch.dataset === "payroll" && batch.status === "draft"
+      ? payrollEmployeesForScope(owner)
+      : Promise.resolve([]),
+  ])
 
   return (
     <div className="grid gap-6 p-6">
@@ -215,6 +245,42 @@ export default async function BatchPreviewPage({
           isDraft={batch.status === "draft"}
           partners={partners}
         />
+      ) : null}
+
+      {batch.dataset === "payroll" ? (
+        <div className="grid gap-6">
+          {payrollSummary ? (
+            <PayrollSummaryCard summary={payrollSummary} />
+          ) : null}
+
+          {batch.status === "draft" ? (
+            <div>
+              <EntrySheet
+                action={addPayrollLineAction}
+                idle={START_MANUAL_BATCH_IDLE}
+                hidden={{ orgSlug, batchId: batch.id }}
+                triggerLabel={t("mzdyZadani.addLineTrigger")}
+                title={t("mzdyZadani.addLineTitle")}
+                description={t("mzdyZadani.addLineDescription")}
+                submitLabel={t("mzdyZadani.addLineSubmit")}
+              >
+                <PayrollLineFields
+                  t={t}
+                  idPrefix="new-payroll-line"
+                  employees={payrollEmployees}
+                />
+              </EntrySheet>
+            </div>
+          ) : null}
+
+          <PayrollBatchLinesTable
+            orgSlug={orgSlug}
+            batchId={batch.id}
+            lines={payrollLines}
+            employees={payrollEmployees}
+            editable={batch.status === "draft"}
+          />
+        </div>
       ) : null}
     </div>
   )

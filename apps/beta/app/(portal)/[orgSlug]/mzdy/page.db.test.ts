@@ -219,6 +219,30 @@ describe("Přehled mezd", () => {
     expect(html).toContain("mzdy.publishedAt")
     expect(html).toContain("mzdy.sourceAgent")
   })
+
+  it("renders the manual-entry trigger for the owner only, among management seats (manual-entry plan §3, W4)", async () => {
+    const fresh = await seedOrganization()
+
+    as(fresh.members.owner.headers)
+    const ownerHtml = await render(
+      await PrehledMezdPage({
+        params: Promise.resolve({ orgSlug: fresh.slug }),
+        searchParams: Promise.resolve({}),
+      }),
+    )
+    expect(ownerHtml).toContain("mzdyZadani.startTrigger")
+
+    for (const role of ["admin", "member"] as const) {
+      as(fresh.members[role].headers)
+      const html = await render(
+        await PrehledMezdPage({
+          params: Promise.resolve({ orgSlug: fresh.slug }),
+          searchParams: Promise.resolve({}),
+        }),
+      )
+      expect(html, role).not.toContain("mzdyZadani.startTrigger")
+    }
+  })
 })
 
 describe("Platby a termíny", () => {

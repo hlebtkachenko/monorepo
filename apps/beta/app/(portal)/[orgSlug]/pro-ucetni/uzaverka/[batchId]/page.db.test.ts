@@ -24,6 +24,7 @@ import type {
 import {
   createMonthPeriod,
   createPartnerRow,
+  createPayrollEmployeeRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -224,6 +225,66 @@ describe("BatchPreviewPage", () => {
     expect(html).toContain("uzaverka.saldoRowAddTrigger")
     expect(html).toContain("uzaverka.saldoRowEditTrigger")
     expect(html).toContain("Smazat")
+  })
+
+  it("previews a DRAFT payroll batch, its summary, lines and the add-line trigger", async () => {
+    const owner = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    const employeeId = await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Karel Účetní",
+    })
+
+    const draft = await createDraftBatch(owner, {
+      periodId,
+      dataset: "payroll",
+      source: "manual",
+      payrollSummary: { employerCostTotal: "800000.00", headcountHpp: 10 },
+      payrollLines: [
+        { payrollEmployeeId: employeeId, gross: "40000.00", net: "34000.00" },
+      ],
+    })
+
+    const html = await render(await open(org.slug, draft.id))
+
+    // `PayrollSummaryCard`'s own hero figure — `employerCostTotal`, never
+    // "superhrubá" (its own header explains why).
+    expect(digits(html)).toContain("800000,00")
+    expect(html).toContain("Karel Účetní")
+    expect(digits(html)).toContain("40000,00")
+    expect(html).toContain("uzaverka.statusDraft")
+    // `EntrySheet`'s `triggerLabel` is resolved server-side (mocked to the
+    // raw key here); `ConfirmActionForm`'s `triggerLabelKey` is resolved
+    // CLIENT-side against the real catalog — the same split the existing
+    // publish/discard assertions above rely on ("Zveřejnit"/"Zahodit").
+    expect(html).toContain("mzdyZadani.addLineTrigger")
+    expect(html).toContain("mzdyZadani.editLineTrigger")
+    expect(html).toContain("Smazat")
+  })
+
+  it("previews a PUBLISHED payroll batch with no edit/delete controls on its lines", async () => {
+    const owner = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    const employeeId = await createPayrollEmployeeRow(org.organizationId, {
+      fullName: "Alena Mzdová",
+    })
+
+    const batch = await createDraftBatch(owner, {
+      periodId,
+      dataset: "payroll",
+      source: "manual",
+      payrollSummary: { grossTotal: "500000.00" },
+      payrollLines: [{ payrollEmployeeId: employeeId, gross: "25000.00" }],
+    })
+    await publishBatch(owner, batch.id)
+
+    const html = await render(await open(org.slug, batch.id))
+
+    expect(html).toContain("Alena Mzdová")
+    expect(digits(html)).toContain("25000,00")
+    expect(html).toContain("uzaverka.statusPublished")
+    expect(html).not.toContain("mzdyZadani.addLineTrigger")
+    expect(html).not.toContain("mzdyZadani.editLineTrigger")
+    expect(html).not.toContain("Smazat")
   })
 
   it("renders the empty state for a manual saldokonto draft with no rows yet, and still offers the add trigger", async () => {

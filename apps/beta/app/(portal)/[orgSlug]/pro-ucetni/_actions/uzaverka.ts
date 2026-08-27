@@ -8,17 +8,27 @@ import { redirect } from "next/navigation"
 import type { BetaImportDataset } from "@/db/schema"
 import {
   addPartnerSaldoRow,
+  addPayrollLineToBatch,
   createDraftBatch,
   deleteDraftBatch,
   deletePartnerSaldoRow,
+  deletePayrollLineFromBatch,
+  officeBatchFor,
   publishBatch,
   rollbackDataset,
   updatePartnerSaldoRow,
+  updatePayrollLineInBatch,
   type PartnerSaldoLineInput,
+  type PayrollLineInput,
+  type PayrollSummaryInput,
 } from "@/lib/data/imports"
 import { ensureReportingPeriod } from "@/lib/data/reporting-periods"
 import { requireOwner, requireScope, type OwnerScope } from "@/lib/data/scope"
-import { isCheckViolation, isUniqueViolation } from "@/lib/pg-error"
+import {
+  isCheckViolation,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from "@/lib/pg-error"
 import {
   isCsvDataset,
   readDatasetCsv,
@@ -29,6 +39,7 @@ import {
   formDecimal,
   formInteger,
   formOptionalDate,
+  formOptionalText,
   formPeriodKind,
   formString,
   formUuid,
@@ -397,19 +408,29 @@ function formDataset(formData: FormData): BetaImportDataset | null {
 /**
  * Datasets `startManualBatchAction` may open with an EMPTY payload.
  *
- * `payroll` IS DELIBERATELY ABSENT. `ImportBatchPayload`'s payroll arm makes
- * `payrollSummary` REQUIRED (`imports.ts`'s own comment states why: a payroll
- * batch with lines and no summary would render Přehled mezd and Zaměstnanci
- * disagreeing about whether the period exists), so an empty payroll batch is
- * not a value that type can express. W4 (the plan's payroll-period wave)
- * extends this action with the summary fields rather than reusing an empty
- * start.
+ * `payroll` IS DELIBERATELY A SEPARATE, WIDER LIST (`MANUAL_START_DATASETS`
+ * below). `ImportBatchPayload`'s payroll arm makes `payrollSummary` REQUIRED
+ * (`imports.ts`'s own comment states why: a payroll batch with lines and no
+ * summary would render Přehled mezd and Zaměstnanci disagreeing about
+ * whether the period exists), so an EMPTY payroll batch is not a value this
+ * type can express — `emptyManualBatch` therefore stays exhaustive over the
+ * four datasets that CAN start empty, and `startManualBatchAction` (W4)
+ * branches to its own `createDraftBatch` call, carrying a real summary, for
+ * the fifth.
  */
-const MANUAL_START_DATASETS = [
+const EMPTY_MANUAL_START_DATASETS = [
   "predvaha",
   "rozvaha",
   "vzz",
   "saldokonto",
+] as const
+
+type EmptyManualStartDataset = (typeof EMPTY_MANUAL_START_DATASETS)[number]
+
+/** The full set a "start a manual batch" form may post — the four empty-startable datasets plus payroll. */
+const MANUAL_START_DATASETS = [
+  ...EMPTY_MANUAL_START_DATASETS,
+  "payroll",
 ] as const
 
 type ManualStartDataset = (typeof MANUAL_START_DATASETS)[number]
@@ -429,7 +450,7 @@ function formManualStartDataset(formData: FormData): ManualStartDataset | null {
  */
 function emptyManualBatch(
   owner: OwnerScope,
-  dataset: ManualStartDataset,
+  dataset: EmptyManualStartDataset,
   periodId: string,
 ): ReturnType<typeof createDraftBatch> {
   const common = { periodId, source: "manual" as const }
@@ -457,13 +478,90 @@ function emptyManualBatch(
 }
 
 /**
- * Start a manual batch with NOTHING in it, and send the office straight to its
- * rows — the `uploadCsvBatchAction` idiom above with the file step removed.
+ * The payroll summary fields a "start a payroll batch" form posts
+ * (manual-entry plan §3, W4) — the twelve office-stated totals of
+ * `PayrollSummaryInput`, every one of them optional (§0.4: an unknown is not
+ * a zero). Malformed shape on ANY field refuses the whole form, the same
+ * all-or-nothing reading `readLoanForm` gives its own both-or-neither pairs.
+ */
+function readPayrollSummaryFields(
+  formData: FormData,
+): PayrollSummaryInput | null {
+  const grossTotal = formDecimal(formData, "grossTotal")
+  const employerSocial = formDecimal(formData, "employerSocial")
+  const employerHealth = formDecimal(formData, "employerHealth")
+  const employerCostTotal = formDecimal(formData, "employerCostTotal")
+  const employeeWithholdingsTotal = formDecimal(
+    formData,
+    "employeeWithholdingsTotal",
+  )
+  const incomeTaxAdvance = formDecimal(formData, "incomeTaxAdvance")
+  const netPaidTotal = formDecimal(formData, "netPaidTotal")
+  const paymentDueDate = formOptionalDate(formData, "paymentDueDate")
+
+  if (
+    !grossTotal.ok ||
+    !employerSocial.ok ||
+    !employerHealth.ok ||
+    !employerCostTotal.ok ||
+    !employeeWithholdingsTotal.ok ||
+    !incomeTaxAdvance.ok ||
+    !netPaidTotal.ok ||
+    !paymentDueDate.ok
+  ) {
+    return null
+  }
+
+  return {
+    grossTotal: grossTotal.value,
+    employerSocial: employerSocial.value,
+    employerHealth: employerHealth.value,
+    employerCostTotal: employerCostTotal.value,
+    employeeWithholdingsTotal: employeeWithholdingsTotal.value,
+    incomeTaxAdvance: incomeTaxAdvance.value,
+    netPaidTotal: netPaidTotal.value,
+    paymentDueDate: paymentDueDate.value,
+    headcountHpp: formInteger(formData, "headcountHpp", { min: 0, max: 9999 }),
+    headcountDpc: formInteger(formData, "headcountDpc", { min: 0, max: 9999 }),
+    headcountDpp: formInteger(formData, "headcountDpp", { min: 0, max: 9999 }),
+    noteClient: formOptionalText(formData, "noteClient"),
+  }
+}
+
+/**
+ * What `startManualBatchAction` is about to create, resolved from the FORM —
+ * a discriminated union rather than a bare `EmptyManualStartDataset |
+ * "payroll"` plus a nullable summary, so the caller narrows `payload.dataset
+ * === "payroll"` and gets `payload.summary` typed, with no cast.
+ */
+type ManualStartPayload =
+  | { dataset: EmptyManualStartDataset }
+  | { dataset: "payroll"; summary: PayrollSummaryInput }
+
+function resolveManualStartPayload(
+  dataset: ManualStartDataset,
+  formData: FormData,
+): ManualStartPayload | null {
+  if (dataset !== "payroll") return { dataset }
+  const summary = readPayrollSummaryFields(formData)
+  return summary === null ? null : { dataset, summary }
+}
+
+/**
+ * Start a manual batch, and send the office straight to its rows — the
+ * `uploadCsvBatchAction` idiom above with the file step removed.
  *
- * AN EMPTY DRAFT IS A LEGAL DRAFT: `createDraftBatch` only inserts a dataset's
- * rows `if (length > 0)`, so this needs no special case at the data layer —
- * exactly the property the plan's W1 section confirms before relying on it.
- * `row_count` lands at `0`, which the completeness matrix already renders
+ * FOUR DATASETS START EMPTY (§ above `emptyManualBatch`); `payroll` CANNOT
+ * (its summary is required by `ImportBatchPayload`), so this form carries the
+ * twelve summary fields alongside the period ones, and `payrollLines` starts
+ * at `[]` — the lines are added afterwards, on the batch's own preview
+ * (manual-entry plan §3, W4).
+ *
+ * AN EMPTY DRAFT IS OTHERWISE A LEGAL DRAFT: `createDraftBatch` only inserts a
+ * dataset's rows `if (length > 0)`, so an empty start needs no special case at
+ * the data layer — exactly the property the plan's W1 section confirms before
+ * relying on it. `row_count` lands at `0` (or `1` for a bare payroll summary,
+ * `batchRowCount`'s own rule), which the completeness matrix already renders
  * correctly (a draft with nothing published yet).
  *
  * NEVER PUBLISHES, same as the CSV fallback: the batch stays invisible to
@@ -486,10 +584,28 @@ export async function startManualBatchAction(
     return { status: "error", error: "uzaverka.errorPeriodInvalid" }
   }
 
+  // Read (and refuse a malformed) payroll summary BEFORE touching the
+  // database — the same ordering `uploadCsvBatchAction` uses for its own
+  // parse-then-persist shape, so a doomed request never creates a period as
+  // a side effect of a form it is about to refuse anyway.
+  const payload = resolveManualStartPayload(dataset, formData)
+  if (payload === null) {
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+  }
+
   let draftId: string
   try {
     const reportingPeriod = await ensureReportingPeriod(owner, period)
-    const draft = await emptyManualBatch(owner, dataset, reportingPeriod.id)
+    const draft =
+      payload.dataset === "payroll"
+        ? await createDraftBatch(owner, {
+            periodId: reportingPeriod.id,
+            source: "manual",
+            dataset: "payroll",
+            payrollSummary: payload.summary,
+            payrollLines: [],
+          })
+        : await emptyManualBatch(owner, payload.dataset, reportingPeriod.id)
     draftId = draft.id
   } catch (error) {
     if (isCheckViolation(error)) {
@@ -736,4 +852,171 @@ export async function deletePartnerSaldoRowAction(
 
   revalidateSaldoBatch(orgSlug, batchId)
   return { status: "ok", message: "uzaverka.saldoRowOkDeleted" }
+}
+
+// ---------------------------------------------------------------------------
+// Payroll lines (manual-entry plan §3, W4) — the batch preview's own writes,
+// once a payroll draft has been started above
+// ---------------------------------------------------------------------------
+
+/**
+ * The draft payroll batch `batchId` names, or `null` if it is not one this
+ * owner may add a line to — unknown, another organization's, the wrong
+ * dataset, or no longer a draft. ONE CHECK for all three payroll line
+ * actions, so "unpublishable" always means the same thing regardless of
+ * which of the three found it.
+ */
+async function draftPayrollBatchFor(
+  owner: OwnerScope,
+  batchId: string,
+): Promise<{ id: string; periodId: string } | null> {
+  const batch = await officeBatchFor(owner, batchId)
+  if (!batch || batch.dataset !== "payroll" || batch.status !== "draft") {
+    return null
+  }
+  return { id: batch.id, periodId: batch.period.id }
+}
+
+/** Everything `addPayrollLineAction`/`updatePayrollLineAction` read, or the refusal the sheet gets back. */
+function readPayrollLineForm(
+  formData: FormData,
+): { ok: true; value: PayrollLineInput } | { ok: false } {
+  const payrollEmployeeId = formUuid(formData, "payrollEmployeeId")
+  if (payrollEmployeeId === null) return { ok: false }
+
+  const gross = formDecimal(formData, "gross")
+  const deductionsTotal = formDecimal(formData, "deductionsTotal")
+  const net = formDecimal(formData, "net")
+  const employerCost = formDecimal(formData, "employerCost")
+  if (!gross.ok || !deductionsTotal.ok || !net.ok || !employerCost.ok) {
+    return { ok: false }
+  }
+
+  return {
+    ok: true,
+    value: {
+      payrollEmployeeId,
+      gross: gross.value,
+      deductionsTotal: deductionsTotal.value,
+      net: net.value,
+      employerCost: employerCost.value,
+    },
+  }
+}
+
+/**
+ * Like `guarded()` above, but also translates the two refusals payroll line
+ * actions can hit that no other write in this file can:
+ * `payrollEmployeeId` naming a register row outside this organization
+ * (`payroll_employee_line_employee_fk`, migration 0016, 23503), and a second
+ * line for an employee already in this batch
+ * (`payroll_employee_line_identity_unique`, a real SQL `UNIQUE`, 23505 —
+ * unlike every OTHER guard in this file, which is a trigger `RAISE` and
+ * therefore always 23514). `guarded()` itself is left untouched rather than
+ * widened, so every OTHER caller's silence on 23503/23505 stays a deliberate
+ * "cannot happen here" rather than an accident.
+ */
+async function guardedRow(
+  write: () => Promise<StartManualBatchState>,
+): Promise<StartManualBatchState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "uzaverka.errorRejected" }
+    }
+    if (isForeignKeyViolation(error)) {
+      return { status: "error", error: "mzdyZadani.errorUnknownEmployee" }
+    }
+    if (isUniqueViolation(error)) {
+      return {
+        status: "error",
+        error: "mzdyZadani.errorEmployeeAlreadyInBatch",
+      }
+    }
+    throw error
+  }
+}
+
+export async function addPayrollLineAction(
+  _previous: UzaverkaActionState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  if (batchId === null)
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+
+  const batch = await draftPayrollBatchFor(owner, batchId)
+  if (!batch) return { status: "error", error: "uzaverka.errorUnknownBatch" }
+
+  const fields = readPayrollLineForm(formData)
+  if (!fields.ok) {
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+  }
+
+  return guardedRow(async () => {
+    await addPayrollLineToBatch(owner, batch.id, batch.periodId, fields.value)
+    revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batch.id}`)
+    return { status: "ok", message: "mzdyZadani.okLineAdded" }
+  })
+}
+
+export async function updatePayrollLineAction(
+  _previous: UzaverkaActionState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const lineId = formUuid(formData, "lineId")
+  if (batchId === null || lineId === null) {
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+  }
+
+  const batch = await draftPayrollBatchFor(owner, batchId)
+  if (!batch) return { status: "error", error: "uzaverka.errorUnknownBatch" }
+
+  const fields = readPayrollLineForm(formData)
+  if (!fields.ok) {
+    return { status: "error", error: "uzaverka.errorInvalidInput" }
+  }
+
+  return guardedRow(async () => {
+    const updated = await updatePayrollLineInBatch(
+      owner,
+      batch.id,
+      lineId,
+      fields.value,
+    )
+    if (!updated) {
+      return { status: "error", error: "mzdyZadani.errorLineNotFound" }
+    }
+    revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batch.id}`)
+    return { status: "ok", message: "mzdyZadani.okLineUpdated" }
+  })
+}
+
+/** Draft batches only — matches `ConfirmActionForm`'s own `UzaverkaActionState` action type. */
+export async function deletePayrollLineAction(
+  _previous: UzaverkaActionState,
+  formData: FormData,
+): Promise<UzaverkaActionState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const lineId = formUuid(formData, "lineId")
+  if (batchId === null || lineId === null) return INVALID
+
+  const batch = await draftPayrollBatchFor(owner, batchId)
+  if (!batch) return { status: "error", error: "uzaverka.errorUnknownBatch" }
+
+  const deleted = await deletePayrollLineFromBatch(owner, batch.id, lineId)
+  if (!deleted) {
+    return { status: "error", error: "mzdyZadani.errorLineNotFound" }
+  }
+
+  revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batch.id}`)
+  return { status: "ok", message: "mzdyZadani.okLineDeleted" }
 }

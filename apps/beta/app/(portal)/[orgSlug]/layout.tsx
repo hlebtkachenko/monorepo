@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import { assistantVisibleTo } from "@/lib/data/assistant"
+import { canUploadDocuments } from "@/lib/data/documents"
 import { activeMembershipsForViewer } from "@/lib/data/memberships"
 import { organizationForScope } from "@/lib/data/organizations"
 import { isEmployeeSeat } from "@/lib/data/scope"
@@ -78,6 +79,11 @@ export default async function OrgLayout({
       // up with a nine-entry rail even if a future role change made
       // `isManagement` true for it.
       isEmployeeSeat={isEmployeeSeat(scope)}
+      // Gates the mobile bottom nav's "Nahrát" FAB (spec §1) — the same
+      // server-resolved predicate `dokumenty/page.tsx` already renders its
+      // upload panel from, so the FAB can never promise an upload the route
+      // itself would then 403.
+      canUpload={canUploadDocuments(scope)}
     >
       {children}
     </BetaShell>

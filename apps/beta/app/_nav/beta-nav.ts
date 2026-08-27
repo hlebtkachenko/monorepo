@@ -44,7 +44,7 @@ import { EMPLOYEE_SEAT_HOME } from "@/lib/auth/first-login"
  * remembered. `betaRailNav` returning early is the shape of "this viewer is not
  * a narrowed manager, they are a different kind of user".
  */
-type BetaNavLabelKey =
+export type BetaNavLabelKey =
   | "prehled"
   | "dokumenty"
   | "dane"

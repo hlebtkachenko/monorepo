@@ -12,16 +12,23 @@ import { formatBetaDate } from "@/lib/format/date"
 import { formatBetaMoney } from "@/lib/format/money"
 
 /**
- * The figures of one published payroll period (spec §2.6 Přehled mezd).
+ * The figures of one payroll period (spec §2.6 Přehled mezd).
  *
- * READ AS STORED, RENDERED AS STORED. `payrollSummaryForPeriod` already
- * guarantees every value is the office's own — this component adds Czech
- * labels and the §0.4 fallback for a NULL figure ("Neuvedeno", never "0 Kč")
- * and nothing else. `employerCostTotal` is spec §2.6's "celkové náklady na
- * zaměstnance" and is never called "superhrubá mzda" (the schema header on
- * `payroll_summary.ts` explains why); the breakdown rows below it are labelled
- * with the statutory rates spec §2.6 names so a reader can check the figures
- * against them, which is context, not an arithmetic this component performs.
+ * READ AS STORED, RENDERED AS STORED. Every read that hands this component a
+ * `PayrollSummaryView` already guarantees every value is the office's own —
+ * this component adds Czech labels and the §0.4 fallback for a NULL figure
+ * ("Neuvedeno", never "0 Kč") and nothing else. `employerCostTotal` is spec
+ * §2.6's "celkové náklady na zaměstnance" and is never called "superhrubá
+ * mzda" (the schema header on `payroll_summary.ts` explains why); the
+ * breakdown rows below it are labelled with the statutory rates spec §2.6
+ * names so a reader can check the figures against them, which is context, not
+ * an arithmetic this component performs.
+ *
+ * SHARED, in the org-level `_components/` — TWO callers render it:
+ * `mzdy/page.tsx` (the PUBLISHED period Přehled mezd shows) and the
+ * `uzaverka/[batchId]` payroll arm (manual-entry plan §3, W4 — a DRAFT or
+ * superseded batch's own summary, same shape either way since a batch's
+ * payroll_summary row is read identically regardless of status).
  */
 export async function PayrollSummaryCard({
   summary,

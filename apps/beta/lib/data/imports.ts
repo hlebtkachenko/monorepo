@@ -8,6 +8,7 @@ import {
   import_batch,
   partner,
   partner_saldo,
+  payroll_employee,
   payroll_employee_line,
   payroll_summary,
   reporting_period,
@@ -31,12 +32,16 @@ import {
   importBatchView,
   officeImportBatchRow,
   partnerSaldoLineView,
+  payrollEmployeeLineView,
+  payrollSummaryView,
   reportingPeriodView,
   statementLineView,
   trialBalanceLineView,
   type ImportBatchView,
   type OfficeImportBatchRow,
   type PartnerSaldoLineView,
+  type PayrollEmployeeLineView,
+  type PayrollSummaryView,
   type ReportingPeriodView,
   type StatementLineView,
   type TrialBalanceLineView,
@@ -812,6 +817,101 @@ export async function partnerSaldoLinesForBatch(
   return rows.map(partnerSaldoLineView)
 }
 
+/**
+ * The payroll totals of a batch, by id (manual-entry plan §3, W4: the
+ * `uzaverka/[batchId]` payroll arm) — the batch-preview twin of
+ * `payroll.ts`'s own `payrollSummaryForPeriod`, which reads only the
+ * PUBLISHED batch of a period. Here the batch id is already the caller's
+ * question, the same shift `trialBalanceLinesForBatch` makes from
+ * `predvaha`'s own period-keyed reads.
+ *
+ * `null` covers both "no summary row" and "not readable" — a payroll batch
+ * always carries exactly one summary (spec, `ImportBatchPayload`'s payroll
+ * arm makes it required), so `null` in practice means the id was not this
+ * office's to open.
+ */
+export async function payrollSummaryForBatch(
+  scope: OrgScope,
+  batchId: string,
+): Promise<PayrollSummaryView | null> {
+  const readable = await readableBatchId(scope, batchId)
+  if (!readable) return null
+
+  const [row] = await betaDb()
+    .select({
+      id: payroll_summary.id,
+      period_id: payroll_summary.period_id,
+      gross_total: payroll_summary.gross_total,
+      employer_social: payroll_summary.employer_social,
+      employer_health: payroll_summary.employer_health,
+      employer_cost_total: payroll_summary.employer_cost_total,
+      employee_withholdings_total: payroll_summary.employee_withholdings_total,
+      income_tax_advance: payroll_summary.income_tax_advance,
+      net_paid_total: payroll_summary.net_paid_total,
+      payment_due_date: payroll_summary.payment_due_date,
+      headcount_hpp: payroll_summary.headcount_hpp,
+      headcount_dpc: payroll_summary.headcount_dpc,
+      headcount_dpp: payroll_summary.headcount_dpp,
+      note_client: payroll_summary.note_client,
+    })
+    .from(payroll_summary)
+    .where(
+      and(
+        eq(payroll_summary.import_batch_id, readable),
+        eq(payroll_summary.organization_id, scope.organizationId),
+      ),
+    )
+    .limit(1)
+
+  return row ? payrollSummaryView(row) : null
+}
+
+/**
+ * Every employee line of a payroll batch, by id — the batch-preview twin of
+ * `payroll.ts`'s `payrollLinesForPeriod`, same reasoning as
+ * `payrollSummaryForBatch` above. Joined to `payroll_employee` for the name,
+ * mirroring `partnerSaldoLinesForBatch`'s join to `partner`.
+ */
+export async function payrollLinesForBatch(
+  scope: OrgScope,
+  batchId: string,
+): Promise<PayrollEmployeeLineView[]> {
+  const readable = await readableBatchId(scope, batchId)
+  if (!readable) return []
+
+  const rows = await betaDb()
+    .select({
+      id: payroll_employee_line.id,
+      payroll_employee_id: payroll_employee_line.payroll_employee_id,
+      period_id: payroll_employee_line.period_id,
+      gross: payroll_employee_line.gross,
+      deductions_total: payroll_employee_line.deductions_total,
+      net: payroll_employee_line.net,
+      employer_cost: payroll_employee_line.employer_cost,
+      full_name: payroll_employee.full_name,
+    })
+    .from(payroll_employee_line)
+    .innerJoin(
+      payroll_employee,
+      and(
+        eq(payroll_employee.id, payroll_employee_line.payroll_employee_id),
+        eq(
+          payroll_employee.organization_id,
+          payroll_employee_line.organization_id,
+        ),
+      ),
+    )
+    .where(
+      and(
+        eq(payroll_employee_line.import_batch_id, readable),
+        eq(payroll_employee_line.organization_id, scope.organizationId),
+      ),
+    )
+    .orderBy(asc(payroll_employee.full_name), asc(payroll_employee_line.id))
+
+  return rows.map(payrollEmployeeLineView)
+}
+
 // ---------------------------------------------------------------------------
 // Office writes (spec §3.2 / §3.3)
 // ---------------------------------------------------------------------------
@@ -1510,6 +1610,117 @@ export async function deletePartnerSaldoRow(
 
     return true
   })
+}
+
+// ---------------------------------------------------------------------------
+// Payroll lines of a DRAFT batch (manual-entry plan §3, W4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Add one employee's line to an already-started payroll draft.
+ *
+ * DRAFT-ONLY IS ENFORCED BY THE CALLER, NOT ONLY BY THE TRIGGER.
+ * `payroll_employee_line_requires_draft_batch` (migration 0016) fires
+ * `BEFORE INSERT OR UPDATE`, so a stray insert against a published batch is
+ * refused there — but it does NOT fire `BEFORE DELETE` (there is nothing to
+ * freeze on the way out), which is why `deletePayrollLineFromBatch` below
+ * cannot lean on it alone. The action layer (`uzaverka.ts`'s
+ * `draftPayrollBatchFor`) checks `status === "draft"` before calling any of
+ * the three, so all three refuse the same way regardless of which floor
+ * would have caught it.
+ *
+ * `payrollEmployeeId` NAMING A ROW OUTSIDE THIS ORGANIZATION is a foreign-key
+ * refusal (23503), never a silent cross-tenant write — the composite
+ * `payroll_employee_line_employee_fk` carries `organization_id` on both
+ * sides.
+ */
+export async function addPayrollLineToBatch(
+  scope: OwnerScope,
+  batchId: string,
+  periodId: string,
+  input: PayrollLineInput,
+): Promise<{ id: string }> {
+  const [row] = await betaDb()
+    .insert(payroll_employee_line)
+    .values({
+      organization_id: scope.organizationId,
+      import_batch_id: batchId,
+      payroll_employee_id: input.payrollEmployeeId,
+      period_id: periodId,
+      gross: input.gross ?? null,
+      deductions_total: input.deductionsTotal ?? null,
+      net: input.net ?? null,
+      employer_cost: input.employerCost ?? null,
+    })
+    .returning({ id: payroll_employee_line.id })
+
+  if (!row) throw new Error("payroll employee line insert returned no row")
+  return row
+}
+
+/** A patch to one line, INCLUDING which employee it names — see `uzaverka.ts`'s `PayrollLineFields`: the office may re-point a mis-picked row at the right person rather than delete-and-redo. */
+export type PayrollLinePatch = Partial<{
+  payrollEmployeeId: string
+  gross: string | null
+  deductionsTotal: string | null
+  net: string | null
+  employerCost: string | null
+}>
+
+export async function updatePayrollLineInBatch(
+  scope: OwnerScope,
+  batchId: string,
+  lineId: string,
+  patch: PayrollLinePatch,
+): Promise<boolean> {
+  const updated = await betaDb()
+    .update(payroll_employee_line)
+    .set({
+      ...(patch.payrollEmployeeId === undefined
+        ? {}
+        : { payroll_employee_id: patch.payrollEmployeeId }),
+      ...(patch.gross === undefined ? {} : { gross: patch.gross }),
+      ...(patch.deductionsTotal === undefined
+        ? {}
+        : { deductions_total: patch.deductionsTotal }),
+      ...(patch.net === undefined ? {} : { net: patch.net }),
+      ...(patch.employerCost === undefined
+        ? {}
+        : { employer_cost: patch.employerCost }),
+    })
+    .where(
+      and(
+        eq(payroll_employee_line.id, lineId),
+        eq(payroll_employee_line.import_batch_id, batchId),
+        eq(payroll_employee_line.organization_id, scope.organizationId),
+      ),
+    )
+    .returning({ id: payroll_employee_line.id })
+
+  return updated.length > 0
+}
+
+/**
+ * Remove one line from a draft. See this section's header for why the
+ * caller, not a trigger, is what makes this draft-only.
+ */
+export async function deletePayrollLineFromBatch(
+  scope: OwnerScope,
+  batchId: string,
+  lineId: string,
+): Promise<boolean> {
+  const deleted = await betaDb()
+    .delete(payroll_employee_line)
+    .where(
+      and(
+        eq(payroll_employee_line.id, lineId),
+        eq(payroll_employee_line.import_batch_id, batchId),
+        eq(payroll_employee_line.organization_id, scope.organizationId),
+      ),
+    )
+    .returning({ id: payroll_employee_line.id })
+
+  return deleted.length > 0
 }
 
 /**

@@ -9,8 +9,10 @@ import {
   createAsset,
   disposeAsset,
   updateAsset,
+  type AssetWriteInput,
 } from "@/lib/data/assets"
 import { requireOwner, requireScope } from "@/lib/data/scope"
+import { isCheckViolation } from "@/lib/pg-error"
 
 import {
   formAssetCategory,
@@ -42,6 +44,100 @@ import type { MajetekActionState } from "./state"
  * leaves no other place to carry them.
  */
 
+const INVALID: MajetekActionState = {
+  status: "error",
+  error: "majetek.errorInvalidInput",
+}
+
+/**
+ * Any `asset_*` CHECK this file's own validation does not pre-empt
+ * (`asset_minor_has_no_depreciation`, a race, a future column) becomes this
+ * Czech sentence instead of the raw constraint reaching the client as a 500 —
+ * the same `guarded` idiom `pro-ucetni/_actions/partners.ts` and
+ * `finance/uvery/_actions/loans.ts` use.
+ */
+async function guarded(
+  write: () => Promise<MajetekActionState>,
+): Promise<MajetekActionState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "majetek.errorRejected" }
+    }
+    throw error
+  }
+}
+
+/**
+ * The field set `createAssetAction` and `updateAssetAction` share, or the
+ * named field error when it is unusable.
+ *
+ * THE STAMP PAIR IS NOT SYMMETRIC. `asset_depreciation_stamp_coherence` is
+ * both-or-neither at the database, but only one direction is refused here: a
+ * STATED oprávky figure with no as-of date is the office's own typed amount,
+ * and silently dropping it would lose data the office just entered, so it is
+ * refused with a named field error instead — the same "value stated ⇒ date
+ * required" rule `publishSaldokontoSchema` in `lib/agent/schemas.ts` applies
+ * to a stated payable and its splatnost. An orphan date with no figure is
+ * still noise (nothing to check it against) and is still dropped silently.
+ */
+function readAssetForm(
+  formData: FormData,
+):
+  | { ok: true; value: AssetWriteInput }
+  | { ok: false; state: MajetekActionState } {
+  const name = formString(formData, "name")
+  const category = formAssetCategory(formData, "category")
+  const acquisitionCost = formMoney(formData, "acquisitionCost")
+  if (name.length === 0 || !category || acquisitionCost === null) {
+    return { ok: false, state: INVALID }
+  }
+
+  const accumulatedDepreciation = formOptionalMoney(
+    formData,
+    "accumulatedDepreciation",
+  )
+  if (accumulatedDepreciation === undefined) {
+    return { ok: false, state: INVALID }
+  }
+
+  const depreciationAsOf = formDate(formData, "depreciationAsOf")
+  // `asset_depreciation_stamp_coherence`: a stated oprávky figure with no
+  // as-of date would otherwise reach the database and crash on the CHECK.
+  // Named here, before either that or a silent drop of the office's own
+  // figure can happen.
+  if (accumulatedDepreciation !== null && depreciationAsOf === null) {
+    return {
+      ok: false,
+      state: {
+        status: "error",
+        error: "majetek.errorDepreciationAsOfRequired",
+      },
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      name,
+      category,
+      isMinor: formChecked(formData, "isMinor"),
+      acquisitionCost,
+      acquiredOn: formDate(formData, "acquiredOn"),
+      placedInServiceOn: formDate(formData, "placedInServiceOn"),
+      accumulatedDepreciation,
+      // The orphan-date direction is still noise and is still dropped — the
+      // stated-value direction is refused above, never silently dropped.
+      depreciationAsOf:
+        accumulatedDepreciation === null ? null : depreciationAsOf,
+      taxResidualValue: formOptionalMoney(formData, "taxResidualValue") ?? null,
+      siteRef: formOptionalString(formData, "siteRef"),
+      noteClient: formOptionalString(formData, "noteClient"),
+    },
+  }
+}
+
 export async function createAssetAction(
   _previous: MajetekActionState,
   formData: FormData,
@@ -49,42 +145,15 @@ export async function createAssetAction(
   const orgSlug = formString(formData, "orgSlug")
   const owner = requireOwner(await requireScope(orgSlug))
 
-  const name = formString(formData, "name")
-  const category = formAssetCategory(formData, "category")
-  const acquisitionCost = formMoney(formData, "acquisitionCost")
-  const accumulatedDepreciation = formOptionalMoney(
-    formData,
-    "accumulatedDepreciation",
-  )
-  const depreciationAsOf = formDate(formData, "depreciationAsOf")
+  const fields = readAssetForm(formData)
+  if (!fields.ok) return fields.state
 
-  if (name.length === 0 || !category || acquisitionCost === null) {
-    return { status: "error", error: "majetek.errorInvalidInput" }
-  }
-  if (accumulatedDepreciation === undefined) {
-    return { status: "error", error: "majetek.errorInvalidInput" }
-  }
+  return guarded(async () => {
+    const created = await createAsset(owner, fields.value)
 
-  const created = await createAsset(owner, {
-    name,
-    category,
-    isMinor: formChecked(formData, "isMinor"),
-    acquisitionCost,
-    acquiredOn: formDate(formData, "acquiredOn"),
-    placedInServiceOn: formDate(formData, "placedInServiceOn"),
-    accumulatedDepreciation,
-    // Both-or-neither at the database (asset_depreciation_stamp_coherence) —
-    // an oprávky figure with no stated as-of date is dropped rather than
-    // silently paired with an empty one.
-    depreciationAsOf:
-      accumulatedDepreciation === null ? null : depreciationAsOf,
-    taxResidualValue: formOptionalMoney(formData, "taxResidualValue") ?? null,
-    siteRef: formOptionalString(formData, "siteRef"),
-    noteClient: formOptionalString(formData, "noteClient"),
+    revalidatePath(`/${orgSlug}/majetek`)
+    redirect(`/${orgSlug}/majetek/${created.id}`)
   })
-
-  revalidatePath(`/${orgSlug}/majetek`)
-  redirect(`/${orgSlug}/majetek/${created.id}`)
 }
 
 export async function updateAssetAction(
@@ -99,42 +168,17 @@ export async function updateAssetAction(
     return { status: "error", error: "majetek.errorNotFound" }
   }
 
-  const name = formString(formData, "name")
-  const category = formAssetCategory(formData, "category")
-  const acquisitionCost = formMoney(formData, "acquisitionCost")
-  const accumulatedDepreciation = formOptionalMoney(
-    formData,
-    "accumulatedDepreciation",
-  )
-  const depreciationAsOf = formDate(formData, "depreciationAsOf")
+  const fields = readAssetForm(formData)
+  if (!fields.ok) return fields.state
 
-  if (name.length === 0 || !category || acquisitionCost === null) {
-    return { status: "error", error: "majetek.errorInvalidInput" }
-  }
-  if (accumulatedDepreciation === undefined) {
-    return { status: "error", error: "majetek.errorInvalidInput" }
-  }
+  return guarded(async () => {
+    const updated = await updateAsset(owner, assetId, fields.value)
+    if (!updated) return { status: "error", error: "majetek.errorNotFound" }
 
-  const updated = await updateAsset(owner, assetId, {
-    name,
-    category,
-    isMinor: formChecked(formData, "isMinor"),
-    acquisitionCost,
-    acquiredOn: formDate(formData, "acquiredOn"),
-    placedInServiceOn: formDate(formData, "placedInServiceOn"),
-    accumulatedDepreciation,
-    depreciationAsOf:
-      accumulatedDepreciation === null ? null : depreciationAsOf,
-    taxResidualValue: formOptionalMoney(formData, "taxResidualValue") ?? null,
-    siteRef: formOptionalString(formData, "siteRef"),
-    noteClient: formOptionalString(formData, "noteClient"),
+    revalidatePath(`/${orgSlug}/majetek`)
+    revalidatePath(`/${orgSlug}/majetek/${assetId}`)
+    return { status: "ok", message: "majetek.okUpdated" }
   })
-
-  if (!updated) return { status: "error", error: "majetek.errorNotFound" }
-
-  revalidatePath(`/${orgSlug}/majetek`)
-  revalidatePath(`/${orgSlug}/majetek/${assetId}`)
-  return { status: "ok", message: "majetek.okUpdated" }
 }
 
 export async function disposeAssetAction(

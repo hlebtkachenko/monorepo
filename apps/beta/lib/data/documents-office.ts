@@ -24,7 +24,6 @@ import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm"
 import { betaDb } from "@/db/client"
 import {
   document,
-  partner,
   type BetaClientDocumentType,
   type BetaDocumentStatus,
 } from "@/db/schema"
@@ -37,6 +36,7 @@ import { isCheckViolation } from "@/lib/pg-error"
 import { normalizeSiteRef } from "./documents"
 import { notifiableOrgMembers } from "./notification-prefs"
 import { organizationForScope } from "./organizations"
+import { partnerExists } from "./partners"
 import { ownerDocumentDetail, type OwnerDocumentDetail } from "./projections"
 import type { OwnerScope } from "./scope"
 
@@ -294,17 +294,8 @@ export async function saveDocumentOffice(
   if (patch.partnerId !== undefined && patch.partnerId !== null) {
     if (!UUID.test(patch.partnerId))
       return { ok: false, reason: "invalid_partner" }
-    const [linked] = await betaDb()
-      .select({ id: partner.id })
-      .from(partner)
-      .where(
-        and(
-          eq(partner.organization_id, owner.organizationId),
-          eq(partner.id, patch.partnerId),
-        ),
-      )
-      .limit(1)
-    if (!linked) return { ok: false, reason: "invalid_partner" }
+    if (!(await partnerExists(owner, patch.partnerId)))
+      return { ok: false, reason: "invalid_partner" }
   }
 
   const [current] = await betaDb()

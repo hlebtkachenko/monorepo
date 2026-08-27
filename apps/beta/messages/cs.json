@@ -836,7 +836,9 @@
     "okDisposed": "Majetek vyřazen.",
     "okEventAdded": "Událost přidána.",
     "errorInvalidInput": "Neplatný vstup.",
-    "errorNotFound": "Záznam nenalezen."
+    "errorNotFound": "Záznam nenalezen.",
+    "errorDepreciationAsOfRequired": "Uveďte datum, ke kterému jsou oprávky platné.",
+    "errorRejected": "Operaci odmítla databáze."
   },
   "uvery": {
     "title": "Úvěry a leasingy",
@@ -883,7 +885,9 @@
     "okCreated": "Smlouva přidána.",
     "okUpdated": "Uloženo.",
     "errorInvalidInput": "Neplatný vstup.",
-    "errorNotFound": "Záznam nenalezen."
+    "errorNotFound": "Záznam nenalezen.",
+    "errorBalanceAsOfRequired": "Uveďte datum, ke kterému je zůstatek platný.",
+    "errorRejected": "Operaci odmítla databáze."
   },
   "ukoly": {
     "title": "Úkoly klientovi",

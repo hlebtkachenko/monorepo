@@ -1060,6 +1060,20 @@ export async function createDraftBatch(
 }
 
 /**
+ * `true` when at least one `PayrollSummaryInput` field carries a value — the
+ * "is there actually a row here" test `batchRowCount`'s `payroll` case needs.
+ * Every field is independently optional (spec §0.4: an unknown is not a
+ * zero), so a summary object exists even when the office has typed nothing
+ * into it — `startManualBatchAction`'s "Start manual batch" form posts one
+ * unconditionally.
+ */
+function payrollSummaryIsStated(summary: PayrollSummaryInput): boolean {
+  return Object.values(summary).some(
+    (value) => value !== null && value !== undefined,
+  )
+}
+
+/**
  * How many rows the payload carries — one exhaustive switch over the union
  * rather than a ternary chain, so a fourth dataset arm is a compile error here
  * instead of a batch that silently reports `row_count: 0`.
@@ -1070,12 +1084,20 @@ function batchRowCount(input: ImportBatchInput): number {
       return input.trialBalanceLines.length
     case "saldokonto":
       return input.partnerSaldoLines.length
-    case "payroll":
-      // The summary IS a payload row, so a twelve-person month counts 13.
-      // Counting only the lines would report a batch as one row short of what
-      // it wrote, and `row_count` is what the office reads in the completeness
-      // matrix to decide whether an import looks complete.
-      return input.payrollLines.length + 1
+    case "payroll": {
+      // The summary IS a payload row, so a twelve-person month counts 13 —
+      // counting only the lines would report a batch as one row short of what
+      // it wrote, and `row_count` is what the office reads in the
+      // completeness matrix to decide whether an import looks complete. But a
+      // FRESH manual batch (no lines yet, and a summary form the office has
+      // not touched — every field of it optional) is not "one row"; it is
+      // zero, the same as the other three manual-start datasets. The summary
+      // only counts once it, or the lines, actually carry something.
+      const lines = input.payrollLines.length
+      const summaryCounts =
+        lines > 0 || payrollSummaryIsStated(input.payrollSummary)
+      return lines + (summaryCounts ? 1 : 0)
+    }
     case "rozvaha":
     case "vzz":
       return input.statementLines.length

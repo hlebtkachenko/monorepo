@@ -8,6 +8,7 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { useBetaTranslations } from "@/i18n/translations"
 
+import { usePreserveFormValues } from "../../_lib/preserve-form-values"
 import { MAJETEK_ACTION_IDLE, type MajetekAction } from "../_actions/state"
 
 /**
@@ -35,13 +36,15 @@ export function AssetActionForm({
   children?: React.ReactNode
 }>) {
   const t = useBetaTranslations()
+  const formRef = React.useRef<HTMLFormElement>(null)
   const [state, formAction, pending] = React.useActionState(
-    action,
+    usePreserveFormValues(formRef, action),
     MAJETEK_ACTION_IDLE,
   )
 
   return (
     <form
+      ref={formRef}
       action={formAction}
       className={cn(
         layout === "row" ? "flex flex-wrap items-center gap-2" : "grid gap-3",

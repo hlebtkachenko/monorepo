@@ -23,6 +23,7 @@ import {
   createImportBatchRow,
   createMonthPeriod,
   createPartnerRow,
+  createPayrollEmployeeRow,
   createReportingPeriod,
   createTrialBalanceLineRow,
   endFixtures,
@@ -250,6 +251,65 @@ describe("createDraftBatch — the office stages an import", () => {
 
     const lines = await statementLinesForBatch(scope, batch.id)
     expect(lines).toHaveLength(3)
+  })
+
+  /**
+   * QA sweep regression: `startManualBatchAction` posts a payroll summary
+   * unconditionally (every field independently optional), so a fresh manual
+   * batch the office has not touched yet used to count that bare, all-null
+   * summary object as "1 row" — the header read "Řádků: 1" over a body with
+   * nothing in it. `batchRowCount`'s `payroll` case now only counts the
+   * summary once it, or a line, actually carries something.
+   */
+  it("counts a bare payroll summary (every field unstated) as zero rows", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "payroll",
+      source: "manual",
+      payrollSummary: {},
+      payrollLines: [],
+    })
+
+    expect(batch.rowCount).toBe(0)
+    const row = await readImportBatchRow(batch.id)
+    expect(row.row_count).toBe(0)
+  })
+
+  it("counts a payroll summary with at least one stated field as one row", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "payroll",
+      source: "manual",
+      payrollSummary: { grossTotal: "150000.00" },
+      payrollLines: [],
+    })
+
+    expect(batch.rowCount).toBe(1)
+  })
+
+  it("still counts the summary as a row alongside real employee lines — a twelve-person month counts 13", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const scope = await ownerScope(org)
+    const employeeId = await createPayrollEmployeeRow(org.organizationId)
+
+    const batch = await createDraftBatch(scope, {
+      periodId,
+      dataset: "payroll",
+      source: "agent",
+      payrollSummary: { grossTotal: "50000.00" },
+      payrollLines: [{ payrollEmployeeId: employeeId, gross: "50000.00" }],
+    })
+
+    expect(batch.rowCount).toBe(2)
   })
 
   /**

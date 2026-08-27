@@ -573,7 +573,14 @@ describe("employee-seat fence — the org API surface", () => {
   it("accounts for every route under app/api, registered or exempt", () => {
     const unaccounted = apiRoutes(API_ROOT).filter((route) => {
       const dir = routeDir(route)
-      if (Object.keys(API_EXEMPT).some((tree) => dir.startsWith(tree))) {
+      // SEGMENT-WISE, not string-wise. `dir.startsWith("agent/v1")` also
+      // matches `agent/v10`, so the day a v10 is mounted it would silently
+      // inherit v1's key-authentication exemption without anyone arguing for it.
+      if (
+        Object.keys(API_EXEMPT).some(
+          (tree) => dir === tree || dir.startsWith(`${tree}/`),
+        )
+      ) {
         return false
       }
       const underOrgs = route.startsWith("orgs/[orgSlug]/")
@@ -731,6 +738,16 @@ const ACTION_SEAT_NARROWING: Record<string, readonly string[]> = {
   "mzdy/_actions/employee-seat.ts": ["inviteEmployeeSeat"],
 }
 
+/**
+ * The `"use server"` directive, and everything Next lets sit in front of it.
+ *
+ * A directive prologue may be preceded by comments of BOTH kinds. Allowing only
+ * `/* *\/` meant one `// eslint-disable` or one `// TODO` above the directive
+ * took the whole module out of the walk — a bypass a contributor could hit by
+ * accident, which is the worst kind.
+ */
+const USE_SERVER = /^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*\n)*["']use server["']/
+
 function serverActionModules(dir: string, prefix = ""): string[] {
   const found: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -740,9 +757,7 @@ function serverActionModules(dir: string, prefix = ""): string[] {
     } else if (
       /\.tsx?$/.test(entry.name) &&
       !/\.test\.tsx?$/.test(entry.name) &&
-      /^\s*(?:\/\*[\s\S]*?\*\/\s*)?["']use server["']/.test(
-        readFileSync(join(dir, entry.name), "utf8"),
-      )
+      USE_SERVER.test(readFileSync(join(dir, entry.name), "utf8"))
     ) {
       found.push(rel)
     }
@@ -750,16 +765,39 @@ function serverActionModules(dir: string, prefix = ""): string[] {
   return found
 }
 
-/** Does this module export a function at all — i.e. is there an endpoint? */
+/**
+ * Does this module export a function at all — i.e. is there an endpoint?
+ *
+ * BOTH SPELLINGS. `export async function a() {}` and `export const a = async
+ * () => {}` are the same endpoint to Next, and counting only the declaration
+ * form meant an arrow-const module reported "no endpoint here" and was skipped
+ * by the gate walk entirely.
+ */
 function exportsAFunction(file: string): boolean {
-  const source = parseTsx(file)
-  return source.statements.some(
-    (statement) =>
-      ts.isFunctionDeclaration(statement) &&
-      statement.modifiers?.some(
-        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-      ) === true,
-  )
+  const isExported = (
+    modifiers: ts.NodeArray<ts.ModifierLike> | undefined,
+  ): boolean =>
+    modifiers?.some(
+      (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+    ) === true
+
+  return parseTsx(file).statements.some((statement) => {
+    if (ts.isFunctionDeclaration(statement)) {
+      return isExported(statement.modifiers)
+    }
+    if (ts.isVariableStatement(statement)) {
+      return (
+        isExported(statement.modifiers) &&
+        statement.declarationList.declarations.some(
+          (declaration) =>
+            declaration.initializer !== undefined &&
+            (ts.isArrowFunction(declaration.initializer) ||
+              ts.isFunctionExpression(declaration.initializer)),
+        )
+      )
+    }
+    return false
+  })
 }
 
 describe("employee-seat fence — Server Actions are endpoints too", () => {
@@ -846,13 +884,70 @@ describe("employee-seat fence — Server Actions are endpoints too", () => {
       "after-docblock.ts",
       `/* leading block */\n"use server"\nexport async function b() {}`,
     )
+    // A directive prologue may be preceded by comments of BOTH kinds. One
+    // `// eslint-disable` above the directive used to take a whole module out
+    // of the walk.
+    write(
+      "after-line-comment.ts",
+      `// eslint-disable-next-line\n// TODO: split this up\n"use server"\nexport async function c() {}`,
+    )
 
     expect(serverActionModules(dir).sort()).toEqual([
       "after-docblock.ts",
+      "after-line-comment.ts",
       "real.ts",
     ])
 
     rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("counts an arrow-const export as an endpoint (non-vacuous)", () => {
+    // `export const a = async () => {}` is the same endpoint to Next as the
+    // declaration form. Counting only declarations made an arrow-const module
+    // report "no endpoint here" and skip the gate walk entirely — a bypass
+    // available to anyone who prefers that style.
+    const dir = mkdtempSync(join(tmpdir(), "exports-fence-"))
+    const write = (name: string, source: string): string => {
+      const file = join(dir, name)
+      writeFileSync(file, source, "utf8")
+      return file
+    }
+
+    expect(
+      exportsAFunction(
+        write("arrow.ts", `"use server"\nexport const a = async () => {}`),
+      ),
+    ).toBe(true)
+    expect(
+      exportsAFunction(
+        write("expr.ts", `"use server"\nexport const b = async function () {}`),
+      ),
+    ).toBe(true)
+    expect(
+      exportsAFunction(
+        write("decl.ts", `"use server"\nexport async function c() {}`),
+      ),
+    ).toBe(true)
+    // Still not an endpoint: a plain value, and a non-exported arrow.
+    expect(
+      exportsAFunction(write("value.ts", `export const d = { ok: true }`)),
+    ).toBe(false)
+    expect(
+      exportsAFunction(write("private.ts", `const e = async () => {}`)),
+    ).toBe(false)
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("does not let a sibling version inherit an exemption (non-vacuous)", () => {
+    // `dir.startsWith("agent/v1")` also matches `agent/v10`.
+    const matches = (dir: string, tree: string): boolean =>
+      dir === tree || dir.startsWith(`${tree}/`)
+
+    expect(matches("agent/v1", "agent/v1")).toBe(true)
+    expect(matches("agent/v1/meta", "agent/v1")).toBe(true)
+    expect(matches("agent/v10", "agent/v1")).toBe(false)
+    expect(matches("agent/v10/meta", "agent/v1")).toBe(false)
   })
 
   it("catches an action that only proves membership (non-vacuous)", () => {

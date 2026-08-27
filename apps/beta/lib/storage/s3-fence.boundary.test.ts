@@ -44,10 +44,19 @@ const S3_ALLOWED_PREFIX = "lib/storage/"
 const SEAM_ALLOWED_PREFIXES = ["lib/storage/", "lib/data/", "tests/"]
 const isTestFile = (file: string): boolean => /\.test\.tsx?$/.test(file)
 
-const SKIP_DIRS = new Set([
+/**
+ * Skipped by PATH relative to `dir` (always `BETA_ROOT` here), not by bare
+ * basename. `node_modules`/`.next` are excluded no matter where they occur —
+ * once skipped once, the walker never descends into them, so a nested
+ * instance is never actually reached — but `migrations`/`fonts`/`public` name
+ * the app's own top-level directories specifically, and matching those by
+ * basename alone used to silently exempt any FUTURE directory that happened
+ * to share one of those names deeper in the tree from this fence's AST scan.
+ */
+const SKIP_DIR_PATHS = new Set([
   "node_modules",
   ".next",
-  "migrations",
+  "db/migrations",
   "fonts",
   "public",
 ])
@@ -56,8 +65,8 @@ function collectSources(dir: string): string[] {
   const files: string[] = []
   const walk = (current: string): void => {
     for (const entry of readdirSync(current)) {
-      if (SKIP_DIRS.has(entry)) continue
       const full = join(current, entry)
+      if (SKIP_DIR_PATHS.has(relative(dir, full))) continue
       if (statSync(full).isDirectory()) walk(full)
       else if (/\.tsx?$/.test(entry)) files.push(full)
     }

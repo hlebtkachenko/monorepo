@@ -193,7 +193,7 @@ describe("--dry-run", () => {
     expect(result.out).not.toContain("Daňová podání — 2026-07")
   })
 
-  it("works for a dataset the portal cannot accept yet, and says which PR lands it", async () => {
+  it("works for a dataset the CLI cannot publish yet, and says the route is already live", async () => {
     const result = await exec(
       [
         "publish",
@@ -209,7 +209,7 @@ describe("--dry-run", () => {
       {},
     )
     expect(result.code).toBe(0)
-    expect(result.out).toContain("PR 27")
+    expect(result.out).toContain("CLI wiring not yet built")
   })
 
   it("prints the row-level refusal instead of a payload when the file is wrong", async () => {
@@ -321,7 +321,7 @@ describe("publish", () => {
       forbidden,
     )
     expect(result.code).toBe(1)
-    expect(result.out).toContain("PR 29")
+    expect(result.out).toContain("CLI wiring not yet built")
     expect(result.out).toContain("--dry-run")
   })
 

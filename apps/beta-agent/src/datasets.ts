@@ -100,7 +100,15 @@ export type Dataset = {
    * day the endpoint lands.
    */
   readonly path: string | null
-  /** Which campaign PR turns the endpoint on. Set exactly when `path` is null. */
+  /**
+   * Why this dataset can't publish yet — set exactly when `path` is null.
+   * Shown verbatim in the CLI's refusal message, so it names a concrete next
+   * step rather than a specific campaign PR number: naming one has already
+   * gone stale once (this field named "PR 27"/"PR 29" for saldokonto/payroll
+   * while those were still unbuilt; both landed under different PR numbers —
+   * item 28 and items 30-32 — and their server routes exist today while this
+   * CLI still has no wiring for either).
+   */
   readonly pending?: string
   /** `batch` requires `--period`; `row` reads it per row; `none` has no period. */
   readonly periodScope: "batch" | "row" | "none"
@@ -743,7 +751,10 @@ export const DATASETS: Readonly<Record<DatasetName, Dataset>> = {
     name: "saldokonto",
     label: "Saldokonto (pohledávky a závazky)",
     path: null,
-    pending: "PR 27 (partner + partner_saldo)",
+    // `/api/agent/v1/orgs/{orgSlug}/publish/saldokonto` is live (item 28) —
+    // this CLI's request wiring for it is a separate, not-yet-built follow-up.
+    pending:
+      "server route live (publish/saldokonto) — CLI wiring not yet built",
     periodScope: "batch",
     schema: null,
     aliases: SALDO_ALIASES,
@@ -774,7 +785,9 @@ export const DATASETS: Readonly<Record<DatasetName, Dataset>> = {
     name: "payroll",
     label: "Mzdová rekapitulace",
     path: null,
-    pending: "PR 29 (payroll_summary + payroll_employee_line)",
+    // `/api/agent/v1/orgs/{orgSlug}/publish/payroll` is live (items 30-32) —
+    // this CLI's request wiring for it is a separate, not-yet-built follow-up.
+    pending: "server route live (publish/payroll) — CLI wiring not yet built",
     periodScope: "batch",
     schema: null,
     aliases: PAYROLL_ALIASES,

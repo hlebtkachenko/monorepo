@@ -12,9 +12,10 @@
  * does it: `DATABASE_URL` is set by globalSetup, and a static import would bind
  * the singleton before it exists.
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest"
 
 import { generateAgentKey } from "@/lib/agent/key"
+import { resetRateLimitersForTests } from "@/lib/auth/rate-limit"
 import {
   addMembership,
   archiveOrganization,
@@ -199,6 +200,16 @@ beforeAll(async () => {
 })
 
 afterAll(endFixtures)
+
+// The agent limiters (`lib/auth/rate-limit.ts`) are process-wide singletons,
+// and `globalKey`/`scopedKey` above are shared `beforeAll` fixtures spent by
+// dozens of tests below — so without a reset, this file's own test count
+// would slowly close in on `BETA_AGENT_KEY_RATE_LIMIT.max` (60) the same way
+// the dedicated "rate limiting" suite deliberately drives ONE key there. A
+// clean slate before every test is what makes that budget a property of the
+// ONE test that means to spend it, not of how many tests happen to run
+// before it.
+beforeEach(resetRateLimitersForTests)
 
 describe("authentication answers one 401 for every reason", () => {
   it("accepts a live key", async () => {
@@ -1940,8 +1951,10 @@ describe("the activity log", () => {
 })
 
 /**
- * LAST IN THE FILE ON PURPOSE. The limiters are process-wide, so spending a
- * key's whole minute has to happen after everything that needs a working API.
+ * Position in the file no longer matters: the top-level `beforeEach` above
+ * resets both process-wide limiters before every test, so this suite starts
+ * from the same clean slate wherever it runs and cannot spend a budget any
+ * other test still needs.
  */
 describe("rate limiting", () => {
   it("caps a single key and says when to come back", async () => {

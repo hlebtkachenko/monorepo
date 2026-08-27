@@ -13,6 +13,8 @@ import { useBetaTranslations } from "@/i18n/translations"
 
 import { betaRailNav } from "../_nav/beta-nav"
 
+import { BetaBottomNav } from "./beta-bottom-nav"
+
 /**
  * The persistent shell for the beta portal — mounted by
  * `app/(portal)/[orgSlug]/layout.tsx` so the rail and chrome stay put while
@@ -47,6 +49,7 @@ export function BetaShell({
   showAssistant = false,
   isManagement = false,
   isEmployeeSeat = false,
+  canUpload = false,
 }: {
   children: React.ReactNode
   orgSlug: string
@@ -79,6 +82,15 @@ export function BetaShell({
    * construction rather than by them happening to be false.
    */
   isEmployeeSeat?: boolean
+  /**
+   * Gates the mobile bottom nav's "Nahrát" FAB (spec §1) — pass
+   * `canUploadDocuments(scope)`, the same server-resolved predicate the
+   * Dokumenty page itself renders its upload panel from. Not read from
+   * `isEmployeeSeat`/`isOwner` here: a guest membership can't upload but the
+   * employee seat (also a `guest` role) can, so it needs its own boolean
+   * rather than being derived from the other flags.
+   */
+  canUpload?: boolean
 }) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
@@ -128,6 +140,16 @@ export function BetaShell({
       }
       contentHeader={<ContentHeader title={orgLegalName} />}
       logoHref={`/${orgSlug}`}
+      bottomNav={
+        <BetaBottomNav
+          orgSlug={orgSlug}
+          isOwner={isOwner}
+          showAssistant={showAssistant}
+          isManagement={isManagement}
+          isEmployeeSeat={isEmployeeSeat}
+          canUpload={canUpload}
+        />
+      }
     >
       {/* THE PORTAL'S SCROLL REGION, AND IT HAS TO BE HERE.
           `AppShell` deliberately does NOT scroll its body — the org app fills

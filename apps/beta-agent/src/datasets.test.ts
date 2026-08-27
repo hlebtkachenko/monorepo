@@ -332,9 +332,9 @@ describe("liabilities, assets, client tasks", () => {
 })
 
 describe("datasets with no endpoint yet", () => {
-  it("still transforms saldokonto, and names the PR that will accept it", () => {
+  it("still transforms saldokonto, and says the CLI wiring is the gap", () => {
     expect(DATASETS.saldokonto.path).toBeNull()
-    expect(DATASETS.saldokonto.pending).toContain("PR 27")
+    expect(DATASETS.saldokonto.pending).toContain("CLI wiring not yet built")
     expect(ok("saldokonto").payload).toMatchObject({
       period: { kind: "month", year: 2026, month: 7 },
       partners: [
@@ -353,7 +353,7 @@ describe("datasets with no endpoint yet", () => {
   })
 
   it("reads the payroll recap as ONE row and never sums a second", () => {
-    expect(DATASETS.payroll.pending).toContain("PR 29")
+    expect(DATASETS.payroll.pending).toContain("CLI wiring not yet built")
     expect(ok("payroll").payload).toMatchObject({
       summary: {
         grossTotal: "486200.00",

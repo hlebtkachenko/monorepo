@@ -57,7 +57,11 @@ import { baseFilename } from "@/lib/storage/content-disposition"
 import { documentStore } from "@/lib/storage/store"
 import { scanUpload, type UploadScanRefusal } from "@/lib/storage/upload-stream"
 
-import { ORGANIZATION_QUOTA_BYTES, organizationStorageUsage } from "./documents"
+import {
+  ORGANIZATION_QUOTA_BYTES,
+  organizationStorageUsage,
+  softDeleteDocument,
+} from "./documents"
 import {
   payrollScope,
   publishedPayrollPeriods,
@@ -411,4 +415,63 @@ export async function uploadPayslipDocument(
     if (isDeadlock(error)) return { ok: false, reason: "retry" }
     throw error
   }
+}
+
+/**
+ * WITHDRAW A PAYSLIP THAT WAS FILED AGAINST THE WRONG PERSON.
+ *
+ * The worst outcome reachable from this application, per this module's own
+ * header, is a výplatní páska served to the wrong colleague.
+ * `uploadPayslipDocument` stamps `payslip_employee_id` from the office's
+ * matching pass, and a bulk ZIP matched by name against a register holding two
+ * Nováks is exactly where that stamp goes wrong.
+ *
+ * Until now there was no way to take it back. `softDeleteDocument`
+ * (`lib/data/documents.ts`) has been the mechanism the whole time and has had
+ * NO CALLER AT ALL — so the remediation existed only as a function nobody could
+ * find from the surface that needs it.
+ *
+ * WITHDRAWAL, NOT RE-STAMPING. The tempting shape is "point the row at the
+ * right employee", and it is the wrong one: a payslip already readable by the
+ * wrong person is not made unread by correcting a column, the office still has
+ * to tell someone, and the row is the evidence of what was served and to whom.
+ * Withdrawing it and uploading again against the correct employee leaves both
+ * facts in the book — one row that was wrong and was retracted, one row that is
+ * right — where a mutation would leave a single row that has always looked
+ * correct.
+ *
+ * IT REFUSES A NON-PAYSLIP, which is why this is a named function rather than a
+ * `softDeleteDocument` call at the call site. That function withdraws ANY
+ * document in the book, so a payroll-remediation surface wired straight to it
+ * would be a payroll surface that can delete invoices and bank statements. The
+ * `doc_type = 'payslip'` check makes this door carry the narrowest authority
+ * that does the job.
+ *
+ * THE BYTES SURVIVE, deliberately. Every read in this module filters
+ * `deleted_at IS NULL`, so the row leaves Výplatnice and the employee's Moje
+ * mzda at once, while the object stays recoverable until an operator runs
+ * `purgeOrganization`. A mis-assignment is a mistake, and mistakes get undone.
+ */
+export async function withdrawMisassignedPayslip(
+  scope: OwnerScope,
+  documentId: string,
+): Promise<boolean> {
+  if (!UUID.test(documentId)) return false
+
+  const [payslip] = await betaDb()
+    .select({ id: document.id })
+    .from(document)
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.organization_id, scope.organizationId),
+        eq(document.doc_type, "payslip"),
+        isNull(document.deleted_at),
+      ),
+    )
+    .limit(1)
+
+  if (!payslip) return false
+
+  return softDeleteDocument(scope, documentId)
 }

@@ -1018,8 +1018,13 @@ export async function uploadDocument(
  *
  * Owner-only: deleting an accounting document is an accounting act (spec §5 —
  * every write below owner is a read). The row and its S3 object both survive;
- * PR 37's retention job purges the bytes, which is what keeps "the office
- * deleted it by mistake" recoverable for as long as the retention window.
+ * only `purgeOrganization` (`lib/storage/document-store.ts`) destroys bytes,
+ * which is what keeps "the office deleted it by mistake" recoverable.
+ *
+ * IT WITHDRAWS ANY DOCUMENT IN THE BOOK, payslips included — which is why the
+ * payroll door does not call it directly. `withdrawMisassignedPayslip`
+ * (`lib/data/payslips.ts`) is the caller: it refuses a non-payslip first, so a
+ * payroll-remediation surface cannot reach an invoice.
  */
 export async function softDeleteDocument(
   scope: OrgScope,

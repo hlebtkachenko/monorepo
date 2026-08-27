@@ -16,7 +16,7 @@
   "nav": {
     "prehled": "Přehled",
     "dokumenty": "Dokumenty",
-    "dane": "Daně a podání",
+    "dane": "Daně",
     "finance": "Finance",
     "majetek": "Majetek",
     "mzdy": "Mzdy",
@@ -904,7 +904,7 @@
     "columnActions": "Akce",
     "linkNone": "Bez odkazu",
     "linkDokumenty": "Dokumenty",
-    "linkDane": "Daně a podání",
+    "linkDane": "Daně",
     "statusOpen": "Otevřeno",
     "statusDone": "Hotovo",
     "monthlySetButton": "Založit měsíční sadu",

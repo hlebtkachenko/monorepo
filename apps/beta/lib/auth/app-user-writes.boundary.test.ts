@@ -697,11 +697,20 @@ describe("SF-3 — app_user write paths", () => {
     //   both          `UPDATE "public"."app_user"`    — what pg_dump emits
     //   ONLY          `UPDATE ONLY app_user SET`      — valid Postgres, and inheritance-aware code writes it
     //   line breaks   `update\n  app_user\nset`       — what a formatter does to a long statement
+    //   MERGE         `MERGE INTO app_user USING ...` — a writer since PG 15, and neither INSERT nor UPDATE
+    //   comment       `UPDATE /* tenant */ app_user`  — what a query annotator injects
     //
-    // The unquoted-single-token pattern this replaces matched the first two of
-    // the five.
-    const pattern =
-      /(?:insert\s+into|update)\s+(?:only\s+)?(?:"?[a-z_]+"?\s*\.\s*)?"?app_user"?(?![\w"])/i
+    // The unquoted-single-token pattern this replaces matched two of the seven.
+    //
+    // Schema identifiers are `[a-z0-9_]+`, WITH THE DIGITS: `beta_v2.app_user`
+    // is a legal qualified name and a letters-only class walks straight past it,
+    // which is the same shape of gap as the one above.
+    const IDENT = String.raw`"?[a-z0-9_]+"?`
+    const GAP = String.raw`(?:\s|/\*[\s\S]*?\*\/|--[^\n]*\n)+`
+    const pattern = new RegExp(
+      String.raw`(?:insert\s+into|merge\s+into|update)${GAP}(?:only${GAP})?(?:${IDENT}\s*\.\s*)?"?app_user"?(?![\w"])`,
+      "i",
+    )
     const offenders = parsed
       .filter((entry) => pattern.test(entry.source))
       .map((entry) => entry.file)
@@ -722,6 +731,16 @@ describe("SF-3 — app_user write paths", () => {
       `UPDATE ONLY app_user SET is_staff = true`,
       `update\n  app_user\nset email_verified = true`,
       `INSERT\n  INTO app_user (email)\n  VALUES ($1)`,
+      // A qualified name with a DIGIT in it — `[a-z_]+` misses every schema
+      // anybody ever versioned.
+      `UPDATE beta_v2.app_user SET is_staff = true`,
+      `INSERT INTO "beta_v2"."app_user" (email) VALUES ($1)`,
+      // MERGE has been a writer since PG 15 and is neither INSERT nor UPDATE.
+      `MERGE INTO app_user USING staged ON app_user.id = staged.id`,
+      `merge into public.app_user u using staged s on u.id = s.id`,
+      // Annotators inject a comment between the verb and the table.
+      `UPDATE /* tenant: acme */ app_user SET is_staff = true`,
+      `INSERT INTO -- audited\n app_user (email) VALUES ($1)`,
     ]) {
       expect(pattern.test(statement), statement).toBe(true)
     }
@@ -732,6 +751,8 @@ describe("SF-3 — app_user write paths", () => {
       `UPDATE app_user_session SET x = 1`,
       `UPDATE "app_user_session" SET x = 1`,
       `UPDATE public.app_user_session SET x = 1`,
+      `UPDATE beta_v2.app_user_session SET x = 1`,
+      `MERGE INTO app_user_session USING staged ON true`,
       `SELECT * FROM app_user WHERE id = $1`,
       `DELETE FROM app_user WHERE id = $1`,
     ]) {

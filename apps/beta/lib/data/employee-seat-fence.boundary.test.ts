@@ -371,6 +371,22 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
     ).toEqual([])
   })
 
+  it("keeps the accepted gate set to exactly these three", () => {
+    // `GATE_LIST` deriving the DIAGNOSTIC from `SEAT_GATES` fixed a stale
+    // message and created a smaller version of the same problem: adding a name
+    // to the set now updates its own error text, so a gate that refuses nobody
+    // would be accepted AND described as if it were fine. Each of these three
+    // is admissible for a reason argued in the header, and two of them are
+    // pinned by their own cases below (`requireOwner` refuses guests,
+    // `assertAssistantAvailable` excludes them). Widening the set is a decision,
+    // so it is a diff a reviewer sees.
+    expect([...SEAT_GATES].sort()).toEqual([
+      "assertAssistantAvailable",
+      "assertNotEmployeeSeat",
+      "requireOwner",
+    ])
+  })
+
   it("keeps the Nastavení exception to exactly Účet and Lidé", () => {
     // §2.6.1 grants the seat ONE Nastavení surface, and `lide` sits beside it
     // for a different reason (it refuses every guest in the data layer, not at
@@ -472,7 +488,38 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
  * is what `documents.test.ts`, `payslips.test.ts` and `assistant.test.ts` are
  * for. What it does prove is that no route reaches the tenant with NOTHING.
  */
-const API_TREE = join(BETA_ROOT, "app", "api", "orgs", "[orgSlug]")
+const API_ROOT = join(BETA_ROOT, "app", "api")
+const API_TREE = join(API_ROOT, "orgs", "[orgSlug]")
+
+/**
+ * Route handlers Next will serve. Matching the literal string `route.ts` misses
+ * `route.tsx` and both JavaScript spellings — all four are handlers Next mounts,
+ * and a fence that a file extension walks past is a fence with a documented
+ * bypass.
+ */
+const ROUTE_FILE = /^route\.(ts|tsx|js|jsx)$/
+
+/**
+ * Trees under `app/api` that this fence deliberately does not walk, each with
+ * the premise that makes it safe. Asserted below, so an exemption cannot
+ * quietly grow to cover a route it was never argued for.
+ */
+const API_EXEMPT: Record<string, string> = {
+  /**
+   * The agent ingestion API authenticates with an API KEY, not a session:
+   * `resolveAgentScope` hashes the bearer credential and derives an
+   * `OwnerScope` from the key's own organization. An employee seat has no key
+   * and cannot mint one, so there is no session for a seat gate to inspect and
+   * nothing here a seat can reach. Pinned by `agent-api.test.ts`.
+   */
+  "agent/v1": "key-authenticated (resolveAgentScope), not session-scoped",
+  /**
+   * Better Auth's own catch-all — sign-in, sign-out, TOTP. It predates every
+   * scope in this app and is the thing a seat uses to HAVE a session.
+   */
+  "auth/[...all]":
+    "Better Auth's own handler; no organization scope exists yet",
+}
 
 const API_SEAT_NARROWING: Record<string, readonly string[]> = {
   /** Spec §2.8 — `assistantVisibleTo` admits owner/admin/member, so a guest 404s. */
@@ -497,16 +544,105 @@ function apiRoutes(dir: string, prefix = ""): string[] {
     const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`
     if (entry.isDirectory())
       found.push(...apiRoutes(join(dir, entry.name), rel))
-    else if (entry.name === "route.ts") found.push(rel)
+    else if (ROUTE_FILE.test(entry.name)) found.push(rel)
   }
   return found
 }
+
+/** The route's directory, which is what an exemption is stated against. */
+const routeDir = (route: string): string =>
+  route.split("/").slice(0, -1).join("/")
 
 describe("employee-seat fence — the org API surface", () => {
   it("finds the org API tree it is meant to be walking", () => {
     const routes = apiRoutes(API_TREE)
     expect(routes.length).toBeGreaterThan(3)
     expect(routes).toContain("documents/route.ts")
+  })
+
+  /**
+   * WALKING `orgs/[orgSlug]` ONLY WAS ITSELF A DODGE. A new session-scoped
+   * handler mounted anywhere else under `app/api` — `app/api/payroll/`,
+   * `app/api/export/` — is exactly the surface this fence exists for, and it
+   * would have been invisible because the walk started one directory too deep.
+   *
+   * So the walk starts at `app/api` and every route is either registered above
+   * or covered by a STATED exemption whose premise is asserted, rather than by
+   * the accident of where the old walk began.
+   */
+  it("accounts for every route under app/api, registered or exempt", () => {
+    const unaccounted = apiRoutes(API_ROOT).filter((route) => {
+      const dir = routeDir(route)
+      if (Object.keys(API_EXEMPT).some((tree) => dir.startsWith(tree))) {
+        return false
+      }
+      const underOrgs = route.startsWith("orgs/[orgSlug]/")
+      return (
+        !underOrgs ||
+        !(route.slice("orgs/[orgSlug]/".length) in API_SEAT_NARROWING)
+      )
+    })
+
+    expect(
+      unaccounted,
+      "a route handler under app/api must either be registered in " +
+        "API_SEAT_NARROWING or sit under a tree listed in API_EXEMPT with the " +
+        "premise that makes it safe",
+    ).toEqual([])
+  })
+
+  it("holds the premise under each API exemption", () => {
+    // An exemption is a claim about HOW a tree authenticates. Both claims live
+    // in another module, so they are checked rather than trusted — the agent
+    // arm resolving a scope from a hashed key rather than a session is the only
+    // reason a seat cannot reach it.
+    // `authenticateAgent` is the door every agent route goes through, and the
+    // premise is that it resolves a scope from a HASHED KEY rather than from a
+    // session — which is why no seat can arrive here at all.
+    const agentAuth = readFileSync(
+      join(BETA_ROOT, "lib", "agent", "auth.ts"),
+      "utf8",
+    )
+    expect(agentAuth).toMatch(/resolveAgentScope/)
+    expect(agentAuth).toMatch(/hashAgentKey/)
+
+    // Two entrypoints, both key-authenticated: `meta` calls the door directly,
+    // and every org-scoped ingest route goes through `handleAgentIngest`, which
+    // is checked here to call it rather than assumed to.
+    const agentEntrypoints = new Set(["authenticateAgent", "handleAgentIngest"])
+    expect(
+      callsAnyOf(
+        join(BETA_ROOT, "lib", "agent", "route.ts"),
+        new Set(["authenticateAgent"]),
+      ),
+      "handleAgentIngest authenticates before it ingests",
+    ).toBe(true)
+
+    const agentRoutes = apiRoutes(join(API_ROOT, "agent"))
+    expect(agentRoutes.length).toBeGreaterThan(5)
+    for (const route of agentRoutes) {
+      const file = join(API_ROOT, "agent", ...route.split("/"))
+      expect(
+        callsAnyOf(file, agentEntrypoints),
+        `${route} authenticates by key, which is what its exemption claims`,
+      ).toBe(true)
+    }
+
+    // And no exemption silently covers the org tree it was never argued for.
+    for (const tree of Object.keys(API_EXEMPT)) {
+      expect(tree.startsWith("orgs/")).toBe(false)
+    }
+  })
+
+  it("matches every spelling of a route file Next will mount", () => {
+    // `route.ts` as a literal string is a fence with a documented bypass:
+    // rename to `route.tsx` and the walk stops seeing the handler.
+    for (const name of ["route.ts", "route.tsx", "route.js", "route.jsx"]) {
+      expect(ROUTE_FILE.test(name), name).toBe(true)
+    }
+    for (const name of ["route.test.ts", "routes.ts", "my-route.ts"]) {
+      expect(ROUTE_FILE.test(name), name).toBe(false)
+    }
   })
 
   it("registers a narrowing for every org-scoped API route", () => {
@@ -552,5 +688,194 @@ describe("employee-seat fence — the org API surface", () => {
         ),
     )
     expect(missing).toEqual([])
+  })
+})
+
+/**
+ * SF-5, THE THIRD SURFACE — AND THE ONE THE WALKER WAS STRUCTURALLY BLIND TO.
+ *
+ * A `"use server"` module is a set of PUBLIC POST ENDPOINTS with generated
+ * names. `lib/data/office/office.test.ts` says why that matters in one
+ * sentence: an action "does not run the layout that rendered its form, so 'the
+ * page is behind a gate' says nothing about whether the ACTION is".
+ *
+ * The route walk cannot see them by construction — every one lives in an
+ * `_actions/` directory, and `moduleDirectories` / `routeLeaves` skip
+ * `_`-prefixed folders precisely because they are not routes. They are not
+ * routes. They are still endpoints.
+ *
+ * Nothing here is a live hole: all seventeen modules gate correctly today. This
+ * is the anti-rot half — an eighteenth added with only `requireScope` (which
+ * proves membership and nothing about ROLE, so it admits a seat) fails by
+ * default instead of shipping.
+ *
+ * FOUR ACCEPTED SHAPES, because these modules genuinely gate four ways:
+ *   1. a `SEAT_GATES` member — `requireOwner`, `assertAssistantAvailable`;
+ *   2. a registered narrowing in `ACTION_SEAT_NARROWING`, whose own refusal is
+ *      asserted below rather than taken on trust;
+ *   3. no exported function at all — the `state.ts` shims are type re-export
+ *      files (a `"use server"` module may only export async functions, which is
+ *      why they exist), so there is no endpoint to gate.
+ */
+const ACTION_SEAT_NARROWING: Record<string, readonly string[]> = {
+  /**
+   * `managesPeople` admits owner | admin only, so every guest — seat included —
+   * is refused before any membership is read or written.
+   */
+  "nastaveni/_actions/people.ts": ["managesPeople"],
+  /**
+   * Delegates to `inviteEmployeeSeat`, which gates on `mayInviteEmployeeSeat`
+   * (owner | admin) AND `payrollScope(scope).kind === "all"` — its own header
+   * calls those gates 1 and 2 of three.
+   */
+  "mzdy/_actions/employee-seat.ts": ["inviteEmployeeSeat"],
+}
+
+function serverActionModules(dir: string, prefix = ""): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix === "" ? entry.name : `${prefix}/${entry.name}`
+    if (entry.isDirectory()) {
+      found.push(...serverActionModules(join(dir, entry.name), rel))
+    } else if (
+      /\.tsx?$/.test(entry.name) &&
+      !/\.test\.tsx?$/.test(entry.name) &&
+      /^\s*(?:\/\*[\s\S]*?\*\/\s*)?["']use server["']/.test(
+        readFileSync(join(dir, entry.name), "utf8"),
+      )
+    ) {
+      found.push(rel)
+    }
+  }
+  return found
+}
+
+/** Does this module export a function at all — i.e. is there an endpoint? */
+function exportsAFunction(file: string): boolean {
+  const source = parseTsx(file)
+  return source.statements.some(
+    (statement) =>
+      ts.isFunctionDeclaration(statement) &&
+      statement.modifiers?.some(
+        (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+      ) === true,
+  )
+}
+
+describe("employee-seat fence — Server Actions are endpoints too", () => {
+  it("finds the action modules it is meant to be walking", () => {
+    const modules = serverActionModules(ORG_TREE)
+    expect(modules.length).toBeGreaterThanOrEqual(11)
+    expect(modules).toContain("nastaveni/_actions/people.ts")
+    expect(modules).toContain("pro-ucetni/_actions/uzaverka.ts")
+    expect(modules.every((file) => file.includes("/_actions/"))).toBe(true)
+  })
+
+  it("gates every Server Action module against the employee seat", () => {
+    const ungated: string[] = []
+
+    for (const module of serverActionModules(ORG_TREE)) {
+      const file = join(ORG_TREE, ...module.split("/"))
+      if (!exportsAFunction(file)) continue
+      if (callsAnyGate(file)) continue
+
+      const registered = ACTION_SEAT_NARROWING[module]
+      if (
+        registered &&
+        registered.every((n) => callsAnyOf(file, new Set([n])))
+      ) {
+        continue
+      }
+      ungated.push(module)
+    }
+
+    expect(
+      ungated,
+      `every "use server" module under [orgSlug] must call one of ${GATE_LIST}, ` +
+        "or be registered in ACTION_SEAT_NARROWING with the narrowing it leans " +
+        "on. `requireScope` alone is NOT a gate: it proves membership, and an " +
+        "employee seat has one.",
+    ).toEqual([])
+  })
+
+  it("holds the premise under each registered action narrowing", () => {
+    // Both narrowings live in other modules. Widening either would turn this
+    // fence's acceptance into a hole, and would fail here first.
+    const invitePolicy = readFileSync(
+      join(BETA_ROOT, "lib", "auth", "invite-policy.ts"),
+      "utf8",
+    )
+    const managesPeople = /export function managesPeople[\s\S]{0,400}?\n}/.exec(
+      invitePolicy,
+    )
+    expect(
+      managesPeople,
+      "managesPeople is still a function here",
+    ).not.toBeNull()
+    expect(managesPeople?.[0]).not.toContain("guest")
+
+    // The seat-invite door gates on the payroll arm as well as the role.
+    const seatInvite = join(BETA_ROOT, "lib", "data", "employee-seat.ts")
+    expect(callsAnyOf(seatInvite, new Set(["mayInviteEmployeeSeat"]))).toBe(
+      true,
+    )
+    expect(callsAnyOf(seatInvite, new Set(["payrollScope"]))).toBe(true)
+  })
+
+  it("reads the DIRECTIVE, not a mention of it in prose (non-vacuous)", () => {
+    // The same lesson as the Mzdy arm, found the same way. Grepping for
+    // `"use server"` returns seventeen files here; six of them are the
+    // `state.ts` type modules, which contain the phrase only inside a comment
+    // explaining why they exist ("a `"use server"` file may only export async
+    // functions, so a type ... has to live somewhere else"). Those six are not
+    // endpoints, and a fence that demanded a seat gate from them would be
+    // demanding it from a type re-export.
+    const dir = mkdtempSync(join(tmpdir(), "directive-fence-"))
+    const write = (name: string, source: string): string => {
+      writeFileSync(join(dir, name), source, "utf8")
+      return name
+    }
+
+    write(
+      "prose.ts",
+      `/** A "use server" file may only export async functions. */
+       export type State = { ok: boolean }`,
+    )
+    write("real.ts", `"use server"\nexport async function a() {}`)
+    write(
+      "after-docblock.ts",
+      `/* leading block */\n"use server"\nexport async function b() {}`,
+    )
+
+    expect(serverActionModules(dir).sort()).toEqual([
+      "after-docblock.ts",
+      "real.ts",
+    ])
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it("catches an action that only proves membership (non-vacuous)", () => {
+    // `requireScope` is the shape a new contributor reaches for, and it is
+    // exactly the one that admits a seat: it proves THIS PERSON IS A MEMBER,
+    // which an employee seat is.
+    const dir = mkdtempSync(join(tmpdir(), "action-fence-"))
+    const file = join(dir, "hostile.ts")
+    writeFileSync(
+      file,
+      `"use server"
+       import { requireScope } from "@/lib/data/scope"
+       export async function payEveryoneAction(formData) {
+         const scope = await requireScope(formData.get("orgSlug"))
+         return doSomethingSensitive(scope)
+       }`,
+      "utf8",
+    )
+
+    expect(serverActionModules(dir)).toEqual(["hostile.ts"])
+    expect(exportsAFunction(file)).toBe(true)
+    expect(callsAnyGate(file)).toBe(false)
+
+    rmSync(dir, { recursive: true, force: true })
   })
 })

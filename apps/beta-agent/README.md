@@ -18,14 +18,14 @@ contract of the portal's own manual CSV fallback plus the self-authored files in
 full list of what a real export can invalidate is the header comment of
 [`src/datasets.ts`](src/datasets.ts) (A1–A6), and the short version is:
 
-| # | Assumption | What breaks it |
-|---|---|---|
-| A1 | Header spellings in `*_ALIASES` | Money S3 prints other words, or no header row |
-| A2 | Czech enum labels (`DPH přiznání`, `Stroj`, `v užívání`, …) | An export using numeric codes |
-| A3 | One file = one dataset | A workbook with several sheets, or rozvaha+VZZ in one file |
-| A4 | A stable `ID` column per registry row | No stable identifier ⇒ re-runs would duplicate a register |
-| A5 | Period as `2026-07` / `2026-Q3` / `2026` | Another period notation |
-| A6 | `31.7.2026` or `2026-07-31` dates; `paid_at` widened to 12:00 UTC | Another date format |
+| #   | Assumption                                                        | What breaks it                                             |
+| --- | ----------------------------------------------------------------- | ---------------------------------------------------------- |
+| A1  | Header spellings in `*_ALIASES`                                   | Money S3 prints other words, or no header row              |
+| A2  | Czech enum labels (`DPH přiznání`, `Stroj`, `v užívání`, …)       | An export using numeric codes                              |
+| A3  | One file = one dataset                                            | A workbook with several sheets, or rozvaha+VZZ in one file |
+| A4  | A stable `ID` column per registry row                             | No stable identifier ⇒ re-runs would duplicate a register  |
+| A5  | Period as `2026-07` / `2026-Q3` / `2026`                          | Another period notation                                    |
+| A6  | `31.7.2026` or `2026-07-31` dates; `paid_at` widened to 12:00 UTC | Another date format                                        |
 
 Only the three statement datasets (`predvaha`, `rozvaha`, `vzz`) are safe from
 A1/A2: their alias tables are copied verbatim from the portal's own fallback, so
@@ -51,11 +51,11 @@ Add `--dry-run` to transform and print the exact request body without sending
 anything. Dry runs need **no** credentials, so a Money S3 export can be validated
 before a key is ever issued.
 
-| Command | What it does |
-| --- | --- |
-| `check` | `GET /api/agent/v1/meta` — is the key live, which firms does it reach, which datasets does this deployment accept |
-| `datasets` | The local dataset matrix, offline |
-| `publish <dataset>` | Transform a CSV and post it. `--file`, `--org`, `--period`, `--dry-run`, `--idempotency-key` |
+| Command             | What it does                                                                                                      |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `check`             | `GET /api/agent/v1/meta` — is the key live, which firms does it reach, which datasets does this deployment accept |
+| `datasets`          | The local dataset matrix, offline                                                                                 |
+| `publish <dataset>` | Transform a CSV and post it. `--file`, `--org`, `--period`, `--dry-run`, `--idempotency-key`                      |
 
 Exit codes: `0` success · `1` the office must change something (bad file, bad
 flag, missing variable, 4xx) · `2` the portal or the network is at fault (5xx,
@@ -63,20 +63,23 @@ unreachable).
 
 ## Dataset matrix
 
-| Dataset | Source export | Endpoint | Period |
-| --- | --- | --- | --- |
-| `predvaha` | obratová předvaha | `publish/trial-balance` | `--period` |
-| `rozvaha` | rozvaha | `publish/statements` | `--period` |
-| `vzz` | výsledovka | `publish/statements` | `--period` |
-| `filings` | office filing register | `filings` | per row, else `--period` |
-| `liabilities` | residual obligations | `liabilities` | — |
-| `assets` | majetek register | `assets` | — |
-| `client-tasks` | office to-do list for the client | `client-tasks` | — |
-| `saldokonto` | saldokonto per partner | **none yet** — PR 27 | `--period` |
-| `payroll` | mzdová rekapitulace | **none yet** — PR 29 | `--period` |
+| Dataset        | Source export                    | Endpoint                      | Period                   |
+| -------------- | -------------------------------- | ----------------------------- | ------------------------ |
+| `predvaha`     | obratová předvaha                | `publish/trial-balance`       | `--period`               |
+| `rozvaha`      | rozvaha                          | `publish/statements`          | `--period`               |
+| `vzz`          | výsledovka                       | `publish/statements`          | `--period`               |
+| `filings`      | office filing register           | `filings`                     | per row, else `--period` |
+| `liabilities`  | residual obligations             | `liabilities`                 | —                        |
+| `assets`       | majetek register                 | `assets`                      | —                        |
+| `client-tasks` | office to-do list for the client | `client-tasks`                | —                        |
+| `saldokonto`   | saldokonto per partner           | route live, **CLI not wired** | `--period`               |
+| `payroll`      | mzdová rekapitulace              | route live, **CLI not wired** | `--period`               |
 
-The last two transform and validate locally and refuse to invent an endpoint:
-`publish` explains which PR lands it, and `--dry-run` already prints the body.
+The last two transform and validate locally and still refuse to send anything:
+the portal's `/api/agent/v1/orgs/{orgSlug}/publish/saldokonto` and
+`.../publish/payroll` routes exist (items 28 and 30-32), but this CLI has no
+request wiring for either yet — a follow-up, not a HARD INPUT. `--dry-run`
+already prints the exact body that wiring would send.
 
 ## Idempotency
 

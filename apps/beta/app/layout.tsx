@@ -13,6 +13,9 @@ import { BRAND_THEME_COLOR } from "@workspace/ui/lib/brand"
 import { cn } from "@workspace/ui/lib/utils"
 
 import { getBetaTranslations } from "@/i18n/translations-server"
+import { calmErrorsEnabled } from "@/lib/demo-mode"
+
+import { CalmErrorsProvider } from "./_components/calm-errors"
 
 export const viewport: Viewport = {
   themeColor: BRAND_THEME_COLOR,
@@ -105,9 +108,16 @@ export default async function RootLayout({
     >
       <body>
         <NextIntlClientProvider messages={messages}>
-          <ThemeProvider>
-            <IconProvider>{children}</IconProvider>
-          </ThemeProvider>
+          {/* Resolved HERE for the reason the org layout gives about
+              `showAssistant`: the flag is a server fact and every consumer of
+              it is a Client Component. It has to be the ROOT layout rather than
+              a lower one — `app/error.tsx` is a child of this layout, and a
+              boundary cannot be handed a prop. */}
+          <CalmErrorsProvider enabled={calmErrorsEnabled()}>
+            <ThemeProvider>
+              <IconProvider>{children}</IconProvider>
+            </ThemeProvider>
+          </CalmErrorsProvider>
           <Toaster />
         </NextIntlClientProvider>
       </body>

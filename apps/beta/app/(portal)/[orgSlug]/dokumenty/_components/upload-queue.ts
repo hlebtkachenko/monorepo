@@ -266,6 +266,33 @@ export function isBusy(queue: UploadQueue): boolean {
   )
 }
 
+/**
+ * Should this row be shown as a PROBLEM, or calmed into a pending state?
+ *
+ * Only under `BETA_DEMO_CALM_ERRORS` (see `lib/demo-mode.ts`), and only for the
+ * failures that are the MACHINE's fault. The set is `isRetryable`'s, reused
+ * rather than restated, and the two coincide by construction rather than by
+ * coincidence: a failure worth retrying is precisely one whose cause was
+ * transient — a dropped connection, a deadlock the server asked us to retry, a
+ * 5xx — which is precisely the kind that is not the viewer's business.
+ *
+ * The inverse is what makes the mode safe here. `too_large`,
+ * `unsupported_type`, `quota_exceeded`, `invalid_filename`, `forbidden` and
+ * `not_found` are never calmed, because every one of them is an INSTRUCTION:
+ * shrink the photo, send a PDF, call the office, sign in again. Rendering
+ * "zpracovává se…" over them would leave the client waiting for an upload that
+ * is never going to happen, and the retry button next to it would be a lie —
+ * `isRetryable` refuses those failures a retry for exactly the same reason.
+ */
+export function calmsToPending(item: UploadItem, calmErrors: boolean): boolean {
+  return (
+    calmErrors &&
+    item.state === "failed" &&
+    item.failure !== null &&
+    isRetryable(item.failure)
+  )
+}
+
 export function hasRetryable(queue: UploadQueue): boolean {
   return queue.items.some(
     (item) =>

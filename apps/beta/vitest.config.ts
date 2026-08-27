@@ -132,6 +132,11 @@ export default defineConfig({
             "lib/ares/**/*.test.ts",
             "lib/tax-office.test.ts",
             "lib/auth/totp-enforcement.test.ts",
+            // Same rule again for the calm-demo gate: one env string compared
+            // exactly, plus the log line it writes. No database, and the case
+            // that matters most — the switch staying shut on "1"/"TRUE" — has
+            // to be cheap enough to exhaust.
+            "lib/demo-mode.test.ts",
           ],
           // The document API's tests need real rows and a real transaction, so
           // they belong to the `db` project below — as does Daně a podání's
@@ -201,6 +206,7 @@ export default defineConfig({
             "lib/ares/**/*.test.ts",
             "lib/tax-office.test.ts",
             "lib/auth/totp-enforcement.test.ts",
+            "lib/demo-mode.test.ts",
             "**/node_modules/**",
           ],
           globalSetup: ["./tests/global-setup.ts"],

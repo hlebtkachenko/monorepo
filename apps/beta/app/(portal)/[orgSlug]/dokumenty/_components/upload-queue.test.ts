@@ -11,6 +11,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  calmsToPending,
   EMPTY_UPLOAD_QUEUE,
   failureFromResponse,
   hasRetryable,
@@ -20,6 +21,8 @@ import {
   summarizeQueue,
   uploadQueueReducer,
   type UploadAction,
+  type UploadFailure,
+  type UploadItem,
   type UploadQueue,
 } from "./upload-queue"
 
@@ -319,5 +322,67 @@ describe("failureFromResponse — every refusal the route can answer with", () =
     expect(failureFromResponse("something_new")).toBe("server")
     expect(failureFromResponse(undefined)).toBe("server")
     expect(isRetryable(failureFromResponse(undefined))).toBe(true)
+  })
+})
+
+describe("calmsToPending — which failures calm demo mode may hide", () => {
+  /** A failed row carrying `failure`, as the reducer would produce it. */
+  const failed = (failure: UploadFailure): UploadItem =>
+    run(three, { type: "failed", id: "a", failure }).items[0]!
+
+  const EVERY_FAILURE = [
+    "too_large",
+    "unsupported_type",
+    "quota_exceeded",
+    "invalid_filename",
+    "forbidden",
+    "not_found",
+    "retry",
+    "network",
+    "server",
+  ] as const satisfies readonly UploadFailure[]
+
+  it("hides nothing at all with the flag off — the deployed state", () => {
+    for (const failure of EVERY_FAILURE) {
+      expect(calmsToPending(failed(failure), false), failure).toBe(false)
+    }
+  })
+
+  it("hides exactly the machine-caused failures with the flag on", () => {
+    for (const failure of ["retry", "network", "server"] as const) {
+      expect(calmsToPending(failed(failure), true), failure).toBe(true)
+    }
+  })
+
+  it("NEVER hides a refusal that tells the client what to do", () => {
+    // Shrink the photo, send a PDF, call the office, sign in again. Calming
+    // these would leave the client waiting for an upload that cannot happen.
+    for (const failure of [
+      "too_large",
+      "unsupported_type",
+      "quota_exceeded",
+      "invalid_filename",
+      "forbidden",
+      "not_found",
+    ] as const) {
+      expect(calmsToPending(failed(failure), true), failure).toBe(false)
+    }
+  })
+
+  it("splits the failures exactly where isRetryable does, by construction", () => {
+    // The two must not drift: a calmed row still offers "Zkusit znovu", and a
+    // retry button on a failure that can never succeed is a lie.
+    for (const failure of EVERY_FAILURE) {
+      expect(calmsToPending(failed(failure), true), failure).toBe(
+        isRetryable(failure),
+      )
+    }
+  })
+
+  it("touches no state other than `failed`", () => {
+    const queue = run(three, { type: "uploading", id: "a" })
+    for (const item of queue.items) {
+      expect(calmsToPending(item, true), item.state).toBe(false)
+    }
   })
 })

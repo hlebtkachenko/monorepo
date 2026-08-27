@@ -13,11 +13,14 @@ import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaMessageKey } from "@/i18n/messages"
 import { formatBytes } from "@/lib/format/bytes"
 import { formatDate } from "@/lib/format/date"
+import { logCalmedError } from "@/lib/demo-mode"
 
+import { useCalmErrors } from "../../../../_components/calm-errors"
 import { SectionTitle } from "../../../../_components/page-header"
 
 import { prepareUpload } from "./downscale"
 import {
+  calmsToPending,
   EMPTY_UPLOAD_QUEUE,
   failureFromResponse,
   hasRetryable,
@@ -200,6 +203,7 @@ function sendUpload(
 export function UploadPanel({ orgSlug }: { orgSlug: string }) {
   const t = useBetaTranslations()
   const router = useRouter()
+  const calmErrors = useCalmErrors()
 
   const [queue, dispatch] = React.useReducer(
     uploadQueueReducer,
@@ -270,6 +274,19 @@ export function UploadPanel({ orgSlug }: { orgSlug: string }) {
 
       inFlight.current = null
       if (terminal.type === "stored") storedSomething.current = true
+      // Logged HERE rather than in the row, so there is one line per failure
+      // instead of one per render — and only for the failures the row is about
+      // to stop naming. The condition is the row's own, applied to the terminal
+      // action that produced it.
+      if (
+        terminal.type === "failed" &&
+        calmsToPending(
+          { ...next, state: "failed", failure: terminal.failure },
+          calmErrors,
+        )
+      ) {
+        logCalmedError(`dokumenty/upload (${terminal.failure})`, next.filename)
+      }
       // The file is kept for a retry and dropped only once the item can no
       // longer be retried, so a failed upload does not need re-picking.
       if (terminal.type !== "failed") picked.current.delete(next.id)
@@ -277,7 +294,7 @@ export function UploadPanel({ orgSlug }: { orgSlug: string }) {
       running.current = false
       dispatch(terminal)
     })()
-  }, [queue, orgSlug])
+  }, [queue, orgSlug, calmErrors])
 
   // Abort whatever is in flight when the client navigates away. The row it was
   // writing is either committed or not; nothing half-written survives, because
@@ -445,10 +462,18 @@ function QueueRow({
   onRetry: () => void
 }) {
   const t = useBetaTranslations()
-  const busy = item.state === "preparing" || item.state === "uploading"
+  const calmErrors = useCalmErrors()
+  // Calmed rows keep the spinner: "Zpracovává se…" with nothing moving next to
+  // it reads as stuck, which is the impression the mode exists to avoid.
+  const calmed = calmsToPending(item, calmErrors)
+  const busy =
+    calmed || item.state === "preparing" || item.state === "uploading"
 
   return (
     <li
+      // The TRUE state, always — the attribute is what a test and any future
+      // automation read, and a demo switch must not make the DOM lie about what
+      // happened. Only the visible tone changes.
       data-upload-state={item.state}
       className="grid gap-1.5 rounded-lg border border-border px-3 py-2"
     >
@@ -457,9 +482,11 @@ function QueueRow({
         <span className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {formatBytes(item.size)}
         </span>
-        <Badge variant={STATE_BADGE_VARIANT[item.state]}>
+        <Badge variant={calmed ? "secondary" : STATE_BADGE_VARIANT[item.state]}>
           {busy ? <Loader2 className="animate-spin" /> : null}
-          {t(STATE_LABEL_KEY[item.state])}
+          {calmed
+            ? t("dokumenty.uploadStateProcessing")
+            : t(STATE_LABEL_KEY[item.state])}
         </Badge>
       </div>
 
@@ -482,10 +509,20 @@ function QueueRow({
         </p>
       ) : null}
 
+      {/* The failure sentence, or — for a machine-caused one under calm demo
+          mode — a neutral "still finishing" line in its place. The refusals
+          that are INSTRUCTIONS (too large, wrong type, quota, forbidden) never
+          take this branch; see `calmsToPending`. */}
       {item.failure !== null ? (
-        <p className="text-xs text-destructive">
-          {t(FAILURE_MESSAGE_KEY[item.failure])}
-        </p>
+        calmed ? (
+          <p className="text-xs text-muted-foreground">
+            {t("dokumenty.uploadCalmHint")}
+          </p>
+        ) : (
+          <p className="text-xs text-destructive">
+            {t(FAILURE_MESSAGE_KEY[item.failure])}
+          </p>
+        )
       ) : null}
 
       {/* The same plain, attachment-by-default URL the row sheet's "Stáhnout"

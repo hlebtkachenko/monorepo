@@ -30,6 +30,7 @@ import {
   createMonthPeriod,
   createPartnerRow,
   endFixtures,
+  isoDaysFromToday,
   publishSaldokontoRow,
   seedOrganization,
   type TestOrganization,
@@ -69,19 +70,13 @@ async function readFor(
   return upcomingDeadlinesForScope(await requireScope(target.slug), options)
 }
 
-/** ISO date `days` from today — the only way to write an "overdue" assertion
- * that stays true tomorrow. */
-function daysFromToday(days: number): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
-}
-
 describe("the Úřad origin — a form still to be filed", () => {
   it("lists an unfiled filing under its own kind and family", async () => {
     const target = await seedOrganization()
     const periodId = await createMonthPeriod(target.organizationId)
     const id = await createFilingRow(target.organizationId, periodId, {
       kind: "dph_priznani",
-      dueOn: daysFromToday(10),
+      dueOn: await isoDaysFromToday(10),
     })
 
     const rows = await readFor(target)
@@ -104,8 +99,8 @@ describe("the Úřad origin — a form still to be filed", () => {
     const periodId = await createMonthPeriod(target.organizationId)
     await createFilingRow(target.organizationId, periodId, {
       status: "corrective",
-      filedOn: daysFromToday(-2),
-      dueOn: daysFromToday(5),
+      filedOn: await isoDaysFromToday(-2),
+      dueOn: await isoDaysFromToday(5),
     })
 
     expect(await readFor(target)).toEqual([])
@@ -119,7 +114,7 @@ describe("the Úřad origin — a form still to be filed", () => {
     await createFilingRow(target.organizationId, periodId, {
       amountDue: "31200.00",
       paidAt: new Date(),
-      dueOn: daysFromToday(3),
+      dueOn: await isoDaysFromToday(3),
     })
 
     const rows = await readFor(target)
@@ -131,7 +126,7 @@ describe("the Úřad origin — a form still to be filed", () => {
     const periodId = await createMonthPeriod(target.organizationId)
     await createFilingRow(target.organizationId, periodId, {
       kind: "prehled_cssz",
-      dueOn: daysFromToday(4),
+      dueOn: await isoDaysFromToday(4),
     })
 
     expect((await readFor(target))[0]?.family).toBe("mzdove_odvody")
@@ -144,7 +139,7 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
     await createLiabilityRow(target.organizationId, {
       label: "Penale z prodleni",
       amount: "1500.50",
-      dueOn: daysFromToday(6),
+      dueOn: await isoDaysFromToday(6),
     })
 
     const rows = await readFor(target)
@@ -170,8 +165,8 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
       // Filed, so the Úřad arm is silent too and the assertion is only about
       // the money arm.
       status: "filed",
-      filedOn: daysFromToday(-1),
-      dueOn: daysFromToday(7),
+      filedOn: await isoDaysFromToday(-1),
+      dueOn: await isoDaysFromToday(7),
     })
 
     expect(await readFor(target)).toEqual([])
@@ -181,7 +176,7 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
     const target = await seedOrganization()
     await createLiabilityRow(target.organizationId, {
       paidAt: new Date(),
-      dueOn: daysFromToday(2),
+      dueOn: await isoDaysFromToday(2),
     })
 
     expect(await readFor(target)).toEqual([])
@@ -201,7 +196,7 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
       {
         partnerId,
         payableTotal: "48250.50",
-        oldestDue: daysFromToday(4),
+        oldestDue: await isoDaysFromToday(4),
       },
     ])
 
@@ -228,7 +223,11 @@ describe("the Platba origin — §2.4's union, not a second copy of it", () => {
     // They owe the CLIENT. A deadline list is a list of acts the client has to
     // perform, and collecting is not one of them.
     await publishSaldokontoRow(target.organizationId, periodId, [
-      { partnerId, receivableTotal: "120000.00", oldestDue: daysFromToday(3) },
+      {
+        partnerId,
+        receivableTotal: "120000.00",
+        oldestDue: await isoDaysFromToday(3),
+      },
     ])
 
     expect(await readFor(target)).toEqual([])
@@ -240,7 +239,7 @@ describe("the Od účetní origin — open client tasks", () => {
     const target = await seedOrganization()
     const id = await createClientTaskRow(target.organizationId, {
       title: "Dodejte vypis z uctu",
-      dueDate: daysFromToday(3),
+      dueDate: await isoDaysFromToday(3),
       linkKind: "dokumenty",
     })
 
@@ -262,7 +261,7 @@ describe("the Od účetní origin — open client tasks", () => {
     await createClientTaskRow(target.organizationId, {
       status: "done",
       doneAt: new Date(),
-      dueDate: daysFromToday(3),
+      dueDate: await isoDaysFromToday(3),
     })
 
     expect(await readFor(target)).toEqual([])
@@ -283,14 +282,14 @@ describe("the union — ordering, limit and the two-acts rule", () => {
 
     await createClientTaskRow(target.organizationId, {
       title: "Task treti",
-      dueDate: daysFromToday(9),
+      dueDate: await isoDaysFromToday(9),
     })
     await createFilingRow(target.organizationId, periodId, {
-      dueOn: daysFromToday(3),
+      dueOn: await isoDaysFromToday(3),
     })
     await createLiabilityRow(target.organizationId, {
       label: "Zavazek druhy",
-      dueOn: daysFromToday(6),
+      dueOn: await isoDaysFromToday(6),
     })
 
     expect((await readFor(target)).map((row) => row.origin)).toEqual([
@@ -304,11 +303,11 @@ describe("the union — ordering, limit and the two-acts rule", () => {
     const target = await seedOrganization()
     await createLiabilityRow(target.organizationId, {
       label: "Po splatnosti",
-      dueOn: daysFromToday(-12),
+      dueOn: await isoDaysFromToday(-12),
     })
     await createLiabilityRow(target.organizationId, {
       label: "Jeste ne",
-      dueOn: daysFromToday(12),
+      dueOn: await isoDaysFromToday(12),
     })
 
     const rows = await readFor(target)
@@ -324,7 +323,7 @@ describe("the union — ordering, limit and the two-acts rule", () => {
     for (let index = 0; index < 8; index++) {
       await createLiabilityRow(target.organizationId, {
         label: `Zavazek ${index}`,
-        dueOn: daysFromToday(index + 1),
+        dueOn: await isoDaysFromToday(index + 1),
       })
     }
 
@@ -342,7 +341,7 @@ describe("the union — ordering, limit and the two-acts rule", () => {
     const id = await createFilingRow(target.organizationId, periodId, {
       kind: "dph_priznani",
       amountDue: "31200.00",
-      dueOn: daysFromToday(5),
+      dueOn: await isoDaysFromToday(5),
     })
 
     const rows = await readFor(target)
@@ -359,7 +358,7 @@ describe("the union — ordering, limit and the two-acts rule", () => {
 
   it("breaks a same-day tie the same way twice", async () => {
     const target = await seedOrganization()
-    const dueOn = daysFromToday(4)
+    const dueOn = await isoDaysFromToday(4)
     await createLiabilityRow(target.organizationId, { label: "A", dueOn })
     await createLiabilityRow(target.organizationId, { label: "B", dueOn })
     await createClientTaskRow(target.organizationId, {
@@ -389,7 +388,7 @@ describe("visibility and tenancy", () => {
     const target = await seedOrganization()
     await createLiabilityRow(target.organizationId, {
       label: "Viditelne vsem",
-      dueOn: daysFromToday(5),
+      dueOn: await isoDaysFromToday(5),
     })
 
     for (const role of ["owner", "admin", "member", "guest"] as const) {
@@ -405,11 +404,13 @@ describe("visibility and tenancy", () => {
     const other = await seedOrganization()
     const periodId = await createMonthPeriod(other.organizationId)
     await createFilingRow(other.organizationId, periodId, {
-      dueOn: daysFromToday(1),
+      dueOn: await isoDaysFromToday(1),
     })
-    await createLiabilityRow(other.organizationId, { dueOn: daysFromToday(1) })
+    await createLiabilityRow(other.organizationId, {
+      dueOn: await isoDaysFromToday(1),
+    })
     await createClientTaskRow(other.organizationId, {
-      dueDate: daysFromToday(1),
+      dueDate: await isoDaysFromToday(1),
     })
 
     // The shared org is untouched by any of the three writes above.
@@ -427,7 +428,7 @@ describe("the read model ships no display strings", () => {
     const periodId = await createMonthPeriod(target.organizationId)
     await createFilingRow(target.organizationId, periodId, {
       kind: "dppo_priznani",
-      dueOn: daysFromToday(2),
+      dueOn: await isoDaysFromToday(2),
     })
 
     const [row] = await readFor(target)

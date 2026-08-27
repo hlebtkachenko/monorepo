@@ -60,7 +60,13 @@ jobs:
 
   knip-run:
     needs: [changes]
-    if: needs.changes.outputs.source == 'true'
+    # beta fast lane (Hleb, 2026-08-27): heavy job, skipped on main-beta
+    # PRs unless the `ci-full` label is present. The `knip` shim below
+    # already treats `skipped` as non-failure, so the required `knip`
+    # context still posts green. See the policy block atop ci.yml.
+    if: >-
+      needs.changes.outputs.source == 'true' &&
+      (github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

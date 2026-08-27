@@ -6,6 +6,7 @@ import { betaDb, type BetaExecutor } from "@/db/client"
 import {
   app_user,
   import_batch,
+  partner,
   partner_saldo,
   payroll_employee_line,
   payroll_summary,
@@ -29,11 +30,13 @@ import { organizationForScope } from "./organizations"
 import {
   importBatchView,
   officeImportBatchRow,
+  partnerSaldoLineView,
   reportingPeriodView,
   statementLineView,
   trialBalanceLineView,
   type ImportBatchView,
   type OfficeImportBatchRow,
+  type PartnerSaldoLineView,
   type ReportingPeriodView,
   type StatementLineView,
   type TrialBalanceLineView,
@@ -762,6 +765,51 @@ export async function trialBalanceLinesForBatch(
     .orderBy(asc(trial_balance_line.account_code))
 
   return rows.map(trialBalanceLineView)
+}
+
+/**
+ * Every partner of a saldokonto batch, by partner name (manual-entry plan §3,
+ * W1: `uzaverka/[batchId]`'s saldokonto arm).
+ *
+ * JOINED TO `partner` FOR THE NAME ONLY — `partner_saldo` itself carries an id,
+ * not a name, and the office preview has to say WHO, not just show a total.
+ * The join carries `organization_id` on both sides, redundant with the
+ * composite FK for the same reason `statementLinesForBatch` states it: the
+ * place a future migration relaxing that FK would silently start leaking.
+ */
+export async function partnerSaldoLinesForBatch(
+  scope: OrgScope,
+  batchId: string,
+): Promise<PartnerSaldoLineView[]> {
+  const readable = await readableBatchId(scope, batchId)
+  if (!readable) return []
+
+  const rows = await betaDb()
+    .select({
+      id: partner_saldo.id,
+      partner_id: partner_saldo.partner_id,
+      partner_name: partner.name,
+      receivable_total: partner_saldo.receivable_total,
+      payable_total: partner_saldo.payable_total,
+      oldest_due: partner_saldo.oldest_due,
+    })
+    .from(partner_saldo)
+    .innerJoin(
+      partner,
+      and(
+        eq(partner.id, partner_saldo.partner_id),
+        eq(partner.organization_id, partner_saldo.organization_id),
+      ),
+    )
+    .where(
+      and(
+        eq(partner_saldo.import_batch_id, readable),
+        eq(partner_saldo.organization_id, scope.organizationId),
+      ),
+    )
+    .orderBy(asc(partner.name), asc(partner_saldo.id))
+
+  return rows.map(partnerSaldoLineView)
 }
 
 // ---------------------------------------------------------------------------

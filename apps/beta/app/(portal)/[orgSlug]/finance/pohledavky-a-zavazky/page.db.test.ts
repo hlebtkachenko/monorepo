@@ -16,11 +16,20 @@
  * streamed to a string, the technique `vykazy/page.db.test.ts` documents:
  * `renderToStaticMarkup` refuses a tree that still CONTAINS async Server
  * Components, and this page's table is one.
+ *
+ * WRAPPED IN `NextIntlClientProvider` since the owner-only manual-batch-start
+ * trigger (manual-entry plan §3, W1) mounts `EntrySheet`, a Client Component
+ * that reads `useBetaTranslations()` for its own strings — the same provider
+ * `[batchId]/page.db.test.ts` and `uzaverka/page.db.test.ts` already wrap
+ * their trees in, for the identical reason.
  */
-import type { ReactNode } from "react"
+import { createElement, type ReactElement, type ReactNode } from "react"
 import { renderToReadableStream } from "react-dom/server"
+import { NextIntlClientProvider } from "next-intl"
 import { afterAll, describe, expect, it, vi } from "vitest"
 
+import { BETA_LOCALE, BETA_TIME_ZONE, betaFormats } from "@/i18n/formats"
+import { betaMessages } from "@/i18n/messages"
 import {
   createMonthPeriod,
   createPartnerRow,
@@ -48,8 +57,32 @@ function as(headers: Headers): void {
   request.headers = headers
 }
 
+/**
+ * Cast for the same reason `[batchId]/page.db.test.ts` does: `@workspace/ui`
+ * augments next-intl's global `Messages` type with the MAIN product's
+ * catalog, which beta's own shape does not satisfy.
+ */
+const IntlProvider = NextIntlClientProvider as unknown as (props: {
+  locale: string
+  messages: unknown
+  timeZone: string
+  formats: unknown
+  children?: ReactNode
+}) => ReactElement
+
 async function render(tree: ReactNode): Promise<string> {
-  const stream = await renderToReadableStream(tree)
+  const stream = await renderToReadableStream(
+    createElement(
+      IntlProvider,
+      {
+        locale: BETA_LOCALE,
+        messages: betaMessages,
+        timeZone: BETA_TIME_ZONE,
+        formats: betaFormats,
+      },
+      tree,
+    ),
+  )
   await stream.allReady
   return new Response(stream).text()
 }
@@ -123,7 +156,7 @@ describe("PohledavkyAZavazkyPage", () => {
     expect(digits(html)).toContain("48250,50Kč")
   })
 
-  it("renders read-only for every role, guest included", async () => {
+  it("renders no write affordance for every role but the owner", async () => {
     const org = await seedOrganization()
     const periodId = await createMonthPeriod(org.organizationId)
     const partnerId = await createPartnerRow(org.organizationId)
@@ -131,15 +164,32 @@ describe("PohledavkyAZavazkyPage", () => {
       { partnerId, receivableTotal: "42.00" },
     ])
 
-    for (const role of ["owner", "admin", "member", "guest"] as const) {
+    for (const role of ["admin", "member", "guest"] as const) {
       as(org.members[role].headers)
       const html = await renderFor(org.slug)
       expect(html, `${role} sees the table`).toContain("finance.columnPartner")
-      // §3.3: client pages are read-only for EVERY role, the owner included — a
-      // saldokonto is published through the import spine, never typed here.
+      // §3.3: a row is still never typed IN PLACE here, for any role — a
+      // saldokonto is published through the import spine.
       expect(html, `${role} gets no write affordance`).not.toContain("<form")
       expect(html, `${role} gets no write affordance`).not.toContain("<button")
     }
+  })
+
+  it("gives the owner, and only the owner, the manual-batch-start trigger", async () => {
+    const org = await seedOrganization()
+    const periodId = await createMonthPeriod(org.organizationId)
+    const partnerId = await createPartnerRow(org.organizationId)
+    await publishSaldokontoRow(org.organizationId, periodId, [
+      { partnerId, receivableTotal: "42.00" },
+    ])
+
+    // The trigger (manual-entry plan §3, W1) only STARTS an empty draft
+    // batch and sends the office to its own preview — the row is still never
+    // typed IN PLACE here, which is why this is its own test rather than a
+    // fourth role in the read-only assertion above.
+    as(org.members.owner.headers)
+    const html = await renderFor(org.slug)
+    expect(html).toContain("uzaverka.startSaldokontoTrigger")
   })
 
   it("answers 404 for a book the caller does not belong to", async () => {

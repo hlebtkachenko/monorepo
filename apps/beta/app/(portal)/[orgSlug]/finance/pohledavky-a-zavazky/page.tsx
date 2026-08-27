@@ -14,18 +14,26 @@ import { betaTodayIso } from "@/lib/format/date"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 import { freshnessBand } from "@/lib/freshness"
 
+import { EntrySheet } from "../../_components/entry-sheet"
+import { ManualBatchPeriodFields } from "../../_components/manual-batch-period-fields"
 import { resolveOrgScope } from "../../_lib/org-scope"
+import { startManualBatchAction } from "../../pro-ucetni/_actions/uzaverka"
+import { START_MANUAL_BATCH_IDLE } from "../../pro-ucetni/_actions/uzaverka-state"
 
 import { PartnerSaldoTable } from "./_components/partner-saldo-table"
 
 /**
  * Finance › Pohledávky a závazky (spec §2.4) — the saldokonto, per partner.
  *
- * READ-ONLY FOR EVERY ROLE, guest included (§5: guest is an external viewer of
- * the same client-visible data). There is no write on this page and no "Upravit"
- * affordance: a saldokonto is not typed at all, it is published by the office's
- * agent through the import spine (§3.2), and correcting one means publishing a
- * new batch over it.
+ * READ-ONLY FOR EVERY ROLE BUT THE OWNER, and even for the owner only
+ * indirectly. There is still no "Upravit" affordance and no row is ever typed
+ * IN PLACE here: a saldokonto is published by the office's agent through the
+ * import spine (§3.2), and correcting one still means publishing a new batch
+ * over it. The one OWNER-ONLY trigger (manual-entry plan §3, W1) only STARTS
+ * an empty draft batch and sends the office straight to its own preview at
+ * `pro-ucetni/uzaverka/[batchId]` — the same batch-draft path the agent's own
+ * ingestion writes through (`import_batch.source = "manual"` is the only
+ * difference), never a parallel write path.
  *
  * NOTHING IS COMPUTED HERE. The two totals are SQL window sums over exactly the
  * rows shown, the aging band is a SQL `CASE` over `CURRENT_DATE - oldest_due`,
@@ -59,7 +67,8 @@ export default async function PohledavkyAZavazkyPage({
   // §0.4's warning band: the newest published period lags the current one by
   // more than one. `lib/freshness.ts` is the shared implementation of that one
   // sentence, and it takes today as a parameter so its boundary cases are tests.
-  const stale = freshnessBand(view.period, betaTodayIso()) === "lagging"
+  const today = betaTodayIso()
+  const stale = freshnessBand(view.period, today) === "lagging"
 
   return (
     <div className="grid gap-4 p-6">
@@ -68,14 +77,38 @@ export default async function PohledavkyAZavazkyPage({
           <h1 className="font-heading text-xl font-semibold">
             {t("finance.pohledavkyTitle")}
           </h1>
-          {view.period && view.batch ? (
-            <p className="text-xs text-muted-foreground">
-              {t("finance.saldoPeriod")}{" "}
-              {formatReportingPeriodLabel(view.period)} ·{" "}
-              {t("finance.saldoPublishedAt")}{" "}
-              {formatDateTime(view.batch.publishedAt)}
-            </p>
-          ) : null}
+          <div className="flex flex-wrap items-baseline gap-3">
+            {view.period && view.batch ? (
+              <p className="text-xs text-muted-foreground">
+                {t("finance.saldoPeriod")}{" "}
+                {formatReportingPeriodLabel(view.period)} ·{" "}
+                {t("finance.saldoPublishedAt")}{" "}
+                {formatDateTime(view.batch.publishedAt)}
+              </p>
+            ) : null}
+            {scope.role === "owner" ? (
+              <EntrySheet
+                action={startManualBatchAction}
+                idle={START_MANUAL_BATCH_IDLE}
+                hidden={{
+                  orgSlug,
+                  dataset: "saldokonto",
+                  periodKind: "month",
+                }}
+                triggerLabel={t("uzaverka.startSaldokontoTrigger")}
+                title={t("uzaverka.startSaldokontoTitle")}
+                description={t("uzaverka.startSaldokontoDescription")}
+                submitLabel={t("uzaverka.startSaldokontoSubmit")}
+              >
+                <ManualBatchPeriodFields
+                  t={t}
+                  idPrefix="start-saldokonto-pohledavky"
+                  defaultMonth={Number(today.slice(5, 7))}
+                  defaultYear={Number(today.slice(0, 4))}
+                />
+              </EntrySheet>
+            ) : null}
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
           {t("finance.pohledavkyIntro")}

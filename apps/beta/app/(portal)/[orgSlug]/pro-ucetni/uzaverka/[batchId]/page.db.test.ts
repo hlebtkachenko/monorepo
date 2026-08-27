@@ -23,6 +23,7 @@ import type {
 } from "@/lib/data/imports"
 import {
   createMonthPeriod,
+  createPartnerRow,
   endFixtures,
   seedOrganization,
   type TestOrganization,
@@ -181,6 +182,52 @@ describe("BatchPreviewPage", () => {
     expect(html).toContain("uzaverka.statusPublished")
     expect(html).toContain("Vrátit poslední import")
     expect(html).not.toContain("Zahodit")
+  })
+
+  it("previews a DRAFT saldokonto, one row per partner, and offers only draft actions", async () => {
+    const owner = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+    const acme = await createPartnerRow(org.organizationId, {
+      name: "ACME s.r.o.",
+    })
+
+    const draft = await createDraftBatch(owner, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [
+        {
+          partnerId: acme,
+          receivableTotal: null,
+          payableTotal: "3400.00",
+          oldestDue: "2026-05-01",
+        },
+      ],
+    })
+
+    const html = await render(await open(org.slug, draft.id))
+
+    expect(html).toContain("ACME s.r.o.")
+    expect(digits(html)).toContain("3400,00")
+    expect(html).toContain("uzaverka.statusDraft")
+    expect(html).toContain("Zveřejnit")
+    expect(html).toContain("Zahodit")
+    expect(html).not.toContain("Vrátit poslední import")
+  })
+
+  it("renders the empty state for a manual saldokonto draft with no rows yet", async () => {
+    const owner = await ownerScope(org)
+    const periodId = await createMonthPeriod(org.organizationId)
+
+    const draft = await createDraftBatch(owner, {
+      periodId,
+      dataset: "saldokonto",
+      source: "manual",
+      partnerSaldoLines: [],
+    })
+
+    const html = await render(await open(org.slug, draft.id))
+    expect(html).toContain("uzaverka.saldokontoBatchEmpty")
   })
 
   it("answers 404 to every non-owner role", async () => {

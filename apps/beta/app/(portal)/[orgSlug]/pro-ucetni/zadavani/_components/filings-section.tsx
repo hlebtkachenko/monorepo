@@ -24,7 +24,6 @@ import {
 } from "@workspace/ui/components/table"
 import { Textarea } from "@workspace/ui/components/textarea"
 
-import { formatAmount, formatDate } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaFilingKind, BetaFilingStatus } from "@/db/schema"
 import type { FilingView } from "@/lib/data/projections"
@@ -32,6 +31,8 @@ import {
   FILING_KIND_LABEL_KEY,
   FILING_STATUS_LABEL_KEY,
 } from "@/lib/filing-labels"
+import { formatDate } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 
 import { SectionTitle } from "../../../../../_components/page-header"

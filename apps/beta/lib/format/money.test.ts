@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  formatAmount,
   formatBetaAmount,
   formatBetaMoney,
   normalizeBetaMoneyInput,
 } from "./money"
+
+/** cs-CZ uses non-breaking and narrow spaces; compare on the glyphs. */
+const squash = (value: string | null): string =>
+  (value ?? "").replace(/\s/g, "")
 
 describe("formatBetaMoney", () => {
   it("renders a positive amount in Kč", () => {
@@ -69,5 +74,21 @@ describe("normalizeBetaMoneyInput", () => {
   it("passes ASCII numeric syntax through unchanged", () => {
     expect(normalizeBetaMoneyInput("150000.50")).toBe("150000.50")
     expect(normalizeBetaMoneyInput("-42")).toBe("-42")
+  })
+})
+
+describe("formatAmount", () => {
+  it("renders the numeric(14,2) text as Kč", () => {
+    expect(squash(formatAmount("1234.50"))).toBe("1234,50Kč")
+    expect(squash(formatAmount("0.00"))).toBe("0,00Kč")
+    expect(squash(formatAmount("-99.90"))).toBe("-99,90Kč")
+  })
+
+  it("keeps both decimals of the widest value the column can hold", () => {
+    expect(squash(formatAmount("999999999999.99"))).toBe("999999999999,99Kč")
+  })
+
+  it.each([null, undefined, "", "nic"])("answers null for %s", (value) => {
+    expect(formatAmount(value)).toBeNull()
   })
 })

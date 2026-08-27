@@ -10,9 +10,9 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import type { OfficeImportBatchRow } from "@/lib/data/projections"
+import { formatDateTime } from "@/lib/format/date"
 import {
   IMPORT_DATASET_LABEL_KEY,
   IMPORT_SOURCE_LABEL_KEY,

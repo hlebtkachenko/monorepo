@@ -7,13 +7,13 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-import { formatDate } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import {
   CLIENT_TASK_LINK_KIND_LABEL_KEY,
   clientTaskLinkHref,
 } from "@/lib/client-task-labels"
 import type { ClientTaskView } from "@/lib/data/projections"
+import { formatDate } from "@/lib/format/date"
 
 /**
  * "Co od vás potřebujeme" (spec §2.1, item 1) — the client's own read of the

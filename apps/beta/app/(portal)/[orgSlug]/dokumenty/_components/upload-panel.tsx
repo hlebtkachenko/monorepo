@@ -9,9 +9,10 @@ import { Progress } from "@workspace/ui/components/progress"
 import { FileImage, Loader2, RefreshCw, Upload } from "@workspace/ui/lib/icons"
 import { cn } from "@workspace/ui/lib/utils"
 
-import { formatBytes, formatDate } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaMessageKey } from "@/i18n/messages"
+import { formatBytes } from "@/lib/format/bytes"
+import { formatDate } from "@/lib/format/date"
 
 import { SectionTitle } from "../../../../_components/page-header"
 

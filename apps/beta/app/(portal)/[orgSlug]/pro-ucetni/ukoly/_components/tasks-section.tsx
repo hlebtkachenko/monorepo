@@ -24,7 +24,6 @@ import {
 } from "@workspace/ui/components/table"
 import { Textarea } from "@workspace/ui/components/textarea"
 
-import { formatDate } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import { betaClientTaskLinkKind } from "@/db/schema"
 import {
@@ -32,6 +31,7 @@ import {
   CLIENT_TASK_STATUS_LABEL_KEY,
 } from "@/lib/client-task-labels"
 import type { OwnerClientTaskDetail } from "@/lib/data/projections"
+import { formatDate } from "@/lib/format/date"
 
 import { SectionTitle } from "../../../../../_components/page-header"
 

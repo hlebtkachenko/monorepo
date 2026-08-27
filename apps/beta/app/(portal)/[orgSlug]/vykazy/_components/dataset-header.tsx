@@ -5,9 +5,9 @@ import { Badge } from "@workspace/ui/components/badge"
 import { Button } from "@workspace/ui/components/button"
 import { Card, CardContent } from "@workspace/ui/components/card"
 
-import { formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import type { BetaMessageKey } from "@/i18n/messages"
+import { formatDateTime } from "@/lib/format/date"
 import { formatBetaAmount } from "@/lib/format/money"
 import { formatReportingPeriodLabel } from "@/lib/format/period-label"
 

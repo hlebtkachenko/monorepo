@@ -20,9 +20,10 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount, formatDateTime } from "@/i18n/format-values"
 import { useBetaTranslations } from "@/i18n/translations"
 import type { DocumentSummary } from "@/lib/data/projections"
+import { formatDateTime } from "@/lib/format/date"
+import { formatAmount } from "@/lib/format/money"
 
 import { DocumentDetail } from "./document-detail"
 import {

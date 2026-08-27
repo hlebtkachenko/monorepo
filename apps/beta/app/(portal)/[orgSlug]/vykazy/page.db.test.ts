@@ -13,9 +13,9 @@
  * and their returned trees rendered to a string — the technique
  * `majetek/page.test.ts` documents. `next-intl/server` and
  * `@/i18n/translations-server` are stubbed because both need a Next request
- * context that does not exist in a bare module import; `@/i18n/format-values`
- * and `lib/format/money` are NOT stubbed, because the cs-CZ rendering of a
- * money string is part of what is under test.
+ * context that does not exist in a bare module import; `lib/format/date` and
+ * `lib/format/money` are NOT stubbed, because the cs-CZ rendering of a money
+ * string is part of what is under test.
  */
 import type { ReactNode } from "react"
 import { renderToReadableStream } from "react-dom/server"

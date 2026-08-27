@@ -11,13 +11,13 @@ import {
   TableRow,
 } from "@workspace/ui/components/table"
 
-import { formatAmount } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import {
   documentListSearchParams,
   EMPTY_DOCUMENT_LIST_FILTERS,
 } from "@/lib/data/document-filters"
 import type { DocumentSiteSummary } from "@/lib/data/documents"
+import { formatAmount } from "@/lib/format/money"
 
 /**
  * A drill-down from one Stavby group into Vše, pre-filtered to that site.

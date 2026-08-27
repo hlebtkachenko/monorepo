@@ -4,6 +4,7 @@ import {
   betaClientTaskLinkKind,
   betaFilingKind,
   betaFilingStatus,
+  betaIndicatorKind,
   betaObligationGroup,
   betaPeriodKind,
 } from "@/db/schema"
@@ -16,7 +17,9 @@ import {
   formDecimal,
   formDocumentStatus,
   formFilingKind,
+  formCappedText,
   formFilingStatus,
+  formIndicatorKind,
   formInteger,
   formObligationGroup,
   formOptionalDate,
@@ -264,10 +267,56 @@ describe("formDate / formOptionalDate", () => {
     })
   })
 
-  it("checks shape, not the calendar — Postgres owns that", () => {
-    // `2026-02-31` passes the shape check and is refused by the date column.
-    // Re-implementing the Gregorian calendar here would be a second authority.
-    expect(formDate(fd({ d: "2026-02-31" }), "d")).toBe("2026-02-31")
+  it("refuses a day the calendar does not have", () => {
+    // Was: shape-only, on the argument that Postgres owns the calendar. It does
+    // — but it says so with 22008, which is neither a CHECK violation nor a
+    // unique violation, so it escapes `guarded()` and reaches the office as a
+    // 500. A Server Action is a public POST endpoint, so a hand-rolled body can
+    // send `2026-02-30` even though a date picker cannot.
+    for (const bad of [
+      "2026-02-30",
+      "2026-02-31",
+      "2026-02-29", // 2026 is not a leap year
+      "2026-04-31",
+      "2026-13-01",
+      "2026-00-10",
+      "2026-06-00",
+      "2026-06-32",
+      "0026-02-01", // Date.UTC would widen a two-digit year to 1926
+    ]) {
+      expect(formDate(fd({ d: bad }), "d"), bad).toBeNull()
+      expect(formOptionalDate(fd({ d: bad }), "d"), bad).toEqual({ ok: false })
+    }
+  })
+
+  it("still takes every real day, leap 29 February included", () => {
+    for (const good of [
+      "2024-02-29",
+      "2026-01-31",
+      "2026-04-30",
+      "2026-12-31",
+    ]) {
+      expect(formDate(fd({ d: good }), "d"), good).toBe(good)
+    }
+  })
+})
+
+describe("formCappedText", () => {
+  it("reads an empty box as null and a normal note as itself", () => {
+    expect(formCappedText(fd({ n: "" }), "n", 2000)).toBeNull()
+    expect(formCappedText(fd({ n: "Z výkazu DPH." }), "n", 2000)).toBe(
+      "Z výkazu DPH.",
+    )
+  })
+
+  it("REFUSES past the cap rather than truncating", () => {
+    // A note silently cut at the ceiling is a note whose end the office
+    // believes it wrote. `false` is the third state `formOptionalText` cannot
+    // express: null is "cleared", a string is "stated", false is "too long".
+    expect(formCappedText(fd({ n: "x".repeat(2000) }), "n", 2000)).toBe(
+      "x".repeat(2000),
+    )
+    expect(formCappedText(fd({ n: "x".repeat(2001) }), "n", 2000)).toBe(false)
   })
 })
 
@@ -338,5 +387,23 @@ describe("Úkoly klientovi's closed list", () => {
     expect(formClientTaskLinkKind(fd({ k: "" }), "k")).toBeNull()
     expect(formClientTaskLinkKind(fd({ k: "financni" }), "k")).toBeNull()
     expect(formClientTaskLinkKind(fd({}), "k")).toBeNull()
+  })
+})
+
+describe("Ukazatele's closed list", () => {
+  it("covers every indicator kind the enum declares", () => {
+    // One value today (`annual_turnover`, migration 0020). The loop rather than
+    // the literal is the point: a second kind added to the migration is covered
+    // here without an edit, and a reader written against the literal would not
+    // have been.
+    for (const kind of betaIndicatorKind.enumValues) {
+      expect(formIndicatorKind(fd({ k: kind }), "k"), kind).toBe(kind)
+    }
+  })
+
+  it("refuses a value that is not on the list, whatever the select rendered", () => {
+    expect(formIndicatorKind(fd({ k: "ebitda" }), "k")).toBeNull()
+    expect(formIndicatorKind(fd({ k: "" }), "k")).toBeNull()
+    expect(formIndicatorKind(fd({}), "k")).toBeNull()
   })
 })

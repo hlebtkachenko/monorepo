@@ -20,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   createFilingRow,
+  createIndicatorRow,
   createLiabilityRow,
   createMonthPeriod,
   createPartnerRow,
@@ -140,6 +141,37 @@ describe("loadZadavani — what the owner gets", () => {
     expect(data.partners[0]!.noteInternal).toBe("Neplatic, hlidat.")
   })
 
+  it("returns this book's indicator readings, note_internal included (W6)", async () => {
+    const target = await seedOrganization()
+    await createIndicatorRow(target.organizationId, {
+      amount: "1850000.00",
+      asOf: "2026-06-30",
+      noteInternal: "Z vykazu DPH",
+    })
+    await createIndicatorRow(target.organizationId, {
+      amount: "1400000.00",
+      asOf: "2026-03-31",
+    })
+
+    as(target.members.owner.headers)
+    const { indicators } = await loadZadavani(target.slug)
+
+    // Newest by as-of first — the same order the client's card resolves, so
+    // the editing table and Obrat watch cannot disagree about which figure is
+    // current.
+    expect(indicators.map((row) => row.asOf)).toEqual([
+      "2026-06-30",
+      "2026-03-31",
+    ])
+    expect(indicators[0]).toMatchObject({
+      amount: "1850000.00",
+      noteInternal: "Z vykazu DPH",
+    })
+    // The second reading has no note; the office read says so as an empty
+    // string rather than as an absent key.
+    expect(indicators[1]?.noteInternal).toBe("")
+  })
+
   it("never carries another book's rows", async () => {
     const foreign = await seedOrganization()
     const foreignPeriod = await createMonthPeriod(foreign.organizationId)
@@ -196,6 +228,7 @@ describe("loadZadavani — what the owner gets", () => {
       liabilities: [],
       accounts: [],
       partners: [],
+      indicators: [],
     })
   })
 })

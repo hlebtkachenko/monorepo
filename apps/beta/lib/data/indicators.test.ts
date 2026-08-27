@@ -7,7 +7,9 @@
  *   1. TENANCY. This database has no RLS behind the scope seam (0000's header
  *      says so), so "book A cannot read or write book B's figure" is a property
  *      of the WHERE clauses in `indicators.ts` and of nothing else. Every read
- *      and every write is checked across two books.
+ *      and every write is checked across two books, and the delete is checked
+ *      with a real, existing id from the other book — the case a missing
+ *      `organization_id` predicate would pass.
  *   2. WHICH READING WINS. `latestIndicator` orders by `as_of`, not by
  *      `created_at`, because a late correction to May typed after June must not
  *      become "the latest obrat". That is the one behaviour a client's card
@@ -26,6 +28,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 import {
   endFixtures,
+  readActivityLog,
   seedOrganization,
   type TestOrganization,
 } from "../../tests/fixtures"
@@ -37,8 +40,14 @@ vi.mock("next/headers", () => ({
 }))
 
 const { requireScope, requireOwner } = await import("./scope")
-const { latestIndicator, indicatorsForOwner, upsertIndicator } =
-  await import("./indicators")
+const {
+  latestIndicator,
+  indicatorsForOwner,
+  upsertIndicator,
+  deleteIndicators,
+  upsertIndicatorAsOffice,
+  deleteIndicatorAsOffice,
+} = await import("./indicators")
 const { forbiddenClientKeys } = await import("./projections")
 
 function as(headers: Headers): void {
@@ -172,6 +181,29 @@ describe("tenancy — no RLS behind this seam", () => {
     expect(await indicatorsForOwner(requireOwner(scopeB))).toEqual([])
   })
 
+  it("never deletes another book's row, even with its real id", async () => {
+    const victim = await seedOrganization()
+    const victimOwner = await ownerScopeFor(victim)
+    const { id } = await upsertIndicator(victimOwner, {
+      kind: "annual_turnover",
+      amount: "700000.00",
+      asOf: "2026-09-30",
+    })
+
+    // A real, existing id — the case a WHERE clause missing `organization_id`
+    // would happily delete.
+    const attacker = await ownerScopeFor(orgA)
+    expect(await deleteIndicators(attacker, [id])).toEqual([])
+    expect(await latestIndicator(victimOwner, "annual_turnover")).not.toBeNull()
+
+    // RETURNING the identity, not a count: the office audit row names which
+    // reading went, and the row is gone by the time anyone could read it back.
+    expect(await deleteIndicators(victimOwner, [id])).toEqual([
+      { id, kind: "annual_turnover", asOf: "2026-09-30" },
+    ])
+    expect(await latestIndicator(victimOwner, "annual_turnover")).toBeNull()
+  })
+
   it("states two books' figures independently", async () => {
     const first = await seedOrganization()
     const second = await seedOrganization()
@@ -292,5 +324,78 @@ describe("upsert — one reading per kind per date", () => {
         }),
       /organization_indicator_amount_nonnegative/,
     )
+  })
+})
+
+describe("delete", () => {
+  it("does nothing for an empty list and for an unknown id", async () => {
+    const owner = await ownerScopeFor(orgA)
+    expect(await deleteIndicators(owner, [])).toEqual([])
+    expect(
+      await deleteIndicators(owner, ["00000000-0000-0000-0000-000000000000"]),
+    ).toEqual([])
+  })
+})
+
+describe("the office's own doors — write plus audit row, one transaction", () => {
+  it("logs an upsert and a delete as the user who made them", async () => {
+    // AUDIT PARITY with `ingestIndicators`. Obrat enters this book through two
+    // doors and must not have a trail that depends on which one was used.
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+
+    const created = await upsertIndicatorAsOffice(owner, {
+      kind: "annual_turnover",
+      amount: "1800000.00",
+      asOf: "2026-06-30",
+    })
+    expect(created.action).toBe("created")
+    expect(await deleteIndicatorAsOffice(owner, created.id)).toBe(true)
+
+    const log = await readActivityLog(org.organizationId)
+    expect(log.map((entry) => entry.action)).toEqual([
+      "indicator.upsert",
+      "indicator.delete",
+    ])
+    for (const entry of log) {
+      expect(entry.actor_kind).toBe("user")
+      // `activity_log_actor_coherence` refuses a `user` row naming a key.
+      expect(entry.agent_key_id).toBeNull()
+      expect(entry.actor_user_id).toBe(org.members.owner.userId)
+    }
+  })
+
+  it("writes no log row for a delete that matched nothing", async () => {
+    const org = await seedOrganization()
+    const owner = await ownerScopeFor(org)
+
+    expect(
+      await deleteIndicatorAsOffice(
+        owner,
+        "00000000-0000-0000-0000-000000000000",
+      ),
+    ).toBe(false)
+    expect(await readActivityLog(org.organizationId)).toEqual([])
+  })
+
+  it("never logs another book's row as deleted", async () => {
+    const victim = await seedOrganization()
+    const { id } = await upsertIndicatorAsOffice(await ownerScopeFor(victim), {
+      kind: "annual_turnover",
+      amount: "700000.00",
+      asOf: "2026-09-30",
+    })
+
+    const attacker = await ownerScopeFor(orgA)
+    expect(await deleteIndicatorAsOffice(attacker, id)).toBe(false)
+    // No row went, so no claim that one did — in EITHER book.
+    expect(
+      (await readActivityLog(orgA.organizationId)).filter(
+        (entry) => entry.action === "indicator.delete",
+      ),
+    ).toEqual([])
+    expect(
+      await latestIndicator(await ownerScopeFor(victim), "annual_turnover"),
+    ).not.toBeNull()
   })
 })

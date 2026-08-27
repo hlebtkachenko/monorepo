@@ -1,5 +1,7 @@
 import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
 
+import { EMPLOYEE_SEAT_HOME } from "@/lib/auth/first-login"
+
 /**
  * Rail nav for the beta portal.
  *
@@ -27,12 +29,20 @@ import type { RailMenuItem } from "@workspace/ui/blocks/app-rail"
  *
  * `isManagement` (PR 31): Mzdy is the SECOND entry gated on the caller's own
  * role rather than on which routes exist, for the reason `mzdy/layout.tsx`
- * states in full — `payrollScope()` already answers `none` for a guest, so
- * the rail entry hiding for one is the honest reflection of that read, not the
- * enforcement of it (the 404 the layout answers is). `owner`/`admin`/`member`
- * are the management seats spec §5 names; a guest never gets this entry, linked
- * to a `payroll_employee` row or not, until the employee seat's own narrower
- * rail lands (§2.6.1) and replaces this whole list for that viewer.
+ * states in full — `payrollScope()` already answers `none` for an unlinked
+ * guest, so the rail entry hiding for one is the honest reflection of that read,
+ * not the enforcement of it (the 404 the layout answers is). `owner`/`admin`/
+ * `member` are the management seats spec §5 names.
+ *
+ * `isEmployeeSeat` (PR 33): the seat REPLACES this whole list rather than
+ * filtering it (spec §2.6.1: "renders a narrowed rail: Přehled (personal) ·
+ * Dokumenty (own) · Moje mzda"). A replacement rather than a filter for the same
+ * reason `MZDY_SEAT_NAV` is a separate list: the seat's Mzdy entry does not point
+ * where the management one points, its Přehled is a different page's content,
+ * and every module added to the nine-module rail from here on must be a
+ * deliberate act to reach a seat rather than a default that has to be
+ * remembered. `betaRailNav` returning early is the shape of "this viewer is not
+ * a narrowed manager, they are a different kind of user".
  */
 type BetaNavLabelKey =
   | "prehled"
@@ -41,6 +51,7 @@ type BetaNavLabelKey =
   | "finance"
   | "vykazy"
   | "mzdy"
+  | "mojeMzda"
   | "majetek"
   | "asistent"
   | "ucetni"
@@ -54,8 +65,34 @@ export function betaRailNav(
     isOwner?: boolean
     showAssistant?: boolean
     isManagement?: boolean
+    isEmployeeSeat?: boolean
   } = {},
 ): BetaRailItem[] {
+  // FIRST, AND IT RETURNS. Spec §2.6.1's three entries, and no path below this
+  // line can add a fourth — which is the property that matters: the rest of this
+  // function grows a module per PR, and none of that growth reaches a seat.
+  //
+  // The three hrefs are all routes the seat can actually open (Přehled renders
+  // its personal variant, Dokumenty is narrowed to their own uploads, Moje mzda
+  // is theirs alone), so the rail carries no dead link — the module comment's
+  // standing rule, which matters more here than anywhere else: every OTHER
+  // module answers 404 for this viewer.
+  if (options.isEmployeeSeat) {
+    return [
+      { labelKey: "prehled", icon: "Home", href: `/${orgSlug}` },
+      {
+        labelKey: "dokumenty",
+        icon: "FileText",
+        href: `/${orgSlug}/dokumenty`,
+      },
+      {
+        labelKey: "mojeMzda",
+        icon: "Users",
+        href: `/${orgSlug}${EMPLOYEE_SEAT_HOME}`,
+      },
+    ]
+  }
+
   const items: BetaRailItem[] = [
     // The structure spec names LayoutDashboard for Přehled; `IconName` is a
     // closed union and does not carry it yet, so the root uses Home until the

@@ -23,9 +23,14 @@
  *     organization, and a non-staff issuer must hold an active owner|admin
  *     membership in the very organization the token targets (Advisor blockers
  *     B4-3 + B4-4, extended by SF-5 in migration 0001).
- *   - trigger `user_setup_token_immutable_grant` (migration 0001, SF-2): the
- *     issuance fields are frozen after INSERT and every consume/revoke column
- *     is write-once, so a spent link can never be un-spent or re-stamped.
+ *   - trigger `user_setup_token_immutable_grant` (migration 0001, SF-2, extended
+ *     by 0019 to cover `payroll_employee_id`): the issuance fields are frozen
+ *     after INSERT and every consume/revoke column is write-once, so a spent
+ *     link can never be un-spent or re-stamped.
+ *   - `user_setup_token_employee_seat_shape` + the composite FK
+ *     `(payroll_employee_id, organization_id)` (migration 0019): a pre-bound
+ *     employee-seat invite is always an `org_invite` granting `guest` into the
+ *     very book the employee row lives in.
  *
  * CONSUME CONTRACT (implemented in `lib/auth/setup-token.ts`): one atomic
  * `UPDATE ... WHERE token_hash = $1 AND consumed_at IS NULL AND revoked_at IS
@@ -65,6 +70,23 @@ export const user_setup_token = pgTable(
       onDelete: "cascade",
     }),
     granted_role: betaOrgRole("granted_role"),
+    /**
+     * The employee seat's pre-binding (spec §2.6.1, migration 0019).
+     *
+     * Non-null exactly on a seat invite: consuming the link creates the account,
+     * grants the `guest` membership AND writes `payroll_employee.app_user_id` in
+     * one transaction, so the account's payroll identity is decided by the
+     * office at ISSUANCE and never by anything the invitee sends.
+     *
+     * NO DRIZZLE `references()` HERE. The real constraint is COMPOSITE —
+     * `(payroll_employee_id, organization_id) → payroll_employee (id,
+     * organization_id)` — which drizzle's column-level helper cannot express;
+     * declaring a single-column reference instead would put a WEAKER constraint
+     * in the schema mirror than the database actually holds, which is the one
+     * kind of drift worth more than the convenience. The migration is the source
+     * of truth, as it is for every other composite FK in this schema.
+     */
+    payroll_employee_id: uuid("payroll_employee_id"),
     issued_by_user_id: uuid("issued_by_user_id").references(() => app_user.id, {
       onDelete: "set null",
     }),

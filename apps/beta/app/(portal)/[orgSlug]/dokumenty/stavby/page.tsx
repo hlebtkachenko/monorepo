@@ -8,6 +8,8 @@ import {
 import { getBetaTranslations } from "@/i18n/translations-server"
 import { listDocumentSiteSummaries } from "@/lib/data/documents"
 
+import { assertNotEmployeeSeat } from "@/lib/data/scope"
+
 import { resolveOrgScope } from "../../_lib/org-scope"
 import { StavbyTable } from "../_components/stavby-table"
 
@@ -33,6 +35,9 @@ export default async function DokumentyStavbyPage({
 }) {
   const { orgSlug } = await params
   const scope = await resolveOrgScope(orgSlug)
+  // Company paperwork, not this person's (spec §2.6.1). The tab is filtered
+  // out for a seat (`DOKUMENTY_SEAT_NAV`); this is the enforcement.
+  assertNotEmployeeSeat(scope)
   const slug = scope.organizationSlug
 
   const [t, sites] = await Promise.all([

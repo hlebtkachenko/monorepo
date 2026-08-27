@@ -46,6 +46,7 @@ export function BetaShell({
   isOwner = false,
   showAssistant = false,
   isManagement = false,
+  isEmployeeSeat = false,
 }: {
   children: React.ReactNode
   orgSlug: string
@@ -71,19 +72,29 @@ export function BetaShell({
   showAssistant?: boolean
   /** Gates the "Mzdy" rail entry (spec §2.6.1, PR 31) — see `beta-nav.ts`. */
   isManagement?: boolean
+  /**
+   * REPLACES the rail with the employee seat's three entries (spec §2.6.1, PR
+   * 33). Not a filter over the other two flags: `betaRailNav` returns early on
+   * it, so `isOwner` / `isManagement` are unreachable for a seat by
+   * construction rather than by them happening to be false.
+   */
+  isEmployeeSeat?: boolean
 }) {
   const pathname = usePathname() ?? undefined
   const t = useBetaTranslations()
   const rail = React.useMemo<RailMenuEntry[]>(
     () =>
-      betaRailNav(orgSlug, { isOwner, showAssistant, isManagement }).map(
-        (entry) => {
-          if (entry === "separator") return entry
-          const { labelKey, ...rest } = entry
-          return { ...rest, label: t(`nav.${labelKey}`) }
-        },
-      ),
-    [orgSlug, isOwner, showAssistant, isManagement, t],
+      betaRailNav(orgSlug, {
+        isOwner,
+        showAssistant,
+        isManagement,
+        isEmployeeSeat,
+      }).map((entry) => {
+        if (entry === "separator") return entry
+        const { labelKey, ...rest } = entry
+        return { ...rest, label: t(`nav.${labelKey}`) }
+      }),
+    [orgSlug, isOwner, showAssistant, isManagement, isEmployeeSeat, t],
   )
 
   return (

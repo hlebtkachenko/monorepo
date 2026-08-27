@@ -27,6 +27,23 @@ export const DOKUMENTY_NAV: readonly DokumentyNavItem[] = [
   { labelKey: "dokumenty.navStavby", slug: "stavby" },
 ]
 
+/**
+ * The EMPLOYEE SEAT's Dokumenty nav (spec §2.6.1: "Dokumenty (own uploads +
+ * podklady)") — one tab.
+ *
+ * Doklady firmy is the office's contracts and powers of attorney; Stavby groups
+ * the whole company's site paperwork. Both are the company's, and both would
+ * render EMPTY for a seat anyway — filter 5 of `visibleDocuments`
+ * (`uploaded_by_user_id`) is what makes them empty, and it is the enforcement.
+ * This list is why the seat is not offered two tabs that can only ever say
+ * "nothing here", which is a worse answer than not claiming the tabs exist:
+ * §0.3's no-placeholders rule and the seam's "a surface someone may not use does
+ * not exist for them" pointing the same way.
+ */
+export const DOKUMENTY_SEAT_NAV: readonly DokumentyNavItem[] = [
+  { labelKey: "dokumenty.navVse", slug: "" },
+]
+
 export function dokumentyHref(orgSlug: string, slug: string): string {
   return slug === "" ? `/${orgSlug}/dokumenty` : `/${orgSlug}/dokumenty/${slug}`
 }

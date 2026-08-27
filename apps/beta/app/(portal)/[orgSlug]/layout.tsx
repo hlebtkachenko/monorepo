@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { assistantVisibleTo } from "@/lib/data/assistant"
 import { activeMembershipsForViewer } from "@/lib/data/memberships"
 import { organizationForScope } from "@/lib/data/organizations"
+import { isEmployeeSeat } from "@/lib/data/scope"
 
 import { AccountMenu } from "../../_components/account-menu"
 import { OrgSwitcher } from "../../_components/org-switcher"
@@ -70,6 +71,13 @@ export default async function OrgLayout({
       // `assertAssistantAvailable` answers 404 on the routes themselves.
       showAssistant={assistantVisibleTo(scope)}
       isManagement={scope.role !== "guest"}
+      // The employee seat's narrowed rail (spec §2.6.1). Resolved on the server
+      // from the scope's own link, never sent as a role the browser could
+      // re-interpret — and it REPLACES the two flags above rather than combining
+      // with them (`beta-nav.ts` returns early), which is why a seat cannot end
+      // up with a nine-entry rail even if a future role change made
+      // `isManagement` true for it.
+      isEmployeeSeat={isEmployeeSeat(scope)}
     >
       {children}
     </BetaShell>

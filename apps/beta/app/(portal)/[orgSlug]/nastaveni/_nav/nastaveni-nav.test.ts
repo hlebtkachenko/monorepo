@@ -10,6 +10,7 @@ import {
   isActiveNastaveniNav,
   nastaveniHref,
   nastaveniNavFor,
+  nastaveniDefaultSlug,
   NASTAVENI_DEFAULT_SLUG,
   NASTAVENI_NAV,
 } from "./nastaveni-nav"
@@ -53,12 +54,14 @@ describe("NASTAVENI_NAV", () => {
 describe("nastaveniNavFor — spec §5 visibility", () => {
   it("shows Lidé to the roles that administer people, and only those", () => {
     for (const role of ["owner", "admin"] as const) {
-      expect(nastaveniNavFor(role).map((item) => item.slug)).toContain("lide")
+      expect(
+        nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug),
+      ).toContain("lide")
     }
     for (const role of ["member", "guest"] as const) {
-      expect(nastaveniNavFor(role).map((item) => item.slug)).not.toContain(
-        "lide",
-      )
+      expect(
+        nastaveniNavFor({ role, employeeSeat: false }).map((item) => item.slug),
+      ).not.toContain("lide")
     }
   })
 
@@ -66,16 +69,45 @@ describe("nastaveniNavFor — spec §5 visibility", () => {
     // The tab is derived from `managesPeople`, so a change to the matrix moves
     // the tab with it. This asserts the two cannot part company.
     for (const role of ["owner", "admin", "member", "guest"] as const) {
-      const visible = nastaveniNavFor(role).some((item) => item.slug === "lide")
+      const visible = nastaveniNavFor({ role, employeeSeat: false }).some(
+        (item) => item.slug === "lide",
+      )
       expect(visible).toBe(managesPeople({ kind: "organization", role }))
     }
   })
 
   it("never hides the tabs that belong to everyone", () => {
     for (const role of ["owner", "admin", "member", "guest"] as const) {
-      const slugs = nastaveniNavFor(role).map((item) => item.slug)
+      const slugs = nastaveniNavFor({ role, employeeSeat: false }).map(
+        (item) => item.slug,
+      )
       expect(slugs).toContain("spolecnost")
       expect(slugs).toContain("ucet")
+    }
+  })
+
+  /**
+   * The employee seat (spec §2.6.1, PR 33). It is a `guest`, so Lidé was
+   * already hidden; what this adds is Společnost — the company's identity card,
+   * which is company data even though it is not a financial statement.
+   */
+  it("hides Společnost from the employee seat and keeps Účet", () => {
+    const slugs = nastaveniNavFor({ role: "guest", employeeSeat: true }).map(
+      (item) => item.slug,
+    )
+    expect(slugs).not.toContain("spolecnost")
+    expect(slugs).not.toContain("lide")
+    expect(slugs).toEqual(["ucet"])
+  })
+
+  it("lands the seat on Účet and everyone else on Společnost", () => {
+    expect(nastaveniDefaultSlug({ role: "guest", employeeSeat: true })).toBe(
+      "ucet",
+    )
+    for (const role of ["owner", "admin", "member", "guest"] as const) {
+      expect(nastaveniDefaultSlug({ role, employeeSeat: false })).toBe(
+        NASTAVENI_DEFAULT_SLUG,
+      )
     }
   })
 })

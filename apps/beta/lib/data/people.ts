@@ -7,6 +7,7 @@ import { betaDb } from "@/db/client"
 import {
   app_user,
   organization_membership,
+  payroll_employee,
   type BetaOrgRole,
 } from "@/db/schema"
 import {
@@ -77,6 +78,23 @@ type PeopleRow = OrgMemberSummary & {
   assignableRoles: readonly BetaOrgRole[]
   /** Whether the viewer may flip this row's `active`. */
   deactivatable: boolean
+  /**
+   * This membership is an EMPLOYEE SEAT — a `guest` linked to a
+   * `payroll_employee` row of this book (spec §2.6.1, PR 33). Drives the
+   * "Zaměstnanec" label, which §2.6.1 asks for so a company admin can tell a
+   * seat apart from an ordinary Host before deactivating one of them.
+   *
+   * A BOOLEAN, NOT THE EMPLOYEE ROW. Which person it is would be a second,
+   * staler copy of a fact Mzdy › Zaměstnanci already renders (and
+   * `payroll_employee_id` / `app_user_id` are both on
+   * `CLIENT_FORBIDDEN_COLUMNS`). The name is not needed to make the decision
+   * this page exists for.
+   *
+   * NOT A LEAK TO THE VIEWER. `peopleForScope` is owner/admin-only, and both
+   * already see the whole employee register including its `hasPortalAccount`
+   * column — this states the same fact from the membership side.
+   */
+  employeeSeat: boolean
 }
 
 export type PeopleView = {
@@ -109,9 +127,29 @@ export async function peopleForScope(scope: OrgScope): Promise<PeopleView> {
       email: app_user.email,
       role: organization_membership.role,
       active: organization_membership.active,
+      payroll_employee_id: payroll_employee.id,
     })
     .from(organization_membership)
     .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+    /**
+     * The employee-seat link (spec §2.6.1, PR 33) — the SAME join
+     * `resolveScopeOutcome` runs, with the membership's user in place of the
+     * session's. Both halves carry tenancy, and
+     * `payroll_employee_app_user_idx` (unique on `(organization_id,
+     * app_user_id)`) means it cannot multiply a membership row.
+     *
+     * `scope.organizationId` rather than `organization_membership.
+     * organization_id`: identical here (the WHERE pins it), and stating the
+     * literal tenant makes the join correct on its own if the filter below is
+     * ever refactored.
+     */
+    .leftJoin(
+      payroll_employee,
+      and(
+        eq(payroll_employee.app_user_id, organization_membership.user_id),
+        eq(payroll_employee.organization_id, scope.organizationId),
+      ),
+    )
     // The tenant filter. Every statement in this module has one; there is no
     // arm that reads a membership by id alone.
     .where(eq(organization_membership.organization_id, scope.organizationId))
@@ -133,6 +171,10 @@ export async function peopleForScope(scope: OrgScope): Promise<PeopleView> {
       ...orgMemberSummary(row),
       self,
       lastOwner,
+      // The seat is the CONJUNCTION, exactly as `isEmployeeSeat` defines it for
+      // the viewer's own scope: a linked `member` or `admin` is a manager who
+      // draws a salary, not an employee seat, and must not read "Zaměstnanec".
+      employeeSeat: row.role === "guest" && row.payroll_employee_id !== null,
       assignableRoles: invitableRoles(issuer).filter((next) =>
         mayChangeRole(issuer, {
           issuerUserId: scope.userId,

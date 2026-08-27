@@ -28,6 +28,13 @@ import { useBetaTranslations } from "@/i18n/translations"
  * in a non-secure context and a copy button that silently does nothing would be
  * worse than no button at all.
  *
+ * SHARED (`app/_components/`) SINCE PR 33. It had one consumer when it was
+ * written — Nastavení › Lidé — and gained a second when Mzdy › Zaměstnanci
+ * started issuing pre-bound employee-seat invites (spec §2.6.1). Both show the
+ * same object for the same one time, so promoting it beat a copy: a second copy
+ * of a screen that renders a live credential is a second place for "shown once,
+ * never logged, never re-derivable" to be got wrong.
+ *
  * WHY THIS IS NOT THE /admin COMPONENT IMPORTED. It would be one import across
  * a boundary the app otherwise keeps closed: `app/admin/**` is the office's
  * cross-org area and `app/(portal)/**` is the client's, and the two share

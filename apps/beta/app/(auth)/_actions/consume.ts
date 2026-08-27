@@ -132,6 +132,7 @@ async function consume(
     redirectTo: firstLoginPath({
       organizationSlug: result.organizationSlug,
       grantedRole: result.grantedRole,
+      employeeSeat: result.employeeSeat,
     }),
   }
 }

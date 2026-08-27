@@ -1,4 +1,3 @@
-import { Badge } from "@workspace/ui/components/badge"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import {
@@ -25,6 +24,7 @@ import {
 } from "../_actions/people"
 import { ROLE_LABEL_KEY } from "../_components/labels"
 
+import { MemberStateBadges } from "./_components/member-state-badges"
 import { PeopleActionForm } from "./_components/people-action-form"
 
 /**
@@ -101,20 +101,11 @@ export default async function LidePage({
                 </TableCell>
 
                 <TableCell className="space-x-1">
-                  {member.active ? (
-                    <Badge variant="secondary">
-                      {t("nastaveni.stateActive")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline">
-                      {t("nastaveni.stateInactive")}
-                    </Badge>
-                  )}
-                  {member.lastOwner ? (
-                    <Badge variant="outline">
-                      {t("nastaveni.stateLastOwner")}
-                    </Badge>
-                  ) : null}
+                  <MemberStateBadges
+                    active={member.active}
+                    lastOwner={member.lastOwner}
+                    employeeSeat={member.employeeSeat}
+                  />
                 </TableCell>
 
                 <TableCell>

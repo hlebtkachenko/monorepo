@@ -22,6 +22,18 @@ const MAX_CAUSE_DEPTH = 5
 const PG_CHECK_VIOLATION = "23514"
 /** `unique_violation` — a taken slug, a duplicate email. */
 const PG_UNIQUE_VIOLATION = "23505"
+/**
+ * `foreign_key_violation` — a referenced row does not exist, or (for the
+ * composite, tenancy-carrying FKs this schema uses) does not exist IN THE
+ * ORGANIZATION the referencing row names.
+ *
+ * Beta's composite FKs are load-bearing authorization, not just referential
+ * hygiene: `user_setup_token → payroll_employee (id, organization_id)`
+ * (migration 0019) is what refuses an employee row from another book. So 23503
+ * has to be tellable from a genuine fault, the same way 23514 is — a caller that
+ * cannot tell them apart answers a legitimate refusal with a 500.
+ */
+const PG_FOREIGN_KEY_VIOLATION = "23503"
 /** `deadlock_detected` — see `isDeadlock`. */
 const PG_DEADLOCK_DETECTED = "40P01"
 
@@ -56,6 +68,10 @@ export function isCheckViolation(error: unknown): boolean {
 
 export function isUniqueViolation(error: unknown): boolean {
   return pgError(error)?.code === PG_UNIQUE_VIOLATION
+}
+
+export function isForeignKeyViolation(error: unknown): boolean {
+  return pgError(error)?.code === PG_FOREIGN_KEY_VIOLATION
 }
 
 /**

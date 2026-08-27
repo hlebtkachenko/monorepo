@@ -433,6 +433,14 @@ describe("the handle itself", () => {
       // true on a scope that exists — an unenrolled office account never gets
       // one — and it is here so `requireOwner` can assert it synchronously.
       totpSatisfied: true,
+      // The employee seat's link (PR 33), resolved by a LEFT JOIN in the same
+      // membership query. NULL for everybody who is not on this book's payroll,
+      // which is every role in this test's fixture. `payroll_employee_id` is on
+      // `CLIENT_FORBIDDEN_COLUMNS`, so a projection that carried it would fail
+      // `projections.test.ts` — this assertion is about the HANDLE's exact
+      // shape, which is deliberately exhaustive so a field added later has to
+      // be considered here.
+      payrollEmployeeId: null,
     })
     expect(Object.getOwnPropertySymbols(scope)).toHaveLength(1)
   })

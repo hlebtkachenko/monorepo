@@ -9,6 +9,7 @@ import {
   app_user,
   organization,
   organization_membership,
+  payroll_employee,
   type BetaOrgRole,
 } from "@/db/schema"
 import { getBetaSession } from "@/lib/auth/session"
@@ -90,13 +91,22 @@ import { isValidOrgSlugFormat } from "./org-slug"
  * to enrol from, and the authority it acts as is already floored by `is_staff`
  * and `disabled_at` on every request.
  *
- * NARROWING LATER (spec §2.6.1, PR 32). The employee seat is a `guest`
- * membership linked to a `payroll_employee` row, and it sees only its own
- * payroll. That is a NARROWING of this handle, not a new one: it arrives as one
- * more LEFT JOIN in `resolveOrgScope` and one more readonly field on `OrgScope`,
- * which `payrollScope()` then reads. Nothing that consumes a scope today has to
- * change for that to land — which is why the handle carries resolved facts
- * rather than a role string callers re-interpret.
+ * THE EMPLOYEE SEAT IS A NARROWING OF THIS HANDLE, NOT A NEW ONE (spec §2.6.1,
+ * PR 33). It is a `guest` membership whose account is linked to a
+ * `payroll_employee` row, and it arrived exactly as the earlier version of this
+ * comment predicted it would: one more LEFT JOIN in `resolveScopeOutcome` and
+ * one more readonly field (`payrollEmployeeId`), which `payrollScope()` reads.
+ * No consumer of a scope had to change for it to land — which is why the handle
+ * carries resolved FACTS rather than a role string callers re-interpret.
+ *
+ * THERE IS STILL NO FIFTH ROLE, and that is a security property. A role is a
+ * GRANT that the invite matrix lets a company admin rewrite (`changeMemberRole`);
+ * the link is an IDENTITY that no role-write path in this application can touch
+ * (`payroll_employee.app_user_id` is unwritable outside the token-consume
+ * transaction — `lib/data/payroll.ts`, migration 0016). Folding the seat into
+ * the role enum would have made "who may edit roles" and "whose payslips does
+ * this account read" the same authorization question. Migration 0019's header
+ * argues the rest.
  */
 
 const orgScopeBrand = Symbol("beta.OrgScope")
@@ -131,6 +141,65 @@ export type OrgScope = {
    * becoming async.
    */
   readonly totpSatisfied: boolean
+  /**
+   * The `payroll_employee` row this account IS, in this book — the employee
+   * seat's whole identity (spec §2.6.1), or `null` for everybody else.
+   *
+   * RESOLVED HERE, ONCE, IN THE MEMBERSHIP QUERY. A read that needed it would
+   * otherwise look it up itself, and a read that FORGOT to look it up would
+   * quietly serve every employee's rows to one of them. Carrying it on the
+   * handle means `payrollScope()` is the only function that ever interprets it
+   * and every payroll read is narrowed by construction.
+   *
+   * IT IS AN ID, NOT A BOOLEAN, because the narrowing needs the value: the
+   * employee arm of `PayrollScope` filters `payroll_employee.id = this`. It
+   * never leaves the server — `payroll_employee_id` is on
+   * `CLIENT_FORBIDDEN_COLUMNS` (`projections.ts`).
+   */
+  readonly payrollEmployeeId: string | null
+}
+
+/**
+ * Is this handle the employee seat (spec §2.6.1)?
+ *
+ * TWO FACTS, BOTH RESOLVED, AND BOTH REQUIRED. A `guest` with no link is an
+ * external viewer; a linked account holding a MANAGEMENT role is a manager who
+ * also happens to be on the payroll (a company owner drawing a salary is the
+ * ordinary case), and spec §5 says management seats "always see everything incl.
+ * all payslips" — so the link alone must never narrow anyone. Only the
+ * conjunction is the seat.
+ *
+ * It lives in this module, next to the handle, so that "what is an employee
+ * seat" has exactly one answer. `payrollScope()` (`payroll.ts`) is the only
+ * caller that turns it into a query predicate; `assertNotEmployeeSeat` below is
+ * the only one that turns it into a 404.
+ */
+export function isEmployeeSeat(scope: OrgScope): boolean {
+  return scope.role === "guest" && scope.payrollEmployeeId !== null
+}
+
+/**
+ * Refuse an employee seat with the same 404 every other tenancy refusal answers.
+ *
+ * SPEC §2.6.1 IS A WHITELIST: the seat's pages are Přehled (personal), Dokumenty
+ * (own) and Moje mzda — *"Everything else 404."* This is the "everything else",
+ * expressed as one call at the top of each org-tier module rather than as a
+ * role test copied into every page: a copied test is a test somebody forgets on
+ * the module they add next month, and the thing forgotten would be a client's
+ * whole book handed to their bricklayer.
+ *
+ * `employee-seat-fence.boundary.test.ts` is what makes forgetting it fail loudly:
+ * it enumerates every module directory under `app/(portal)/[orgSlug]` and
+ * requires each one's layout (or its only page) to either call this, or be on an
+ * explicit, commented allowlist of the three surfaces the seat is entitled to.
+ *
+ * WHY 404 AND NOT 403 — the module header's argument, unchanged. A 403 on
+ * `/vykazy` would confirm to an employee that their employer has published
+ * statements, which is exactly the sort of thing they are not entitled to learn
+ * from a URL.
+ */
+export function assertNotEmployeeSeat(scope: OrgScope): void {
+  if (isEmployeeSeat(scope)) notFound()
 }
 
 /**
@@ -225,6 +294,7 @@ async function resolveScopeOutcome(orgSlug: string): Promise<ScopeResolution> {
       role: organization_membership.role,
       isStaff: app_user.is_staff,
       twoFactorEnabled: app_user.two_factor_enabled,
+      payrollEmployeeId: payroll_employee.id,
     })
     .from(organization_membership)
     .innerJoin(
@@ -232,6 +302,30 @@ async function resolveScopeOutcome(orgSlug: string): Promise<ScopeResolution> {
       eq(organization.id, organization_membership.organization_id),
     )
     .innerJoin(app_user, eq(app_user.id, organization_membership.user_id))
+    /**
+     * The employee seat's link (spec §2.6.1, PR 33).
+     *
+     * LEFT, because almost nobody has one and a membership must not disappear
+     * for want of a payroll row. It CANNOT MULTIPLY THE ROW: migration 0016's
+     * `payroll_employee_app_user_idx` is unique on `(organization_id,
+     * app_user_id)` where the account is non-null, so at most one employee row
+     * in this book names this account — which is the whole reason that index is
+     * a UNIQUE one rather than a plain lookup index.
+     *
+     * BOTH HALVES OF THE JOIN ARE TENANCY-CARRYING. Matching on `app_user_id`
+     * alone would find this person's employee row in a DIFFERENT book — every
+     * client of this office is in the same tables — and the resulting scope
+     * would then narrow (or fail to narrow) against a foreign id. The
+     * `organization_id` conjunct is what makes the resolved link mean "in THIS
+     * book", the same discipline `payroll.ts`'s `employeeJoin` states.
+     */
+    .leftJoin(
+      payroll_employee,
+      and(
+        eq(payroll_employee.app_user_id, organization_membership.user_id),
+        eq(payroll_employee.organization_id, organization.id),
+      ),
+    )
     .where(
       and(
         eq(organization.slug, orgSlug),
@@ -277,6 +371,7 @@ async function resolveScopeOutcome(orgSlug: string): Promise<ScopeResolution> {
     role: row.role,
     isStaff: row.isStaff,
     totpSatisfied: true,
+    payrollEmployeeId: row.payrollEmployeeId,
   }
   return { outcome: "ok", scope: Object.freeze(scope) }
 }
@@ -547,6 +642,16 @@ export async function resolveAgentOwnerScope(
     // unattended agent the first time somebody re-enrolled, and would buy
     // nothing an attacker holding the key does not already have.
     totpSatisfied: true,
+    // ALWAYS NULL, and not resolved from a join even though the acting user
+    // could in principle be on some book's payroll. An agent key carries the
+    // office's write authority, and the employee seat is a NARROWING of a
+    // client's read surface; resolving one here would mean an accountant who
+    // happens to appear in a client's employee register could see their
+    // ingestion writes silently scoped to one person. `role: "owner"` already
+    // makes `payrollScope()` answer `all` regardless, so this is belt AND
+    // braces — the field states the fact rather than relying on the role test
+    // downstream staying the way it is today.
+    payrollEmployeeId: null,
   }
   return Object.freeze(owner)
 }

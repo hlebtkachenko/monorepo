@@ -27,8 +27,10 @@ vi.mock("../../_actions/people", () => ({
 }))
 
 const { PeopleActionForm } = await import("./people-action-form")
-const { IssuedInviteLink } = await import("./issued-invite-link")
+const { IssuedInviteLink } =
+  await import("../../../../../_components/issued-invite-link")
 const { setMemberActiveAction } = await import("../../_actions/people")
+const { MemberStateBadges } = await import("./member-state-badges")
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(
@@ -120,5 +122,50 @@ describe("IssuedInviteLink", () => {
     )
     expect(html).toContain("Odkaz je připraven")
     expect(html).toContain("Znovu ho už nezobrazíme")
+  })
+})
+
+/**
+ * The employee-seat label (spec §2.6.1, PR 33).
+ *
+ * IT IS TESTED HERE BECAUSE OF HOW IT FIRST FAILED. The label originally lived
+ * in the role cell's "no assignable role" branch, which a guest row never takes
+ * — an owner or admin may always re-role a guest, so that cell always renders a
+ * select. Nothing caught it: `page.tsx` is an async Server Component reading the
+ * database, so no test in this suite could render it. `MemberStateBadges` is the
+ * extraction that makes the branch reachable from a test, and these two cases
+ * are the reason it exists.
+ */
+describe("MemberStateBadges — the employee seat is visible in Lidé", () => {
+  it("labels a seat row Zaměstnanec", () => {
+    const html = render(
+      <MemberStateBadges active lastOwner={false} employeeSeat />,
+    )
+
+    expect(html).toContain(betaMessages.nastaveni.roleEmployee)
+    // Beside the state it belongs next to, not instead of it.
+    expect(html).toContain(betaMessages.nastaveni.stateActive)
+  })
+
+  it("does NOT label an ordinary Host", () => {
+    // The whole point of the badge: two guest rows, one of which silently reads
+    // a person's payslips. If this assertion ever passes vacuously — because
+    // the badge stopped rendering for anyone — the case above fails first.
+    const html = render(
+      <MemberStateBadges active lastOwner={false} employeeSeat={false} />,
+    )
+
+    expect(html).not.toContain(betaMessages.nastaveni.roleEmployee)
+    expect(html).toContain(betaMessages.nastaveni.stateActive)
+  })
+
+  it("keeps the last-owner badge independent of the seat one", () => {
+    const html = render(
+      <MemberStateBadges active={false} lastOwner employeeSeat={false} />,
+    )
+
+    expect(html).toContain(betaMessages.nastaveni.stateInactive)
+    expect(html).toContain(betaMessages.nastaveni.stateLastOwner)
+    expect(html).not.toContain(betaMessages.nastaveni.roleEmployee)
   })
 })

@@ -17,7 +17,8 @@
     "mzdy": "Mzdy",
     "ucetni": "Pro účetní",
     "vykazy": "Výkazy",
-    "asistent": "Asistent"
+    "asistent": "Asistent",
+    "mojeMzda": "Moje mzda"
   },
   "landing": {
     "heading": "Klientský portál",
@@ -45,7 +46,6 @@
   "prehled": {
     "tasksTitle": "Co od vás potřebujeme",
     "tasksEmpty": "Momentálně od vás nic nepotřebujeme.",
-
     "deadlinesTitle": "Nejbližší termíny",
     "deadlinesHint": "Podání u úřadů, platby a úkoly od účetní — na jednom místě, podle termínu.",
     "deadlinesEmpty": "Žádný termín zatím neevidujeme.",
@@ -54,7 +54,6 @@
     "originUcetni": "Od účetní",
     "deadlineOverdue": "Po splatnosti",
     "deadlineOpen": "Otevřít",
-
     "kpiTitle": "Klíčové údaje",
     "kpiObligations": "Otevřené závazky",
     "kpiObligationsOverdue": "z toho po splatnosti",
@@ -62,7 +61,6 @@
     "kpiAssetsCount": "položek v užívání",
     "kpiPayroll": "Mzdové náklady",
     "asOf": "Údaje k",
-
     "dataTitle": "Vaše data",
     "dataHint": "Co už účetní kancelář nahrála a za jaké období. Co chybí, nezobrazujeme jako nulu.",
     "datasetPredvaha": "Obratová předvaha",
@@ -79,7 +77,6 @@
     "dataStaleBadge": "Starší období",
     "dataDocumentsCount": "dokladů",
     "dataDocumentsLast": "Poslední doklad",
-
     "obratTitle": "Sledování obratu",
     "obratHint": "Jako neplátce DPH sledujte obrat za 12 po sobě jdoucích měsíců.",
     "obratThresholdRegistration": "při překročení vzniká povinnost registrace k DPH",
@@ -91,7 +88,6 @@
     "obratTierPayer": "Plátcem ze zákona",
     "obratSourceIndicator": "Údaj od účetní",
     "obratSourceVzz": "Výnosy z výsledovky",
-
     "kartaTitle": "Karta společnosti",
     "kartaIco": "IČO",
     "kartaDic": "DIČ",
@@ -100,13 +96,15 @@
     "kartaDataBox": "Datová schránka",
     "kartaCourtFile": "Spisová značka",
     "kartaMissing": "Neuvedeno",
-
     "documentsTitle": "Poslední dokumenty",
     "documentsEmpty": "Zatím jste nenahráli žádný doklad.",
     "documentsAll": "Všechny dokumenty",
-
     "firstMonthTitle": "Finanční přehledy se objeví po první měsíční uzávěrce.",
-    "firstMonthBody": "Zatím jsme za vaši firmu nic nezpracovali. Nahrávejte doklady a plňte úkoly od účetní — závazky, termíny a výkazy se tu objeví, jakmile kancelář uzavře první měsíc."
+    "firstMonthBody": "Zatím jsme za vaši firmu nic nezpracovali. Nahrávejte doklady a plňte úkoly od účetní — závazky, termíny a výkazy se tu objeví, jakmile kancelář uzavře první měsíc.",
+    "seatTitle": "Váš přehled",
+    "seatIntro": "Vidíte jen své vlastní údaje: svoji mzdu a doklady, které jste sami nahráli.",
+    "seatMzdaCta": "Otevřít Moje mzda",
+    "seatDokumentyCta": "Moje doklady"
   },
   "dokumenty": {
     "title": "Dokumenty",
@@ -246,7 +244,6 @@
     "resetTitle": "Nové heslo",
     "resetSubtitle": "Nastavením nového hesla se odhlásí všechna zařízení.",
     "resetSubmit": "Nastavit heslo a přihlásit se",
-
     "totpCodeLabel": "Kód z aplikace",
     "backupCodeLabel": "Záložní kód",
     "verifySubmit": "Ověřit a přihlásit se",
@@ -537,7 +534,6 @@
     "navPohledavky": "Pohledávky a závazky",
     "navPartneri": "Partneři",
     "navUvery": "Úvěry a leasingy",
-
     "dluhyTitle": "Dluhy a platby",
     "dluhyIntro": "Nezaplacené závazky ze všech evidencí, seřazené podle splatnosti.",
     "groupFu": "Finanční úřad",
@@ -587,7 +583,6 @@
     "uctyUnmappedOwnerCta": "Nastavit v Zadávání dat",
     "uctyStaleBandPrefix": "Poslední zveřejněné údaje jsou za období",
     "uctyStaleBandSuffix": ". Novější zatím nebyly nahrány.",
-
     "pohledavkyTitle": "Pohledávky a závazky",
     "pohledavkyIntro": "Saldokonto podle partnerů — kolik dluží nám a kolik dlužíme my.",
     "pohledavkyEmptyHeading": "Saldokonto zatím nebylo nahráno.",
@@ -606,13 +601,11 @@
     "saldoPeriod": "Období",
     "saldoPublishedAt": "Nahráno",
     "saldoStaleBand": "Novější saldokonto zatím nebylo nahráno.",
-
     "agingUnknown": "Bez splatnosti",
     "agingNotDue": "Do splatnosti",
     "aging1to30": "1–30 dní po splatnosti",
     "aging31to90": "31–90 dní po splatnosti",
     "agingOver90": "Více než 90 dní po splatnosti",
-
     "roleSupplier": "Dodavatel",
     "roleCustomer": "Odběratel",
     "roleBoth": "Dodavatel i odběratel",
@@ -805,7 +798,6 @@
   "uvery": {
     "title": "Úvěry a leasingy",
     "intro": "Úvěry, leasingy a kontokorenty, které pro vás účetní kancelář eviduje.",
-
     "columnInstitution": "Instituce",
     "columnKind": "Typ",
     "columnPrincipal": "Jistina",
@@ -814,7 +806,6 @@
     "columnInterestRate": "Úrok",
     "columnEndsOn": "Konec",
     "footerTotal": "Celkem",
-
     "balanceAsOfPrefix": "k",
     "balanceNotProvided": "Zatím nebylo nahráno",
     "balanceTotalPartial": "Zůstatek zatím není uveden u všech smluv, součet proto neuvádíme.",
@@ -823,7 +814,6 @@
     "endsOnOpen": "Bez konce",
     "emptyHeading": "Neevidujeme žádné úvěry ani leasingy.",
     "emptyBody": "Jakmile účetní kancelář přidá první smlouvu, uvidíte ji zde.",
-
     "kindLoan": "Úvěr",
     "kindLease": "Leasing",
     "kindOverdraft": "Kontokorent",
@@ -831,7 +821,6 @@
     "periodQuarterly": "čtvrtletně",
     "periodSemiannual": "pololetně",
     "periodAnnual": "ročně",
-
     "newLoanTitle": "Nová smlouva",
     "newLoanSubmit": "Přidat smlouvu",
     "editTitle": "Upravit smlouvu",
@@ -846,7 +835,6 @@
     "fieldInterestRatePct": "Úrok (% p. a.)",
     "fieldEndsOn": "Konec",
     "fieldNoteClient": "Poznámka",
-
     "pending": "Ukládám…",
     "okCreated": "Smlouva přidána.",
     "okUpdated": "Uloženo.",
@@ -998,11 +986,9 @@
     "podkladyColumnType": "Typ",
     "podkladyColumnUploaded": "Nahráno",
     "podkladyColumnStatus": "Stav",
-
     "contractHpp": "HPP",
     "contractDpc": "DPČ",
     "contractDpp": "DPP",
-
     "zamestnanciTitle": "Zaměstnanci",
     "zamestnanciEmpty": "Zatím nemáme žádného zaměstnance v evidenci.",
     "zamestnanciColumnName": "Jméno",
@@ -1013,7 +999,6 @@
     "zamestnanciColumnDeductions": "Srážky",
     "zamestnanciColumnNet": "Čistá mzda",
     "zamestnanciColumnCost": "Náklad",
-
     "vyplatniceTitle": "Výplatnice",
     "vyplatniceIntro": "Výplatní pásky jednotlivých zaměstnanců za vybrané období.",
     "vyplatniceEmpty": "Za toto období zatím nemáme nahranou žádnou výplatnici.",
@@ -1022,7 +1007,6 @@
     "vyplatniceColumnUploaded": "Nahráno",
     "vyplatniceDownload": "Stáhnout",
     "vyplatniceNoPeriod": "Nejdřív vyberte období se zveřejněnými mzdami.",
-
     "vyplatniceUploadTitle": "Hromadné nahrání výplatnic",
     "vyplatniceUploadIntro": "Nahrajte ZIP soubor s výplatnicemi za vybrané období. Ke každému souboru navrhneme zaměstnance podle názvu souboru — přiřazení před odesláním zkontrolujte.",
     "vyplatniceUploadPickZip": "Vybrat ZIP soubor",
@@ -1051,7 +1035,32 @@
     "vyplatniceUploadErrorNetwork": "Spojení se přerušilo.",
     "vyplatniceUploadErrorServer": "Nahrávání se nepodařilo dokončit.",
     "vyplatniceUploadZipInvalid": "Tento soubor se nepodařilo otevřít jako ZIP archiv.",
-    "vyplatniceUploadZipEmpty": "V archivu nejsou žádné soubory."
+    "vyplatniceUploadZipEmpty": "V archivu nejsou žádné soubory.",
+    "pending": "Odesílám…",
+    "errorInvalidInput": "Neplatný vstup.",
+    "errorInvalidEmail": "Zadejte platnou e-mailovou adresu.",
+    "errorNotAllowed": "K tomuto kroku nemáte oprávnění.",
+    "errorTooManyRequests": "Příliš mnoho pozvánek. Zkuste to za chvíli.",
+    "errorUnknownEmployee": "Tento zaměstnanec ve firmě neexistuje.",
+    "errorAlreadyLinked": "Tento zaměstnanec už přístup do portálu má.",
+    "errorRejected": "Pozvánku se nepodařilo vytvořit.",
+    "zamestnanciColumnSeat": "Přístup do portálu",
+    "seatInviteEmailLabel": "E-mail zaměstnance",
+    "seatInviteSubmit": "Pozvat do portálu",
+    "seatLinked": "Přístup zřízen",
+    "seatEndedWarning": "Zaměstnanec ukončen, účet aktivní",
+    "mojeMzdaTitle": "Moje mzda",
+    "mojeMzdaIntro": "Vaše výplaty a výplatní pásky. Vidíte jen své vlastní údaje.",
+    "mojeMzdaEmpty": "Zatím tu nemáte žádnou zúčtovanou mzdu.",
+    "mojeMzdaColumnPeriod": "Období",
+    "mojeMzdaColumnGross": "Hrubá mzda",
+    "mojeMzdaColumnDeductions": "Srážky",
+    "mojeMzdaColumnNet": "Čistá mzda",
+    "mojeMzdaPayslipsTitle": "Výplatní pásky",
+    "mojeMzdaPayslipsEmpty": "Zatím tu nemáte žádnou výplatní pásku.",
+    "mojeMzdaContract": "Typ úvazku",
+    "mojeMzdaStarted": "Nástup",
+    "mojeMzdaEnded": "Ukončení"
   },
   "uzaverka": {
     "title": "Měsíční uzávěrka",
@@ -1151,11 +1160,9 @@
     "toggleLabel": "E-mailové notifikace",
     "toggleHint": "Dostávejte e-mail, když se vrátí doklad, přibude nový úkol nebo se zveřejní nová data ve výkazech."
   },
-
   "asistent": {
     "title": "Asistent",
     "intro": "Obecné dotazy k účetnictví, daním a k tomuto portálu. Odpovědi nejsou závazné.",
-
     "listLabel": "Seznam chatů",
     "listEmpty": "Zatím nemáte žádný chat.",
     "newChat": "Nový chat",
@@ -1163,11 +1170,9 @@
     "rename": "Přejmenovat",
     "renameLabel": "Název chatu",
     "delete": "Smazat chat",
-
     "emptyHeading": "Zatím tu nic není",
     "emptyBody": "Založte nový chat a zeptejte se na cokoli obecného k účetnictví, daním nebo k portálu.",
     "chatEmpty": "Napište první dotaz.",
-
     "roleUser": "Vy",
     "roleAssistant": "Asistent",
     "composerLabel": "Váš dotaz",
@@ -1175,7 +1180,6 @@
     "send": "Odeslat",
     "sending": "Odesílám…",
     "disclaimer": "Asistent poskytuje obecné informace, nikoli závazné daňové ani právní poradenství. Nevidí vaše doklady ani částky. Závazné otázky řešte se svou účetní.",
-
     "errorDailyLimit": "Denní limit dotazů je vyčerpán. Zkuste to prosím zítra.",
     "errorMonthlyBudget": "Měsíční limit asistenta je vyčerpán. Napište prosím své účetní.",
     "errorTooLong": "Dotaz je příliš dlouhý. Zkraťte ho prosím.",
@@ -1191,7 +1195,6 @@
     "navLide": "Lidé",
     "navUcet": "Účet",
     "pending": "Ukládám…",
-
     "companyTitle": "Údaje o společnosti",
     "companyReadOnly": "Údaje o společnosti upravuje účetní kancelář. Případnou opravu jí napište.",
     "editTitle": "Upravit údaje",
@@ -1200,13 +1203,11 @@
     "vatRegimeNote": "Režim DPH nastavuje účetní kancelář ve své správě. Z ARES se nikdy nepřebírá.",
     "vatPayer": "Plátce DPH",
     "vatNonPayer": "Neplátce DPH",
-
     "groupIdentity": "Identifikace",
     "groupAddress": "Sídlo",
     "groupRegistry": "Rejstřík a úřady",
     "groupBank": "Bankovní spojení",
     "groupContact": "Kontakt",
-
     "fieldLegalName": "Obchodní firma",
     "fieldIco": "IČO",
     "fieldDic": "DIČ",
@@ -1231,7 +1232,6 @@
     "fieldContactEmail": "Kontaktní e-mail",
     "fieldContactPhone": "Telefon",
     "fieldSlug": "Adresa v portálu",
-
     "aresTitle": "Načtení z ARES",
     "aresHint": "Načteme veřejné údaje k zadanému IČO a ukážeme, co se liší. Nic se nepřepíše samo — vyberete, co převzít.",
     "aresStamp": "Naposledy načteno z ARES:",
@@ -1241,21 +1241,18 @@
     "aresEmptyCurrent": "(nevyplněno)",
     "aresNoDiff": "ARES nemá k tomuto IČO nic, co by se lišilo od uložených údajů.",
     "aresNoDiffCached": "ARES nemá k tomuto IČO nic, co by se lišilo od uložených údajů. Použili jsme odpověď z posledních 24 hodin.",
-
     "accountTitle": "Můj účet",
     "accountMenuLabel": "Účet a nastavení",
     "accountName": "Jméno a příjmení",
     "accountEmail": "E-mail",
     "accountEmailHint": "E-mail mění účetní kancelář. Je to adresa, na kterou byl vystaven přístup.",
     "saveProfile": "Uložit jméno",
-
     "passwordTitle": "Heslo",
     "currentPassword": "Současné heslo",
     "newPassword": "Nové heslo",
     "savePassword": "Změnit heslo",
     "passwordRevokeHint": "Změnou hesla se odhlásí všechna ostatní zařízení. Na tomto zůstanete přihlášeni.",
     "okPasswordChanged": "Heslo bylo změněno a ostatní zařízení byla odhlášena.",
-
     "totpTitle": "Dvoufázové ověření",
     "totpEnable": "Zapnout dvoufázové ověření",
     "totpEnableHint": "Pro jistotu potvrďte současné heslo.",
@@ -1270,16 +1267,13 @@
     "totpDisableTitle": "Vypnout dvoufázové ověření",
     "totpDisableHint": "Použijte při výměně telefonu. Po vypnutí je potřeba ověření nastavit znovu.",
     "totpDisable": "Vypnout ověření",
-
     "backupCodesTitle": "Záložní kódy",
     "backupCodesHint": "Slouží k přihlášení, když nemáte po ruce telefon. Vygenerováním nových přestanou ty staré platit.",
     "backupCodesRegenerate": "Vygenerovat nové kódy",
     "backupCodesWarning": "Uložte si tyto kódy hned — znovu je nezobrazíme. Každý lze použít jednou.",
-
     "notificationsTitle": "Upozornění",
     "localeTitle": "Jazyk",
     "localeValue": "Čeština",
-
     "peopleTitle": "Lidé s přístupem",
     "peopleHint": "Kdo se dostane do portálu této firmy a co tam smí. Přístup se nikdy nemaže, jen deaktivuje — historie tím zůstane dohledatelná.",
     "columnPerson": "Osoba",
@@ -1289,18 +1283,15 @@
     "save": "Uložit",
     "activate": "Obnovit přístup",
     "deactivate": "Deaktivovat",
-
     "roleOwner": "Účetní",
     "roleAdmin": "Majitel společnosti",
     "roleMember": "Pracovník firmy (vedení)",
     "roleGuest": "Host",
-
     "stateActive": "Aktivní",
     "stateInactive": "Deaktivováno",
     "stateLastOwner": "Jediná účetní",
     "stateYou": "(vy)",
     "lastOwnerHint": "Poslední účetní firmy. Přístup zruší až kancelář, jinak by kniha zůstala bez správce.",
-
     "inviteTitle": "Pozvat dalšího člověka",
     "inviteHint": "Vytvoříme jednorázový odkaz. Pošlete ho pozvanému sami — platí 72 hodin a zobrazí se jen jednou.",
     "inviteSubmit": "Vytvořit odkaz",
@@ -1310,7 +1301,6 @@
     "inviteExpiresAt": "platí do",
     "copy": "Kopírovat",
     "copied": "Zkopírováno",
-
     "okSaved": "Uloženo.",
     "okAresApplied": "Vybrané údaje byly převzaty z ARES.",
     "okAresNoChange": "Vybrané údaje se už shodují s ARES. Nic se neměnilo.",
@@ -1323,7 +1313,6 @@
     "errorNotSaved": "Uložení se nepodařilo. Zkuste to prosím znovu.",
     "errorPasswordWrong": "Nesprávné heslo.",
     "errorCodeWrong": "Nesprávný kód. Zkontrolujte čas v telefonu a zkuste to znovu.",
-
     "okRoleChanged": "Role byla změněna.",
     "okMemberActivated": "Přístup byl obnoven.",
     "okMemberDeactivated": "Přístup byl deaktivován.",
@@ -1336,6 +1325,7 @@
     "errorInvalidInput": "Zkontrolujte zadané údaje.",
     "errorTooManyRequests": "Příliš mnoho pokusů. Zkuste to za chvíli.",
     "errorRetry": "Zkuste to prosím ještě jednou.",
-    "errorRejected": "Změnu se nepodařilo uložit."
+    "errorRejected": "Změnu se nepodařilo uložit.",
+    "roleEmployee": "Zaměstnanec"
   }
 }

@@ -11,7 +11,7 @@ import "server-only"
  * `OrgScope` as its first argument, so none of it is reachable without a
  * resolved membership.
  *
- * FOUR FILTERS GOVERN EVERY READ — on every client-facing read they are in the
+ * FIVE FILTERS GOVERN EVERY READ — on every client-facing read they are in the
  * WHERE clause; on the one query that cannot put them there (the upload's
  * duplicate lookup, explained below) they are re-applied to the result. Each is
  * a different rule:
@@ -22,13 +22,30 @@ import "server-only"
  *   2. `deleted_at IS NULL` — a soft-deleted document is not "hidden in the UI",
  *      it is gone from the data layer. The bytes survive until PR 37's purge.
  *   3. `doc_type <> 'payslip'` — spec §2.2, verbatim: payslip rows are excluded
- *      from every Dokumenty view SERVER-SIDE. They become reachable in PR 31
- *      through Mzdy › Výplatnice under `payrollScope()`, which does not exist
- *      yet — so today the correct behaviour is that this module cannot serve
- *      one at all. Fail closed, not "we will remember to add the check".
+ *      from every Dokumenty view SERVER-SIDE. They are reachable through Mzdy ›
+ *      Výplatnice under `payrollScope()` (PR 32, `lib/data/payslips.ts`), which
+ *      is a different module with a different door — never through this one.
  *   4. `visible_to_client` — the hidden class. owner IS the accountant (plan
  *      Part 4), so owner sees the whole book; every other role sees only what
  *      the office has marked client-visible.
+ *   5. `uploaded_by_user_id = scope.userId`, FOR THE EMPLOYEE SEAT ONLY (spec
+ *      §2.6.1: the seat's Dokumenty is "own uploads + podklady"; PR 33). It is
+ *      the only filter here keyed on the PERSON rather than on the book, and it
+ *      is what makes the seat's Dokumenty a personal folder inside a company
+ *      book: a bricklayer with a portal login uploads their own attendance sheet
+ *      and their own receipts, and sees exactly those. Everybody else's uploads,
+ *      the office's contracts, the bank statements and every other client-
+ *      visible row of the company are as invisible to them as another tenant's
+ *      book is.
+ *
+ *      "PODKLADY" IS NOT A SEPARATE ARM, and the reading is deliberate. The
+ *      podklady an employee has any relationship to are the ones they uploaded,
+ *      which filter 5 already returns. Office-uploaded payroll podklady
+ *      (`doc_type` payroll / attendance / hr) carry no per-employee link in this
+ *      schema at all — an attendance sheet is one file for the whole crew — so
+ *      an arm that admitted them by type would hand every employee the whole
+ *      crew's hours. Where the spec's phrase and the schema disagree about what
+ *      is severable, this fails closed.
  *
  * THE ONE QUERY THAT DOES NOT USE THAT FILTER, AND WHY IT IS STILL SAFE. The
  * upload's duplicate lookup searches (organization_id, sha256) with filters 1
@@ -102,7 +119,7 @@ import {
   type DocumentListFilters,
 } from "./document-filters"
 import { documentSummary, type DocumentSummary } from "./projections"
-import type { OrgScope } from "./scope"
+import { isEmployeeSeat, type OrgScope } from "./scope"
 
 /**
  * Per-organization storage quota.
@@ -152,10 +169,10 @@ const summaryColumns = {
 }
 
 /**
- * The four filters of the module header, as one expression.
+ * The five filters of the module header, as one expression.
  *
  * Written once and reused by every read so that a new query cannot ship with
- * three of the four. `extra` is ANDed on top for the single-row reads.
+ * four of the five. `extra` is ANDed on top for the single-row reads.
  */
 function visibleDocuments(scope: OrgScope) {
   return and(
@@ -165,6 +182,19 @@ function visibleDocuments(scope: OrgScope) {
     // owner is the accountant and sees the whole book; everyone else sees only
     // the client-visible layer.
     scope.role === "owner" ? undefined : eq(document.visible_to_client, true),
+    // The employee seat's personal folder (spec §2.6.1). `undefined` for every
+    // other holder, so this expression is byte-identical to what it was before
+    // PR 33 for the four roles that existed then — the narrowing is additive
+    // and reaches exactly one kind of caller.
+    //
+    // `uploaded_by_user_id` IS NULLABLE (a row seeded or agent-written has no
+    // uploader), and that nullability is doing safety work here rather than
+    // needing a `COALESCE`: `= scope.userId` is UNKNOWN for a NULL uploader, so
+    // an office-created row is excluded rather than matched. Fail closed by the
+    // grammar of SQL, not by a comparison somebody has to remember to write.
+    isEmployeeSeat(scope)
+      ? eq(document.uploaded_by_user_id, scope.userId)
+      : undefined,
   )
 }
 
@@ -185,24 +215,50 @@ function visibleDocuments(scope: OrgScope) {
 const duplicateLookupColumns = {
   ...summaryColumns,
   visible_to_client: document.visible_to_client,
+  // Filter 5's input (PR 33). Read for the same reason `visible_to_client` is:
+  // the ANSWER is gated on it, because the SELECT itself cannot be.
+  uploaded_by_user_id: document.uploaded_by_user_id,
 }
 
 /**
  * May this caller be told WHICH row their upload duplicates?
  *
- * Mirrors filters 3 and 4 of `visibleDocuments` exactly. Without it, uploading
- * bytes that happen to match a hidden row would hand back that row's whole
- * projection — filename, status, office message, amount, date, site — to
- * someone the office deliberately hid it from, and after PR 32 an employee
- * seat could surface a colleague's payslip the same way. The digest of a file
- * is not a permission to read a row that shares it.
+ * Mirrors filters 3, 4 and 5 of `visibleDocuments` exactly. Without it,
+ * uploading bytes that happen to match a hidden row would hand back that row's
+ * whole projection — filename, status, office message, amount, date, site — to
+ * someone the office deliberately hid it from. The digest of a file is not a
+ * permission to read a row that shares it.
+ *
+ * FILTER 5 MATTERS MOST HERE, and it is the reason this function grew with the
+ * employee seat rather than being left as it was. The other two filters hide
+ * rows an attacker would have to guess at; this one is a CONFIRMATION ORACLE
+ * against a file they already hold. An employee who obtains a colleague's
+ * payslip PDF (forwarded, printed, found on a shared drive) and uploads it would
+ * otherwise be told "this is already here, uploaded on 12. 3." — turning
+ * possession of the bytes into proof of who else in the company holds them, and
+ * naming the row. With filter 5 mirrored, the seat gets the generic "already
+ * uploaded" answer with `document: null`, exactly as the header's last sentence
+ * requires. (Filter 3 covers payslips specifically; filter 5 covers every other
+ * document in the book, which is the larger surface.)
  */
 function duplicateTwinVisibleTo(
   scope: OrgScope,
-  twin: { doc_type: BetaDocumentType; visible_to_client: boolean },
+  twin: {
+    doc_type: BetaDocumentType
+    visible_to_client: boolean
+    uploaded_by_user_id: string | null
+  },
 ): boolean {
   if (twin.doc_type === "payslip") return false
-  return scope.role === "owner" || twin.visible_to_client
+  // Filter 4 and filter 5 are ANDed, exactly as the WHERE clause ANDs them. The
+  // seat is a `guest`, so the office CAN hide one of its own uploads from it,
+  // and short-circuiting on ownership alone would re-open the oracle for that
+  // row — the caller would learn about a document the list refuses to show.
+  const layerVisible = scope.role === "owner" || twin.visible_to_client
+  if (isEmployeeSeat(scope)) {
+    return layerVisible && twin.uploaded_by_user_id === scope.userId
+  }
+  return layerVisible
 }
 
 // ---------------------------------------------------------------------------
@@ -666,13 +722,27 @@ export type DocumentUploadInput = {
  *
  * Spec §5: management seats (owner / admin / member) upload; `guest` is an
  * external viewer with downloads but no writes. The employee seat of §2.6.1 is
- * ALSO a guest membership, and it does upload its own podklady — that narrowing
- * arrives in PR 32 together with the `payroll_employee` link that distinguishes
- * the two, and it will widen this predicate deliberately rather than by
- * accident.
+ * ALSO a guest membership, and it DOES upload its own podklady — so this
+ * predicate widened in PR 33, deliberately and by exactly one case. (The comment
+ * this replaces said "PR 32"; the seat landed as PR 33 of EPIC #1009 and the
+ * numbering is corrected here rather than left to rot into a wrong pointer.)
+ *
+ * THE WIDENING IS SAFE BECAUSE THE READ NARROWED IN THE SAME CHANGE. Letting the
+ * seat write would be alarming on its own — it is a `guest`, the least trusted
+ * role in the model. What makes it ordinary is filter 5 of `visibleDocuments`:
+ * every row the seat creates is stamped `uploaded_by_user_id = <them>`, and that
+ * is the only row class they can ever read back. An upload by an employee seat
+ * therefore adds a document to the company's book that the OFFICE can see and
+ * the employee can see, and that no colleague on another seat can, which is what
+ * "podklady" means for a person who is not management.
+ *
+ * NOTHING ABOUT `doc_type` CHANGES. `uploadDocument`'s input is
+ * `BetaClientDocumentType`, which structurally excludes `"payslip"` — so no
+ * widening of THIS predicate can let anyone, seat or otherwise, mint a payslip
+ * row. That fence is in the type, where it cannot be widened by an `if`.
  */
 export function canUploadDocuments(scope: OrgScope): boolean {
-  return scope.role !== "guest"
+  return scope.role !== "guest" || isEmployeeSeat(scope)
 }
 
 /** Trim, strip any path the caller sent, and bound the length. */

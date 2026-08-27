@@ -405,6 +405,16 @@ export async function createDocumentRow(
     payslipEmployeeId?: string | null
     /** Protistrana (spec §4, PR 29) — a partner id already in this book. */
     partnerId?: string | null
+    /** Distinguishes rows in a list assertion (PR 33). */
+    originalFilename?: string
+    /**
+     * WHO uploaded it — the input to `visibleDocuments`' filter 5, which is the
+     * employee seat's personal-folder narrowing (spec §2.6.1, PR 33). NULL by
+     * default, which models an office-created row: exactly the class a seat must
+     * NOT see, and the one a `COALESCE`-free `= $1` excludes by SQL's own
+     * three-valued logic.
+     */
+    uploadedByUserId?: string | null
   } = {},
 ): Promise<string> {
   const sql = db()
@@ -412,12 +422,13 @@ export async function createDocumentRow(
     INSERT INTO document (
       organization_id, doc_type, original_filename, storage_key,
       content_type, extension, byte_size, sha256, visible_to_client,
-      payslip_period_id, payslip_employee_id, partner_id, deleted_at
+      payslip_period_id, payslip_employee_id, partner_id,
+      uploaded_by_user_id, deleted_at
     )
     VALUES (
       ${organizationId},
       ${values.docType ?? "other"},
-      'potvrzeni.pdf',
+      ${values.originalFilename ?? "potvrzeni.pdf"},
       'org/' || ${organizationId}::text || '/' || gen_random_uuid()::text || '.pdf',
       'application/pdf',
       'pdf',
@@ -427,6 +438,7 @@ export async function createDocumentRow(
       ${values.payslipPeriodId ?? null},
       ${values.payslipEmployeeId ?? null},
       ${values.partnerId ?? null},
+      ${values.uploadedByUserId ?? null},
       ${values.deleted ? sql`now()` : null}
     )
     RETURNING id

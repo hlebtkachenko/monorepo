@@ -1,7 +1,7 @@
 import "server-only"
 
 import { createHash, randomBytes } from "node:crypto"
-import { and, eq, gt, isNull, ne, sql } from "drizzle-orm"
+import { and, eq, gt, isNull, ne, or, sql } from "drizzle-orm"
 
 import { betaDb, type BetaDatabase } from "@/db/client"
 import {
@@ -10,15 +10,22 @@ import {
   auth_session,
   organization,
   organization_membership,
+  payroll_employee,
   user_setup_token,
   type BetaOrgRole,
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
 import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
-import { isCheckViolation, isDeadlock } from "@/lib/pg-error"
+import {
+  isCheckViolation,
+  isDeadlock,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from "@/lib/pg-error"
 
 import {
   mayGrantRole,
+  mayInviteEmployeeSeat,
   mayIssuePurpose,
   resolveReactivationRole,
   type InviteIssuer,
@@ -150,6 +157,19 @@ export type ConsumeResult =
        * lockstep). Also PR 09: `firstLoginPath` branches on it.
        */
       grantedRole: BetaOrgRole | null
+      /**
+       * This consume bound the account to a `payroll_employee` row — it is an
+       * employee seat (spec §2.6.1). Drives `firstLoginPath`, which sends the
+       * seat to Moje mzda rather than to a company overview it cannot read.
+       *
+       * A BOOLEAN, NOT THE ID. Which employee row it is has no caller outside
+       * the transaction that wrote it: the id is resolved from the database on
+       * every subsequent request (`resolveScopeOutcome`'s LEFT JOIN), so
+       * handing it back here would create a second, staler source for the one
+       * fact that decides whose payslips get served. `payroll_employee_id` is
+       * on `CLIENT_FORBIDDEN_COLUMNS` for the same reason.
+       */
+      employeeSeat: boolean
       /** False when the flow only granted membership to an existing account. */
       passwordSet: boolean
     }
@@ -257,6 +277,18 @@ export type IssueSetupTokenInput = {
   readonly email: string
   readonly organizationId?: string | null
   readonly grantedRole?: BetaOrgRole | null
+  /**
+   * The employee seat's pre-binding (spec §2.6.1, migration 0019). Set from a
+   * `payroll_employee` row the office picked in Mzdy › Zaměstnanci; absent for
+   * every other kind of link.
+   *
+   * WHOSE PAYROLL THE RESULTING ACCOUNT READS IS DECIDED HERE, at issuance, by
+   * somebody who already holds the book — never by anything the invitee sends
+   * and never by a later edit (the immutability trigger of migration 0019
+   * freezes the column). That is the whole security argument for the seat: the
+   * binding travels with the credential.
+   */
+  readonly payrollEmployeeId?: string | null
   readonly issuer: SetupLinkIssuer
   readonly ip: string | null
   readonly userAgent: string | null
@@ -288,6 +320,13 @@ export type IssueSetupTokenRejection =
   | "role_not_allowed"
   /** Organization + role pairing wrong, or an org issuer aiming elsewhere. */
   | "scope_mismatch"
+  /**
+   * A pre-bound employee-seat link that is not the one legal shape (spec
+   * §2.6.1): it must be an `org_invite` granting `guest` into the issuer's own
+   * organization. Distinct from `scope_mismatch` so the Mzdy action can say
+   * something true about the employee row rather than about the org.
+   */
+  | "employee_binding_not_allowed"
   /**
    * The organization has been archived. An invite into a withdrawn book is a
    * link that resolves to a 404 the moment it is consumed (`requireScope`
@@ -382,6 +421,28 @@ export async function issueSetupToken(
     return { ok: false, reason: "scope_mismatch" }
   }
 
+  // The employee-seat binding, gated as strictly here as migration 0019's CHECK
+  // gates it in the database. Four conditions, and the DB re-checks the first
+  // three from its own side — this exists so the caller gets a named reason and
+  // so an incoherent link is never generated, not because the app is the floor.
+  //
+  // The FOURTH is app-side only, because no CHECK can express it: `mayInviteEmployeeSeat`.
+  // The issuer guard (0000/0001) already demands an active owner|admin membership
+  // in the target organization for ANY org-scoped issuance, which is the same
+  // set — so this is the app agreeing with the database rather than adding to
+  // it, kept here so the invite matrix has one home (`invite-policy.ts`).
+  const payrollEmployeeId = input.payrollEmployeeId ?? null
+  if (payrollEmployeeId !== null) {
+    if (
+      input.purpose !== "org_invite" ||
+      organizationId === null ||
+      grantedRole !== "guest" ||
+      !mayInviteEmployeeSeat(issuer)
+    ) {
+      return { ok: false, reason: "employee_binding_not_allowed" }
+    }
+  }
+
   // An archived book admits nobody: `requireScope` refuses it, so an invite
   // into one is a link whose only possible outcome is a 404 for the invitee.
   // The check races with a concurrent archive, and that is fine — the archive
@@ -405,23 +466,82 @@ export async function issueSetupToken(
   const token = generateSetupToken()
 
   try {
-    const [row] = await betaDb()
-      .insert(user_setup_token)
-      .values({
-        purpose: input.purpose,
-        token_hash: hashSetupToken(token),
-        email,
-        organization_id: organizationId,
-        granted_role: grantedRole,
-        issued_by_user_id: input.issuer.userId,
-        issued_ip: input.ip,
-        issued_user_agent: input.userAgent,
-        expires_at: sql`now() + ${`${BETA_SETUP_LINK_TTL_HOURS} hours`}::interval`,
-      })
-      .returning({
-        id: user_setup_token.id,
-        expiresAt: user_setup_token.expires_at,
-      })
+    const [row] = await betaDb().transaction(async (tx) => {
+      // RE-ISSUING A SEAT INVITE KILLS THE EARLIER ONE FOR THAT EMPLOYEE.
+      //
+      // The consume-time sibling sweep is keyed on the ADDRESS, which is the
+      // wrong key for the hazard a seat invite adds: the office types the wrong
+      // address, notices, and sends a corrected one. Two live links then name
+      // the same person's payroll, and the mistyped one keeps working — for
+      // somebody else — until it expires. Revoking by EMPLOYEE is what makes
+      // "let me redo that" mean what the office thinks it means. `revoked_at` is
+      // write-once by the migration-0001 trigger (NULL → value), so this can
+      // never un-revoke or re-stamp anything.
+      //
+      // It is INSIDE the transaction with the INSERT so the office is never left
+      // having revoked the old link without minting the new one, and so an
+      // INSERT a DB guard refuses leaves the previous invitation alive rather
+      // than killing it for nothing.
+      //
+      // WHAT THIS IS NOT: A GLOBAL "ONE LIVE INVITE PER EMPLOYEE" INVARIANT.
+      // Under READ COMMITTED — the only isolation level this application runs at
+      // — two issuances for the same employee that overlap in time each revoke
+      // what their own snapshot could see and then insert, so both new rows can
+      // end up live. The SEQUENTIAL case is fully closed (one admin clicking
+      // twice sees the first row and revokes it), and that is the case this
+      // exists for; the concurrent one is not, and the comment says so rather
+      // than claiming an invariant the statement does not enforce.
+      //
+      // AND IT DOES NOT NEED TO BE ONE, because the invariant that matters is
+      // enforced at CONSUME, atomically: `UPDATE payroll_employee SET
+      // app_user_id = $me WHERE id = $employee AND (app_user_id IS NULL OR
+      // app_user_id = $me)`. Whichever link is claimed first binds; every other
+      // link naming that employee — live, raced, or simply older — matches zero
+      // rows and is refused without being burnt. So the worst outcome of the race
+      // is a second link that still cannot bind anyone, never a mis-binding.
+      //
+      // WHY NOT `SELECT ... FOR UPDATE` ON THE EMPLOYEE ROW FIRST, which would
+      // make the invariant genuinely hold: it inverts the lock order against the consume
+      // path. Consume locks the token row (the atomic claim) and only then
+      // touches `payroll_employee`; issuance would lock `payroll_employee` and
+      // then the token rows. A concurrent issue and consume for the same person
+      // would deadlock — and `consumeSetupToken` has a `retry` arm for exactly
+      // that (40P01), while `issueSetupToken` has none, so the cost of buying the
+      // stronger invariant is a 500 on the office's screen in the same race the
+      // weaker one already handles safely. Not worth it for a property nothing
+      // depends on.
+      if (payrollEmployeeId !== null) {
+        await tx
+          .update(user_setup_token)
+          .set({ revoked_at: sql`now()` })
+          .where(
+            and(
+              eq(user_setup_token.payroll_employee_id, payrollEmployeeId),
+              isNull(user_setup_token.consumed_at),
+              isNull(user_setup_token.revoked_at),
+            ),
+          )
+      }
+
+      return tx
+        .insert(user_setup_token)
+        .values({
+          purpose: input.purpose,
+          token_hash: hashSetupToken(token),
+          email,
+          organization_id: organizationId,
+          granted_role: grantedRole,
+          payroll_employee_id: payrollEmployeeId,
+          issued_by_user_id: input.issuer.userId,
+          issued_ip: input.ip,
+          issued_user_agent: input.userAgent,
+          expires_at: sql`now() + ${`${BETA_SETUP_LINK_TTL_HOURS} hours`}::interval`,
+        })
+        .returning({
+          id: user_setup_token.id,
+          expiresAt: user_setup_token.expires_at,
+        })
+    })
 
     if (!row) return { ok: false, reason: "rejected" }
 
@@ -437,6 +557,13 @@ export async function issueSetupToken(
     }
   } catch (error) {
     if (isCheckViolation(error)) return { ok: false, reason: "rejected" }
+    // The composite FK refusing an employee row that is not in this
+    // organization (migration 0019), or a `payroll_employee_id` that names
+    // nothing at all. Both are refusals the caller must not be able to tell
+    // apart from each other — "that id exists but in another book" is precisely
+    // the cross-tenant oracle the composite key was added to close — so both
+    // become the same quiet `rejected`.
+    if (isForeignKeyViolation(error)) return { ok: false, reason: "rejected" }
     throw error
   }
 }
@@ -538,6 +665,7 @@ export async function consumeSetupToken(
           email: user_setup_token.email,
           organizationId: user_setup_token.organization_id,
           grantedRole: user_setup_token.granted_role,
+          payrollEmployeeId: user_setup_token.payroll_employee_id,
           /**
            * Was this link issued by office staff? Read in the claim statement
            * itself, as a scalar subquery rather than a join, because
@@ -722,6 +850,64 @@ export async function consumeSetupToken(
         })
       }
 
+      // 5b. THE EMPLOYEE SEAT'S LINK (spec §2.6.1: "consume creates user +
+      //     guest membership + link in one transaction").
+      //
+      //     IT IS THE ONLY WRITER OF `payroll_employee.app_user_id` IN THIS
+      //     APPLICATION. `updatePayrollEmployee` has no arm for the column and
+      //     the agent ingestion API cannot state it (`lib/data/payroll.ts`), so
+      //     "which person is this account" is settled exactly once, inside the
+      //     same transaction that created the account and granted the
+      //     membership. A crash anywhere here rolls all three back together:
+      //     there is no state in which a seat exists without its link, which
+      //     would be a `guest` quietly holding an external viewer's access.
+      //
+      //     THE `WHERE` IS THE RE-BINDING FENCE. `app_user_id IS NULL OR = me`
+      //     means a link can CLAIM an unbound employee row or re-affirm its own,
+      //     and can never STEAL one that already belongs to somebody else. Zero
+      //     rows updated ⇒ the row is already another account's ⇒ reject, and
+      //     the rejection rolls the claim back so the link is not even burnt.
+      //     It is one atomic UPDATE rather than a SELECT-then-UPDATE for the
+      //     reason the claim itself is: two concurrent consumes of two links
+      //     naming the same employee would both pass a prior SELECT.
+      //
+      //     `organization_id` IS ANDed IN even though migration 0019's composite
+      //     FK already guarantees the pair. Restating tenancy in the WHERE of a
+      //     write is this codebase's standing discipline (`employeeJoin`,
+      //     `visibleDocuments`), and here it also means the statement is still
+      //     correct if the FK is ever relaxed.
+      if (claimed.payrollEmployeeId !== null) {
+        // Unreachable while `user_setup_token_employee_seat_shape` holds (it
+        // pins a bound token to an org-scoped `org_invite` granting `guest`).
+        // Asserted anyway, and as a REFUSAL rather than a throw: if the CHECK
+        // were ever dropped, the alternative is an UPDATE with no tenant filter.
+        if (
+          claimed.organizationId === null ||
+          claimed.grantedRole !== "guest"
+        ) {
+          throw new ConsumeRejected({ ok: false, reason: "invalid" })
+        }
+
+        const linked = await tx
+          .update(payroll_employee)
+          .set({ app_user_id: userId })
+          .where(
+            and(
+              eq(payroll_employee.id, claimed.payrollEmployeeId),
+              eq(payroll_employee.organization_id, claimed.organizationId),
+              or(
+                isNull(payroll_employee.app_user_id),
+                eq(payroll_employee.app_user_id, userId),
+              ),
+            ),
+          )
+          .returning({ id: payroll_employee.id })
+
+        if (linked.length === 0) {
+          throw new ConsumeRejected({ ok: false, reason: "invalid" })
+        }
+      }
+
       // 6. Forensics: who ended up consuming it. Write-once by trigger.
       await tx
         .update(user_setup_token)
@@ -736,6 +922,7 @@ export async function consumeSetupToken(
         organizationId: claimed.organizationId,
         organizationSlug: claimed.organizationSlug,
         grantedRole: claimed.grantedRole,
+        employeeSeat: claimed.payrollEmployeeId !== null,
         passwordSet,
       }
     })
@@ -746,6 +933,12 @@ export async function consumeSetupToken(
     // arm has to sit ABOVE the check-violation arm — reporting it as `invalid`
     // would burn a link in the user's mind that the database never touched.
     if (isDeadlock(error)) return { ok: false, reason: "retry" }
+    // `payroll_employee_app_user_idx` (migration 0016) refusing the seat link:
+    // this account already holds a DIFFERENT employee row in this book. One
+    // person, one seat — and the honest answer is the uniform refusal, because
+    // the alternative is telling the holder of a link which other employee row
+    // their account is attached to.
+    if (isUniqueViolation(error)) return { ok: false, reason: "invalid" }
     // A trigger rejection (e.g. an owner grant for a non-staff account) is a
     // legitimate refusal, not a bug to leak. Everything else is a real fault
     // and must not be swallowed.

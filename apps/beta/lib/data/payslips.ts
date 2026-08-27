@@ -21,11 +21,34 @@ import "server-only"
  *
  * `payrollScope()` GATES EVERY READ HERE, THE SAME AS `payroll.ts`. A payslip
  * is payroll data before it is a document — an unlinked guest sees none, a
- * management seat sees every one, exactly `payroll.ts`'s own contract.
+ * management seat sees every one, and an EMPLOYEE SEAT sees exactly its own
+ * (spec §2.6.1), which is this module's sharpest obligation: a výplatní páska
+ * carries a named person's net pay, and handing one to the wrong colleague is
+ * the single worst outcome reachable from this application.
+ *
+ * THE EMPLOYEE PREDICATE IS BUILT HERE RATHER THAN IMPORTED, and that is the one
+ * place this module deliberately does NOT reuse `payroll.ts`. Its
+ * `employeeFilter` narrows `payroll_employee.id` — the REGISTER row. A payslip's
+ * ownership lives on `document.payslip_employee_id`, and the two are only equal
+ * on a row that has actually been joined. `payslipDocumentsForScope` does join
+ * the register (it needs the name), so either column would work there; but
+ * `openPayslipFile` deliberately does NOT join anything — it resolves one row by
+ * id and streams bytes — and a filter that depended on a join being present is a
+ * filter that disappears the day somebody drops the join. So both reads narrow
+ * on `document.payslip_employee_id`, the column that is on the row being served.
  */
 import type { Readable } from "node:stream"
 
-import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  isNotNull,
+  isNull,
+  sql,
+  type SQL,
+} from "drizzle-orm"
 
 import { betaDb } from "@/db/client"
 import { document, organization, payroll_employee } from "@/db/schema"
@@ -35,7 +58,11 @@ import { documentStore } from "@/lib/storage/store"
 import { scanUpload, type UploadScanRefusal } from "@/lib/storage/upload-stream"
 
 import { ORGANIZATION_QUOTA_BYTES, organizationStorageUsage } from "./documents"
-import { payrollScope, publishedPayrollPeriods } from "./payroll"
+import {
+  payrollScope,
+  publishedPayrollPeriods,
+  type PayrollScope,
+} from "./payroll"
 import type { OrgScope, OwnerScope } from "./scope"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -46,6 +73,32 @@ const employeeJoin = and(
   eq(payroll_employee.id, document.payslip_employee_id),
   eq(payroll_employee.organization_id, document.organization_id),
 )
+
+/**
+ * WHOSE payslips this visibility may open — the conjunct both reads below AND
+ * into their WHERE clause.
+ *
+ * Written as an exhaustive switch for the reason `payroll.ts`'s `employeeFilter`
+ * is: the `never` arm turns a future widening of `PayrollScope` into a compile
+ * error HERE, in the file where forgetting it means one employee downloading
+ * another's payslip. The `none` arm returns a false predicate even though both
+ * callers short-circuit before reaching it — the direction of that redundancy is
+ * "nothing" rather than "everything".
+ */
+function payslipOwnerFilter(visibility: PayrollScope): SQL | undefined {
+  switch (visibility.kind) {
+    case "all":
+      return undefined
+    case "employee":
+      return eq(document.payslip_employee_id, visibility.employeeId)
+    case "none":
+      return sql`false`
+    default: {
+      const unreachable: never = visibility
+      return unreachable
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -77,7 +130,8 @@ export async function payslipDocumentsForScope(
   scope: OrgScope,
   options: { periodId?: string } = {},
 ): Promise<PayslipDocumentView[]> {
-  if (payrollScope(scope).kind !== "all") return []
+  const visibility = payrollScope(scope)
+  if (visibility.kind === "none") return []
 
   const rows = await betaDb()
     .select({
@@ -101,6 +155,7 @@ export async function payslipDocumentsForScope(
         options.periodId
           ? eq(document.payslip_period_id, options.periodId)
           : undefined,
+        payslipOwnerFilter(visibility),
       ),
     )
     .orderBy(asc(payroll_employee.full_name), desc(document.created_at))
@@ -140,7 +195,8 @@ export async function openPayslipFile(
   scope: OrgScope,
   documentId: string,
 ): Promise<PayslipFileHandle | null> {
-  if (payrollScope(scope).kind !== "all") return null
+  const visibility = payrollScope(scope)
+  if (visibility.kind === "none") return null
   if (!UUID.test(documentId)) return null
 
   const [row] = await betaDb()
@@ -157,6 +213,11 @@ export async function openPayslipFile(
         eq(document.doc_type, "payslip"),
         eq(document.id, documentId),
         isNull(document.deleted_at),
+        // The cross-EMPLOYEE fence, on the same row as the cross-ORG one. An
+        // employee seat holding a colleague's document id gets the identical
+        // 404 an invented id gets — the route (`payroll/payslips/[documentId]/
+        // file`) has no other refusal to fall back on.
+        payslipOwnerFilter(visibility),
       ),
     )
     .limit(1)

@@ -12,6 +12,13 @@ concurrency:
 
 jobs:
   check:
+    # beta fast lane (Hleb, 2026-08-27): changelog/governance checks skip on
+    # main-beta PRs unless the `ci-full` label is present. `main-beta` has no
+    # required-status-check ruleset of its own (only `main.json` exists), so
+    # this job simply not reporting on a main-beta PR does not strand it.
+    # See the policy block atop ci.yml.
+    if: >-
+      github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

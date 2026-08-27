@@ -1,3 +1,24 @@
+# MAIN-BETA CI DIET (Hleb, 2026-08-27): PRs targeting `main-beta` run only the
+# fast security/privacy/basic-correctness jobs — the heavy jobs (eslint,
+# unit-test, web-integration, coverage, storybook, build, dedupe-check) are
+# gated off. Add the `ci-full` label to a main-beta PR to force the full
+# suite. A push straight to the `main-beta` branch gets the same treatment
+# (security scanners still run either way). PRs and pushes targeting `main`
+# are completely unaffected by this — none of the 14 required contexts on
+# `main` change. The gate is the BETA_FAST_LANE_SKIP expression below,
+# reused verbatim on every gated job's `if:`:
+#
+#   github.event_name == 'pull_request' && github.base_ref == 'main-beta'
+#     && !contains(github.event.pull_request.labels.*.name, 'ci-full')
+#   OR
+#   github.event_name == 'push' && github.ref_name == 'main-beta'
+#
+# A gated job's `if:` ANDs in the negation of that (see any job below tagged
+# "beta fast lane"). Heavy jobs are NOT in the `ci` aggregator's required set
+# in a way that would break it: the aggregator already treats `skipped` as
+# non-failure (see the `ci` job), so a beta-gated job reporting `skipped`
+# still lets `ci` post green.
+#
 # NOTE on path-filtering: required-status-check rules + paths-ignore on a
 # workflow trigger create stuck PRs (skipped checks read as "missing" to the
 # rule engine). We intentionally do NOT path-filter this workflow at the
@@ -156,7 +177,11 @@ jobs:
 
   eslint:
     needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -203,7 +228,11 @@ jobs:
   unit-test:
     needs: [changes]
     # Same rationale as lint-typecheck: skip runner setup on docs-only PRs.
-    if: needs.changes.outputs.code == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -281,7 +310,11 @@ jobs:
   # pattern as `storybook` and `dedupe-check`.
   web-integration:
     needs: [changes]
-    if: needs.changes.outputs.web == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.web == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -307,12 +340,16 @@ jobs:
     # a diff that does not touch packages/ui has nothing for it to do. It was
     # running on every PR and paying full runner setup for a no-op (~45 min of
     # runner time over the 39 beta PRs merged 2026-08-26/27).
-    if: needs.changes.outputs.ui == 'true'
     # Advisory job — NOT in the `ci` aggregator's needs, so a coverage
     # failure cannot red the required `ci` check (same posture as the
     # trufflehog job below). Moved out of unit-test (CICD-03): the coverage
     # run added ~95s to the non-UI PR critical path while being explicitly
     # advisory. Runs in parallel instead.
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.ui == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -349,7 +386,11 @@ jobs:
   # the aggregator treats `skipped` as non-failure.
   storybook:
     needs: [changes]
-    if: needs.changes.outputs.ui == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.ui == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -419,7 +460,11 @@ jobs:
     # full-graph WHEN it runs (turbo cache restores unchanged outputs); we
     # only skip the runner setup + cold-cache cost when no buildable code
     # changed.
-    if: needs.changes.outputs.code == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.code == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -469,7 +514,11 @@ jobs:
   # No frozen install needed — the check only re-resolves the lockfile.
   dedupe-check:
     needs: [changes]
-    if: needs.changes.outputs.deps == 'true'
+    # beta fast lane: heavy job, skipped on main-beta PRs/pushes unless `ci-full`.
+    if: >-
+      needs.changes.outputs.deps == 'true' &&
+      (github.event_name != 'pull_request' || github.base_ref != 'main-beta' || contains(github.event.pull_request.labels.*.name, 'ci-full')) &&
+      (github.event_name != 'push' || github.ref_name != 'main-beta')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

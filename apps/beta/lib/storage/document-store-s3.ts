@@ -14,9 +14,18 @@ import "server-only"
  * CONFIG COMES FROM THE ENVIRONMENT THE CDK STACK SETS. `DOCUMENTS_BUCKET`,
  * `DOCUMENTS_KMS_KEY_ID` and `AWS_REGION` are all wired in
  * `infra/cdk/lib/beta-app-stack.ts`, and the task role there already carries
- * `grantReadWrite` on the bucket plus `grantEncryptDecrypt` on the CMK. There
- * are no credentials to read: the SDK picks up the task role from the container
- * credential provider.
+ * `grantReadWrite` on the bucket plus `grantEncryptDecrypt` on the CMK. In
+ * production there are no credentials to read: the SDK picks up the task role
+ * from the container credential provider.
+ *
+ * `S3_ENDPOINT` (plus `DOCUMENTS_S3_ACCESS_KEY_ID` / `DOCUMENTS_S3_SECRET_ACCESS_KEY`)
+ * is the one optional override, for local development only, and it is still
+ * the S3 API — never a local-disk driver. Setting it points this same client at
+ * MinIO and forces path-style addressing, mirroring the identical override in
+ * the sibling `packages/storage/src/document-store-s3.ts` (env names and
+ * precedence kept exactly in step; see `docs/ENVIRONMENT-VARIABLES.md`). Unset,
+ * as in every deployed environment today, `readS3DocumentStoreConfig()` and the
+ * `S3Client` it feeds are byte-identical to before this override existed.
  *
  * MULTIPART, NOT `PutObject`. `Upload` from `@aws-sdk/lib-storage` streams with
  * a bounded window (`partSize` × `queueSize`), so the task's memory ceiling for
@@ -35,6 +44,7 @@ import {
   ListObjectVersionsCommand,
   S3Client,
   type ObjectIdentifier,
+  type S3ClientConfig,
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
 
@@ -60,6 +70,16 @@ export type S3DocumentStoreConfig = {
   region: string
   /** Optional: the bucket's default encryption already applies this CMK. */
   kmsKeyId?: string
+  /** Set for minio dev / any S3-compatible endpoint. Forces path-style addressing. */
+  endpoint?: string
+  /**
+   * Static credentials for a custom endpoint (minio dev). Pins them explicitly
+   * so the SDK never consults the node provider chain, which errors when BOTH
+   * `AWS_PROFILE` and `AWS_ACCESS_KEY_ID`/`SECRET` are set (common on a dev
+   * machine with a global profile). Left unset in production so the ECS
+   * task-role provider chain resolves normally.
+   */
+  credentials?: { accessKeyId: string; secretAccessKey: string }
 }
 
 export function readS3DocumentStoreConfig(): S3DocumentStoreConfig {
@@ -76,12 +96,54 @@ export function readS3DocumentStoreConfig(): S3DocumentStoreConfig {
   if (!region) throw new Error("AWS_REGION is not set.")
 
   const kmsKeyId = process.env["DOCUMENTS_KMS_KEY_ID"]?.trim()
-  return kmsKeyId ? { bucket, region, kmsKeyId } : { bucket, region }
+  const endpoint = process.env["S3_ENDPOINT"]?.trim()
+  // Prefer document-store-scoped credentials so the dev minio keys do NOT
+  // become the process-global AWS_ACCESS_KEY_ID that every other AWS SDK client
+  // would then inherit. Fall back to the standard AWS vars for any environment
+  // that still sets them. Same names and precedence as the sibling store
+  // (packages/storage/src/document-store-s3.ts).
+  const accessKeyId =
+    process.env["DOCUMENTS_S3_ACCESS_KEY_ID"]?.trim() ??
+    process.env["AWS_ACCESS_KEY_ID"]?.trim()
+  const secretAccessKey =
+    process.env["DOCUMENTS_S3_SECRET_ACCESS_KEY"]?.trim() ??
+    process.env["AWS_SECRET_ACCESS_KEY"]?.trim()
+
+  return {
+    bucket,
+    region,
+    ...(kmsKeyId ? { kmsKeyId } : {}),
+    ...(endpoint ? { endpoint } : {}),
+    // Only for the custom-endpoint (dev/minio) path, and only when both are
+    // present — production leaves these unset and uses the task-role chain.
+    ...(endpoint && accessKeyId && secretAccessKey
+      ? { credentials: { accessKeyId, secretAccessKey } }
+      : {}),
+  }
+}
+
+/**
+ * `S3Client` constructor options derived from `config` — pulled out of the
+ * default parameter below purely so a test can assert the exact shape without
+ * a network call: `forcePathStyle` and an unset `endpoint` are synchronous
+ * fields on the constructed client, and `endpoint`/`credentials` resolve
+ * locally from the static values passed in, with no request involved.
+ */
+export function s3ClientOptionsFromConfig(
+  config: S3DocumentStoreConfig,
+): S3ClientConfig {
+  return {
+    region: config.region,
+    ...(config.endpoint
+      ? { endpoint: config.endpoint, forcePathStyle: true }
+      : {}),
+    ...(config.credentials ? { credentials: config.credentials } : {}),
+  }
 }
 
 export function createS3DocumentStore(
   config: S3DocumentStoreConfig,
-  client: S3Client = new S3Client({ region: config.region }),
+  client: S3Client = new S3Client(s3ClientOptionsFromConfig(config)),
 ): BetaDocumentStore {
   return {
     async put(input: PutDocumentInput): Promise<PutDocumentResult> {

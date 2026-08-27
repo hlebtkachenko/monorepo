@@ -10,10 +10,14 @@
       // itself during `next build`; the auth module keys its build placeholder
       // on it.
       //
-      // The DOCUMENTS_* / AWS_* four are the same story for the S3 store
-      // (lib/storage/document-store-s3.ts): read lazily at request time, set on
-      // the task definition by infra/cdk/lib/beta-app-stack.ts, declared here so
-      // the turbo lint rule and the cache key both see them.
+      // The DOCUMENTS_* / AWS_* nine are the same story for the S3 store
+      // (lib/storage/document-store-s3.ts): read lazily at request time. The
+      // first four are set on the task definition by
+      // infra/cdk/lib/beta-app-stack.ts; the remaining five (S3_ENDPOINT plus
+      // its paired credentials, and the AWS_* fallback pair) are unset in every
+      // deployed environment and exist only for a local MinIO override — all
+      // nine declared here so the turbo lint rule and the cache key both see
+      // them.
       "env": [
         "BETTER_AUTH_URL",
         "BETTER_AUTH_TRUSTED_ORIGINS",
@@ -23,6 +27,11 @@
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
         "DOCUMENTS_KMS_KEY_ID",
+        "S3_ENDPOINT",
+        "DOCUMENTS_S3_ACCESS_KEY_ID",
+        "DOCUMENTS_S3_SECRET_ACCESS_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
         "BETA_TOTP_REQUIRED",
         "BETA_ASSISTANT_ENABLED",
         "BETA_ASSISTANT_API_KEY",
@@ -44,6 +53,11 @@
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
         "DOCUMENTS_KMS_KEY_ID",
+        "S3_ENDPOINT",
+        "DOCUMENTS_S3_ACCESS_KEY_ID",
+        "DOCUMENTS_S3_SECRET_ACCESS_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
         "BETA_TOTP_REQUIRED",
         "BETA_ASSISTANT_ENABLED",
         "BETA_ASSISTANT_API_KEY",
@@ -65,6 +79,11 @@
         "AWS_DEFAULT_REGION",
         "DOCUMENTS_BUCKET",
         "DOCUMENTS_KMS_KEY_ID",
+        "S3_ENDPOINT",
+        "DOCUMENTS_S3_ACCESS_KEY_ID",
+        "DOCUMENTS_S3_SECRET_ACCESS_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
         "BETA_TOTP_REQUIRED",
         "BETA_ASSISTANT_ENABLED",
         "BETA_ASSISTANT_API_KEY",

@@ -58,7 +58,8 @@ import { ROLE_LABEL_KEY, ROLE_OPTIONS } from "../../_components/labels"
  *
  * ARCHIVE, NOT DELETE. Deleting a book is an owner act inside it, behind a
  * multistep typed confirmation, and has to purge S3 including noncurrent
- * versions (plan Part 4 / B4-5) — PR 37, with PR 38's storage.
+ * versions (plan Part 4 / B4-5). Item 38 built the storage primitive
+ * (`purgeOrganization`); the surface it belongs behind is still unbuilt.
  */
 export default async function AdminOrganizationDetailPage({
   params,

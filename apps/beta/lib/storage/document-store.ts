@@ -1,7 +1,7 @@
 /**
  * The storage seam: everything the data layer knows about where bytes live.
  *
- * NARROW ON PURPOSE — three methods. There is no `presign` of any kind and
+ * NARROW ON PURPOSE — four methods. There is no `presign` of any kind and
  * there will not be one: plan Part 4 forbids presigned URLs outright ("files
  * streamed through app routes … No presigned URLs"), for two reasons that both
  * still hold. A presigned URL is a bearer credential with no membership behind
@@ -56,10 +56,46 @@ export interface BetaDocumentStore {
   /**
    * Removes an object. Used only as the compensating half of a failed upload
    * (a quota refusal or a duplicate, both decided after the bytes are already
-   * in S3). Client-visible deletion is a soft delete on the row; the retention
-   * purge of PR 37 is what eventually removes those objects.
+   * in S3). Client-visible deletion is a soft delete on the row.
+   *
+   * ON A VERSIONED BUCKET THIS DOES NOT DESTROY BYTES, and it is not meant to:
+   * it removes the object from the live listing, which is all a compensating
+   * delete needs. `purgeOrganization` is the one that destroys.
    */
   delete(key: string, organizationId: string): Promise<void>
+  /**
+   * Destroys EVERY object under one organization's prefix, including every
+   * noncurrent version and every delete marker, and reports how many were
+   * removed.
+   *
+   * A SEPARATE METHOD FROM `delete`, DELIBERATELY, BECAUSE THEY ARE NOT THE
+   * SAME OPERATION. The documents bucket is versioned
+   * (`infra/cdk/lib/beta-data-stack.ts`: `versioned: true`,
+   * `noncurrentVersionExpiration: 30 days`). A `DeleteObject` with no
+   * `VersionId` against a versioned bucket does not delete anything — it writes
+   * a DELETE MARKER and demotes the live object to a noncurrent version, which
+   * the lifecycle rule then keeps for a month. So an erasure request served by
+   * looping `delete()` over an organization's keys would report success while
+   * leaving every document recoverable for thirty days, which is the precise
+   * shape of a GDPR Article 17 failure that nobody notices until it is quoted
+   * back at them.
+   *
+   * Giving the destructive operation its own name means the difference is
+   * visible at every call site, rather than living in a comment on a method
+   * whose name says it already deletes.
+   *
+   * IT TAKES AN ORGANIZATION, NOT A KEY LIST. The rows and the objects can
+   * disagree — an upload that crashed between `put` and `INSERT` leaves an
+   * object no row names, and that orphan is exactly the byte an erasure request
+   * is about. Walking the PREFIX rather than the rows is what makes the purge
+   * complete instead of merely thorough.
+   */
+  purgeOrganization(organizationId: string): Promise<PurgeResult>
+}
+
+export type PurgeResult = {
+  /** Object versions and delete markers removed. */
+  removed: number
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/

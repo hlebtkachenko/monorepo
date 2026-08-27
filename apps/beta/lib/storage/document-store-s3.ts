@@ -30,15 +30,20 @@ import { Readable } from "node:stream"
 
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectVersionsCommand,
   S3Client,
+  type ObjectIdentifier,
 } from "@aws-sdk/client-s3"
 import { Upload } from "@aws-sdk/lib-storage"
 
 import {
   assertKeyBelongsTo,
   documentObjectKey,
+  organizationPrefix,
   type BetaDocumentStore,
+  type PurgeResult,
   type PutDocumentInput,
   type PutDocumentResult,
 } from "./document-store"
@@ -47,6 +52,8 @@ import {
 const PART_SIZE = 5 * 1024 * 1024
 /** One part in flight. Beta is one small task; throughput is not the constraint. */
 const QUEUE_SIZE = 1
+/** `DeleteObjects` refuses more than 1000 keys per request. */
+const DELETE_BATCH = 1000
 
 export type S3DocumentStoreConfig = {
   bucket: string
@@ -128,6 +135,88 @@ export function createS3DocumentStore(
       await client.send(
         new DeleteObjectCommand({ Bucket: config.bucket, Key: key }),
       )
+    },
+
+    async purgeOrganization(organizationId: string): Promise<PurgeResult> {
+      // Throws on anything that is not a uuid, so a caller cannot arrive here
+      // with a prefix that would list — and then destroy — a wider slice of the
+      // bucket than one organization. This is the whole containment check for
+      // the purge: unlike `get` / `delete` there is no key to compare against,
+      // so the prefix has to be the thing that is provably narrow.
+      const prefix = organizationPrefix(organizationId)
+
+      let removed = 0
+      let keyMarker: string | undefined
+      let versionIdMarker: string | undefined
+
+      do {
+        const page = await client.send(
+          new ListObjectVersionsCommand({
+            Bucket: config.bucket,
+            Prefix: prefix,
+            KeyMarker: keyMarker,
+            VersionIdMarker: versionIdMarker,
+          }),
+        )
+
+        // BOTH LISTS, NOT JUST `Versions`. A delete marker is itself a version
+        // of the object, and leaving them behind leaves the object's history —
+        // and, with `expiredObjectDeleteMarker` on the lifecycle rule, a stub
+        // that keeps the key visible in a version listing.
+        const targets: ObjectIdentifier[] = [
+          ...(page.Versions ?? []),
+          ...(page.DeleteMarkers ?? []),
+        ]
+          // Every field on both shapes is optional in the SDK's types, and
+          // `ObjectIdentifier.Key` is `string | undefined` — so mapping one to
+          // the other COMPILES with no filter at all and sends `{Key:
+          // undefined}` to S3. Narrowed by hand because the type system will
+          // not do it here.
+          .flatMap((entry) =>
+            entry.Key !== undefined && entry.VersionId !== undefined
+              ? [{ Key: entry.Key, VersionId: entry.VersionId }]
+              : [],
+          )
+          // A listing is a prefix match, and `assertKeyBelongsTo`'s own tests
+          // pin that `org/<uuid>-evil/` is a string prefix of `org/<uuid>`.
+          // That cannot happen here (the prefix ends in `/`), and it is checked
+          // anyway: this loop issues unrecoverable deletes, so it re-proves
+          // containment on every key rather than trusting the list.
+          .filter((entry) => entry.Key.startsWith(prefix))
+
+        for (let index = 0; index < targets.length; index += DELETE_BATCH) {
+          const batch = targets.slice(index, index + DELETE_BATCH)
+          const response = await client.send(
+            new DeleteObjectsCommand({
+              Bucket: config.bucket,
+              Delete: { Objects: batch, Quiet: true },
+            }),
+          )
+          // `DeleteObjects` REPORTS PARTIAL FAILURE AS HTTP 200 with a
+          // populated `Errors` array — `send()` does not throw. A purge that
+          // swallowed that would return a count and a clean conscience while
+          // leaving bytes behind, which is the one outcome this method exists
+          // to prevent.
+          const errors = response.Errors ?? []
+          if (errors.length > 0) {
+            throw new Error(
+              `purge of ${prefix} failed for ${errors.length} object(s): ` +
+                `${errors[0]?.Key ?? "?"} ${errors[0]?.Code ?? ""}`.trim(),
+            )
+          }
+          removed += batch.length
+        }
+
+        // BOTH MARKERS CARRY FORWARD. Paging a version listing on `KeyMarker`
+        // alone re-reads the first page whenever one key has more versions than
+        // fit in a page, and the loop never ends.
+        keyMarker = page.IsTruncated ? page.NextKeyMarker : undefined
+        versionIdMarker = page.IsTruncated
+          ? page.NextVersionIdMarker
+          : undefined
+      } while (keyMarker !== undefined || versionIdMarker !== undefined)
+
+      return { removed }
     },
   }
 }

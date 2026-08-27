@@ -26,10 +26,13 @@ import { organizationVatPayload } from "./payloads"
  *
  * NO DELETE. Deleting an organization is an owner act inside the book itself
  * (Nastavení › Společnost, danger zone, multistep typed confirm — plan Part 4,
- * spec §2.10) and it has to purge S3 including noncurrent versions, which is
- * PR 37's job. /admin ARCHIVES: `archived_at` withdraws the book from every
- * member at once (`requireScope` refuses an archived organization) and is
- * reversible, which is what an office actually wants when a client leaves.
+ * spec §2.10) and it has to purge S3 including noncurrent versions. The STORAGE
+ * half of that now exists — `purgeOrganization` in
+ * `lib/storage/document-store.ts`, which deletes every object version and
+ * delete marker under the org's prefix by id — and the product surface does
+ * not. /admin ARCHIVES: `archived_at` withdraws the book from every member at
+ * once (`requireScope` refuses an archived organization) and is reversible,
+ * which is what an office actually wants when a client leaves.
  */
 
 /**

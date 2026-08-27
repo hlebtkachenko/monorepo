@@ -53,6 +53,7 @@ jobs:
       infra: ${{ steps.filter.outputs.infra }}
       code: ${{ steps.filter.outputs.code }}
       deps: ${{ steps.filter.outputs.deps }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - uses: step-security/harden-runner@bf7454d06d71f1098171f2acdf0cd4708d7b5920 # v2.20.0
         with:
@@ -99,6 +100,22 @@ jobs:
               - 'pnpm-workspace.yaml'
               - 'package.json'
               - '**/package.json'
+            # Gate for the `web-integration` job. Deliberately WIDE: apps/web
+            # consumes the workspace packages source-first, so any
+            # `packages/**` edit can change what its integration suite sees.
+            # Over-running is the safe direction; the only diffs this excludes
+            # are ones that cannot reach apps/web at all (apps/api, apps/admin,
+            # apps/bot, apps/cli, apps/mcp, infra, docs).
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'tsconfig*.json'
+              - '**/tsconfig*.json'
+              - 'turbo.json'
+              - 'pnpm-lock.yaml'
+              - 'package.json'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/setup/**'
 
   # Split out of the old `lint-typecheck` job (CICD-05): typecheck and lint
   # are independent turbo tasks that share nothing but the runner setup, so
@@ -215,6 +232,17 @@ jobs:
         # still runs on push to main (HEAD^ base = previous commit only,
         # so on main the affected scope is one-commit delta, which is the
         # right scope for main).
+        #
+        # KNOWN GAP, deliberately NOT fixed here — see the measured turbo
+        # notes on `web-integration` below. Because `--affected` discards
+        # `--filter`, the two exclusions above are inert: on a `packages/db`
+        # diff this job runs `@workspace/db#test` (the thing the first
+        # paragraph says it excludes) and runs NOTHING for the dependents
+        # (`@workspace/accounting`, `@workspace/auth`, `api`, `admin`, ...)
+        # that `affectedUsingTaskInputs` does not consider affected. Fixing
+        # it means choosing between a full-graph `test` run on every PR and
+        # a `dependsOn` change in turbo.json — a wall-time decision for Hleb,
+        # not a drive-by edit.
         env:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
@@ -225,9 +253,34 @@ jobs:
   # a Postgres 18 testcontainer via globalSetup and run serially, so they are
   # the slow pole of the old combined job. Isolated here they run concurrently
   # with the fast pure-unit packages. Docker is preinstalled on ubuntu-latest.
+  #
+  # NO `--affected` HERE — measured turbo behaviour, verified with
+  # `turbo test ... --dry=json` on this repo at turbo 2.x with
+  # `futureFlags.affectedUsingTaskInputs`: when `--affected` is passed, the
+  # `--filter` flags still shape the printed "Packages in scope" line but are
+  # DISCARDED when the task graph is built. The run executes exactly the
+  # affected package set, whatever the filter said. Observed on the beta lane
+  # (`beta/ci-scope`, #1051):
+  #
+  #   diff             invocation                             tasks actually run
+  #   apps/beta only   test --filter=web --affected           beta#test
+  #   packages/db      test --filter=web --affected           @workspace/db#test
+  #   packages/ui      test --filter=web --affected           @workspace/ui#test
+  #
+  # i.e. this job never ran apps/web's suite at all, and re-ran byte-identical
+  # task hashes that `unit-test` was already running in parallel (~167 min of
+  # duplicate runner time over 39 PRs on the beta lane).
+  #
+  # `--filter=web` WITHOUT `--affected` resolves correctly to `web#test`, and
+  # turbo's own input hashing + the remote cache give the skip-when-unchanged
+  # behaviour `--affected` was reaching for — as a cache hit, not a silently
+  # wrong scope. The `web` paths-filter above is what keeps the job off diffs
+  # that cannot touch apps/web. The `ci` aggregator treats `skipped` as
+  # non-failure, and `web-integration` is gated the same way `storybook`
+  # already is — ruleset-safe, `ci` remains the only required context.
   web-integration:
     needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -238,8 +291,6 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          # Full history so `turbo --affected` can diff against the PR base.
-          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
 
@@ -247,12 +298,14 @@ jobs:
         env:
           AWS_ACCOUNT_ID: "123456789012"
           APP_DOMAIN: test.example.com
-          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
-        run: pnpm turbo test --filter=web --affected --ui=stream --continue
+        run: pnpm turbo test --filter=web --ui=stream --continue
 
   coverage:
     needs: [changes]
-    if: needs.changes.outputs.code == 'true'
+    # Gated on `ui`, not `code`: this job only ever measures @workspace/ui, so
+    # a diff that does not touch packages/ui has nothing for it to do. It was
+    # running on every PR and paying full runner setup for a no-op.
+    if: needs.changes.outputs.ui == 'true'
     # Advisory job — NOT in the `ci` aggregator's needs, so a coverage
     # failure cannot red the required `ci` check (same posture as the
     # trufflehog job below). Moved out of unit-test (CICD-03): the coverage
@@ -268,15 +321,15 @@ jobs:
           egress-policy: audit
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          # Full history so `turbo --affected` can diff against the PR base.
-          fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
 
+      # `--affected` dropped for the same measured reason as `web-integration`
+      # above: with it, this invocation could resolve to a package outside
+      # @workspace/ui instead of measuring it. The `ui` gate now decides
+      # whether the job runs; the filter decides what it measures.
       - name: Test Coverage
-        env:
-          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || 'HEAD^' }}
-        run: pnpm turbo test:coverage --filter=@workspace/ui --affected --ui=stream
+        run: pnpm turbo test:coverage --filter=@workspace/ui --ui=stream
 
   # Storybook build + interaction/a11y tests, sharded across a matrix (CICD-05).
   # History: single job (~220-240s) -> build + 2-shard test matrix with an

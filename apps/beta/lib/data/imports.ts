@@ -1723,6 +1723,139 @@ export async function deletePayrollLineFromBatch(
   return deleted.length > 0
 }
 
+// ---------------------------------------------------------------------------
+// The předvaha row drawer (manual-entry plan §3, W5a) — add / edit / remove
+// ONE account row of a předvaha draft batch. Same shape as the saldokonto row
+// drawer above: a private draft-batch lookup for the INSERT (which needs
+// `period_id`), a plain `UPDATE` relying on
+// `beta_import_line_requires_draft_batch` (BEFORE INSERT OR UPDATE) as its
+// own floor, and an explicit draft check inside the DELETE transaction — that
+// trigger deliberately does not cover DELETE (see `deletePartnerSaldoRow`'s
+// own comment).
+// ---------------------------------------------------------------------------
+
+/** The draft předvaha batch a trial balance row belongs to, by id. */
+async function draftTrialBalanceBatch(
+  executor: BetaExecutor,
+  owner: OwnerScope,
+  batchId: string,
+): Promise<{ id: string; periodId: string } | null> {
+  const [row] = await executor
+    .select({ id: import_batch.id, period_id: import_batch.period_id })
+    .from(import_batch)
+    .where(
+      and(
+        eq(import_batch.id, batchId),
+        eq(import_batch.organization_id, owner.organizationId),
+        eq(import_batch.dataset, "predvaha"),
+        eq(import_batch.status, "draft"),
+      ),
+    )
+    .limit(1)
+
+  return row ? { id: row.id, periodId: row.period_id } : null
+}
+
+/** Add one account to a draft předvaha batch. */
+export async function addTrialBalanceLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  input: TrialBalanceLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string } | null> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftTrialBalanceBatch(tx, owner, batchId)
+    if (!batch) return null
+
+    const [row] = await tx
+      .insert(trial_balance_line)
+      .values({
+        organization_id: owner.organizationId,
+        import_batch_id: batch.id,
+        period_id: batch.periodId,
+        account_code: input.accountCode,
+        account_name: input.accountName,
+        opening_balance: input.openingBalance ?? null,
+        turnover_debit: input.turnoverDebit ?? null,
+        turnover_credit: input.turnoverCredit ?? null,
+        closing_balance: input.closingBalance ?? null,
+      })
+      .returning({ id: trial_balance_line.id })
+
+    if (!row) throw new Error("trial_balance_line insert returned no row")
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} + 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return { id: row.id }
+  })
+}
+
+/** Edit one předvaha account row. No pre-check — `import_batch_id` stays in the WHERE clause. */
+export async function updateTrialBalanceLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  input: TrialBalanceLineInput,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  const updated = await executor
+    .update(trial_balance_line)
+    .set({
+      account_code: input.accountCode,
+      account_name: input.accountName,
+      opening_balance: input.openingBalance ?? null,
+      turnover_debit: input.turnoverDebit ?? null,
+      turnover_credit: input.turnoverCredit ?? null,
+      closing_balance: input.closingBalance ?? null,
+    })
+    .where(
+      and(
+        eq(trial_balance_line.id, rowId),
+        eq(trial_balance_line.import_batch_id, batchId),
+        eq(trial_balance_line.organization_id, owner.organizationId),
+      ),
+    )
+    .returning({ id: trial_balance_line.id })
+
+  return updated.length > 0
+}
+
+/** Remove one account from a draft předvaha batch. */
+export async function deleteTrialBalanceLineRow(
+  owner: OwnerScope,
+  batchId: string,
+  rowId: string,
+  executor: BetaExecutor = betaDb(),
+): Promise<boolean> {
+  return executor.transaction(async (tx) => {
+    const batch = await draftTrialBalanceBatch(tx, owner, batchId)
+    if (!batch) return false
+
+    const deleted = await tx
+      .delete(trial_balance_line)
+      .where(
+        and(
+          eq(trial_balance_line.id, rowId),
+          eq(trial_balance_line.import_batch_id, batch.id),
+          eq(trial_balance_line.organization_id, owner.organizationId),
+        ),
+      )
+      .returning({ id: trial_balance_line.id })
+
+    if (deleted.length === 0) return false
+
+    await tx
+      .update(import_batch)
+      .set({ row_count: sql`${import_batch.row_count} - 1` })
+      .where(eq(import_batch.id, batch.id))
+
+    return true
+  })
+}
+
 /**
  * The one lock this module takes, in the one place it is taken.
  *

@@ -1271,6 +1271,29 @@
     "csvIssueDuplicateRow": "stejný řádek je v souboru dvakrát",
     "csvIssueRaggedRow": "řádek má víc hodnot než sloupců v hlavičce"
   },
+  "vykazyZadani": {
+    "startPredvahaTrigger": "Zadat předvahu ručně",
+    "startPredvahaTitle": "Nová ruční dávka předvahy",
+    "startPredvahaDescription": "Založí se rozpracovaný import pro zadaný měsíc. Jednotlivé účty pak přidáte v jeho náhledu.",
+    "startPredvahaSubmit": "Založit dávku",
+    "rowErrorInvalidInput": "Formulář obsahuje neplatné údaje.",
+    "predvahaBatchEmpty": "Tato dávka zatím neobsahuje žádné účty.",
+    "predvahaRowAddTrigger": "Přidat účet",
+    "predvahaRowAddTitle": "Přidat účet do předvahy",
+    "predvahaRowAddDescription": "Zadejte účet a jeho zůstatky přesně tak, jak je uvádí účetní program.",
+    "predvahaRowAddSubmit": "Přidat účet",
+    "predvahaRowEditTrigger": "Upravit",
+    "predvahaRowEditTitle": "Upravit účet předvahy",
+    "predvahaRowEditDescription": "Upravte zůstatky tohoto účtu.",
+    "predvahaRowEditSubmit": "Uložit změny",
+    "predvahaRowDeleteTrigger": "Smazat",
+    "predvahaRowErrorInvalidInput": "Formulář obsahuje neplatné údaje.",
+    "predvahaRowErrorDuplicate": "Tento účet už v této dávce je — upravte existující řádek.",
+    "predvahaRowErrorNotEditable": "Tento řádek už nelze upravit — import buď neexistuje, nebo už není rozpracovaný.",
+    "predvahaRowOkAdded": "Účet byl přidán do dávky.",
+    "predvahaRowOkUpdated": "Účet byl uložen.",
+    "predvahaRowOkDeleted": "Účet byl odebrán z dávky."
+  },
   "notifications": {
     "toggleLabel": "E-mailové notifikace",
     "toggleHint": "Dostávejte e-mail, když se vrátí doklad, přibude nový úkol nebo se zveřejní nová data ve výkazech."

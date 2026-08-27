@@ -9,18 +9,22 @@ import type { BetaImportDataset } from "@/db/schema"
 import {
   addPartnerSaldoRow,
   addPayrollLineToBatch,
+  addTrialBalanceLineRow,
   createDraftBatch,
   deleteDraftBatch,
   deletePartnerSaldoRow,
   deletePayrollLineFromBatch,
+  deleteTrialBalanceLineRow,
   officeBatchFor,
   publishBatch,
   rollbackDataset,
   updatePartnerSaldoRow,
   updatePayrollLineInBatch,
+  updateTrialBalanceLineRow,
   type PartnerSaldoLineInput,
   type PayrollLineInput,
   type PayrollSummaryInput,
+  type TrialBalanceLineInput,
 } from "@/lib/data/imports"
 import { ensureReportingPeriod } from "@/lib/data/reporting-periods"
 import { requireOwner, requireScope, type OwnerScope } from "@/lib/data/scope"
@@ -36,6 +40,7 @@ import {
 } from "@/lib/import/datasets"
 
 import {
+  formAccountCode,
   formDecimal,
   formInteger,
   formOptionalDate,
@@ -1019,4 +1024,167 @@ export async function deletePayrollLineAction(
 
   revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batch.id}`)
   return { status: "ok", message: "mzdyZadani.okLineDeleted" }
+}
+
+// ---------------------------------------------------------------------------
+// The předvaha row drawer (manual-entry plan §3, W5a) — add / edit / remove
+// ONE account row of a draft předvaha batch. Same shape as the saldokonto row
+// drawer above.
+// ---------------------------------------------------------------------------
+
+/**
+ * Shared by every výkazy row-drawer action (this předvaha wave and the W5b
+ * statement wave that follows it): a returned `error` state distinct from
+ * `SALDO_ROW_INVALID` above, and every path that touches a statement or
+ * předvaha batch's rows.
+ */
+const VYKAZY_ROW_INVALID: StartManualBatchState & { status: "error" } = {
+  status: "error",
+  error: "vykazyZadani.rowErrorInvalidInput",
+}
+
+function revalidateVykazyBatch(orgSlug: string, batchId: string): void {
+  revalidateUzaverka(orgSlug)
+  revalidatePath(`/${orgSlug}/pro-ucetni/uzaverka/${batchId}`)
+}
+
+/**
+ * `trial_balance_line_identity_unique` (org, batch, account_code) is a
+ * UNIQUE index, not a CHECK, so it needs its own arm alongside `guarded()`'s
+ * — same reason `guardedSaldoRowWrite` exists above.
+ */
+async function guardedTrialBalanceRowWrite(
+  write: () => Promise<StartManualBatchState>,
+): Promise<StartManualBatchState> {
+  try {
+    return await write()
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      return {
+        status: "error",
+        error: "vykazyZadani.predvahaRowErrorDuplicate",
+      }
+    }
+    if (isCheckViolation(error)) {
+      return { status: "error", error: "uzaverka.errorRejected" }
+    }
+    throw error
+  }
+}
+
+function readTrialBalanceRowForm(
+  formData: FormData,
+):
+  | { ok: true; value: TrialBalanceLineInput }
+  | { ok: false; error: StartManualBatchState & { status: "error" } } {
+  const accountCode = formAccountCode(formData, "accountCode")
+  const accountName = formString(formData, "accountName")
+  const openingBalance = formDecimal(formData, "openingBalance")
+  const turnoverDebit = formDecimal(formData, "turnoverDebit")
+  const turnoverCredit = formDecimal(formData, "turnoverCredit")
+  const closingBalance = formDecimal(formData, "closingBalance")
+
+  if (
+    accountCode === null ||
+    accountName.length === 0 ||
+    !openingBalance.ok ||
+    !turnoverDebit.ok ||
+    !turnoverCredit.ok ||
+    !closingBalance.ok
+  ) {
+    return { ok: false, error: VYKAZY_ROW_INVALID }
+  }
+
+  return {
+    ok: true,
+    value: {
+      accountCode,
+      accountName,
+      openingBalance: openingBalance.value,
+      turnoverDebit: turnoverDebit.value,
+      turnoverCredit: turnoverCredit.value,
+      closingBalance: closingBalance.value,
+    },
+  }
+}
+
+export async function addTrialBalanceLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  if (batchId === null) return VYKAZY_ROW_INVALID
+
+  const fields = readTrialBalanceRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedTrialBalanceRowWrite(async () => {
+    const row = await addTrialBalanceLineRow(owner, batchId, fields.value)
+    if (!row) {
+      return {
+        status: "error",
+        error: "vykazyZadani.predvahaRowErrorNotEditable",
+      }
+    }
+
+    revalidateVykazyBatch(orgSlug, batchId)
+    return { status: "ok", message: "vykazyZadani.predvahaRowOkAdded" }
+  })
+}
+
+export async function updateTrialBalanceLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return VYKAZY_ROW_INVALID
+
+  const fields = readTrialBalanceRowForm(formData)
+  if (!fields.ok) return fields.error
+
+  return guardedTrialBalanceRowWrite(async () => {
+    const updated = await updateTrialBalanceLineRow(
+      owner,
+      batchId,
+      rowId,
+      fields.value,
+    )
+    if (!updated) {
+      return {
+        status: "error",
+        error: "vykazyZadani.predvahaRowErrorNotEditable",
+      }
+    }
+
+    revalidateVykazyBatch(orgSlug, batchId)
+    return { status: "ok", message: "vykazyZadani.predvahaRowOkUpdated" }
+  })
+}
+
+/** Remove one předvaha row. No guard — same reasoning as `deletePartnerSaldoRowAction`. */
+export async function deleteTrialBalanceLineRowAction(
+  _previous: StartManualBatchState,
+  formData: FormData,
+): Promise<StartManualBatchState> {
+  const { orgSlug, owner } = await ownerFor(formData)
+
+  const batchId = formUuid(formData, "batchId")
+  const rowId = formUuid(formData, "rowId")
+  if (batchId === null || rowId === null) return VYKAZY_ROW_INVALID
+
+  const deleted = await deleteTrialBalanceLineRow(owner, batchId, rowId)
+  if (!deleted) {
+    return {
+      status: "error",
+      error: "vykazyZadani.predvahaRowErrorNotEditable",
+    }
+  }
+
+  revalidateVykazyBatch(orgSlug, batchId)
+  return { status: "ok", message: "vykazyZadani.predvahaRowOkDeleted" }
 }

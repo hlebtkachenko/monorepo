@@ -734,6 +734,24 @@
     "errorAresNotFound": "ARES tomuto IČO nic nepřiřadil.",
     "errorAresUnavailable": "ARES momentálně neodpovídá. Zkuste to prosím znovu."
   },
+  "ukazatele": {
+    "title": "Ukazatele",
+    "hint": "Obrat portál nepočítá. Klientovi se v Přehledu zobrazí poslední hodnota, kterou tu zadáte, včetně data, ke kterému platí.",
+    "createTitle": "Zadat ukazatel",
+    "createDescription": "Zadejte hodnotu a datum, ke kterému platí. Stejné datum lze kdykoli přepsat novou hodnotou.",
+    "editTitle": "Upravit ukazatel",
+    "editDescription": "Ukazatel a datum jsou identita záznamu a nemění se. Opravte hodnotu nebo poznámku; u špatného data záznam smažte a zadejte znovu.",
+    "submit": "Uložit ukazatel",
+    "kindAnnualTurnover": "Obrat za 12 měsíců",
+    "fieldKind": "Ukazatel",
+    "fieldAmount": "Hodnota v Kč",
+    "fieldAsOf": "Údaj k datu",
+    "fieldNoteInternal": "Interní poznámka",
+    "columnKind": "Ukazatel",
+    "errorAmountInvalid": "Hodnota musí být nezáporné číslo nejvýš se dvěma desetinnými místy.",
+    "errorAsOfRequired": "Zadejte platné datum, ke kterému hodnota platí.",
+    "errorNoteTooLong": "Interní poznámka může mít nejvýš 2 000 znaků."
+  },
   "majetek": {
     "overviewTitle": "Přehled majetku",
     "detailTitle": "Karta majetku",

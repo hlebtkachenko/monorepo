@@ -7,11 +7,13 @@ import {
   betaClientTaskLinkKind,
   type BetaAccountKind,
   type BetaAccountMatchKind,
+  betaIndicatorKind,
   betaPartnerRole,
   type BetaClientDocumentType,
   type BetaClientTaskLinkKind,
   type BetaFilingKind,
   type BetaFilingStatus,
+  type BetaIndicatorKind,
   type BetaObligationGroup,
   type BetaPartnerRole,
   type BetaPeriodKind,
@@ -61,6 +63,31 @@ export function formOptionalText(
 ): string | null {
   const value = formString(formData, key)
   return value.length > 0 ? value : null
+}
+
+/**
+ * The same, with a length ceiling — `null` for empty, `false` for too long.
+ *
+ * WHY A SEPARATE READER RATHER THAN A PARAMETER ON THE ONE ABOVE. Its existing
+ * callers write into columns the office alone reads and that have no declared
+ * bound; adding a default cap to them would be a behaviour change nobody asked
+ * for, and adding an optional one would leave every call site free to forget it.
+ * This one is used where the agent API caps the SAME field — `note_internal` is
+ * `optionalText(2000)` in `lib/agent/schemas.ts` — so that the two doors into one
+ * column agree on what fits through them. `text` is unbounded at the database,
+ * so without this the form is the wider door.
+ *
+ * REFUSES rather than truncates: a note silently cut at 2 000 characters is a
+ * note whose end the office believes it wrote.
+ */
+export function formCappedText(
+  formData: FormData,
+  key: string,
+  maxLength: number,
+): string | null | false {
+  const value = formString(formData, key)
+  if (value.length === 0) return null
+  return value.length <= maxLength ? value : false
 }
 
 const DOCUMENT_STATUSES = [
@@ -130,16 +157,47 @@ const OK_EMPTY = { ok: true, value: null } as const
 const REFUSED = { ok: false } as const
 
 /**
- * `YYYY-MM-DD` — the shape `<input type="date">` posts and a `date` column
- * stores. The regex is a SHAPE check, not a calendar check: Postgres rejects
- * `2026-02-31` itself, and re-implementing the Gregorian calendar here would be
- * a second authority on what a date is.
+ * `YYYY-MM-DD` AND a day the calendar actually has — the shape
+ * `<input type="date">` posts and a `date` column stores.
+ *
+ * THE SHAPE CHECK ALONE WAS NOT ENOUGH, and the gap was a 500 rather than a
+ * refusal. A browser date picker cannot produce `2026-02-30`, but a Server
+ * Action is a public POST endpoint and a hand-rolled body can; Postgres then
+ * answers 22008 (`date/time field value out of range`), which is not a CHECK
+ * violation, so `guarded()` rethrows it and the office gets a 500 where a Czech
+ * sentence belongs.
+ *
+ * ROUND-TRIP RATHER THAN A CALENDAR REIMPLEMENTATION — `Date.UTC` normalises an
+ * out-of-range day (31 April becomes 1 May), so re-rendering the parsed instant
+ * and comparing it to the digits the caller wrote is an exact "is this a real
+ * day" question with the leap-year rule supplied by the platform. UTC, never
+ * local: a local-midnight parse shifts the day in half the world's time zones.
+ * This is not a second authority on what a date is; it is the same answer
+ * Postgres would give, given early enough to name the field.
+ *
+ * The agent API's `isoDate` (`lib/agent/schemas.ts`) carries the identical rule
+ * for the identical reason — one column, two doors, one notion of a day.
  */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
+function isRealDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false
+  const [year, month, day] = value.split("-").map(Number) as [
+    number,
+    number,
+    number,
+  ]
+  const parsed = new Date(Date.UTC(year, month - 1, day))
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  )
+}
+
 export function formDate(formData: FormData, key: string): string | null {
   const value = formString(formData, key)
-  return ISO_DATE.test(value) ? value : null
+  return isRealDate(value) ? value : null
 }
 
 /** The same, optional: empty is a value, malformed is a refusal. */
@@ -149,7 +207,7 @@ export function formOptionalDate(
 ): FieldResult<string | null> {
   const value = formString(formData, key)
   if (value.length === 0) return OK_EMPTY
-  return ISO_DATE.test(value) ? { ok: true, value } : REFUSED
+  return isRealDate(value) ? { ok: true, value } : REFUSED
 }
 
 /**
@@ -393,4 +451,25 @@ export function formPartnerRole(
 ): BetaPartnerRole | null {
   const value = formString(formData, key)
   return betaPartnerRole.enumValues.find((role) => role === value) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Ukazatele (W6) — the office-stated figures Přehled's Obrat watch reads
+// ---------------------------------------------------------------------------
+
+/**
+ * `beta_indicator_kind`, read off the pgEnum the same way `formAccountKind` is.
+ *
+ * The enum has exactly one value today (`annual_turnover`, migration 0020) and
+ * this reader is still written against `enumValues` rather than against that
+ * literal: the day a second kind lands, a form offering it is accepted here
+ * without an edit, and a form that does NOT offer it is caught by
+ * `indicator-labels.test.ts` rather than by nobody.
+ */
+export function formIndicatorKind(
+  formData: FormData,
+  key: string,
+): BetaIndicatorKind | null {
+  const value = formString(formData, key)
+  return betaIndicatorKind.enumValues.find((kind) => kind === value) ?? null
 }

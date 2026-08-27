@@ -2,11 +2,13 @@ import "server-only"
 
 import { accountMappingsForScope } from "@/lib/data/account-balances"
 import { filingsForScope } from "@/lib/data/filings"
+import { indicatorsForOwner } from "@/lib/data/indicators"
 import { liabilitiesForScope } from "@/lib/data/liabilities"
 import { partnersForOwner } from "@/lib/data/partners"
 import type {
   AccountBalanceMappingView,
   FilingView,
+  IndicatorView,
   LiabilityView,
   PartnerView,
 } from "@/lib/data/projections"
@@ -43,16 +45,19 @@ export async function loadZadavani(orgSlug: string): Promise<{
   liabilities: LiabilityView[]
   accounts: AccountBalanceMappingView[]
   partners: (PartnerView & { readonly noteInternal: string })[]
+  indicators: (IndicatorView & { readonly noteInternal: string })[]
 }> {
   const scope = await resolveOrgScope(orgSlug)
   const owner = requireOwner(scope)
 
-  const [filings, liabilities, accounts, partners] = await Promise.all([
-    filingsForScope(owner),
-    liabilitiesForScope(owner, { includePaid: true }),
-    accountMappingsForScope(owner, { includeInactive: true }),
-    partnersForOwner(owner),
-  ])
+  const [filings, liabilities, accounts, partners, indicators] =
+    await Promise.all([
+      filingsForScope(owner),
+      liabilitiesForScope(owner, { includePaid: true }),
+      accountMappingsForScope(owner, { includeInactive: true }),
+      partnersForOwner(owner),
+      indicatorsForOwner(owner),
+    ])
 
   return {
     orgSlug: owner.organizationSlug,
@@ -60,5 +65,6 @@ export async function loadZadavani(orgSlug: string): Promise<{
     liabilities,
     accounts,
     partners,
+    indicators,
   }
 }

@@ -72,6 +72,57 @@ export async function recordAgentActivity(
   })
 }
 
+export type OfficeActivityEntry = {
+  /** `<entity>.<verb>`, matching `activity_log_action_shape`. */
+  readonly action: string
+  readonly entityKind: string
+  /** The one row the act touched, when there was exactly one. */
+  readonly entityId?: string | null
+  readonly summary: ActivitySummary
+}
+
+/**
+ * Record an act the OFFICE performed by hand.
+ *
+ * WHY THIS EXISTS AT ALL, given most office writes are not logged. The agent
+ * ingestion path logs every write it makes; a fact that can enter the book
+ * through BOTH doors and is only logged through one has an audit trail that
+ * silently depends on which door was used. That is tolerable for a partner's
+ * address; it is not tolerable for obrat, which is the figure the portal tells a
+ * client whether they have a DPH registration duty against. So the Ukazatele
+ * writes log too, and the two rows differ only in `actor_kind`.
+ *
+ * `agent_key_id` is deliberately absent, not merely unset:
+ * `activity_log_actor_coherence` refuses a `user` row that names a key, so "an
+ * agent write logged as if a human had performed it" is not a representable
+ * state — which is the one lie this table exists to make impossible.
+ *
+ * NO `request_id`. Idempotency is the agent API's problem: a Server Action is
+ * driven by a person clicking a button, and there is no key to spend a request
+ * id against (the unique index is on the key).
+ *
+ * Takes an executor for the same reason `recordAgentActivity` does — a log row
+ * on its own connection would survive a rolled-back write and claim something
+ * happened that did not.
+ */
+export async function recordOfficeActivity(
+  executor: BetaExecutor,
+  owner: OwnerScope,
+  entry: OfficeActivityEntry,
+): Promise<void> {
+  await executor.insert(activity_log).values({
+    organization_id: owner.organizationId,
+    actor_kind: "user",
+    actor_user_id: owner.userId,
+    agent_key_id: null,
+    action: entry.action,
+    entity_kind: entry.entityKind,
+    entity_id: entry.entityId ?? null,
+    request_id: null,
+    summary: entry.summary,
+  })
+}
+
 /**
  * The act this key already performed under `requestId`, if any.
  *

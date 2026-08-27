@@ -1,10 +1,11 @@
 import "server-only"
 
-import { and, desc, eq, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import { betaDb, type BetaExecutor } from "@/db/client"
 import { organization_indicator, type BetaIndicatorKind } from "@/db/schema"
 
+import { recordOfficeActivity } from "./activity-log"
 import { indicatorView, type IndicatorView } from "./projections"
 import type { OrgScope, OwnerScope } from "./scope"
 
@@ -12,11 +13,12 @@ import type { OrgScope, OwnerScope } from "./scope"
  * organization_indicator — the office-stated figures Přehled's Obrat watch reads
  * (spec §2.1 item 4, migration 0020).
  *
- * ONE READ FOR THE CLIENT, ONE FOR THE OFFICE, AND ONE WRITE. The client
+ * ONE READ FOR THE CLIENT, ONE FOR THE OFFICE, AND TWO WRITES. The client
  * surface needs exactly one row (the newest reading of one kind); the office
- * surface needs the history, because `latestIndicator` orders by date and a
- * mis-typed `as_of` would otherwise shadow every correct reading with no way to
- * see that it had.
+ * surface needs the history, because a mis-typed `as_of` is the one mistake
+ * that would otherwise shadow every correct reading forever — `latestIndicator`
+ * orders by date, so a figure stated as of 2036 wins until somebody can delete
+ * it.
  *
  * READS ARE FOR EVERY ROLE, like `loansForScope` and `assetsForScope` (spec §5:
  * a guest is an external VIEWER of client-visible data, not a blinded one). The
@@ -195,4 +197,115 @@ export async function upsertIndicator(
 
   if (!row) throw new Error("organization_indicator upsert returned no row")
   return { id: row.id, action: row.inserted ? "created" : "updated" }
+}
+
+/**
+ * Delete readings outright.
+ *
+ * OFFERED, unlike on most tables here, because of what `latestIndicator` does:
+ * it picks the row with the newest `as_of`, so a figure entered as of 2036
+ * instead of 2026 shadows every correct reading until it is gone. Correcting the
+ * AMOUNT is an upsert; correcting the DATE is a delete plus a re-entry, and
+ * there is no history worth keeping in a typo.
+ *
+ * The WHERE clause carries `organization_id` even though `id` is a primary key:
+ * without it, an id leaked or guessed from anywhere would let a holder of ANY
+ * scope delete ANY book's figure, and this database has no RLS behind the seam
+ * to catch it.
+ */
+export async function deleteIndicators(
+  scope: OwnerScope,
+  ids: readonly string[],
+  executor: BetaExecutor = betaDb(),
+): Promise<{ id: string; kind: BetaIndicatorKind; asOf: string }[]> {
+  if (ids.length === 0) return []
+
+  // RETURNING the identity, not just a count: the office activity row names
+  // which reading was removed, and the row is gone by the time anyone could
+  // read it back.
+  const deleted = await executor
+    .delete(organization_indicator)
+    .where(
+      and(
+        eq(organization_indicator.organization_id, scope.organizationId),
+        inArray(organization_indicator.id, [...ids]),
+      ),
+    )
+    .returning({
+      id: organization_indicator.id,
+      kind: organization_indicator.kind,
+      as_of: organization_indicator.as_of,
+    })
+
+  return deleted.map((row) => ({ id: row.id, kind: row.kind, asOf: row.as_of }))
+}
+
+// ---------------------------------------------------------------------------
+// The office's own doors — the write PLUS its audit row, in one transaction
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY THESE TWO WRAPPERS EXIST. The agent path records every write it makes in
+ * `activity_log` (`ingestIndicators` → `recordAgentActivity`). Obrat can enter
+ * this book through BOTH doors, and a fact whose audit trail depends on which
+ * door was used is not an audit trail — it is a gap that only shows up when
+ * somebody asks who stated the figure that told a client they had a registration
+ * duty. So the office writes log too, and the two rows differ only in
+ * `actor_kind`.
+ *
+ * THE LOG SHARES THE WRITE'S TRANSACTION, which is the whole reason these are
+ * data-layer functions rather than two calls in the Server Action: a Server
+ * Action cannot open one (it may not import `db/client` — see
+ * `db-client-fence.boundary.test.ts`), and a log row written outside the write's
+ * transaction would survive its rollback and claim something happened that did
+ * not.
+ *
+ * THE SUMMARY NAMES THE READING, NOT THE FIGURE. `kind` and `as_of` identify
+ * which row moved; the amount itself lives in `organization_indicator` and the
+ * activity log deliberately does not become a second copy of the accounting
+ * payload (`activity-log.ts`'s own rule).
+ */
+export async function upsertIndicatorAsOffice(
+  scope: OwnerScope,
+  input: IndicatorWriteInput,
+): Promise<{ id: string; action: "created" | "updated" }> {
+  return betaDb().transaction(async (tx) => {
+    const written = await upsertIndicator(scope, input, tx)
+
+    await recordOfficeActivity(tx, scope, {
+      action: "indicator.upsert",
+      entityKind: "organization_indicator",
+      entityId: written.id,
+      summary: {
+        kind: input.kind,
+        asOf: input.asOf,
+        action: written.action,
+      },
+    })
+
+    return written
+  })
+}
+
+/**
+ * Delete one reading and record it. Returns whether a row actually went — a
+ * delete that matched nothing writes no log row, because nothing happened.
+ */
+export async function deleteIndicatorAsOffice(
+  scope: OwnerScope,
+  indicatorId: string,
+): Promise<boolean> {
+  return betaDb().transaction(async (tx) => {
+    const [deleted] = await deleteIndicators(scope, [indicatorId], tx)
+    if (!deleted) return false
+
+    await recordOfficeActivity(tx, scope, {
+      action: "indicator.delete",
+      entityKind: "organization_indicator",
+      entityId: deleted.id,
+      summary: { kind: deleted.kind, asOf: deleted.asOf },
+    })
+
+    return true
+  })
 }

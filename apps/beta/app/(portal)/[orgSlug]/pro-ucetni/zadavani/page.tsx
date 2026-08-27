@@ -2,6 +2,7 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 
 import { AccountsSection } from "./_components/accounts-section"
 import { FilingsSection } from "./_components/filings-section"
+import { IndicatorsSection } from "./_components/indicators-section"
 import { LiabilitiesSection } from "./_components/liabilities-section"
 import { PartnersSection } from "./_components/partners-section"
 import { loadZadavani } from "./_lib/load-zadavani"
@@ -17,9 +18,12 @@ import { loadZadavani } from "./_lib/load-zadavani"
  * does NOT land here: spec §3 gives it its own sidebar entry — Úkoly klientovi
  * — because §3.4 grows it well past a single deep-link edit form (CRUD,
  * templates, "Vytvořit měsíční sadu úkolů"), so PR 19 ships
- * `pro-ucetni/ukoly/` instead. indicator, loan, asset, payroll_summary and
- * partner still arrive here, each with the module that reads them, as its own
- * section on this page. Nothing is stubbed for them (§0.3).
+ * `pro-ucetni/ukoly/` instead. `indicator` landed with W6 as the Ukazatele
+ * section below — obrat is displayed on Přehled, is neither imported nor
+ * derived (§0.2), and belongs to no module, which is exactly what §3.3 is for.
+ * loan, asset and payroll_summary are edited in their own modules instead,
+ * following the precedent that a PR ships its own domain's writes end to end.
+ * Nothing is stubbed for any of them (§0.3).
  *
  * NO GATE IN THIS FILE, and that is not an omission: `loadZadavani` opens with
  * `requireOwner`, so the 404 happens before anything is read — and it is the
@@ -33,7 +37,7 @@ export default async function ZadavaniPage({
   params: Promise<{ orgSlug: string }>
 }) {
   const { orgSlug: requested } = await params
-  const [t, { orgSlug, filings, liabilities, accounts, partners }] =
+  const [t, { orgSlug, filings, liabilities, accounts, partners, indicators }] =
     await Promise.all([getBetaTranslations(), loadZadavani(requested)])
 
   return (
@@ -49,6 +53,7 @@ export default async function ZadavaniPage({
       <LiabilitiesSection liabilities={liabilities} orgSlug={orgSlug} />
       <AccountsSection mappings={accounts} orgSlug={orgSlug} />
       <PartnersSection partners={partners} orgSlug={orgSlug} />
+      <IndicatorsSection indicators={indicators} orgSlug={orgSlug} />
     </div>
   )
 }

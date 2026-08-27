@@ -25,6 +25,7 @@ import type {
   BetaImportDataset,
   BetaImportSource,
   BetaImportStatus,
+  BetaIndicatorKind,
   BetaObligationGroup,
   BetaOrgRole,
   BetaPartnerRole,
@@ -1006,6 +1007,38 @@ export async function createAccountMappingRow(
       ${values.kind ?? "bank"},
       ${values.sortOrder ?? 0},
       ${values.active ?? true}
+    )
+    RETURNING id
+  `
+  return row!.id
+}
+
+// ---------------------------------------------------------------------------
+// organization_indicator (W6) — raw SQL, same reasoning as every fixture above:
+// `lib/data/indicators.ts`'s writes are owner-gated by their parameter type, so
+// a fixture routed through them could not seed a world for a test whose subject
+// IS that gate.
+// ---------------------------------------------------------------------------
+
+export async function createIndicatorRow(
+  organizationId: string,
+  values: {
+    kind?: BetaIndicatorKind
+    amount?: string
+    asOf?: string
+    noteInternal?: string | null
+  } = {},
+): Promise<string> {
+  const [row] = await db()<{ id: string }[]>`
+    INSERT INTO organization_indicator (
+      organization_id, kind, amount, as_of, note_internal
+    )
+    VALUES (
+      ${organizationId},
+      ${values.kind ?? "annual_turnover"},
+      ${values.amount ?? "1500000.00"},
+      ${values.asOf ?? "2026-06-30"},
+      ${values.noteInternal ?? null}
     )
     RETURNING id
   `

@@ -1,10 +1,12 @@
 import type { BetaMessageKey } from "@/i18n/messages"
 
 /**
- * What Mzdy's one write reports back to its form (spec §2.6.1 — the
- * employee-seat invite is the only Server Action in this module; everything else
- * under Mzdy is a read, and the payslip upload goes through a route handler
- * because it streams bytes).
+ * What Mzdy's employee-seat invite reports back to its form (spec §2.6.1).
+ * `employees.ts`'s register writes (manual-entry plan §3.3, W3) use their own
+ * `EmployeeActionState` instead of this one — see that module's `employee-state.ts`
+ * for why: `EntrySheet` is generic over an `idle | ok | error` shape, and this
+ * type's `issued` arm (the seat invite's own success case) makes it a
+ * structurally wider union than `EntrySheet` accepts.
  *
  * The same three-plus-one shape `NastaveniActionState` has, minus the arms this
  * section has no use for. It is deliberately NOT an import of that type: the two

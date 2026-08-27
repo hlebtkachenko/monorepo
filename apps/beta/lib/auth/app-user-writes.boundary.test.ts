@@ -759,8 +759,12 @@ describe("SF-3 — app_user write paths", () => {
       expect(pattern.test(statement), statement).toBe(true)
     }
 
-    // Without claiming a different table whose name merely starts the same, or
-    // a statement that only READS the one it does claim.
+    // Without claiming a different table whose name merely starts the same, a
+    // statement that only READS the one it does claim, or a DELETE — the
+    // pattern is deliberately INSERT/UPDATE/MERGE only, because a direct
+    // `DELETE FROM app_user` has nothing for this fence's payload check to
+    // walk (no column list to inspect), and migration 0021's FK now refuses
+    // the delete itself (`anonymizeAppUser` is the only sanctioned path).
     for (const innocent of [
       `UPDATE app_user_session SET x = 1`,
       `UPDATE "app_user_session" SET x = 1`,

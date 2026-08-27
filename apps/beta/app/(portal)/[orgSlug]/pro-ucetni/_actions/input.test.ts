@@ -7,6 +7,7 @@ import {
   betaIndicatorKind,
   betaObligationGroup,
   betaPeriodKind,
+  betaStatementKind,
 } from "@/db/schema"
 
 import {
@@ -25,6 +26,7 @@ import {
   formOptionalDate,
   formOptionalText,
   formPeriodKind,
+  formStatementKind,
   formString,
   formUuid,
   formVariableSymbol,
@@ -405,5 +407,23 @@ describe("Ukazatele's closed list", () => {
     expect(formIndicatorKind(fd({ k: "ebitda" }), "k")).toBeNull()
     expect(formIndicatorKind(fd({ k: "" }), "k")).toBeNull()
     expect(formIndicatorKind(fd({}), "k")).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Měsíční uzávěrka's výkazy row drawer (manual-entry plan §3, W5)
+// ---------------------------------------------------------------------------
+
+describe("formStatementKind", () => {
+  it("covers every statement kind the enum declares", () => {
+    for (const kind of betaStatementKind.enumValues) {
+      expect(formStatementKind(fd({ k: kind }), "k"), kind).toBe(kind)
+    }
+  })
+
+  it("refuses a value that is not on the list", () => {
+    expect(formStatementKind(fd({ k: "" }), "k")).toBeNull()
+    expect(formStatementKind(fd({ k: "predvaha" }), "k")).toBeNull()
+    expect(formStatementKind(fd({}), "k")).toBeNull()
   })
 })

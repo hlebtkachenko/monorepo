@@ -5,6 +5,7 @@ import {
   betaAccountKind,
   betaAccountMatchKind,
   betaClientTaskLinkKind,
+  betaStatementKind,
   type BetaAccountKind,
   type BetaAccountMatchKind,
   betaIndicatorKind,
@@ -17,6 +18,7 @@ import {
   type BetaObligationGroup,
   type BetaPartnerRole,
   type BetaPeriodKind,
+  type BetaStatementKind,
 } from "@/db/schema"
 import { normalizeBetaMoneyInput } from "@/lib/format/money"
 import { MANUAL_OBLIGATION_GROUPS } from "@/lib/obligation-labels"
@@ -472,4 +474,24 @@ export function formIndicatorKind(
 ): BetaIndicatorKind | null {
   const value = formString(formData, key)
   return betaIndicatorKind.enumValues.find((kind) => kind === value) ?? null
+}
+
+// ---------------------------------------------------------------------------
+// Měsíční uzávěrka's výkazy row drawer (manual-entry plan §3, W5)
+// ---------------------------------------------------------------------------
+
+/**
+ * `beta_statement_kind`, read off the pgEnum the same way `formAccountKind`
+ * is: an unrecognised value is a refusal, never a cast. The row drawer never
+ * lets the office CHOOSE this — it travels as a fixed hidden field the
+ * office-only batch table sets per arm (aktiva / pasiva / vzz) — but it is
+ * still validated here, same discipline as every other enum-carrying hidden
+ * field in this file (`formDataset` in `uzaverka.ts` is the same shape).
+ */
+export function formStatementKind(
+  formData: FormData,
+  key: string,
+): BetaStatementKind | null {
+  const value = formString(formData, key)
+  return betaStatementKind.enumValues.find((kind) => kind === value) ?? null
 }

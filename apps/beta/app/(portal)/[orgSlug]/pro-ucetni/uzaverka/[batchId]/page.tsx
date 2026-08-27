@@ -3,7 +3,6 @@ import { notFound } from "next/navigation"
 
 import { Badge } from "@workspace/ui/components/badge"
 
-import { StatementTable } from "@/app/_components/statement-table"
 import { formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import {
@@ -43,6 +42,7 @@ import { ConfirmActionForm } from "../_components/confirm-action-form"
 import { PartnerSaldoBatchTable } from "../_components/partner-saldo-batch-table"
 import { PayrollBatchLinesTable } from "../_components/payroll-batch-lines-table"
 import { PayrollLineFields } from "../_components/payroll-line-fields"
+import { StatementBatchTable } from "../_components/statement-batch-table"
 import { TrialBalanceBatchTable } from "../_components/trial-balance-batch-table"
 
 /**
@@ -216,21 +216,34 @@ export default async function BatchPreviewPage({
 
       {batch.dataset === "rozvaha" ? (
         <div className="grid gap-8">
-          <StatementTable
+          <StatementBatchTable
             kind="rozvaha_aktiva"
             captionKey="vykazy.captionAktiva"
             lines={aktiva}
+            orgSlug={orgSlug}
+            batchId={batch.id}
+            isDraft={batch.status === "draft"}
           />
-          <StatementTable
+          <StatementBatchTable
             kind="rozvaha_pasiva"
             captionKey="vykazy.captionPasiva"
             lines={pasiva}
+            orgSlug={orgSlug}
+            batchId={batch.id}
+            isDraft={batch.status === "draft"}
           />
         </div>
       ) : null}
 
       {batch.dataset === "vzz" ? (
-        <StatementTable kind="vzz" captionKey="vykazy.captionVzz" lines={vzz} />
+        <StatementBatchTable
+          kind="vzz"
+          captionKey="vykazy.captionVzz"
+          lines={vzz}
+          orgSlug={orgSlug}
+          batchId={batch.id}
+          isDraft={batch.status === "draft"}
+        />
       ) : null}
 
       {batch.dataset === "predvaha" ? (

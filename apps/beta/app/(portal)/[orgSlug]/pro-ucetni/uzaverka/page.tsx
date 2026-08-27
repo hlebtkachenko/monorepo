@@ -79,23 +79,48 @@ export default async function UzaverkaPage({
         title={t("uzaverka.title")}
         intro={t("uzaverka.intro")}
         actions={
-          <EntrySheet
-            action={startManualBatchAction}
-            idle={START_MANUAL_BATCH_IDLE}
-            hidden={{ orgSlug, dataset: "saldokonto", periodKind: "month" }}
-            triggerLabel={t("uzaverka.startSaldokontoTrigger")}
-            triggerVariant="default"
-            title={t("uzaverka.startSaldokontoTitle")}
-            description={t("uzaverka.startSaldokontoDescription")}
-            submitLabel={t("uzaverka.startSaldokontoSubmit")}
-          >
-            <ManualBatchPeriodFields
-              t={t}
-              idPrefix="start-saldokonto-uzaverka"
-              defaultMonth={view.period?.month ?? now.getMonth() + 1}
-              defaultYear={view.period?.year ?? now.getFullYear()}
-            />
-          </EntrySheet>
+          <div className="flex flex-wrap gap-2">
+            <EntrySheet
+              action={startManualBatchAction}
+              idle={START_MANUAL_BATCH_IDLE}
+              hidden={{ orgSlug, dataset: "saldokonto", periodKind: "month" }}
+              triggerLabel={t("uzaverka.startSaldokontoTrigger")}
+              triggerVariant="default"
+              title={t("uzaverka.startSaldokontoTitle")}
+              description={t("uzaverka.startSaldokontoDescription")}
+              submitLabel={t("uzaverka.startSaldokontoSubmit")}
+            >
+              <ManualBatchPeriodFields
+                t={t}
+                idPrefix="start-saldokonto-uzaverka"
+                defaultMonth={view.period?.month ?? now.getMonth() + 1}
+                defaultYear={view.period?.year ?? now.getFullYear()}
+              />
+            </EntrySheet>
+            {/*
+              predvaha (manual-entry plan §3, W5a) — `startManualBatchAction`
+              is already generic over all four datasets (W1); this is the
+              wave that wires the předvaha trigger. Row entry happens on the
+              batch preview it redirects to (`TrialBalanceBatchTable`). W5b
+              adds the matching rozvaha/vzz triggers alongside this one.
+            */}
+            <EntrySheet
+              action={startManualBatchAction}
+              idle={START_MANUAL_BATCH_IDLE}
+              hidden={{ orgSlug, dataset: "predvaha", periodKind: "month" }}
+              triggerLabel={t("vykazyZadani.startPredvahaTrigger")}
+              title={t("vykazyZadani.startPredvahaTitle")}
+              description={t("vykazyZadani.startPredvahaDescription")}
+              submitLabel={t("vykazyZadani.startPredvahaSubmit")}
+            >
+              <ManualBatchPeriodFields
+                t={t}
+                idPrefix="start-predvaha-uzaverka"
+                defaultMonth={view.period?.month ?? now.getMonth() + 1}
+                defaultYear={view.period?.year ?? now.getFullYear()}
+              />
+            </EntrySheet>
+          </div>
         }
       />
 

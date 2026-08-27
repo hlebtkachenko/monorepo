@@ -4,7 +4,6 @@ import { notFound } from "next/navigation"
 import { Badge } from "@workspace/ui/components/badge"
 
 import { StatementTable } from "@/app/_components/statement-table"
-import { TrialBalanceTable } from "@/app/_components/trial-balance-table"
 import { formatDateTime } from "@/i18n/format-values"
 import { getBetaTranslations } from "@/i18n/translations-server"
 import {
@@ -44,6 +43,7 @@ import { ConfirmActionForm } from "../_components/confirm-action-form"
 import { PartnerSaldoBatchTable } from "../_components/partner-saldo-batch-table"
 import { PayrollBatchLinesTable } from "../_components/payroll-batch-lines-table"
 import { PayrollLineFields } from "../_components/payroll-line-fields"
+import { TrialBalanceBatchTable } from "../_components/trial-balance-batch-table"
 
 /**
  * One batch, with its rows — the preview step of spec §3.2's manual fallback,
@@ -234,7 +234,12 @@ export default async function BatchPreviewPage({
       ) : null}
 
       {batch.dataset === "predvaha" ? (
-        <TrialBalanceTable lines={trialBalance} />
+        <TrialBalanceBatchTable
+          lines={trialBalance}
+          orgSlug={orgSlug}
+          batchId={batch.id}
+          isDraft={batch.status === "draft"}
+        />
       ) : null}
 
       {batch.dataset === "saldokonto" ? (

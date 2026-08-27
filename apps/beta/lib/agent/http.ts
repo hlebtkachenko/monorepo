@@ -25,6 +25,7 @@ export type AgentErrorCode =
   | "conflict"
   | "identity_changed"
   | "idempotency_key_reused"
+  | "unknown_reference"
 
 const HEADERS = {
   "content-type": "application/json; charset=utf-8",

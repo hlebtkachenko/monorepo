@@ -13,7 +13,11 @@ import type {
   PublishStatementsInput,
   PublishTrialBalanceInput,
 } from "@/lib/agent/schemas"
-import { isCheckViolation, isUniqueViolation } from "@/lib/pg-error"
+import {
+  isCheckViolation,
+  isForeignKeyViolation,
+  isUniqueViolation,
+} from "@/lib/pg-error"
 
 import {
   accountMappingIdByCode,
@@ -99,6 +103,19 @@ type IngestRefusal =
    * catch block below.
    */
   | "idempotency_key_reused"
+  /**
+   * A composite, tenancy-carrying FK refused the write (`lib/pg-error.ts`'s
+   * `isForeignKeyViolation`) — a reference this payload named, however it got
+   * there, does not resolve inside `ctx.owner`'s own book. No current write
+   * path lets a payload state a raw id (every reference here is either derived
+   * server-side, like `ensureReportingPeriod`'s id, or matched by the caller's
+   * own `externalRef` text), so this is a floor rather than a reachable path
+   * today — the same belt the office's own write paths already wear
+   * (`isForeignKeyViolation` in `uzaverka.ts`, `setup-token.ts`). Without it, a
+   * 23503 here would rethrow past the catch and answer 500, which is a false
+   * claim that the server is broken.
+   */
+  | "unknown_reference"
 
 export type IngestOutcome =
   | {
@@ -125,7 +142,13 @@ export type IngestContext = {
   readonly requestId: string | null
 }
 
-async function ingest(
+/**
+ * Exported (rather than module-private) so the catch-all's error-classifying
+ * arms — the FK-violation mapping in particular — are testable directly with
+ * a fault-injecting `op`, without needing a live Postgres to raise a genuine
+ * 23503 through a write path that does not currently expose one.
+ */
+export async function ingest(
   ctx: IngestContext,
   entry: { action: string; entityKind: string },
   op: IngestOp,
@@ -172,6 +195,12 @@ async function ingest(
         }
       }
       return { status: "refused", reason: "conflict" }
+    }
+    if (isForeignKeyViolation(error)) {
+      // See `unknown_reference`'s own doc comment above: a named 4xx, matching
+      // how `isUniqueViolation` is shaped just above, rather than a 500 that
+      // tells the caller the server is broken.
+      return { status: "refused", reason: "unknown_reference" }
     }
     throw error
   }

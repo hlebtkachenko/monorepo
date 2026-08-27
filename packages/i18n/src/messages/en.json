@@ -127,6 +127,15 @@
         "DEBIT": "Debit",
         "CREDIT": "Credit"
       },
+      "nature": {
+        "ASSET": "Asset",
+        "LIABILITY": "Liability",
+        "EQUITY": "Equity",
+        "EXPENSE": "Expense",
+        "REVENUE": "Revenue",
+        "CLOSING": "Closing",
+        "OFF_BALANCE": "Off-balance"
+      },
       "classNames": {
         "0": "Long-term assets",
         "1": "Inventory",
@@ -158,7 +167,22 @@
         "updateFailed": "Could not save the change",
         "templatePickerTitle": "Choose a template",
         "templatePickerDescription": "Fork a prebuilt chart of accounts into this period.",
-        "templateDefault": "Default"
+        "templateDefault": "Default",
+        "addAccount": "Add account",
+        "addPanelTitle": "New account",
+        "addParent": "Parent synthetic",
+        "addParentNone": "None (synthetic account)",
+        "addNature": "Nature",
+        "addNaturePlaceholder": "Choose a nature",
+        "addNormalBalanceAuto": "Automatic",
+        "addSubmit": "Add account",
+        "addCancel": "Cancel",
+        "addSuccess": "Account added",
+        "addFailed": "Could not add the account",
+        "addNumberInvalid": "Enter a valid account number (e.g. 311 or 311.001).",
+        "addNameRequired": "Name is required.",
+        "addNatureRequired": "Choose a nature.",
+        "taxClear": "Not applicable"
       },
       "framework": {
         "searchPlaceholder": "Search framework",

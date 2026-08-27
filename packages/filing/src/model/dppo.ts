@@ -55,8 +55,9 @@ export type DppoExtraVeta = z.infer<typeof DppoExtraVetaSchema>
 
 /**
  * The přílohy věty of DPPDP9, in the XSD `<xs:sequence>` order (everything after
- * VetaD/VetaP/VetaO). Read collects occurrences of each into `extraVety`; write
- * re-emits them in this order, so the document stays schema-ordered and XSD-valid.
+ * VetaD/VetaP/VetaO). Read collects occurrences of each into `extraVety`; `generateDppo`
+ * SORTS by this list before emitting, so the document is schema-ordered however
+ * the callers happened to append. A tag absent from this list sorts last.
  */
 export const DPPO_EXTRA_VETA_TAGS = [
   "VetaU",
@@ -117,4 +118,5 @@ export const DPPO_HEADER_DATE_ATTRS = [
   "zdobd_do",
   "zdobd_od_hr",
   "d_zjist",
+  "d_uv",
 ] as const

@@ -1,0 +1,788 @@
+// Client-side parser for a POHODA "účetní deník" exported to XLSX. An .xlsx is a
+// zip of XML: we unzip with fflate, read xl/sharedStrings.xml + the first
+// xl/worksheets/sheet*.xml, resolve shared strings, and rebuild the cell grid by
+// hand (no heavy xlsx lib, no fast-xml-parser). Columns are matched BY HEADER
+// NAME (row 1), so column order and the ~40 empty státní-správa columns are
+// irrelevant. Pure: bytes in, DenikParseResult out. No React, no I/O.
+
+import { strFromU8, unzipSync } from "fflate"
+
+import { detectDelimiter, splitCsvLine } from "./csv"
+
+export interface DenikRow {
+  datum: string
+  tpUD: string
+  zdroj: string
+  cislo: string
+  text: string
+  md: string
+  dal: string
+  castka: number
+  ciziMena?: string
+  stredisko?: string
+  zakazka?: string
+  cinnost?: string
+  parsym?: string
+  firma?: string
+  ic?: string
+}
+
+export interface DenikParseResult {
+  rows: DenikRow[]
+  ignoredColumns: string[]
+  warnings: string[]
+  headerOk: boolean
+  missingHeaders: string[]
+}
+
+/** One grid cell: shared-string / inline text, number, or empty. */
+export type Cell = string | number | null
+
+/** Field key on DenikRow a header maps to. "_jmeno" folds into `firma`. */
+type FieldKey =
+  | "datum"
+  | "tpUD"
+  | "zdroj"
+  | "cislo"
+  | "text"
+  | "md"
+  | "dal"
+  | "castka"
+  | "ciziMena"
+  | "stredisko"
+  | "zakazka"
+  | "cinnost"
+  | "parsym"
+  | "firma"
+  | "ic"
+  | "_jmeno"
+
+// Header string (row 1, exact Czech) -> DenikRow field.
+// The seven columns a deník genuinely needs to be a deník. `TpUD` used to be
+// among them, which excluded every hand-built workbook: it is a POHODA export
+// artifact, it is carried on the row but nothing computes with it, and a deník
+// written by hand in Excel simply has no such column.
+const REQUIRED_HEADERS: Record<string, FieldKey> = {
+  Datum: "datum",
+  Zdroj: "zdroj",
+  Číslo: "cislo",
+  Text: "text",
+  MD: "md",
+  DAL: "dal",
+  Částka: "castka",
+}
+
+const OPTIONAL_HEADERS: Record<string, FieldKey> = {
+  TpUD: "tpUD",
+  "Cizí měna": "ciziMena",
+  Středisko: "stredisko",
+  Zakázka: "zakazka",
+  Činnost: "cinnost",
+  Pársym: "parsym",
+  PárSym: "parsym",
+  Parsym: "parsym",
+  Firma: "firma",
+  Jméno: "_jmeno",
+  IČ: "ic",
+  IC: "ic",
+}
+
+const REQUIRED_HEADER_NAMES = Object.keys(REQUIRED_HEADERS)
+
+// --- XML helpers -------------------------------------------------------------
+
+// Optional element namespace prefix (Excel writes none; some tools write "x:").
+const P = "(?:[A-Za-z_][\\w.-]*:)?"
+
+function decodeXmlEntities(s: string): string {
+  return s.replace(/&(#x?[0-9A-Fa-f]+|[A-Za-z]+);/g, (whole, code: string) => {
+    if (code[0] === "#") {
+      const num =
+        code[1] === "x" || code[1] === "X"
+          ? Number.parseInt(code.slice(2), 16)
+          : Number.parseInt(code.slice(1), 10)
+      return Number.isFinite(num) && num >= 0 && num <= 0x10ffff
+        ? String.fromCodePoint(num)
+        : whole
+    }
+    switch (code) {
+      case "amp":
+        return "&"
+      case "lt":
+        return "<"
+      case "gt":
+        return ">"
+      case "quot":
+        return '"'
+      case "apos":
+        return "'"
+      default:
+        return whole
+    }
+  })
+}
+
+/** Concatenate every <t> run inside a fragment (shared-string <si> or <is>). */
+function collectText(fragment: string): string {
+  const re = new RegExp(`<${P}t\\b[^>]*>([\\s\\S]*?)</${P}t>`, "g")
+  let out = ""
+  let m: RegExpExecArray | null
+  while ((m = re.exec(fragment)) !== null) out += decodeXmlEntities(m[1] ?? "")
+  return out
+}
+
+function parseSharedStrings(xml: string): string[] {
+  const strings: string[] = []
+  const re = new RegExp(
+    `<${P}si\\b[^>]*>([\\s\\S]*?)</${P}si>|<${P}si\\b[^>]*/>`,
+    "g",
+  )
+  let m: RegExpExecArray | null
+  while ((m = re.exec(xml)) !== null) strings.push(collectText(m[1] ?? ""))
+  return strings
+}
+
+/** "B2" -> 0-based column index (B -> 1). Row part ignored; -1 if malformed. */
+function columnIndex(ref: string): number {
+  const letters = /^([A-Z]+)/.exec(ref.toUpperCase())?.[1] ?? ""
+  if (!letters) return -1
+  let index = 0
+  for (const ch of letters) {
+    index = index * 26 + (ch.charCodeAt(0) - 64)
+    if (index > 16384) return -1 // beyond the XFD column ceiling
+  }
+  return index - 1
+}
+
+function extractV(body: string): string {
+  const m = new RegExp(`<${P}v\\b[^>]*>([\\s\\S]*?)</${P}v>`).exec(body)
+  return m ? (m[1] ?? "") : ""
+}
+
+function resolveCell(
+  type: string | undefined,
+  body: string,
+  shared: string[],
+): Cell {
+  if (type === "s") {
+    const idx = Number(extractV(body))
+    return Number.isInteger(idx) ? (shared[idx] ?? null) : null
+  }
+  if (type === "inlineStr") {
+    return collectText(body) || null
+  }
+  const raw = extractV(body)
+  if (raw === "") return null
+  if (type === undefined || type === "n") {
+    const num = Number(raw)
+    return Number.isFinite(num) ? num : decodeXmlEntities(raw)
+  }
+  // t="str" (cached formula string), t="b", t="e" -> keep as text.
+  return decodeXmlEntities(raw)
+}
+
+/** Rebuild the sheet as a dense row-major grid, honoring r="A1" cell refs. */
+function parseSheet(xml: string, shared: string[]): Cell[][] {
+  const grid: Cell[][] = []
+  const rowRe = new RegExp(
+    `<${P}row\\b[^>]*>([\\s\\S]*?)</${P}row>|<${P}row\\b[^>]*/>`,
+    "g",
+  )
+  const cellRe = new RegExp(
+    `<${P}c\\b([^>]*?)/>|<${P}c\\b([^>]*?)>([\\s\\S]*?)</${P}c>`,
+    "g",
+  )
+  let rowMatch: RegExpExecArray | null
+  while ((rowMatch = rowRe.exec(xml)) !== null) {
+    const inner = rowMatch[1] ?? ""
+    const row: Cell[] = []
+    let auto = 0
+    let cellMatch: RegExpExecArray | null
+    cellRe.lastIndex = 0
+    while ((cellMatch = cellRe.exec(inner)) !== null) {
+      const attrs = cellMatch[1] ?? cellMatch[2] ?? ""
+      const body = cellMatch[3] ?? ""
+      const refAttr = /\br="([A-Za-z]+\d+)"/.exec(attrs)?.[1]
+      const typeAttr = /\bt="([^"]+)"/.exec(attrs)?.[1]
+      const col = refAttr ? columnIndex(refAttr) : auto
+      if (col < 0) continue
+      auto = col + 1
+      const value =
+        cellMatch[1] !== undefined ? null : resolveCell(typeAttr, body, shared)
+      while (row.length < col) row.push(null)
+      row[col] = value
+    }
+    grid.push(row)
+  }
+  return grid
+}
+
+function orderedSheetFiles(files: Record<string, Uint8Array>): string[] {
+  return Object.keys(files)
+    .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
+    .sort(
+      (a, b) =>
+        Number(/sheet(\d+)\.xml$/.exec(a)?.[1] ?? 0) -
+        Number(/sheet(\d+)\.xml$/.exec(b)?.[1] ?? 0),
+    )
+}
+
+/**
+ * Map each worksheet's DISPLAY NAME to its part inside the zip.
+ *
+ * `xl/workbook.xml` lists `<sheet name="Deník" r:id="rId1"/>`, and
+ * `xl/_rels/workbook.xml.rels` resolves that rId to `worksheets/sheetN.xml`.
+ * The sheetN numbering is NOT the tab order and NOT stable, so a workbook whose
+ * tabs were reordered would otherwise hand back the wrong grid. When the rels
+ * part is missing or unreadable the caller still gets the sheets in file order,
+ * which is what the single-sheet path always relied on.
+ */
+function sheetNameToFile(
+  files: Record<string, Uint8Array>,
+): Map<string, string> {
+  const out = new Map<string, string>()
+  const workbook = files["xl/workbook.xml"]
+  const rels = files["xl/_rels/workbook.xml.rels"]
+  if (!workbook) return out
+
+  const relTargets = new Map<string, string>()
+  if (rels) {
+    const relXml = strFromU8(rels)
+    const re = /<Relationship\b[^>]*>/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(relXml)) !== null) {
+      const tag = m[0]
+      const id = /\bId="([^"]+)"/.exec(tag)?.[1]
+      const target = /\bTarget="([^"]+)"/.exec(tag)?.[1]
+      if (!id || !target) continue
+      const clean = target.replace(/^\/?xl\//, "").replace(/^\.\//, "")
+      relTargets.set(id, `xl/${clean}`)
+    }
+  }
+
+  const wbXml = strFromU8(workbook)
+  const sheetRe = new RegExp(`<${P}sheet\\b[^>]*/?>`, "g")
+  let sm: RegExpExecArray | null
+  let index = 0
+  const ordered = orderedSheetFiles(files)
+  while ((sm = sheetRe.exec(wbXml)) !== null) {
+    const tag = sm[0]
+    const name = /\bname="([^"]*)"/.exec(tag)?.[1]
+    if (name === undefined) continue
+    const rid = /\br:id="([^"]+)"/.exec(tag)?.[1]
+    // Fall back to positional order when the rels part did not resolve.
+    const file =
+      (rid ? relTargets.get(rid) : undefined) ?? ordered[index] ?? undefined
+    index += 1
+    // A hidden tab still occupies its slot in the positional fallback, but must
+    // never be MATCHED by name: accountants keep hidden last-year backups called
+    // "Deník", and the first match in workbook order would silently win over the
+    // visible sheet the user is looking at.
+    if (/\bstate="(?:hidden|veryHidden)"/.test(tag)) continue
+    if (file && files[file]) out.set(decodeXmlEntities(name), file)
+  }
+  return out
+}
+
+/**
+ * Fold a tab name so "Účetní deník", "ucetni denik", "DENÍK" and
+ * "1-BDN-Ucetni-denik" all reduce to something comparable: case and diacritics
+ * go, and the separators a real workbook uses to prefix a tab (hyphens,
+ * underscores, dots) become spaces.
+ */
+function normalizeSheetName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[-_.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/** One workbook, parsed once: every sheet's cell grid, keyed by display name. */
+export interface WorkbookSheets {
+  /** Display name (as written on the tab) → dense cell grid. */
+  grids: Map<string, Cell[][]>
+  /** Tab names in workbook order. */
+  names: string[]
+  /**
+   * False when the file could not be unzipped at all — a renamed `.xls` (OLE2)
+   * or anything that is not a zip. Distinct from "unzipped fine but has no
+   * sheets", which the caller must report differently.
+   */
+  ok: boolean
+  /**
+   * The workbook uses Excel's 1904 date system (`<workbookPr date1904="1"/>`,
+   * the Mac default for a long time). Every serial is then 1462 days later than
+   * the 1900 reading — silently four years and a day off, which lands a doklad
+   * in the wrong zdaňovací období with nothing to catch it.
+   */
+  date1904: boolean
+}
+
+/**
+ * Parse every worksheet in an XLSX. Shared by the deník, DPH-evidence and rozvrh
+ * readers so a single workbook can carry all three, unzipped and shared-string
+ * resolved exactly once.
+ */
+export function parseWorkbookSheets(buf: ArrayBuffer): WorkbookSheets {
+  const grids = new Map<string, Cell[][]>()
+  const names: string[] = []
+  let files: Record<string, Uint8Array>
+  try {
+    files = unzipSync(new Uint8Array(buf))
+  } catch {
+    return { grids, names, ok: false, date1904: false }
+  }
+  const workbook = files["xl/workbook.xml"]
+  const date1904 = workbook
+    ? /<[^>]*workbookPr\b[^>]*\bdate1904="(?:1|true)"/.test(strFromU8(workbook))
+    : false
+  const sharedEntry = files["xl/sharedStrings.xml"]
+  const shared = sharedEntry ? parseSharedStrings(strFromU8(sharedEntry)) : []
+  for (const [name, file] of sheetNameToFile(files)) {
+    const entry = files[file]
+    if (!entry) continue
+    names.push(name)
+    grids.set(name, parseSheet(strFromU8(entry), shared))
+  }
+  return { grids, names, ok: true, date1904 }
+}
+
+/**
+ * Every sheet whose tab name matches one of `accepted`.
+ *
+ * Matching is by CONTAINMENT of the folded name, not equality: a real workbook
+ * prefixes its tabs to order them and to name the company —
+ * "1-BDN-Ucetni-denik", "4-HHC-Ucetni-denik" — and an equality test misses all
+ * of them, falls back to the first sheet in the book, and reads whatever
+ * happens to be there.
+ *
+ * Returns ALL matches in workbook order, because one workbook routinely holds
+ * several companies. Silently taking the first would file one company's books
+ * under another's DIČ.
+ */
+export function findSheets(
+  sheets: WorkbookSheets,
+  accepted: readonly string[],
+): { name: string; grid: Cell[][] }[] {
+  const want = accepted.map(normalizeSheetName)
+  const out: { name: string; grid: Cell[][] }[] = []
+  for (const [name, grid] of sheets.grids) {
+    const folded = normalizeSheetName(name)
+    if (want.some((w) => folded === w || folded.includes(w))) {
+      out.push({ name, grid })
+    }
+  }
+  return out
+}
+
+/** The first matching sheet. Use `findSheets` where several are meaningful. */
+export function findSheet(
+  sheets: WorkbookSheets,
+  accepted: readonly string[],
+): { name: string; grid: Cell[][] } | undefined {
+  return findSheets(sheets, accepted)[0]
+}
+
+/**
+ * Locate the header row.
+ *
+ * A hand-built workbook opens with a title band ("ÚČETNÍ DENÍK — <firma> —
+ * <období>") and blank spacer rows, so the header is routinely several rows
+ * down. Assuming row 1 read the title as the header, reported every required
+ * column as missing, and parsed nothing at all.
+ */
+export function findHeaderRow(
+  grid: Cell[][],
+  hasAllRequired: (row: Cell[]) => boolean,
+  maxScan = 25,
+): number {
+  const limit = Math.min(grid.length, maxScan)
+  for (let i = 0; i < limit; i++) {
+    const row = grid[i]
+    if (row && hasAllRequired(row)) return i
+  }
+  return -1
+}
+
+/** Trimmed text of a cell, for header matching. */
+export function headerText(cell: Cell): string {
+  if (cell === null || cell === undefined) return ""
+  return typeof cell === "string" ? cell.trim() : String(cell).trim()
+}
+
+// --- value coercion ----------------------------------------------------------
+
+function cellString(row: Cell[], col: number | undefined): string {
+  if (col === undefined) return ""
+  const v = row[col]
+  if (v === null || v === undefined) return ""
+  return typeof v === "string" ? v.trim() : String(v)
+}
+
+/**
+ * Excel serial number -> "DD.MM.YYYY". Excel's 1900 date system with the well
+ * known 1900 leap-year bug means serial day 0 = 1899-12-30; every accounting
+ * date is well past the bug boundary so this is exact.
+ */
+export function excelSerialToDate(serial: number, date1904 = false): string {
+  const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)
+  const ms = epoch + Math.round(serial) * 86400000
+  const d = new Date(ms)
+  const dd = String(d.getUTCDate()).padStart(2, "0")
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0")
+  return `${dd}.${mm}.${d.getUTCFullYear()}`
+}
+
+function parseDatum(
+  row: Cell[],
+  col: number | undefined,
+  date1904: boolean,
+): string {
+  if (col === undefined) return ""
+  const v = row[col]
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return excelSerialToDate(v, date1904)
+  }
+  if (typeof v === "string") return v.trim()
+  return ""
+}
+
+function parseCastka(row: Cell[], col: number | undefined): number {
+  if (col === undefined) return 0
+  const v = row[col]
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0
+  if (typeof v !== "string") return 0
+  const cleaned = v.replace(/[\s ]/g, "").replace(",", ".")
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : 0
+}
+
+// --- public API --------------------------------------------------------------
+
+/** Sheet-tab names accepted for the deník, in a multi-sheet workbook. */
+const DENIK_SHEET_NAMES = [
+  "deník",
+  "denik",
+  "účetní deník",
+  "ucetni denik",
+] as const
+
+export function parseDenikXlsx(buf: ArrayBuffer): DenikParseResult {
+  // One inflate, one sheet-discovery path. Reading the zip twice (once to probe
+  // for a worksheet by filename, once through parseWorkbookSheets) let the two
+  // disagree: a workbook with worksheets but no readable xl/workbook.xml passed
+  // the probe and then reported every required column as missing, which reads to
+  // the user as "your columns are wrong" for what is a malformed file.
+  const sheets = parseWorkbookSheets(buf)
+  if (!sheets.ok) {
+    return {
+      rows: [],
+      ignoredColumns: [],
+      warnings: ["Soubor se nepodařilo rozbalit — není to platný XLSX."],
+      headerOk: false,
+      missingHeaders: REQUIRED_HEADER_NAMES,
+    }
+  }
+  if (sheets.names.length === 0) {
+    return {
+      rows: [],
+      ignoredColumns: [],
+      warnings: ["XLSX neobsahuje žádný list."],
+      headerOk: false,
+      missingHeaders: REQUIRED_HEADER_NAMES,
+    }
+  }
+
+  const warnings: string[] = []
+  // A workbook that carries the deník alongside a DPH / Rozvrh sheet is the
+  // normal shape now, so several sheets is no longer worth warning about — but
+  // a workbook with no sheet actually NAMED deník still falls back to the first
+  // one, and that guess is worth saying out loud.
+  const matches = findSheets(sheets, DENIK_SHEET_NAMES)
+  const named = matches[0]
+  const grid = named?.grid ?? sheets.grids.get(sheets.names[0] ?? "") ?? []
+  if (!named && sheets.names.length > 1) {
+    warnings.push(
+      `Sešit nemá list pojmenovaný „Deník“ — načten je první list („${sheets.names[0] ?? "?"}“).`,
+    )
+  }
+  // One workbook routinely holds several companies, each with its own deník.
+  // Taking the first without saying so would file one company's books under
+  // another's DIČ, and nothing downstream could tell.
+  if (matches.length > 1) {
+    warnings.push(
+      `Sešit obsahuje ${matches.length} deníků (${matches.map((m) => m.name).join(", ")}) — načten je „${named?.name ?? "?"}“. Ověřte, že jde o správnou účetní jednotku.`,
+    )
+  }
+
+  const ignoredColumns: string[] = []
+  // A hand-built deník opens with a title band and blank spacer rows, so the
+  // header is routinely several rows down. Reading row 1 read the title.
+  const headerRow = findHeaderRow(grid, (row) => {
+    const names = new Set(row.map(headerText))
+    return REQUIRED_HEADER_NAMES.every((n) => names.has(n))
+  })
+  const header = grid[headerRow] ?? grid[0] ?? []
+
+  // Map every header cell to a field, collecting unknown headers to ignore.
+  const cols: Partial<Record<FieldKey, number>> = {}
+  header.forEach((cell, idx) => {
+    const name = headerText(cell)
+    if (name === "") return
+    const field = REQUIRED_HEADERS[name] ?? OPTIONAL_HEADERS[name]
+    if (field === undefined) {
+      ignoredColumns.push(name)
+      return
+    }
+    if (cols[field] === undefined) cols[field] = idx
+  })
+
+  const missingHeaders = REQUIRED_HEADER_NAMES.filter(
+    (name) => cols[REQUIRED_HEADERS[name] as FieldKey] === undefined,
+  )
+  if (missingHeaders.length > 0) {
+    return {
+      rows: [],
+      ignoredColumns,
+      warnings,
+      headerOk: false,
+      missingHeaders,
+    }
+  }
+
+  const rows: DenikRow[] = []
+  for (let r = Math.max(headerRow, 0) + 1; r < grid.length; r++) {
+    const gridRow = grid[r]
+    if (!gridRow) continue
+
+    const datum = parseDatum(gridRow, cols.datum, sheets.date1904)
+    const tpUD = cellString(gridRow, cols.tpUD)
+    const zdroj = cellString(gridRow, cols.zdroj)
+    const cislo = cellString(gridRow, cols.cislo)
+    const text = cellString(gridRow, cols.text)
+    const md = cellString(gridRow, cols.md)
+    const dal = cellString(gridRow, cols.dal)
+    const castka = parseCastka(gridRow, cols.castka)
+
+    // Skip fully-empty rows (padding rows carry only style, no values).
+    if (
+      datum === "" &&
+      tpUD === "" &&
+      zdroj === "" &&
+      cislo === "" &&
+      text === "" &&
+      md === "" &&
+      dal === "" &&
+      castka === 0
+    ) {
+      continue
+    }
+
+    const firma =
+      cellString(gridRow, cols.firma) || cellString(gridRow, cols._jmeno)
+    const row: DenikRow = { datum, tpUD, zdroj, cislo, text, md, dal, castka }
+    const ciziMena = cellString(gridRow, cols.ciziMena)
+    if (ciziMena) row.ciziMena = ciziMena
+    const stredisko = cellString(gridRow, cols.stredisko)
+    if (stredisko) row.stredisko = stredisko
+    const zakazka = cellString(gridRow, cols.zakazka)
+    if (zakazka) row.zakazka = zakazka
+    const cinnost = cellString(gridRow, cols.cinnost)
+    if (cinnost) row.cinnost = cinnost
+    const parsym = cellString(gridRow, cols.parsym)
+    if (parsym) row.parsym = parsym
+    if (firma) row.firma = firma
+    const ic = cellString(gridRow, cols.ic)
+    if (ic) row.ic = ic
+
+    rows.push(row)
+  }
+
+  return { rows, ignoredColumns, warnings, headerOk: true, missingHeaders: [] }
+}
+
+// --- CSV template + import ----------------------------------------------------
+// A clean, minimal deník shape (no POHODA státní-správa noise). Semicolon-
+// delimited (Czech Excel default), UTF-8 with BOM. Header matched by name, so
+// column order and extra columns don't matter; only Datum / MD / DAL / Částka
+// are required.
+
+/** Ordered columns of the downloadable CSV template. */
+const DENIK_CSV_TEMPLATE_HEADERS = [
+  "Datum",
+  "Číslo",
+  "Zdroj",
+  "Text",
+  "MD",
+  "DAL",
+  "Částka",
+  "PárSym",
+  "Firma",
+  "IČ",
+] as const
+
+/** CSV header name -> DenikRow field (accepts a few spelling variants). */
+const CSV_HEADERS: Record<string, FieldKey> = {
+  Datum: "datum",
+  Číslo: "cislo",
+  Zdroj: "zdroj",
+  Text: "text",
+  MD: "md",
+  DAL: "dal",
+  Dal: "dal",
+  Částka: "castka",
+  PárSym: "parsym",
+  Pársym: "parsym",
+  Firma: "firma",
+  Jméno: "_jmeno",
+  IČ: "ic",
+  Středisko: "stredisko",
+  Zakázka: "zakazka",
+  Činnost: "cinnost",
+}
+
+const CSV_REQUIRED_NAMES = ["Datum", "MD", "DAL", "Částka"]
+
+/** The template as a ready-to-download CSV string (BOM + header + 2 examples). */
+export function denikCsvTemplate(): string {
+  const header = DENIK_CSV_TEMPLATE_HEADERS.join(";")
+  const examples = [
+    [
+      "01.01.2025",
+      "",
+      "Počáteční stavy účtů",
+      "Počáteční stav rozvahových účtů",
+      "221000",
+      "701000",
+      "100000",
+      "",
+      "",
+      "",
+    ],
+    [
+      "15.01.2025",
+      "FP2025001",
+      "Přijaté faktury",
+      "Nákup materiálu",
+      "501000",
+      "321000",
+      "12100",
+      "2025001",
+      "Dodavatel s.r.o.",
+      "12345678",
+    ],
+  ]
+  const lines = [header, ...examples.map((r) => r.join(";"))]
+  return `\uFEFF${lines.join("\r\n")}\r\n`
+}
+
+function castkaFromString(v: string): number {
+  const cleaned = v.replace(/[\s ]/g, "").replace(",", ".")
+  if (cleaned === "" || cleaned === "-" || cleaned === "+") return 0
+  const n = Number(cleaned)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** Parse the clean deník CSV (the downloadable template's shape). */
+export function parseDenikCsv(text: string): DenikParseResult {
+  const warnings: string[] = []
+  const ignoredColumns: string[] = []
+  const clean = text.replace(/^\uFEFF/, "")
+  const rawLines = clean.split(/\r\n|\n|\r/)
+  const headerLine = rawLines[0] ?? ""
+  if (headerLine.trim() === "") {
+    return {
+      rows: [],
+      ignoredColumns,
+      warnings: ["Prázdný soubor."],
+      headerOk: false,
+      missingHeaders: CSV_REQUIRED_NAMES,
+    }
+  }
+
+  const delim = detectDelimiter(headerLine)
+  const header = splitCsvLine(headerLine, delim).map((h) => h.trim())
+  const cols: Partial<Record<FieldKey, number>> = {}
+  header.forEach((name, idx) => {
+    if (name === "") return
+    const field = CSV_HEADERS[name]
+    if (field === undefined) {
+      ignoredColumns.push(name)
+      return
+    }
+    if (cols[field] === undefined) cols[field] = idx
+  })
+
+  const missingHeaders = CSV_REQUIRED_NAMES.filter(
+    (name) => cols[CSV_HEADERS[name] as FieldKey] === undefined,
+  )
+  if (missingHeaders.length > 0) {
+    return {
+      rows: [],
+      ignoredColumns,
+      warnings,
+      headerOk: false,
+      missingHeaders,
+    }
+  }
+
+  const at = (fields: string[], col: number | undefined): string =>
+    col === undefined ? "" : (fields[col] ?? "").trim()
+
+  const rows: DenikRow[] = []
+  for (let i = 1; i < rawLines.length; i++) {
+    const line = rawLines[i]
+    if (line === undefined || line.trim() === "") continue
+    const f = splitCsvLine(line, delim)
+
+    const datum = at(f, cols.datum)
+    const zdroj = at(f, cols.zdroj)
+    const cislo = at(f, cols.cislo)
+    const text2 = at(f, cols.text)
+    const md = at(f, cols.md)
+    const dal = at(f, cols.dal)
+    const castka = castkaFromString(at(f, cols.castka))
+
+    if (
+      datum === "" &&
+      zdroj === "" &&
+      cislo === "" &&
+      text2 === "" &&
+      md === "" &&
+      dal === "" &&
+      castka === 0
+    ) {
+      continue
+    }
+
+    const row: DenikRow = {
+      datum,
+      tpUD: "",
+      zdroj,
+      cislo,
+      text: text2,
+      md,
+      dal,
+      castka,
+    }
+    const firma = at(f, cols.firma) || at(f, cols._jmeno)
+    if (firma) row.firma = firma
+    const parsym = at(f, cols.parsym)
+    if (parsym) row.parsym = parsym
+    const ic = at(f, cols.ic)
+    if (ic) row.ic = ic
+    const stredisko = at(f, cols.stredisko)
+    if (stredisko) row.stredisko = stredisko
+    const zakazka = at(f, cols.zakazka)
+    if (zakazka) row.zakazka = zakazka
+    const cinnost = at(f, cols.cinnost)
+    if (cinnost) row.cinnost = cinnost
+
+    rows.push(row)
+  }
+
+  return { rows, ignoredColumns, warnings, headerOk: true, missingHeaders: [] }
+}

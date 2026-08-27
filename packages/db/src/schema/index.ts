@@ -32,6 +32,7 @@ export * from "./accounting_size"
 export * from "./vat_regime"
 export * from "./currency"
 export * from "./country"
+export * from "./party_kind"
 export * from "./business_activity"
 export * from "./account_group"
 export * from "./directive_account"
@@ -45,6 +46,14 @@ export * from "./organization_business_activity"
 export * from "./accounting_period"
 export * from "./vat_status"
 export * from "./counterparty"
+
+// adresar (Directories) — party foundation: workspace-tier child detail tables
+// (0088) + org-tier org↔party relationship (0089)
+export * from "./party_address"
+export * from "./party_contact"
+export * from "./party_bank_account"
+export * from "./party_identifier"
+export * from "./party_relationship"
 
 // org config satellites (0042_org_config)
 export * from "./organization_authorized_person"

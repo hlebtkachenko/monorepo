@@ -39,13 +39,42 @@ export default defineConfig({
     },
   },
   test: {
-    environment: "node",
-    include: ["app/**/*.test.ts", "lib/**/*.test.ts", "tests/**/*.test.ts"],
-    globalSetup: ["./tests/global-setup.ts"],
-    testTimeout: 60_000,
-    hookTimeout: 120_000,
-    sequence: { concurrent: false },
-    fileParallelism: false,
-    pool: "forks",
+    projects: [
+      {
+        // Pure client-side logic (the /vykazy builder): no DB, no container.
+        // Splitting these out means a change to a statement projection is
+        // verified in under a second instead of waiting 10-20s for Postgres to
+        // boot for tests that never touch it.
+        extends: true,
+        test: {
+          name: "pure",
+          environment: "node",
+          include: ["app/vykazy/**/*.test.ts", "app/fakturace/**/*.test.ts"],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "db",
+          environment: "node",
+          include: [
+            "app/**/*.test.ts",
+            "lib/**/*.test.ts",
+            "tests/**/*.test.ts",
+          ],
+          exclude: [
+            "**/node_modules/**",
+            "app/vykazy/**/*.test.ts",
+            "app/fakturace/**/*.test.ts",
+          ],
+          globalSetup: ["./tests/global-setup.ts"],
+          testTimeout: 60_000,
+          hookTimeout: 120_000,
+          sequence: { concurrent: false },
+          fileParallelism: false,
+          pool: "forks",
+        },
+      },
+    ],
   },
 })

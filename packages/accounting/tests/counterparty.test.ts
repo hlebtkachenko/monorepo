@@ -69,6 +69,33 @@ async function fieldsOf(
   return r[0]!
 }
 
+async function partyFieldsOf(
+  db: OrganizationBoundDb,
+  id: string,
+): Promise<{
+  party_kind_code: string | null
+  legal_name: string | null
+  display_name: string | null
+  legal_form_code: string | null
+  data_box_id: string | null
+  archived_at: string | null
+}> {
+  const r = await executeRows<{
+    party_kind_code: string | null
+    legal_name: string | null
+    display_name: string | null
+    legal_form_code: string | null
+    data_box_id: string | null
+    archived_at: string | null
+  }>(
+    db,
+    sql`SELECT party_kind_code, legal_name, display_name,
+                legal_form_code, data_box_id, archived_at
+           FROM counterparty WHERE id = ${id}::uuid`,
+  )
+  return r[0]!
+}
+
 describe("resolveCounterparty", () => {
   it("creates by IČO once, then returns the same row (idempotent, no duplicate)", async () => {
     await withOrganization(orgA, userId, async (db) => {
@@ -317,6 +344,155 @@ describe("createEvent — counterparty identity seam", () => {
       expect(r[0]!.counterparty_id).toBe(explicit)
       // the ignored identity was never created
       expect(await countByIco(db, "10000008")).toBe(0)
+    })
+  })
+})
+
+describe("counterparty party-identity overlay (adresar M1)", () => {
+  it("seeds the five party kinds with their NATURAL/LEGAL person_type", async () => {
+    await withOrganization(orgA, userId, async (db) => {
+      const rows = await executeRows<{ code: string; person_type: string }>(
+        db,
+        sql`SELECT code, person_type::text AS person_type FROM party_kind ORDER BY code`,
+      )
+      const byCode = Object.fromEntries(
+        rows.map((r) => [r.code, r.person_type]),
+      )
+      expect(rows).toHaveLength(5)
+      expect(byCode).toEqual({
+        LEGAL_ENTITY: "LEGAL",
+        SOLE_TRADER: "NATURAL",
+        NATURAL_PERSON: "NATURAL",
+        PUBLIC_AUTHORITY: "LEGAL",
+        NON_PROFIT: "LEGAL",
+      })
+    })
+  })
+
+  it("stores the identity overlays; active is derived (archived_at IS NULL)", async () => {
+    await withOrganization(orgA, userId, async (db) => {
+      const codeRows = await executeRows<{ code: string }>(
+        db,
+        sql`SELECT code FROM legal_form LIMIT 1`,
+      )
+      const legalFormCode = codeRows[0]!.code
+      const inserted = await executeRows<{ id: string }>(
+        db,
+        sql`INSERT INTO counterparty
+              (workspace_id, name, party_kind_code, legal_name, display_name,
+               legal_form_code, data_box_id, verification_source)
+            VALUES (${workspaceId}::uuid, 'Overlay Co', 'LEGAL_ENTITY',
+                    'Overlay Co s.r.o.', 'Overlay', ${legalFormCode}, 'a1b2c3d', 'ARES')
+            RETURNING id`,
+      )
+      const f = await partyFieldsOf(db, inserted[0]!.id)
+      expect(f.party_kind_code).toBe("LEGAL_ENTITY")
+      expect(f.legal_name).toBe("Overlay Co s.r.o.")
+      expect(f.display_name).toBe("Overlay")
+      expect(f.legal_form_code).toBe(legalFormCode)
+      expect(f.data_box_id).toBe("a1b2c3d")
+      expect(f.archived_at).toBeNull() // NULL = active
+    })
+  })
+
+  // A constraint violation aborts the whole Postgres transaction, so each
+  // expected-to-fail insert runs in its OWN withOrganization (its own tx) — a
+  // shared tx would poison every later statement with "transaction is aborted".
+  it("rejects a party_kind_code that is not a seeded kind (FK)", async () => {
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        executeRows(
+          db,
+          sql`INSERT INTO counterparty (workspace_id, name, party_kind_code)
+              VALUES (${workspaceId}::uuid, 'Bad Kind Co', 'NOT_A_KIND')`,
+        ),
+      ),
+    ).rejects.toThrow()
+  })
+
+  it("rejects a legal_form_code that is not a real legal form (FK)", async () => {
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        executeRows(
+          db,
+          sql`INSERT INTO counterparty (workspace_id, name, legal_form_code)
+              VALUES (${workspaceId}::uuid, 'Bad FK Co', 'NOT_A_REAL_FORM_XYZ')`,
+        ),
+      ),
+    ).rejects.toThrow()
+  })
+
+  it("enforces the 7-char lowercase data_box_id format, allowing NULL", async () => {
+    // too short → CHECK violation
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        executeRows(
+          db,
+          sql`INSERT INTO counterparty (workspace_id, name, data_box_id)
+              VALUES (${workspaceId}::uuid, 'Short Box', 'abc12')`,
+        ),
+      ),
+    ).rejects.toThrow()
+    // uppercase → CHECK violation (canonical form is lowercase)
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        executeRows(
+          db,
+          sql`INSERT INTO counterparty (workspace_id, name, data_box_id)
+              VALUES (${workspaceId}::uuid, 'Upper Box', 'ABC1234')`,
+        ),
+      ),
+    ).rejects.toThrow()
+    // a 7-char lowercase id passes (own tx)
+    const ok = await withOrganization(orgA, userId, (db) =>
+      executeRows<{ id: string }>(
+        db,
+        sql`INSERT INTO counterparty (workspace_id, name, data_box_id)
+            VALUES (${workspaceId}::uuid, 'Good Box', 'zyx9876')
+            RETURNING id`,
+      ),
+    )
+    expect(ok[0]!.id).toBeTruthy()
+  })
+
+  it("constrains verification_source to the MANUAL/ARES/CRPDPH set", async () => {
+    await expect(
+      withOrganization(orgA, userId, (db) =>
+        executeRows(
+          db,
+          sql`INSERT INTO counterparty (workspace_id, name, verification_source)
+              VALUES (${workspaceId}::uuid, 'Bad Source', 'GUESS')`,
+        ),
+      ),
+    ).rejects.toThrow()
+  })
+
+  it("resolveCounterparty never touches the identity overlays (dedup invariant)", async () => {
+    await withOrganization(orgA, userId, async (db) => {
+      const ctx = { organizationId: orgA, workspaceId }
+      const id = await resolveCounterparty(db, ctx, {
+        name: "Curated s.r.o.",
+        ico: "10000020",
+      })
+      // curate Directories overlays directly on the row
+      await executeRows(
+        db,
+        sql`UPDATE counterparty
+               SET party_kind_code = 'LEGAL_ENTITY',
+                   legal_name = 'Curated s.r.o. (official)',
+                   display_name = 'Curated'
+             WHERE id = ${id}::uuid`,
+      )
+      // a later booker resolve (same IČO) back-fills name/country ONLY — never the overlays
+      await resolveCounterparty(db, ctx, {
+        name: "Different Write",
+        ico: "10000020",
+        countryCode: "CZ",
+      })
+      const f = await partyFieldsOf(db, id)
+      expect(f.party_kind_code).toBe("LEGAL_ENTITY")
+      expect(f.legal_name).toBe("Curated s.r.o. (official)")
+      expect(f.display_name).toBe("Curated")
     })
   })
 })

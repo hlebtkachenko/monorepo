@@ -40,6 +40,23 @@ import {
   type DppoTaxpayerCategory,
 } from "./annual-rules"
 
+/**
+ * Syntetické účty that sit BELOW "** Výsledek hospodaření před zdaněním" on the
+ * VZZ, so they must not reduce DPPO ř.10: the daň z příjmů (590/591/592/595 and
+ * 599, the rezerva na daň z příjmů) and 596, položka "M. Převod podílu na
+ * výsledku hospodaření společníkům".
+ *
+ * The rest of skupina 59, i.e. the převodové účty 597 a 598, DOES belong in the
+ * result: they cancel against their 697 / 698 counterparts, which are třída 6
+ * and therefore counted as výnos. Dropping the whole skupina would keep 697/698
+ * while losing 597/598 and inflate ř.10 by the transfer amount.
+ *
+ * Matched on `synthetic_code`, not `number`, so an analytical 591.001 is caught
+ * too. Kept in sync with `BELOW_VYSLEDEK_PRED_ZDANENIM` in
+ * `apps/web/app/vykazy/dppo/_lib/dppo-bridge.ts`.
+ */
+const BELOW_VYSLEDEK_PRED_ZDANENIM = ["590", "591", "592", "595", "596", "599"]
+
 export interface DppoInput {
   taxpayerCategory?: DppoTaxpayerCategory
   /** Daňově neuznatelné náklady per §25 (added back to the base). */
@@ -139,8 +156,14 @@ export async function buildDppo(
   }>(
     db,
     sql`SELECT p.period_start, p.period_end,
+               -- ř.10 = výsledek hospodaření PŘED zdaněním, so the náklady sum
+               -- drops exactly what the VZZ reports BELOW "** Výsledek
+               -- hospodaření před zdaněním": the daň z příjmů (590/591/592/595
+               -- and 599, the rezerva na daň) and 596 "Převod podílu na výsledku
+               -- hospodaření společníkům". Without this, a booked 591/592
+               -- balance would turn ř.10 into VH po zdanění.
                (COALESCE(SUM(-b.closing_balance) FILTER (WHERE a.nature = 'REVENUE'), 0)
-                - COALESCE(SUM(b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE'), 0))::numeric(19,4)
+                - COALESCE(SUM(b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE' AND a.synthetic_code NOT IN ${BELOW_VYSLEDEK_PRED_ZDANENIM}), 0))::numeric(19,4)
                  AS accounting_result
           FROM accounting_period p
           LEFT JOIN account_period_balance b ON b.period_id = p.id
@@ -223,10 +246,13 @@ export async function buildDppo(
     db,
     sql`
       WITH result AS (
-        -- účetní výsledek = Σ výnosy − Σ náklady, from the read-model closing balances
+        -- účetní výsledek PŘED zdaněním = Σ výnosy − Σ náklady, from the read-model
+        -- closing balances. Náklady exclude the accounts the VZZ reports below
+        -- "** Výsledek hospodaření před zdaněním" so ř.10 is before-tax
+        -- (matches the header query above).
         SELECT
           COALESCE(SUM(-b.closing_balance) FILTER (WHERE a.nature = 'REVENUE'), 0)::numeric AS vynosy,
-          COALESCE(SUM( b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE'), 0)::numeric AS naklady
+          COALESCE(SUM( b.closing_balance) FILTER (WHERE a.nature = 'EXPENSE' AND a.synthetic_code NOT IN ${BELOW_VYSLEDEK_PRED_ZDANENIM}), 0)::numeric AS naklady
           FROM account_period_balance b
           JOIN account a ON a.id = b.account_id
          WHERE b.period_id = ${periodId}::uuid

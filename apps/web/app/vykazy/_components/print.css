@@ -1,0 +1,143 @@
+/* Print styling for the Výkazy builder. On screen everything shows; on print
+   only the statement + its header remain, laid out for A4 like the paper form. */
+
+@media screen {
+  .print-only {
+    display: none;
+  }
+
+  /* Hidden replica of a statement table, laid out at exactly the print geometry.
+     Its measured row heights decide the page breaks — see
+     ../_lib/print-pagination.ts. Kept in the layout (not display:none) because a
+     display:none subtree has no measurable height, and parked far off-screen so
+     it is never seen or interactive.
+
+     The WIDTH is set in CSS px by the component, not here: it is the printed
+     table's own width, 526.24pt, which Safari lays out at a faithful 96dpi. The
+     HEIGHTS it measures are not scaled that way — Safari rounds every vertical
+     box edge up onto a 1/90in grid — which is why print-pagination.ts rebuilds a
+     row's printed height from its parts instead of scaling the measurement. */
+  .print-metrics {
+    position: absolute;
+    top: 0;
+    left: -20000px;
+    pointer-events: none;
+    visibility: hidden;
+  }
+
+  .print-metrics .predvaha-table {
+    font-size: 7pt;
+  }
+
+  /* The statement itself is a tiskopis: it stays black-on-white paper even when
+     the surrounding app chrome is in dark mode, so what is on screen is what
+     prints. Only the chrome follows the theme. */
+  .vykaz-paper {
+    background: #ffffff;
+    color: #000000;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  }
+}
+
+@media print {
+  .vykaz-paper {
+    padding: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  /* Force the white paper surface and black text regardless of theme. */
+  html,
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  /* Screen-only chrome (toolbar, org form, deník panel, nav links) is hidden. */
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block;
+  }
+
+  /* Drop shell padding so the form uses the full printable width. */
+  .vykaz-page {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  /* Each statement section starts on its own page; the first has no break. */
+  .vykaz-statement + .vykaz-statement {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* Keep the identification footer intact and with the last page's content. */
+  .vykaz-footer {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 8mm;
+  }
+
+  /* Fit ALL columns within the A4 width via a fixed table + <colgroup>.
+     The width is 1pt short of the box on purpose. Measured in a Safari print of
+     the rozvaha: the page content box is laid out 34.5000–561.9414pt wide but
+     CLIPPED at 34.5000–561.1992pt, 0.7422pt (one CSS px) narrower. A table at a
+     full 100% puts its right border at 561.19–561.94pt, entirely inside that
+     shaved strip, so the whole right edge of the table prints missing while the
+     left border — drawn inward from 34.50 — survives. Reserving 1pt moves the
+     border back inside the clip and is 0.5% of one column, invisible. */
+  .vykaz-table {
+    width: calc(100% - 1pt);
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 9pt;
+  }
+
+  /* The measuring replica is a screen-only device. */
+  .print-metrics {
+    display: none !important;
+  }
+
+  /* Pagination. The rows were already chunked into pages in the component (see
+     ../_lib/print-pagination.ts) because Safari honours neither
+     `break-inside: avoid` on a <tr> nor a repeating thead, so each .print-page
+     holds one complete table that fits A4 and starts on a fresh sheet. Nothing
+     keys off a fixed row index — the chunk sizes come from measured heights.
+
+     No outer table border: a border box cannot close at a page break and leaves
+     the table looking torn. Every cell draws its own box instead. */
+  .print-page + .print-page {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  /* A row is never split: if it does not fit the sheet it moves to the next one
+     whole. Safari ignores this on a <tr>, which is why each printed row is its
+     own <tbody> — a row GROUP it does honour. The chunking above should mean it
+     never comes to this, but a label that wraps one line further on paper than
+     in the measurement must cost a page break, not a torn row. */
+  .vykaz-table tbody,
+  .vykaz-table tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* The obratová předvaha has 9 columns (2 label + 7 numeric) — drop to the
+     smallest legible size so all fit the A4 portrait width. Printing in celých
+     tisících (the shared unit toggle) is what keeps the numbers short enough. */
+  .predvaha-table {
+    font-size: 7pt;
+  }
+}

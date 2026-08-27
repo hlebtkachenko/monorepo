@@ -32,6 +32,22 @@ export const Dphdp3HeaderSchema = z.object({
   zdobd_do: z.string().optional(),
   /** Převažující ekonomická činnost (CZ-NACE), digits. */
   c_okec: z.string().optional(),
+  /** Datum podání. */
+  d_poddp: z.string().optional(),
+  /**
+   * Den zjištění důvodů pro podání dodatečného přiznání. Required when
+   * `dapdph_forma` is "D" (dodatečné) or "E" — §141 DŘ runs the lhůta from the
+   * end of the month in which the grounds were discovered, so EPO treats it as
+   * "pro další zpracování nezbytné". Not used for "O" (opravné), which is filed
+   * inside the original lhůta under §138 DŘ.
+   */
+  d_zjist: z.string().optional(),
+  /** Kód zdaňovacího období. */
+  kod_zo: z.string().optional(),
+  /** Transakce. */
+  trans: z.string().optional(),
+  /** Datum porušení / dodání (form-specific). */
+  d_por_dod: z.string().optional(),
 })
 
 /** VetaP — poplatník. */

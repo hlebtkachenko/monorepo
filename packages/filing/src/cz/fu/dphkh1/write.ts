@@ -24,6 +24,10 @@ function vetaD(h: Dphkh1Header): XmlNode {
     ctvrt: h.ctvrt,
     zdobd_od: epoDate(h.zdobd_od),
     zdobd_do: epoDate(h.zdobd_do),
+    d_poddp: epoDate(h.d_poddp),
+    d_zjist: epoDate(h.d_zjist),
+    c_jed_vyzvy: h.c_jed_vyzvy,
+    vyzva_odp: h.vyzva_odp,
   })
 }
 

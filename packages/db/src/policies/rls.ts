@@ -40,7 +40,7 @@
  *     tables get ENABLE (not FORCE) RLS so the SECURITY DEFINER maintenance
  *     trigger writes through (0034 §3). Not in this org-isolation list.
  *   - regime, legal_form, legal_form_allowed_regime, accounting_size,
- *     vat_regime, currency, country, business_activity, account_group,
+ *     vat_regime, currency, country, party_kind, business_activity, account_group,
  *     directive_account, depreciation_group, payment_method, payment_form,
  *     financial_institution, constant_symbol — reference (system/law) tables,
  *     shared across all tenants, no RLS.
@@ -99,6 +99,9 @@ export const ORGANIZATION_SCOPED_TABLES = [
   // Finance domain — per-org currency enablement (0078_org_currency.sql). The
   // shared currency catalog is Case-B (no RLS), so it is NOT listed here.
   "org_currency",
+  // adresar (Directories) — org↔party relationship (0089_party_relationship.sql).
+  // Carries workspace_id only to close the cross-tier FK-bypass via composite FKs.
+  "party_relationship",
 ] as const
 
 export type OrganizationScopedTable =
@@ -134,6 +137,12 @@ export type OrganizationScopedTable =
  */
 export const WORKSPACE_SCOPED_TABLES = [
   "counterparty",
+  // adresar (Directories) — counterparty child detail tables (0088), each with
+  // 4 command policies on workspace_id and a composite FK to counterparty.
+  "party_address",
+  "party_contact",
+  "party_bank_account",
+  "party_identifier",
   "ocr_extraction_template",
   "brain_confident_wrong",
   "booking_template",

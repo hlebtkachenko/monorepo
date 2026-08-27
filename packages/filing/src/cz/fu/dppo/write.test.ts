@@ -233,3 +233,55 @@ describe("computeDppoTotals", () => {
     expect(d.r340).toBe("0")
   })
 })
+
+describe("XSD sequence of the přílohy", () => {
+  it("re-orders extraVety however the callers appended them", () => {
+    // The invariant used to live in three builders and hold only by comment.
+    // Half the VetaUB/VetaUD bug was that ordering obligation being violated,
+    // so the writer now owns it: hand it a deliberately scrambled array.
+    const xml = generateDppo({
+      header: { typ_dapdpp: "A", typ_zo: "A", typ_popldpp: "1", c_ufo_cil: "451", zdobd_od: "1.1.2025", zdobd_do: "31.12.2025" }, // prettier-ignore
+      extraVety: [
+        { tag: "VetaUZ", attrs: { pr11_rozv: "A" } },
+        { tag: "VetaUD", attrs: { c_radku: "1" } },
+        { tag: "VetaUA", attrs: { c_radku: "1" } },
+        { tag: "VetaE", attrs: { kc_dpp_a12: "1" } },
+        { tag: "VetaUB", attrs: { c_radku: "1" } },
+      ],
+    })
+    const order = [...xml.matchAll(/<(Veta[A-Z0-9]+)/g)].map((m) => m[1])
+    expect(order).toEqual([
+      "VetaD",
+      "VetaO",
+      "VetaE",
+      "VetaUA",
+      "VetaUB",
+      "VetaUD",
+      "VetaUZ",
+    ])
+  })
+
+  it("keeps rows of one věta in the order their builder produced", () => {
+    // Sort must be stable: c_radku order inside a table is the builder's.
+    const xml = generateDppo({
+      header: { typ_dapdpp: "A", typ_zo: "A", typ_popldpp: "1", c_ufo_cil: "451", zdobd_od: "1.1.2025", zdobd_do: "31.12.2025" }, // prettier-ignore
+      extraVety: [
+        { tag: "VetaUB", attrs: { c_radku: "49" } },
+        { tag: "VetaUB", attrs: { c_radku: "6" } },
+      ],
+    })
+    expect([...xml.matchAll(/c_radku="(\d+)"/g)].map((m) => m[1])).toEqual(["49", "6"]) // prettier-ignore
+  })
+
+  it("puts a věta this version does not know at the end", () => {
+    const xml = generateDppo({
+      header: { typ_dapdpp: "A", typ_zo: "A", typ_popldpp: "1", c_ufo_cil: "451", zdobd_od: "1.1.2025", zdobd_do: "31.12.2025" }, // prettier-ignore
+      extraVety: [
+        { tag: "VetaZZZ", attrs: { x: "1" } },
+        { tag: "VetaUA", attrs: { c_radku: "1" } },
+      ],
+    })
+    const order = [...xml.matchAll(/<(Veta[A-Z0-9]+)/g)].map((m) => m[1])
+    expect(order.at(-1)).toBe("VetaZZZ")
+  })
+})

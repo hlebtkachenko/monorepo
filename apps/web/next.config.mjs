@@ -53,7 +53,13 @@ const nextConfig = {
     "@workspace/observability",
     "@workspace/shared",
     "@workspace/email",
+    "@workspace/filing",
   ],
+  // xmllint-wasm loads xmllint.wasm from its own package directory at runtime.
+  // Bundled, that path is rewritten to the build root and the XSD validator dies
+  // with `ENOENT ... /ROOT/node_modules/.../xmllint.wasm`, which is what broke
+  // the DPPO filing. Kept external so the require resolves in node_modules.
+  serverExternalPackages: ["xmllint-wasm"],
   output: "standalone",
   poweredByHeader: false,
   // Site-wide security headers (H1). proxy.ts still sets the stricter

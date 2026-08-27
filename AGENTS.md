@@ -209,7 +209,7 @@ Current custom checks:
 - `openfga-version-check.yml` — OpenFGA + pgbouncer + cloudflared pinned image versions
 - `tool-versions-check.yml` — monthly: pnpm `packageManager` pin, CI tool binaries (gitleaks, infisical, trufflehog, actionlint, fga, cerbos, squawk), e2e postgres digest pin
 - `isdoc-schema-check.yml` — vendored ISDOC 6.0.1 XSD (`packages/filing/schemas/isdoc/`)
-- `fu-epo-schema-check.yml` — vendored FÚ EPO XSDs (`packages/filing/schemas/fu/`: DPHDP3, DPHKH1, DPPO/DPPDP9)
+- `fu-epo-schema-check.yml` — vendored FÚ EPO XSDs (`packages/filing/schemas/fu/`: DPHDP3, DPHKH1, DPHSHV, DPPO/DPPDP9)
 
 ## Code Standards
 

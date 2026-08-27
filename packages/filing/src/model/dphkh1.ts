@@ -21,6 +21,19 @@ export const Dphkh1HeaderSchema = z.object({
   ctvrt: z.string().optional(),
   zdobd_od: z.string().optional(),
   zdobd_do: z.string().optional(),
+  /** Datum podání. */
+  d_poddp: z.string().optional(),
+  /**
+   * Den zjištění důvodů pro podání následného kontrolního hlášení. On forma "N"
+   * either this or `c_jed_vyzvy` must be filled — a následné KH is filed either
+   * on the plátce's own discovery or in response to a výzva (§101f/1 ZDPH,
+   * 5 pracovních dnů).
+   */
+  d_zjist: z.string().optional(),
+  /** Číslo jednací výzvy správce daně, when the následné KH answers a výzva. */
+  c_jed_vyzvy: z.string().optional(),
+  /** Odpověď na výzvu (kód). */
+  vyzva_odp: z.string().optional(),
 })
 
 /** VetaP — poplatník (same identity shape as DPHDP3). */

@@ -64,6 +64,21 @@ export function proxy(request: NextRequest): NextResponse {
     return NextResponse.next()
   }
 
+  // Výkazy builder: a standalone, login-free tool. It is fully client-side
+  // (localStorage + in-browser parsing/print), imports no app data, and nothing
+  // in the app depends on it — so it runs public, with zero interaction with the
+  // auth/org surface.
+  if (pathname === "/vykazy" || pathname.startsWith("/vykazy/")) {
+    return NextResponse.next()
+  }
+
+  // Fakturace builder: the same kind of standalone, login-free client-side tool
+  // as /vykazy. It keeps state in localStorage + a local XML working file, imports
+  // no app data, and nothing in the app depends on it — so it runs public too.
+  if (pathname === "/fakturace" || pathname.startsWith("/fakturace/")) {
+    return NextResponse.next()
+  }
+
   // Optimistic auth check on every other matched route. Pass the dev cookie
   // prefix so the presence check reads the SAME cookie name the server set
   // (per-Conductor-workspace namespacing) — without it, every dev request with
@@ -112,6 +127,8 @@ export function proxy(request: NextRequest): NextResponse {
  *   /onboarding/*    — hygiene headers; wizard flows include pre-account
  *                      steps so no session-cookie gate fires here
  *   /utility/*       — public recovery and error-state pages
+ *   /vykazy, /vykazy/* — standalone login-free client-side výkazy tool
+ *   /fakturace, /fakturace/* — standalone login-free client-side invoicing tool
  *   everything else — optimistic session-cookie gate, redirect to /auth/login
  *
  * Excluded:

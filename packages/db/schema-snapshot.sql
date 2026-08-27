@@ -2050,8 +2050,19 @@ CREATE TABLE public.counterparty (
     tax_id text,
     country_code character(2),
     ico character varying(8),
+    party_kind_code text,
+    legal_name text,
+    display_name text,
+    legal_form_code text,
+    data_box_id character varying(7),
+    registration_status text,
+    verification_source text,
+    last_verified_at timestamp with time zone,
+    archived_at timestamp with time zone,
     CONSTRAINT counterparty_country_code_chk CHECK (((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text))),
-    CONSTRAINT counterparty_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text)))
+    CONSTRAINT counterparty_data_box_id_format CHECK (((data_box_id IS NULL) OR ((data_box_id)::text ~ '^[a-z0-9]{7}$'::text))),
+    CONSTRAINT counterparty_ico_format_chk CHECK (((ico IS NULL) OR ((ico)::text ~ '^[0-9]{8}$'::text))),
+    CONSTRAINT counterparty_verification_source_chk CHECK (((verification_source IS NULL) OR (verification_source = ANY (ARRAY['MANUAL'::text, 'ARES'::text, 'CRPDPH'::text]))))
 );
 
 ALTER TABLE ONLY public.counterparty FORCE ROW LEVEL SECURITY;
@@ -3008,6 +3019,150 @@ CREATE TABLE public.partial_record (
 );
 
 ALTER TABLE ONLY public.partial_record FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_address; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_address (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_id uuid NOT NULL,
+    purpose text DEFAULT 'REGISTERED'::text NOT NULL,
+    country_code character(2),
+    region text,
+    municipality text,
+    street text,
+    house_no text,
+    orientation_no text,
+    unit text,
+    postal_code text,
+    valid_from date,
+    valid_to date,
+    verified boolean DEFAULT false NOT NULL,
+    source text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT party_address_country_chk CHECK (((country_code IS NULL) OR (country_code ~ '^[A-Z]{2}$'::text))),
+    CONSTRAINT party_address_purpose_chk CHECK ((purpose = ANY (ARRAY['REGISTERED'::text, 'MAILING'::text, 'DELIVERY'::text, 'BILLING'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.party_address FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_bank_account; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_bank_account (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_id uuid NOT NULL,
+    holder text,
+    account_number text,
+    bank_code text,
+    iban text,
+    bic text,
+    currency_code character(3),
+    purpose text DEFAULT 'GENERAL'::text NOT NULL,
+    is_primary boolean DEFAULT false NOT NULL,
+    published boolean DEFAULT false NOT NULL,
+    blocked boolean DEFAULT false NOT NULL,
+    verified boolean DEFAULT false NOT NULL,
+    valid_from date,
+    valid_to date,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT party_bank_account_currency_chk CHECK (((currency_code IS NULL) OR (currency_code ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT party_bank_account_purpose_chk CHECK ((purpose = ANY (ARRAY['GENERAL'::text, 'INCOMING'::text, 'OUTGOING'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.party_bank_account FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_contact; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_contact (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_id uuid NOT NULL,
+    first_name text,
+    last_name text,
+    "position" text,
+    purpose text DEFAULT 'GENERAL'::text NOT NULL,
+    email text,
+    phone text,
+    valid_from date,
+    valid_to date,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT party_contact_purpose_chk CHECK ((purpose = ANY (ARRAY['GENERAL'::text, 'BILLING'::text, 'TECHNICAL'::text, 'STATUTORY'::text, 'SALES'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.party_contact FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_identifier; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_identifier (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_id uuid NOT NULL,
+    identifier_type text NOT NULL,
+    value text NOT NULL,
+    normalized text,
+    issuer text,
+    valid_from date,
+    valid_to date,
+    verified boolean DEFAULT false NOT NULL,
+    verification_source text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT party_identifier_type_chk CHECK ((identifier_type = ANY (ARRAY['LEI'::text, 'EORI'::text, 'FOREIGN_REG'::text, 'VAT_OTHER'::text, 'OTHER'::text])))
+);
+
+ALTER TABLE ONLY public.party_identifier FORCE ROW LEVEL SECURITY;
+
+--
+-- Name: party_kind; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_kind (
+    code text NOT NULL,
+    person_type public.person_type NOT NULL,
+    CONSTRAINT party_kind_code_format CHECK ((code ~ '^[A-Z_]+$'::text))
+);
+
+--
+-- Name: party_relationship; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.party_relationship (
+    id uuid DEFAULT uuidv7() NOT NULL,
+    organization_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    counterparty_id uuid NOT NULL,
+    relationship_type text,
+    valid_from date,
+    valid_to date,
+    active boolean DEFAULT true NOT NULL,
+    source text DEFAULT 'MANUAL'::text NOT NULL,
+    default_currency character(3),
+    default_payment_terms integer,
+    default_bank_account_id uuid,
+    accounting_profile jsonb,
+    risk_status text,
+    blocked boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT party_relationship_currency_chk CHECK (((default_currency IS NULL) OR (default_currency ~ '^[A-Z]{3}$'::text))),
+    CONSTRAINT party_relationship_payment_terms_chk CHECK (((default_payment_terms IS NULL) OR (default_payment_terms >= 0))),
+    CONSTRAINT party_relationship_source_chk CHECK ((source = ANY (ARRAY['MANUAL'::text, 'DERIVED'::text]))),
+    CONSTRAINT party_relationship_type_chk CHECK (((relationship_type IS NULL) OR (relationship_type = ANY (ARRAY['CUSTOMER'::text, 'SUPPLIER'::text, 'OWNER'::text, 'PARTNER'::text, 'OTHER'::text]))))
+);
+
+ALTER TABLE ONLY public.party_relationship FORCE ROW LEVEL SECURITY;
 
 --
 -- Name: payment_form; Type: TABLE; Schema: public; Owner: -
@@ -4389,6 +4544,69 @@ ALTER TABLE ONLY public.partial_record
     ADD CONSTRAINT partial_record_pkey PRIMARY KEY (id);
 
 --
+-- Name: party_address party_address_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_address
+    ADD CONSTRAINT party_address_pkey PRIMARY KEY (id);
+
+--
+-- Name: party_bank_account party_bank_account_id_counterparty_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_id_counterparty_unique UNIQUE (id, counterparty_id);
+
+--
+-- Name: party_bank_account party_bank_account_id_workspace_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_id_workspace_unique UNIQUE (id, workspace_id);
+
+--
+-- Name: party_bank_account party_bank_account_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_pkey PRIMARY KEY (id);
+
+--
+-- Name: party_contact party_contact_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_contact
+    ADD CONSTRAINT party_contact_pkey PRIMARY KEY (id);
+
+--
+-- Name: party_identifier party_identifier_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_identifier
+    ADD CONSTRAINT party_identifier_pkey PRIMARY KEY (id);
+
+--
+-- Name: party_kind party_kind_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_kind
+    ADD CONSTRAINT party_kind_pkey PRIMARY KEY (code);
+
+--
+-- Name: party_relationship party_relationship_org_counterparty_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_relationship
+    ADD CONSTRAINT party_relationship_org_counterparty_unique UNIQUE (organization_id, counterparty_id);
+
+--
+-- Name: party_relationship party_relationship_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_relationship
+    ADD CONSTRAINT party_relationship_pkey PRIMARY KEY (id);
+
+--
 -- Name: payment_form payment_form_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -5124,6 +5342,42 @@ CREATE UNIQUE INDEX organization_workspace_slug_unique ON public.organization US
 --
 
 CREATE INDEX partial_record_line_idx ON public.partial_record USING btree (individual_record_id);
+
+--
+-- Name: party_address_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_address_counterparty_idx ON public.party_address USING btree (counterparty_id);
+
+--
+-- Name: party_bank_account_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_bank_account_counterparty_idx ON public.party_bank_account USING btree (counterparty_id);
+
+--
+-- Name: party_bank_account_one_primary; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX party_bank_account_one_primary ON public.party_bank_account USING btree (counterparty_id) WHERE (is_primary AND (valid_to IS NULL));
+
+--
+-- Name: party_contact_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_contact_counterparty_idx ON public.party_contact USING btree (counterparty_id);
+
+--
+-- Name: party_identifier_counterparty_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_identifier_counterparty_idx ON public.party_identifier USING btree (counterparty_id);
+
+--
+-- Name: party_relationship_bank_account_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX party_relationship_bank_account_idx ON public.party_relationship USING btree (default_bank_account_id);
 
 --
 -- Name: period_output_period_idx; Type: INDEX; Schema: public; Owner: -
@@ -6023,6 +6277,20 @@ ALTER TABLE ONLY public.chart_template_account
     ADD CONSTRAINT chart_template_account_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.chart_template(id) ON DELETE CASCADE;
 
 --
+-- Name: counterparty counterparty_legal_form_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counterparty
+    ADD CONSTRAINT counterparty_legal_form_code_fkey FOREIGN KEY (legal_form_code) REFERENCES public.legal_form(code);
+
+--
+-- Name: counterparty counterparty_party_kind_code_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.counterparty
+    ADD CONSTRAINT counterparty_party_kind_code_fkey FOREIGN KEY (party_kind_code) REFERENCES public.party_kind(code);
+
+--
 -- Name: counterparty counterparty_self_of_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -6651,6 +6919,83 @@ ALTER TABLE ONLY public.partial_record
 
 ALTER TABLE ONLY public.partial_record
     ADD CONSTRAINT partial_record_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organization(id);
+
+--
+-- Name: party_address party_address_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_address
+    ADD CONSTRAINT party_address_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
+
+--
+-- Name: party_address party_address_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_address
+    ADD CONSTRAINT party_address_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: party_bank_account party_bank_account_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
+
+--
+-- Name: party_bank_account party_bank_account_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_bank_account
+    ADD CONSTRAINT party_bank_account_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: party_contact party_contact_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_contact
+    ADD CONSTRAINT party_contact_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
+
+--
+-- Name: party_contact party_contact_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_contact
+    ADD CONSTRAINT party_contact_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: party_identifier party_identifier_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_identifier
+    ADD CONSTRAINT party_identifier_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
+
+--
+-- Name: party_identifier party_identifier_workspace_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_identifier
+    ADD CONSTRAINT party_identifier_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspace(id);
+
+--
+-- Name: party_relationship party_relationship_bank_account_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_relationship
+    ADD CONSTRAINT party_relationship_bank_account_fk FOREIGN KEY (default_bank_account_id, counterparty_id) REFERENCES public.party_bank_account(id, counterparty_id);
+
+--
+-- Name: party_relationship party_relationship_counterparty_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_relationship
+    ADD CONSTRAINT party_relationship_counterparty_fk FOREIGN KEY (counterparty_id, workspace_id) REFERENCES public.counterparty(id, workspace_id);
+
+--
+-- Name: party_relationship party_relationship_org_fk; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.party_relationship
+    ADD CONSTRAINT party_relationship_org_fk FOREIGN KEY (organization_id, workspace_id) REFERENCES public.organization(id, workspace_id);
 
 --
 -- Name: period_output period_output_generated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
@@ -7624,6 +7969,12 @@ CREATE POLICY organization_isolation ON public.organization_tax_representative U
 CREATE POLICY organization_isolation ON public.partial_record USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
 
 --
+-- Name: party_relationship organization_isolation; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY organization_isolation ON public.party_relationship USING ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid)) WITH CHECK ((organization_id = (NULLIF(current_setting('app.organization_id'::text, true), ''::text))::uuid));
+
+--
 -- Name: period_output organization_isolation; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -7736,6 +8087,132 @@ ALTER TABLE public.organization_tax_representative ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.partial_record ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: party_address; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.party_address ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: party_address party_address_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_address_delete ON public.party_address FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_address party_address_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_address_insert ON public.party_address FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_address party_address_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_address_select ON public.party_address FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_address party_address_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_address_update ON public.party_address FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_bank_account; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.party_bank_account ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: party_bank_account party_bank_account_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_bank_account_delete ON public.party_bank_account FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_bank_account party_bank_account_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_bank_account_insert ON public.party_bank_account FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_bank_account party_bank_account_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_bank_account_select ON public.party_bank_account FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_bank_account party_bank_account_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_bank_account_update ON public.party_bank_account FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_contact; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.party_contact ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: party_contact party_contact_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_contact_delete ON public.party_contact FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_contact party_contact_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_contact_insert ON public.party_contact FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_contact party_contact_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_contact_select ON public.party_contact FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_contact party_contact_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_contact_update ON public.party_contact FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_identifier; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.party_identifier ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: party_identifier party_identifier_delete; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_identifier_delete ON public.party_identifier FOR DELETE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_identifier party_identifier_insert; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_identifier_insert ON public.party_identifier FOR INSERT WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_identifier party_identifier_select; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_identifier_select ON public.party_identifier FOR SELECT USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_identifier party_identifier_update; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY party_identifier_update ON public.party_identifier FOR UPDATE USING ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid)) WITH CHECK ((workspace_id = (NULLIF(current_setting('app.workspace_id'::text, true), ''::text))::uuid));
+
+--
+-- Name: party_relationship; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.party_relationship ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: period_output; Type: ROW SECURITY; Schema: public; Owner: -

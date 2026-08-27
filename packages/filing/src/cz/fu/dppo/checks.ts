@@ -138,10 +138,9 @@ export function checkDppo(model: Dppo): DppoCheck[] {
   const derived = computeDppoTotals(model)
 
   // — Daňová ztráta: je-li na ř.220 vykázána daňová ztráta, ř.230–330 se nevyplňují —
-  // ř.220 = ř.200 (propočet) − ř.201 − ř.210; keyed off the COMPUTED base, so it fires
-  // even when the filer relies on auto-compute (ř.200 is then not hand-entered).
-  const r220 =
-    toNum(derived.r200) - toNum(o.kc_ii201_201) - toNum(o.kc_ii250_210)
+  // Keyed off the COMPUTED ř.220, so it fires even when the filer relies on
+  // auto-compute (ř.200 is then not hand-entered).
+  const r220 = toNum(derived.r220)
   if (r220 < 0) {
     const afterLossAttrs: [attr: string, r: string][] = [
       ["kc_ii210_230", "230"],
@@ -169,6 +168,130 @@ export function checkDppo(model: Dppo): DppoCheck[] {
     if (entered !== expected && !(isEmptyAmount(entered) && expected === "0")) {
       out.push({ severity: "warning", code: "footing.mismatch", field: `vetaO.${attr}`, message: `ř.${key.slice(1)} = ${entered}, ale propočet dává ${expected}.`, suggestion: expected }) // prettier-ignore
     }
+  }
+
+  out.push(...checkPriloha(model, o))
+  out.push(...checkSpojeneOsoby(model))
+
+  return out
+}
+
+/**
+ * Samostatná příloha — transakce se spojenými osobami (VetaA).
+ *
+ * Every attribute of VetaA is `use="optional"` in the XSD, so a list with no
+ * názvy and no státy validates green and EPO refuses it on load. The duplicate
+ * rule is the XSD's own words: "V souboru nesmí existovat duplicitní listy
+ * přílohy, tj. věty A se stejnou hodnotou dvojice položek (naz_spojos,
+ * stat_spojos)."
+ */
+function checkSpojeneOsoby(model: Dppo): DppoCheck[] {
+  const out: DppoCheck[] = []
+  const vety = model.extraVety.filter((v) => v.tag === "VetaA")
+  if (vety.length === 0) return out
+
+  const seen = new Set<string>()
+  vety.forEach((veta, i) => {
+    const nazev = veta.attrs.naz_spojos
+    const stat = veta.attrs.stat_spojos
+    const kde = `Spojená osoba ${i + 1}`
+    if (!nazev) {
+      out.push({ severity: "warning", code: "naz_spojos.required", field: `spojene.${i}.naz_spojos`, message: `${kde}: název spojené osoby musí být vyplněn.` }) // prettier-ignore
+    }
+    if (!stat) {
+      out.push({ severity: "warning", code: "stat_spojos.required", field: `spojene.${i}.stat_spojos`, message: `${kde}: kód státu musí být vyplněn podle číselníku zemí (CZEM).`, suggestion: "CZ" }) // prettier-ignore
+    } else if (!/^[A-Z]{2}$/.test(stat)) {
+      out.push({ severity: "warning", code: "stat_spojos.format", field: `spojene.${i}.stat_spojos`, message: `${kde}: kód státu je dvoumístný kód velkými písmeny.`, suggestion: "CZ" }) // prettier-ignore
+    }
+    if (nazev && stat) {
+      const key = `${nazev} ${stat}`
+      if (seen.has(key)) {
+        out.push({ severity: "warning", code: "spojene.duplicate", field: `spojene.${i}.naz_spojos`, message: `${kde}: v souboru nesmí být dva listy se stejnou dvojicí název + stát; sloučte je do jednoho.` }) // prettier-ignore
+      }
+      seen.add(key)
+    }
+  })
+
+  // Položka 12 declares that transakce happened; a příloha listing them while
+  // the položka says "N" (or is blank) contradicts itself.
+  if (!model.header.spoj_zahr || model.header.spoj_zahr === "N") {
+    out.push({ severity: "warning", code: "spoj_zahr.required", field: "header.spoj_zahr", message: "I. oddíl pol. 12 neuvádí žádné transakce se spojenými osobami, ale samostatná příloha je vyplněna.", suggestion: "T / Z / A" }) // prettier-ignore
+  }
+
+  return out
+}
+
+/** Attributes of the first (or only) occurrence of a příloha věta, if present. */
+function vetaAttrs(
+  model: Dppo,
+  tag: string,
+): Record<string, string> | undefined {
+  return model.extraVety.find((v) => v.tag === tag)?.attrs
+}
+
+/**
+ * Příloha č. 1 II. oddílu + tabulka K + the I. oddíl accounting-unit items.
+ *
+ * These are what make the difference between a return that foots and a return
+ * EPO accepts: the Pokyny tie ř.40 to tabulka A ř.13, ř.150 to tabulka B, and
+ * require tabulka K and položka 07 from every poplatník who keeps účetnictví.
+ */
+function checkPriloha(model: Dppo, o: Record<string, string>): DppoCheck[] {
+  const out: DppoCheck[] = []
+  const h = model.header
+
+  if (!h.kat_uj) {
+    out.push({ severity: "warning", code: "kat_uj.required", field: "header.kat_uj", message: "I. oddíl pol. 07 Kategorie účetní jednotky není vyplněna (§ 1b zákona o účetnictví).", suggestion: "M / L / S / V" }) // prettier-ignore
+  } else if (!/^[MLSV]$/.test(h.kat_uj)) {
+    out.push({ severity: "warning", code: "kat_uj.enum", field: "header.kat_uj", message: "Kategorie účetní jednotky musí být M, L, S nebo V." }) // prettier-ignore
+  }
+  if (h.uc_zav !== "A") {
+    out.push({ severity: "warning", code: "uc_zav.required", field: "header.uc_zav", message: "I. oddíl pol. 11 deklaruje, že účetní závěrka NENÍ přiložena; účetní jednotka ji podle § 18 zákona o účetnictví přikládá.", suggestion: "A + vložit Rozvahu, VZZ a Přílohu jako E-přílohy v EPO" }) // prettier-ignore
+  }
+
+  // `d_uv` is use="optional" in the XSD but carries a kritická kontrola: it must
+  // be filled once any výkaz is present or the žádost (VetaUZ) is made. xmllint
+  // therefore passes a return EPO rejects at "Načíst písemnost", which is the
+  // one failure mode a green XSD badge actively hides.
+  const VYKAZ_VETY = ["VetaUA", "VetaUB", "VetaUD", "VetaUZ"]
+  if (
+    !h.d_uv &&
+    VYKAZ_VETY.some((tag) => vetaAttrs(model, tag) !== undefined)
+  ) {
+    out.push({ severity: "warning", code: "d_uv.required", field: "header.d_uv", message: "Rozvahový den (I. oddíl) musí být vyplněn, je-li přiložen výkaz nebo žádost o předání účetní závěrky.", suggestion: "Doplnit \"Ke dni\" v údajích účetní jednotky" }) // prettier-ignore
+  }
+  // Same kritická kontrola on the unit of the výkazy.
+  if (
+    !h.uz_rad &&
+    VYKAZ_VETY.some((tag) => vetaAttrs(model, tag) !== undefined)
+  ) {
+    out.push({ severity: "warning", code: "uz_rad.required", field: "header.uz_rad", message: "Jednotka účetních výkazů (celé tisíce / miliony) není vyplněna.", suggestion: "T" }) // prettier-ignore
+  }
+
+  // ř.40 ⇄ tabulka A ř.13 (Pokyny, k ř. 40).
+  const r40 = toNum(o.kc_ii50_40)
+  const tabulkaA = vetaAttrs(model, "VetaE")
+  if (r40 !== 0 && tabulkaA === undefined) {
+    out.push({ severity: "warning", code: "tabulkaA.missing", field: "vetaO.kc_ii50_40", message: `ř.40 = ${r40}, ale tabulka A Přílohy č. 1 je prázdná.`, suggestion: "Rozepsat ř.40 podle účtových skupin" }) // prettier-ignore
+  } else if (tabulkaA !== undefined) {
+    const celkem = toNum(tabulkaA.kc_dpp_a12)
+    if (celkem !== r40) {
+      out.push({ severity: "warning", code: "tabulkaA.mismatch", field: "vetaO.kc_ii50_40", message: `Tabulka A ř.13 = ${celkem}, ale ř.40 = ${r40}; Pokyny vyžadují shodu.`, suggestion: String(r40) }) // prettier-ignore
+    }
+  }
+
+  // ř.150 ⇒ tabulka B má věcnou náplň (Pokyny, k tabulce B).
+  if (toNum(o.kc_ii170_150) !== 0 && vetaAttrs(model, "VetaF") === undefined) {
+    out.push({ severity: "warning", code: "tabulkaB.missing", field: "vetaO.kc_ii170_150", message: "ř.150 uplatňuje daňové odpisy, ale tabulka B Přílohy č. 1 je prázdná.", suggestion: "Rozepsat daňové odpisy podle odpisových skupin" }) // prettier-ignore
+  }
+
+  // Tabulka K — "Údaj vyplňují všichni poplatníci" (Pokyny, k tabulce K ř. 1).
+  const tabulkaK = vetaAttrs(model, "VetaS")
+  if (tabulkaK?.kc_dpp_i1 === undefined) {
+    out.push({ severity: "warning", code: "tabulkaK.obrat", field: "priloha.kc_dpp_i1", message: "Tabulka K ř.1 roční úhrn čistého obratu není vyplněn; vyplňují jej všichni poplatníci." }) // prettier-ignore
+  }
+  if (tabulkaK?.poc_zam === undefined) {
+    out.push({ severity: "warning", code: "tabulkaK.zamestnanci", field: "priloha.poc_zam", message: "Tabulka K ř.2 průměrný přepočtený počet zaměstnanců není vyplněn.", suggestion: "0" }) // prettier-ignore
   }
 
   return out

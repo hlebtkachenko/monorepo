@@ -24,6 +24,7 @@ const FORMATS: { value: FilingFormat | "auto"; label: string }[] = [
   { value: "dppo", label: "DPPO" },
   { value: "dphdp3", label: "DPHDP3" },
   { value: "dphkh1", label: "DPHKH1" },
+  { value: "dphshv", label: "DPHSHV" },
   { value: "isdoc", label: "ISDOC" },
 ]
 

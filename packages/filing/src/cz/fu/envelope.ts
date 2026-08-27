@@ -10,7 +10,9 @@
 import Decimal from "decimal.js-light"
 import { el, serialize, type XmlAttrs, type XmlNode } from "../../xml/build"
 
-Decimal.set({ rounding: Decimal.ROUND_HALF_EVEN })
+// No `Decimal.set` here: decimal.js-light's config is a module-level singleton,
+// so setting a default rounding mode from this file would silently change every
+// other consumer in the bundle. Each formatter below passes its mode explicitly.
 
 /** One attribute value on a věta, before formatting. `undefined`/`null`/"" → omitted. */
 export type VetaValue = string | number | null | undefined
@@ -64,10 +66,29 @@ export function koruna(x: VetaValue): string | undefined {
   return new Decimal(x).toDecimalPlaces(0, Decimal.ROUND_HALF_UP).toFixed(0)
 }
 
-/** Two-decimal haléř string for DPHKH1 amounts (xs:decimal fractionDigits=2). */
+/**
+ * Whole-koruna integer string for DPHSHV `pln_hodnota`. The schema documents a
+ * different rule from the DPH přiznání: "Celková hodnota plnění se zaokrouhlí na
+ * celé koruny NAHORU", so this rounds toward +∞ (ROUND_CEIL), never half-up.
+ * A dobropis enters the row total negatively, and "nahoru" on a negative total
+ * therefore reduces its absolute value — the literal reading of the rule.
+ */
+export function korunaNahoru(x: VetaValue): string | undefined {
+  if (x === null || x === undefined || x === "") return undefined
+  return new Decimal(x).toDecimalPlaces(0, Decimal.ROUND_CEIL).toFixed(0)
+}
+
+/**
+ * Two-decimal haléř string for DPHKH1 amounts (xs:decimal fractionDigits=2).
+ *
+ * Half AWAY from zero, matching `koruna`. Banker's rounding here made
+ * `haler("0.125")` file 0.12 where Czech matematické zaokrouhlení gives 0.13 —
+ * usually a no-op because KH amounts arrive already at two decimals, but not on
+ * an apportioned or converted base.
+ */
 export function haler(x: VetaValue): string | undefined {
   if (x === null || x === undefined || x === "") return undefined
-  return new Decimal(x).toFixed(2, Decimal.ROUND_HALF_EVEN)
+  return new Decimal(x).toFixed(2, Decimal.ROUND_HALF_UP)
 }
 
 /** DIČ → digits only, stripping any leading country prefix (attr pattern [0-9]{1,10}). */

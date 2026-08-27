@@ -13,16 +13,21 @@ import {
   generateDphdp3,
   readDphkh1,
   generateDphkh1,
+  readDphshv,
+  generateDphshv,
   readIsdoc,
   generateIsdoc,
   validateFiling,
   DPPO_VERSION,
   DPHDP3_VERSION,
   DPHKH1_VERSION,
+  DPHSHV_VERSION,
   type DppoCheck,
 } from "@workspace/filing"
 
-export type FilingFormat = "dppo" | "dphdp3" | "dphkh1" | "isdoc"
+import { requireAdminCapability } from "@/lib/admin-capability"
+
+export type FilingFormat = "dppo" | "dphdp3" | "dphkh1" | "dphshv" | "isdoc"
 
 const ISDOC_VERSION = "6.0.1"
 
@@ -30,6 +35,7 @@ const VERSIONS: Record<FilingFormat, string> = {
   dppo: DPPO_VERSION,
   dphdp3: DPHDP3_VERSION,
   dphkh1: DPHKH1_VERSION,
+  dphshv: DPHSHV_VERSION,
   isdoc: ISDOC_VERSION,
 }
 
@@ -37,6 +43,7 @@ const LABELS: Record<FilingFormat, string> = {
   dppo: "DPPO — Přiznání k dani z příjmů právnických osob (DPPDP9)",
   dphdp3: "DPHDP3 — Přiznání k DPH",
   dphkh1: "DPHKH1 — Kontrolní hlášení",
+  dphshv: "DPHSHV — Souhrnné hlášení VIES",
   isdoc: "ISDOC 6.0.1 — faktura",
 }
 
@@ -45,6 +52,7 @@ async function detectFormat(xml: string): Promise<FilingFormat | null> {
   if (/<DPPDP9[\s/>]/.test(xml)) return "dppo"
   if (/<DPHDP3[\s/>]/.test(xml)) return "dphdp3"
   if (/<DPHKH1[\s/>]/.test(xml)) return "dphkh1"
+  if (/<DPHSHV[\s/>]/.test(xml)) return "dphshv"
   if (/<Invoice[\s/>]/.test(xml)) return "isdoc"
   return null
 }
@@ -75,6 +83,10 @@ function roundtrip(
     case "dphkh1": {
       const model = readDphkh1(xml)
       return { model, out: generateDphkh1(model), warnings: [] }
+    }
+    case "dphshv": {
+      const model = readDphshv(xml)
+      return { model, out: generateDphshv(model), warnings: [] }
     }
     case "isdoc": {
       const model = readIsdoc(xml)
@@ -112,6 +124,14 @@ export async function inspectFilingAction(
 ): Promise<
   { ok: true; result: FilingInspectResult } | { ok: false; error: string }
 > {
+  // FIRST statement, before any parsing. A Server Action is its own POST
+  // endpoint whose id is recoverable from the client bundle, and the (gated)
+  // layout does NOT run for action invocations (see lib/assert-admin-caller.ts)
+  // — without this the whole parse / generate / XSD pipeline was reachable
+  // unauthenticated. `assertAdminCaller` is the wrong tool here: it hard-throws
+  // when NODE_ENV === "production", and this surface is deliberately prod-live.
+  await requireAdminCapability("admin:read")
+
   const format = forced ?? (await detectFormat(xml))
   if (!format) {
     return {

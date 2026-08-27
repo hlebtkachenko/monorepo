@@ -130,6 +130,14 @@ export interface DppoDerived {
   r170: string
   /** ř.200 — základ daně / daňová ztráta (§23). */
   r200: string
+  /**
+   * ř.220 — základ daně / daňová ztráta po ř.201 a ř.210.
+   *
+   * Not a cosmetic subtotal: this is the řádek the daňová ztráta is STANOVENA
+   * from, so a return that leaves it blank claims no loss to carry forward, and
+   * IV. oddíl ř.4 (`kc_dppiv4`) is defined as "daňová ztráta ze ř. 220".
+   */
+  r220: string
   /** ř.250 — základ daně po odečtech §34 (≥ 0). */
   r250: string
   /** ř.270 — základ zaokrouhlený na celé tisíce dolů (§21). */
@@ -155,7 +163,8 @@ const nonNeg = (d: Decimal): Decimal => (d.lt(0) ? ZERO : d)
  *   ř.70  = Σ zvýšení (ř.20..65)
  *   ř.170 = Σ snížení (ř.100..165)
  *   ř.200 = ř.10 + ř.70 − ř.170
- *   ř.250 = max(0, (ř.200 − ř.201 − ř.210) − ř.230 − ř.240 − ř.242 − ř.243)
+ *   ř.220 = ř.200 − ř.201 − ř.210
+ *   ř.250 = max(0, ř.220 − ř.230 − ř.240 − ř.242 − ř.243)
  *   ř.270 = floor(ř.250 / 1000) × 1000
  *   ř.290 = ceil(ř.270 × ř.280 / 100)
  *   ř.310 = max(0, ř.290 − ř.300)
@@ -213,6 +222,7 @@ export function computeDppoTotals(model: Dppo): DppoDerived {
     r70: int(r70),
     r170: int(r170),
     r200: int(r200),
+    r220: int(r220),
     r250: int(r250),
     r270: int(r270),
     r290: int(r290),
@@ -227,6 +237,7 @@ export const DPPO_DERIVED_ATTRS: Record<keyof DppoDerived, string> = {
   r70: R.r70,
   r170: R.r170,
   r200: R.r200,
+  r220: R.r220,
   r250: R.r250,
   r270: R.r270,
   r290: R.r290,

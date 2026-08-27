@@ -188,6 +188,24 @@ HTTP 200.
 A purge is not a delete, and they are deliberately two methods with two names so
 the difference is visible at the call site instead of living in a comment.
 
+Two limits on what the purge's own report proves, both worth knowing before it
+is cited as erasure evidence:
+
+- **The `removed` count is "requested and not errored", not "confirmed
+  deleted".** The delete runs in S3's `Quiet` mode, which omits successful keys
+  from the response and returns only failures. The purge raises on any failure,
+  so a returned count means nothing errored — but the number is the size of the
+  batch it sent, not an independent confirmation read back from the bucket. For
+  an erasure request that has to be evidenced, re-list the prefix afterwards.
+- **Object Lock would make the purge fail, loudly.** The bucket does not use S3
+  Object Lock today. If retention or legal hold were ever enabled on it, the
+  version deletes would be refused, the `Errors` array would come back
+  populated, and `purgeOrganization` would throw rather than report success —
+  which is the correct behaviour (an erasure that cannot happen must not be
+  reported as done), but it means enabling Object Lock silently converts erasure
+  from "works" to "throws", and the two obligations would then need reconciling
+  in policy rather than in code.
+
 Remaining work before an erasure request can be served end to end:
 
 - the product surface (a multistep typed confirmation, spec §2.10);

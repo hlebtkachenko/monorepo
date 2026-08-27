@@ -16,6 +16,7 @@ import {
   type BetaPartnerRole,
   type BetaPeriodKind,
 } from "@/db/schema"
+import { normalizeBetaMoneyInput } from "@/lib/format/money"
 import { MANUAL_OBLIGATION_GROUPS } from "@/lib/obligation-labels"
 
 /**
@@ -160,10 +161,12 @@ export function formOptionalDate(
  * from; the check is a regex over the digits the office typed, and those exact
  * digits are what reaches Postgres.
  *
- * A comma is accepted and rewritten to a dot: a Czech keyboard produces
- * "1234,50" and refusing it would be a validation error about the decimal
- * separator of the user's own locale. That IS a rewrite of the input, and the
- * only one — it moves no digit.
+ * Czech-written grouping and a decimal comma are normalised via
+ * `normalizeBetaMoneyInput` before the shape check, not by loosening the
+ * regex: "1 234,50" (the format every amount in this app renders back
+ * through `formatBetaMoney`) becomes "1234.50" before `DECIMAL` ever sees it.
+ * See that function for what it does and does not guess at — that IS a
+ * rewrite of the input, and the only one; it moves no digit.
  *
  * `allowNegative` is false by default and true only for a filing's
  * `amount_due`, which is sign-carrying (a DPH nadměrný odpočet is a refund owed
@@ -176,11 +179,12 @@ export function formDecimal(
   key: string,
   options: { required?: boolean; allowNegative?: boolean } = {},
 ): FieldResult<string | null> {
-  const raw = formString(formData, key).replace(",", ".")
+  const raw = formString(formData, key)
   if (raw.length === 0) return options.required ? REFUSED : OK_EMPTY
-  if (!DECIMAL.test(raw)) return REFUSED
-  if (!options.allowNegative && raw.startsWith("-")) return REFUSED
-  return { ok: true, value: raw }
+  const value = normalizeBetaMoneyInput(raw)
+  if (!DECIMAL.test(value)) return REFUSED
+  if (!options.allowNegative && value.startsWith("-")) return REFUSED
+  return { ok: true, value }
 }
 
 /**

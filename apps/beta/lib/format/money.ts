@@ -46,3 +46,37 @@ export function formatBetaAmount(value: string | null): string | null {
   if (value === null) return null
   return statementFormatter.format(Number(value))
 }
+
+/**
+ * Czech-written money in, `numeric` syntax out — the input-side counterpart
+ * to `formatBetaMoney` / `formatBetaAmount` above.
+ *
+ * Every amount in this app is rendered through one of those two formatters,
+ * which emit Czech grouping and a decimal comma (`1 234,50`), while every
+ * money field's syntax gate (Majetek, Úvěry, Pro účetní's `formDecimal`) only
+ * ever accepted `1234.50`. A client who read a figure off a rendered table
+ * and typed it straight back got refused, and `inputMode="decimal"` on a
+ * Czech keyboard offers a comma, not a dot — so the refusal was the default
+ * outcome, not an edge case.
+ *
+ * Called BEFORE the caller's own shape regex, never as a replacement for it:
+ * what reaches Postgres is still exactly `numeric` syntax, so the column's
+ * own precision and CHECKs remain the authority.
+ *
+ * `\s` is the right class rather than a literal " ": it already covers
+ * U+00A0 and U+202F, and those — not the ASCII space — are what
+ * `Intl.NumberFormat("cs-CZ")` actually puts between groups, so they are what
+ * lands in the field on a copy-paste off a rendered table.
+ *
+ * DELIBERATELY NOT NORMALISED: a lone `.` stays a decimal point. `1.234` is
+ * ambiguous (1234 written Czech-style, or 1.234 written with three decimals)
+ * and is left to fail the caller's own shape check — an ambiguous amount is a
+ * refusal the client can see and correct, never a guess this layer makes on
+ * their behalf. Dots are treated as grouping only when a comma proves they
+ * were (`1.234,56` → `1234.56`).
+ */
+export function normalizeBetaMoneyInput(value: string): string {
+  const ungrouped = value.replace(/\s/g, "")
+  if (!ungrouped.includes(",")) return ungrouped
+  return ungrouped.replace(/\./g, "").replace(",", ".")
+}

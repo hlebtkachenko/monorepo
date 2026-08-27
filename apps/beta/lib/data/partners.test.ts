@@ -25,6 +25,7 @@ import {
   createPartnerSaldoRow,
   createReportingPeriod,
   endFixtures,
+  isoDaysFromToday,
   publishSaldokontoRow,
   seedOrganization,
   type TestOrganization,
@@ -69,11 +70,6 @@ async function scopeFor(
 
 async function ownerScope(target: TestOrganization) {
   return requireOwner(await scopeFor(target, "owner"))
-}
-
-/** Today plus/minus `days`, as the ISO date a `date` column stores. */
-function isoDaysFromToday(days: number): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
 }
 
 describe("partnersForScope — the registry read", () => {
@@ -381,7 +377,7 @@ describe("the aging bands — derived in SQL, against today", () => {
           name: item.name,
         }),
         payableTotal: "1000.00",
-        oldestDue: isoDaysFromToday(item.days),
+        oldestDue: await isoDaysFromToday(item.days),
       })
     }
     await publishSaldokontoRow(target.organizationId, periodId, lines)

@@ -9,6 +9,7 @@ import {
   type ISubnet,
   type IVpc,
   type SecurityGroup,
+  SubnetType,
   type SubnetSelection,
 } from "aws-cdk-lib/aws-ec2"
 import {
@@ -24,6 +25,8 @@ import {
   OperatingSystemFamily,
   Secret as EcsSecret,
 } from "aws-cdk-lib/aws-ecs"
+import { Rule, Schedule } from "aws-cdk-lib/aws-events"
+import { EcsTask } from "aws-cdk-lib/aws-events-targets"
 import {
   ManagedPolicy,
   PolicyStatement,
@@ -83,6 +86,9 @@ export class BetaAppStack extends Stack {
   readonly service: FargateService
   readonly appLogGroup: LogGroup
   readonly tunnelLogGroup: LogGroup
+  readonly retentionTaskDefinition: FargateTaskDefinition
+  readonly retentionLogGroup: LogGroup
+  readonly retentionSchedule: Rule
 
   constructor(scope: Construct, id: string, props: BetaAppStackProps) {
     super(scope, id, props)
@@ -342,6 +348,113 @@ export class BetaAppStack extends Stack {
       // Cold pull of two arm64 images plus the startup migrations.
       healthCheckGracePeriod: Duration.seconds(180),
     })
+
+    // -----------------------------------------------------------------
+    // Asistent retention (spec §2.8 / EPIC item 38): a daily sweep of chats
+    // untouched for CHAT_RETENTION_MONTHS (lib/data/assistant.ts's
+    // `purgeExpiredChats`, shipped unscheduled by PR #1045). A dedicated
+    // scheduled task, not a route hit by an external scheduler — this
+    // module's own doc: the beta RDS sits in PRIVATE_ISOLATED subnets behind
+    // a VPC with zero NAT gateways, so nothing outside the VPC can reach it,
+    // but a task in the VPC's public subnets (same as `this.service`) can
+    // reach RDS directly. Reuses the SAME beta app image: apps/beta/Dockerfile
+    // bakes a self-contained `/purge` tree alongside the standalone build,
+    // exactly the way `/migrate` already rides along for the entrypoint's own
+    // pre-serve step, so this needs no extra image build.
+    const retentionExecutionRole = new Role(this, "RetentionExecutionRole", {
+      assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AmazonECSTaskExecutionRolePolicy",
+        ),
+      ],
+    })
+    props.databaseSecret.grantRead(retentionExecutionRole)
+
+    // No custom permissions: the sweep only deletes rows by age (`chat`,
+    // cascading to `chat_message` and `chat_usage` — db/schema/chat*.ts), and
+    // its DB credentials arrive as task-definition `secrets`, resolved by the
+    // execution role above before the container ever starts.
+    const retentionTaskRole = new Role(this, "RetentionTaskRole", {
+      assumedBy: new ServicePrincipal("ecs-tasks.amazonaws.com"),
+      description: "Runtime IAM role for the Asistent retention sweep task",
+    })
+
+    this.retentionTaskDefinition = new FargateTaskDefinition(
+      this,
+      "RetentionTaskDef",
+      {
+        cpu: 256,
+        memoryLimitMiB: 512,
+        runtimePlatform: {
+          cpuArchitecture: CpuArchitecture.ARM64,
+          operatingSystemFamily: OperatingSystemFamily.LINUX,
+        },
+        executionRole: retentionExecutionRole,
+        taskRole: retentionTaskRole,
+      },
+    )
+
+    this.retentionLogGroup = new LogGroup(this, "RetentionLogs", {
+      logGroupName: `/ecs/monorepo-${props.envName}/beta-retention`,
+      retention: RetentionDays.ONE_MONTH,
+      removalPolicy: RemovalPolicy.DESTROY,
+    })
+
+    this.retentionTaskDefinition.addContainer("purge", {
+      containerName: "purge",
+      image: ContainerImage.fromEcrRepository(props.repository, imageTag),
+      essential: true,
+      logging: LogDriver.awsLogs({
+        streamPrefix: "purge",
+        logGroup: this.retentionLogGroup,
+      }),
+      secrets: {
+        DB_USER: EcsSecret.fromSecretsManager(props.databaseSecret, "username"),
+        DB_PASSWORD: EcsSecret.fromSecretsManager(
+          props.databaseSecret,
+          "password",
+        ),
+      },
+      environment: {
+        DB_HOST: props.database.dbInstanceEndpointAddress,
+        DB_PORT: props.database.dbInstanceEndpointPort,
+        DB_NAME: "beta",
+      },
+      // Same DATABASE_URL composition as the app container above, pointed at
+      // /app/purge's baked-in script instead of the standalone server.
+      entryPoint: ["/bin/sh", "-c"],
+      command: [
+        'export DATABASE_URL="postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}" && ' +
+          "exec node /app/purge/purge-expired-chats.mjs",
+      ],
+      readonlyRootFilesystem: true,
+      linuxParameters: linuxParams("RetentionLinuxParams"),
+    })
+
+    // 02:00 UTC daily — an hour before the main app's backup window
+    // (backup-stack.ts runs at 03:00 UTC) so the two never contend for the
+    // beta RDS instance's modest t4g.micro burst credits at once.
+    this.retentionSchedule = new Rule(this, "RetentionSchedule", {
+      ruleName: `monorepo-${props.envName}-beta-retention-daily`,
+      description:
+        "Daily Asistent chat retention sweep (spec §2.8) at 02:00 UTC",
+      schedule: Schedule.cron({ minute: "0", hour: "2" }),
+    })
+    this.retentionSchedule.addTarget(
+      new EcsTask({
+        cluster: this.cluster,
+        taskDefinition: this.retentionTaskDefinition,
+        // EcsTask validates subnetSelection.subnetType against assignPublicIp
+        // and rejects a raw `subnets` list here (backup-stack.ts hit the same
+        // check) — subnetType.PUBLIC is enough; CDK resolves the actual
+        // subnets from the VPC at synth time.
+        subnetSelection: { subnetType: SubnetType.PUBLIC },
+        assignPublicIp: true,
+        securityGroups: [props.appSecurityGroup],
+        taskCount: 1,
+      }),
+    )
 
     new CfnOutput(this, "BetaDomain", {
       value: props.domain,

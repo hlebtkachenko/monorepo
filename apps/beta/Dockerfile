@@ -63,6 +63,17 @@ RUN mkdir -p /migrate/node_modules \
     && node --check /migrate/migrate.mjs \
     && cd /migrate && node --input-type=module -e "await import('postgres')"
 
+# Stage the Asistent retention sweep the same way: a self-contained /purge
+# tree with its own copy of `postgres`, run as its own ECS scheduled task
+# command (infra/cdk/lib/beta-app-stack.ts's RetentionTaskDef), never inside
+# the request-serving container. See apps/beta/db/purge-expired-chats.mjs.
+RUN mkdir -p /purge/node_modules \
+    && cp -RL /repo/apps/beta/node_modules/postgres /purge/node_modules/postgres \
+    && cp /repo/apps/beta/db/purge-expired-chats.mjs /purge/purge-expired-chats.mjs \
+    && printf '{"type":"module"}\n' > /purge/package.json \
+    && node --check /purge/purge-expired-chats.mjs \
+    && cd /purge && node --input-type=module -e "await import('postgres')"
+
 # ---------- runner ----------
 FROM --platform=$TARGETPLATFORM node:${NODE_VERSION}-bookworm-slim@sha256:242549cd46785b480c832479a730f4f2a20865d61ea2e404fdb2a5c3d3b73ecf AS runner
 ARG BUILD_SHA=unknown
@@ -110,6 +121,11 @@ COPY --from=builder --chown=nextjs:nodejs /repo/apps/beta/.next/static ./apps/be
 # server binds; see apps/beta/entrypoint.sh and the task-definition contract in
 # infra/cdk/lib/beta-app-stack.ts.
 COPY --from=builder --chown=nextjs:nodejs /migrate ./migrate
+
+# Asistent retention sweep, run only by the RetentionTaskDef's own scheduled
+# command override — the request-serving CMD below never touches it.
+COPY --from=builder --chown=nextjs:nodejs /purge ./purge
+
 COPY --chown=nextjs:nodejs apps/beta/entrypoint.sh /app/entrypoint.sh
 RUN chmod 0755 /app/entrypoint.sh
 

@@ -58,6 +58,30 @@ export async function endFixtures(): Promise<void> {
   client = undefined
 }
 
+/**
+ * `days` from today, as the ISO date (`YYYY-MM-DD`) a `date` column stores.
+ *
+ * Asks the SAME Postgres session the fixture is about to write into, rather
+ * than computing it in JS. Every read this suite exercises derives "today"
+ * from the database's `CURRENT_DATE` (`lib/data/obligations.ts`,
+ * `lib/data/partners.ts`, `lib/data/deadlines.ts`), and `CURRENT_DATE` follows
+ * the session's `timezone` GUC — Europe/Prague on a Postgres initdb'd on a
+ * Prague machine, UTC (or anything else) on a fresh testcontainer. Nothing in
+ * this app sets that GUC explicitly, so it is not a constant a fixture can
+ * hardcode: a `new Date(Date.now() + n * 86_400_000).toISOString()` computes
+ * the UTC calendar day, which disagrees with a Prague session for the one to
+ * two hours after Prague midnight that are not yet midnight in UTC — exactly
+ * the window that turned obligations.test.ts and partners.test.ts flaky.
+ * Querying the database for its own `CURRENT_DATE` is the only way the write
+ * and the read it is asserted against ever agree, whatever the session's zone.
+ */
+export async function isoDaysFromToday(days: number): Promise<string> {
+  const [row] = await db()<{ iso_date: string }[]>`
+    SELECT (CURRENT_DATE + (${days} * INTERVAL '1 day'))::date::text AS iso_date
+  `
+  return row!.iso_date
+}
+
 export type TestAccount = {
   userId: string
   email: string
@@ -691,9 +715,7 @@ export async function createPartnerSaldoRow(
     values.oldestDue ??
     (values.oldestDueInDays === undefined
       ? null
-      : new Date(Date.now() + values.oldestDueInDays * 86_400_000)
-          .toISOString()
-          .slice(0, 10))
+      : await isoDaysFromToday(values.oldestDueInDays))
 
   const [row] = await db()<{ id: string }[]>`
     INSERT INTO partner_saldo (
@@ -808,9 +830,7 @@ export async function createFilingRow(
     values.dueOn ??
     (values.dueInDays === undefined
       ? "2026-03-25"
-      : new Date(Date.now() + values.dueInDays * 86_400_000)
-          .toISOString()
-          .slice(0, 10))
+      : await isoDaysFromToday(values.dueInDays))
 
   const [row] = await sql<{ id: string }[]>`
     INSERT INTO filing (
@@ -862,9 +882,7 @@ export async function createLiabilityRow(
     values.dueOn ??
     (values.dueInDays === undefined
       ? "2026-03-31"
-      : new Date(Date.now() + values.dueInDays * 86_400_000)
-          .toISOString()
-          .slice(0, 10))
+      : await isoDaysFromToday(values.dueInDays))
 
   const [row] = await db()<{ id: string }[]>`
     INSERT INTO liability (

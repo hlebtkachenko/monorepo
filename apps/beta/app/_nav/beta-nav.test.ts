@@ -202,4 +202,17 @@ describe("beta rail nav", () => {
       expect(seat).not.toContain(hidden)
     }
   })
+
+  it("never gives a seat Asistent, whatever showAssistant says", () => {
+    // Spec §2.8: Asistent is "Hidden from guest and employee seat". The early
+    // return makes that free — `showAssistant` is read further down the
+    // function and is unreachable for a seat — but "free because of statement
+    // order" is exactly the kind of property that breaks silently when somebody
+    // reorders the function, so it is pinned rather than left implied.
+    const seat = items(
+      betaRailNav("acme-sro", { isEmployeeSeat: true, showAssistant: true }),
+    ).map((item) => item.labelKey)
+    expect(seat).not.toContain("asistent")
+    expect(seat).toHaveLength(3)
+  })
 })

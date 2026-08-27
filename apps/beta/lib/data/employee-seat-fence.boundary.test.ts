@@ -41,8 +41,27 @@ import { describe, expect, it } from "vitest"
 const BETA_ROOT = resolve(__dirname, "..", "..")
 const ORG_TREE = join(BETA_ROOT, "app", "(portal)", "[orgSlug]")
 
-/** The gates that count. Either one refuses an employee seat. */
-const SEAT_GATES = new Set(["assertNotEmployeeSeat", "requireOwner"])
+/**
+ * The gates that count — each one refuses an employee seat, by a different
+ * route.
+ *
+ *   assertNotEmployeeSeat    — this PR's gate: refuses the seat and nobody else.
+ *   requireOwner             — owner-only surfaces (Pro účetní). A seat is a
+ *                              `guest`, so it is already refused; a second gate
+ *                              would be noise.
+ *   assertAssistantAvailable — Asistent (PR 36). Spec §2.8 hides the module from
+ *                              "guest and employee seat", and it implements that
+ *                              by admitting only owner/admin/member. A seat is a
+ *                              `guest`, so the exclusion covers it — which
+ *                              `refuses a guest, and therefore a seat` below
+ *                              pins, so this entry cannot go stale if that role
+ *                              set is ever widened.
+ */
+const SEAT_GATES = new Set([
+  "assertNotEmployeeSeat",
+  "requireOwner",
+  "assertAssistantAvailable",
+])
 
 /**
  * The three surfaces spec §2.6.1 grants the seat, each with the reason it is
@@ -146,6 +165,26 @@ describe("employee-seat fence — spec §2.6.1 'Everything else 404'", () => {
       "every module under [orgSlug] must refuse the employee seat at its root, " +
         "or be added to SEAT_REACHABLE with the reason it is safe",
     ).toEqual([])
+  })
+
+  it("keeps Asistent's own gate exclusive of guests, and therefore of seats", () => {
+    // `SEAT_GATES` accepts `assertAssistantAvailable` on the strength of ONE
+    // fact: its role set excludes `guest`. That fact lives in another module and
+    // another PR's head, so it is asserted here rather than assumed — widening
+    // `ASSISTANT_ROLES` to admit a guest would silently turn this fence's
+    // acceptance of that gate into a hole, and would fail this case first.
+    const source = readFileSync(
+      join(BETA_ROOT, "lib", "data", "assistant.ts"),
+      "utf8",
+    )
+    const roles = /const ASSISTANT_ROLES = new Set\(\[([^\]]*)\]\)/.exec(source)
+
+    expect(
+      roles,
+      "ASSISTANT_ROLES still declared as a literal Set",
+    ).not.toBeNull()
+    expect(roles?.[1]).not.toContain("guest")
+    expect(roles?.[1]).toContain("owner")
   })
 
   it("gates the company sub-tabs of Dokumenty, which the seat DOES reach", () => {

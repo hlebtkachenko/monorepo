@@ -18,6 +18,8 @@ import {
 import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaMessageKey } from "@/i18n/messages"
 
+import { usePreserveFormValues } from "../_lib/preserve-form-values"
+
 /**
  * The state shape every manual-entry action must return — the common subset
  * of every module's own `<Module>ActionState` (`UveryActionState`,
@@ -95,6 +97,7 @@ export function EntrySheet<S extends EntrySheetActionState>({
 }>) {
   const t = useBetaTranslations()
   const [open, setOpen] = React.useState(false)
+  const formRef = React.useRef<HTMLFormElement>(null)
 
   // `useActionState`'s declared signature wants `Awaited<S>`, which
   // TypeScript cannot reduce to `S` for an abstract, generic `S` — even
@@ -102,11 +105,15 @@ export function EntrySheet<S extends EntrySheetActionState>({
   // are identical at runtime. One narrow, local cast in each direction
   // (never `any`) is the accepted shape for this exact generic-library
   // mismatch; every other line in this file stays fully typed in `S`.
-  const [rawState, formAction, pending] = React.useActionState(
+  const preservingAction = usePreserveFormValues(
+    formRef,
     action as unknown as (
       previous: Awaited<S>,
       formData: FormData,
-    ) => S | Promise<S>,
+    ) => Awaited<S> | Promise<Awaited<S>>,
+  )
+  const [rawState, formAction, pending] = React.useActionState(
+    preservingAction,
     idle as unknown as Awaited<S>,
   )
   const state = rawState as S
@@ -132,7 +139,7 @@ export function EntrySheet<S extends EntrySheetActionState>({
           <SheetDescription>{description}</SheetDescription>
         </SheetHeader>
 
-        <form action={formAction} className="grid gap-4 px-4">
+        <form ref={formRef} action={formAction} className="grid gap-4 px-4">
           {Object.entries(hidden).map(([name, value]) => (
             <input key={name} type="hidden" name={name} value={value} />
           ))}

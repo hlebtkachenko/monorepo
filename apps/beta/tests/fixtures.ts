@@ -43,7 +43,15 @@ import { sharedDatabaseUrl, unique } from "./scratch-db"
 process.env["BETTER_AUTH_SECRET"] ??= `beta-test-secret-${"x".repeat(40)}`
 process.env["BETTER_AUTH_URL"] ??= "http://localhost:3200"
 
-const PASSWORD = "Beta-Heslo-2026!"
+/**
+ * Exported for `anonymize.test.ts`, which has to attempt a sign-in with the
+ * RIGHT password after anonymization and see it fail. A wrong password proves
+ * nothing there — the point is that the credential is gone, not that the guess
+ * was bad.
+ */
+export const FIXTURE_PASSWORD = "Beta-Heslo-2026!"
+
+const PASSWORD = FIXTURE_PASSWORD
 
 let client: postgres.Sql | undefined
 

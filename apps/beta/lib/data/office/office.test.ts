@@ -102,6 +102,7 @@ const run = (action: Action, entries: Record<string, string> = {}) =>
 function everyAction(context: {
   organizationId: string
   userId: string
+  userEmail: string
   tokenId: string
 }): { name: string; action: Action; entries: Record<string, string> }[] {
   return [
@@ -176,6 +177,16 @@ function everyAction(context: {
       entries: { userId: context.userId, disabled: "true" },
     },
     {
+      name: "anonymizeUserAction",
+      action: userActions.anonymizeUserAction,
+      // A confirmation that would match, so the gate is the only thing that can
+      // refuse: a probe stopped by a typo proves nothing about authorization.
+      entries: {
+        userId: context.userId,
+        confirmEmail: context.userEmail,
+      },
+    },
+    {
       name: "revokeSetupLinkAction",
       action: setupLinkActions.revokeSetupLinkAction,
       entries: { tokenId: context.tokenId },
@@ -204,14 +215,15 @@ describe("every /admin action is gated on is_staff", () => {
     const actions = everyAction({
       organizationId: org.organizationId,
       userId: org.members.member.userId,
+      userEmail: org.members.member.email,
       // A syntactically valid id that does not exist: the gate has to fire
       // before anything looks it up.
       tokenId: "00000000-0000-7000-8000-000000000000",
     })
-    // Twelve writes × five callers. The `admin` case is the interesting one:
+    // Thirteen writes × five callers. The `admin` case is the interesting one:
     // a company admin administers PEOPLE inside their own book and must still
     // be a stranger to the office area, which is above organizations.
-    expect(actions).toHaveLength(12)
+    expect(actions).toHaveLength(13)
 
     const disabledStaff = await createAccount({ staff: true })
     await disableAccount(disabledStaff.userId)

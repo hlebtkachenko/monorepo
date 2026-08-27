@@ -11,6 +11,7 @@ import type { OfficeScope } from "../scope"
 import { officeDb } from "./db"
 import {
   accountDisabledPayload,
+  isReservedAnonymizedEmail,
   officeUserPayload,
   staffFlagPayload,
 } from "./payloads"
@@ -38,6 +39,8 @@ import {
 export type OfficeUserRefusal =
   | "not_found"
   | "invalid_email"
+  /** The address is inside the reserved anonymization namespace. */
+  | "reserved_email"
   | "email_taken"
   /** Deactivating would leave an organization with no owner (DB trigger). */
   | "last_owner"
@@ -114,6 +117,12 @@ export async function createOfficeUser(
     !EMAIL_PATTERN.test(email)
   ) {
     return { ok: false, reason: "invalid_email" }
+  }
+  // Before the INSERT, so the operator is told WHY rather than being handed the
+  // trigger's refusal as a generic "the database refused it". The trigger
+  // (`app_user_tombstone_guard`, 0021) is the floor; this is the message.
+  if (isReservedAnonymizedEmail(email)) {
+    return { ok: false, reason: "reserved_email" }
   }
 
   try {
@@ -205,8 +214,12 @@ export async function setUserDisabled(
  * A guard's refusal becomes a named reason; anything else is re-thrown. A real
  * database fault must not be dressed up as a polite Czech sentence — that is
  * the worst possible way to find out about one.
+ *
+ * Exported for `anonymize.ts`, which fires the same three guards from a
+ * transaction of its own and must not grow a second, drifting copy of the
+ * message-to-reason mapping.
  */
-function translateUserRefusal(error: unknown): OfficeUserWriteResult {
+export function translateUserRefusal(error: unknown): OfficeUserWriteResult {
   // See `writeMembership`: a lock-cycle victim is retryable, not broken.
   if (isDeadlock(error)) return { ok: false, reason: "retry" }
 

@@ -26,6 +26,7 @@ import { SectionTitle } from "../../_components/page-header"
 
 import { grantOwnerEverywhereAction } from "../_actions/memberships"
 import {
+  anonymizeUserAction,
   createUserAction,
   issueUserLinkAction,
   setUserDisabledAction,
@@ -47,6 +48,15 @@ import { AdminActionForm } from "../_components/admin-action-form"
  * credential only exists once an `account_setup` link has been consumed. Until
  * then the row is real, invisible to its owner, and claimable ONLY through a
  * staff-issued link.
+ *
+ * THERE IS NO DELETE ON THIS SCREEN, AND THERE CANNOT BE ONE. Migration 0021
+ * makes `activity_log.actor_user_id` `ON DELETE RESTRICT`: a person who has
+ * acted in a book is pinned there by the book's own history, which Czech
+ * accounting retention obliges the office to keep. "Anonymizovat" is what
+ * erasure means here — the PII, the credential, the second factor and every
+ * outstanding link are destroyed, the row and its audit trail stay
+ * (`lib/data/office/anonymize.ts`). It is irreversible, so it is the one control
+ * here behind a typed confirmation.
  */
 export default async function AdminUsersPage() {
   const office = await requireOffice()
@@ -223,6 +233,44 @@ export default async function AdminUsersPage() {
                             type="hidden"
                             name="activated"
                             value={user.activated ? "true" : "false"}
+                          />
+                        </AdminActionForm>
+                      )}
+
+                      {/*
+                        Erasure. Irreversible, so it is the only control on this
+                        screen behind a typed confirmation — the operator retypes
+                        the address in the cell above. Hidden on the operator's
+                        own row: the action refuses it anyway, and offering a
+                        button whose only outcome is a refusal is worse than not
+                        offering it.
+                      */}
+                      {user.userId === office.userId ? null : (
+                        <AdminActionForm
+                          action={anonymizeUserAction}
+                          submitLabel={t("admin.anonymizeUser")}
+                          submitVariant="destructive"
+                          layout="row"
+                        >
+                          <input
+                            type="hidden"
+                            name="userId"
+                            value={user.userId}
+                          />
+                          <Label
+                            htmlFor={`confirmEmail-${user.userId}`}
+                            className="sr-only"
+                          >
+                            {t("admin.anonymizeConfirmLabel")}
+                          </Label>
+                          <Input
+                            id={`confirmEmail-${user.userId}`}
+                            name="confirmEmail"
+                            type="email"
+                            required
+                            autoComplete="off"
+                            placeholder={t("admin.anonymizeConfirmPlaceholder")}
+                            className="h-8 w-56"
                           />
                         </AdminActionForm>
                       )}

@@ -15,6 +15,7 @@ import {
   type BetaOrgRole,
   type BetaSetupTokenPurpose,
 } from "@/db/schema"
+import { isReservedAnonymizedEmail } from "@/lib/data/office/payloads"
 import { setupInviteView, type SetupInviteView } from "@/lib/data/projections"
 import {
   isCheckViolation,
@@ -357,6 +358,14 @@ const EMAIL_MAX_LENGTH = 320
 function normalizeEmail(raw: string): string | null {
   const email = raw.trim().toLowerCase()
   if (email.length === 0 || email.length > EMAIL_MAX_LENGTH) return null
+  // The reserved anonymization namespace is refused here as well as at
+  // `createOfficeUser`, because consuming an `account_setup` link CREATES an
+  // `app_user` at the token's address — so an unfiltered issuance would be a
+  // second way to squat a victim's tombstone and make their erasure fail on the
+  // email UNIQUE. Folded into `invalid_email` rather than given its own
+  // rejection: this union is answered by four call sites, and a tombstone
+  // address genuinely is not a valid address for a person.
+  if (isReservedAnonymizedEmail(email)) return null
   return EMAIL_PATTERN.test(email) ? email : null
 }
 

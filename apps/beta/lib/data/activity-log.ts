@@ -5,7 +5,7 @@ import { and, eq } from "drizzle-orm"
 import { betaDb, type BetaExecutor } from "@/db/client"
 import { activity_log } from "@/db/schema"
 
-import type { AgentScope, OwnerScope } from "./scope"
+import type { AgentScope, OfficeScope, OwnerScope } from "./scope"
 
 /**
  * activity_log writes (spec §4).
@@ -121,6 +121,63 @@ export async function recordOfficeActivity(
     request_id: null,
     summary: entry.summary,
   })
+}
+
+/**
+ * Record an act performed by office staff from /admin, in every book it touches.
+ *
+ * THE SIBLING OF `recordOfficeActivity`, AND THE DIFFERENCE IS THE DOOR. That
+ * one takes an `OwnerScope` — an accountant acting INSIDE one book, which is
+ * where almost every logged write happens. This one takes an `OfficeScope`, the
+ * /admin door, which is above organizations: the act is not performed in a book
+ * at all, it merely lands in several. Same row shape, two authorities, so they
+ * stay two functions rather than one with a union parameter that would have to
+ * re-derive which authority it was handed.
+ *
+ * `actor_kind: "user"` with no `agent_key_id`, exactly as its sibling writes.
+ * `actor_user_id` is the OFFICE USER WHO ACTED, never the subject of the act —
+ * "who is answerable for this row" has exactly one meaning in this table and an
+ * /admin act does not get to redefine it.
+ *
+ * ONE ROW PER BOOK, WHICH IS WHY THIS TAKES A LIST. `organization_id` is NOT
+ * NULL: this log is a BOOK'S history, not a global feed, and there is no
+ * org-less row to write. An /admin act that reaches into three books therefore
+ * leaves a row in each of the three, so an accountant reading one book's history
+ * sees everything that happened to it without having to know that /admin exists.
+ *
+ * AN ACT THAT TOUCHES NO BOOK LEAVES NO ROW, and the caller is told so by the
+ * returned count rather than by silence. That is a real gap and it is stated
+ * here rather than hidden: an account that never held a membership anywhere has
+ * no book whose history it belongs in, and inventing one — a sentinel
+ * organization, a nullable column — would put rows nobody reads in a table
+ * everything else trusts.
+ */
+export async function recordAdminActivity(
+  executor: BetaExecutor,
+  office: OfficeScope,
+  organizationIds: readonly string[],
+  entry: OfficeActivityEntry,
+): Promise<number> {
+  // De-duplicated: a caller collecting book ids from a join can hand over the
+  // same one twice, and two identical rows would read as two acts.
+  const books = [...new Set(organizationIds)]
+  if (books.length === 0) return 0
+
+  await executor.insert(activity_log).values(
+    books.map((organizationId) => ({
+      organization_id: organizationId,
+      actor_kind: "user" as const,
+      actor_user_id: office.userId,
+      agent_key_id: null,
+      action: entry.action,
+      entity_kind: entry.entityKind,
+      entity_id: entry.entityId ?? null,
+      request_id: null,
+      summary: entry.summary,
+    })),
+  )
+
+  return books.length
 }
 
 /**

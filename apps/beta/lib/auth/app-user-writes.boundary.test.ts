@@ -68,18 +68,26 @@ const FORBIDDEN_COLUMNS = [
  * than an options object, and is unit-tested against a hostile input.
  *
  * `setupUserPayload` builds the identity a consumed setup link creates
- * (`lib/auth/setup-token.ts`); the other three are /admin's privileged writes
+ * (`lib/auth/setup-token.ts`); the other four are /admin's privileged writes
  * (`lib/data/office/payloads.ts`), which are the only writers of `is_staff` and
  * `disabled_at` in the app. Kept as the full set for anything that still needs
  * "is this name audited at all" (e.g. the Drizzle non-literal-payload check
  * below); WHICH of these a given writer may use is the allowlists further
  * down, not this one.
+ *
+ * `anonymizedUserPayload` (migration 0021) is the widest of them — it names
+ * `is_staff`, `disabled_at`, `email_verified` and `two_factor_enabled` in one
+ * object — which is exactly why it is a builder rather than a literal at the
+ * call site. It takes two primitives (the row's own id and the offboarding
+ * timestamp already on the row) and derives everything else, so there is no
+ * parameter through which a caller could choose WHICH columns get written.
  */
 const ALLOWED_PAYLOAD_BUILDERS = [
   "setupUserPayload",
   "officeUserPayload",
   "staffFlagPayload",
   "accountDisabledPayload",
+  "anonymizedUserPayload",
 ]
 
 /**
@@ -124,16 +132,22 @@ const IDENTITY_WRITER_BUILDERS: Record<string, readonly string[]> = {
 /**
  * Per-operation allowlists for the direct Drizzle writes on `app_user`.
  * `.values()` (an INSERT) is `createOfficeUser`'s row creation; `.set()` (an
- * UPDATE) is `setUserStaff` / `setUserDisabled` flipping one flag each.
+ * UPDATE) is `setUserStaff` / `setUserDisabled` flipping one flag each, plus
+ * `anonymizeAppUser` scrubbing the identity (migration 0021).
  * `setupUserPayload` is deliberately absent from both: the one path that may
  * use it is Better Auth's `internalAdapter.createUser`, because that adapter
  * call ALSO creates the linked credential in the same step — a raw Drizzle
  * insert with the same payload would create an identity with no way to sign
  * in as it and no record of how it got there.
+ *
+ * `anonymizedUserPayload` is on `set` ONLY, and that is the load-bearing half:
+ * on `values` it would mint a brand-new account already wearing a tombstone
+ * address — an identity nobody can sign in as, nobody provisioned, and nothing
+ * explains.
  */
 const DRIZZLE_OP_BUILDERS: Record<"values" | "set", readonly string[]> = {
   values: ["officeUserPayload"],
-  set: ["staffFlagPayload", "accountDisabledPayload"],
+  set: ["staffFlagPayload", "accountDisabledPayload", "anonymizedUserPayload"],
 }
 
 /**

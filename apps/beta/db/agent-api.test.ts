@@ -120,6 +120,89 @@ describe("activity_log", () => {
     ).rejects.toThrow()
   })
 
+  /**
+   * Migration 0021. The `agent` arm used to require only the KEY, so an agent
+   * row with no answerable human was insertable — and reachable in production
+   * through the old `ON DELETE SET NULL`. Both halves are asserted: the CHECK
+   * refuses the insert, and the foreign key refuses the delete that used to
+   * produce it.
+   */
+  it("refuses an agent act that names no human", async () => {
+    const org = await seedOrganization()
+    const key = await createAgentKeyRow({
+      actingUserId: org.members.owner.userId,
+    })
+
+    await expect(
+      sql`
+        INSERT INTO activity_log (
+          organization_id, actor_kind, agent_key_id, action, entity_kind
+        )
+        VALUES (
+          ${org.organizationId}, 'agent', ${key.id}, 'filing.upsert', 'filing'
+        )
+      `,
+    ).rejects.toThrow(/activity_log_actor_coherence/)
+  })
+
+  it("refuses to delete a person the log names, whichever kind acted", async () => {
+    for (const actor of ["user", "agent"] as const) {
+      const org = await seedOrganization()
+      const key = await createAgentKeyRow({
+        actingUserId: org.members.owner.userId,
+      })
+      const person = org.members.member.userId
+
+      await sql`
+        INSERT INTO activity_log (
+          organization_id, actor_kind, actor_user_id, agent_key_id, action,
+          entity_kind
+        )
+        VALUES (
+          ${org.organizationId}, ${actor}, ${person},
+          ${actor === "agent" ? key.id : null}, 'filing.upsert', 'filing'
+        )
+      `
+
+      // ERASURE IS ANONYMIZATION, NOT DELETION (option A). The refusal is the
+      // foreign key itself — not, as before 0021, a check_violation from the
+      // coherence constraint being handed a NULL it forbids.
+      await expect(
+        sql`DELETE FROM app_user WHERE id = ${person}`,
+        `${actor} act must pin its actor`,
+      ).rejects.toThrow(/activity_log_actor_user_id_fkey/)
+    }
+  })
+
+  /**
+   * The counterweight to the RESTRICT above: deleting a BOOK still works, and
+   * still takes its log with it. `organization_id` is `ON DELETE CASCADE` and
+   * `agent_key_id` is NO ACTION precisely so this one statement can succeed.
+   */
+  it("still lets an organization delete cascade through its log", async () => {
+    const org = await seedOrganization()
+    const key = await createAgentKeyRow({
+      actingUserId: org.members.owner.userId,
+    })
+    await sql`
+      INSERT INTO activity_log (
+        organization_id, actor_kind, actor_user_id, agent_key_id, action,
+        entity_kind
+      )
+      VALUES (
+        ${org.organizationId}, 'agent', ${org.members.owner.userId}, ${key.id},
+        'filing.upsert', 'filing'
+      )
+    `
+
+    await sql`DELETE FROM organization WHERE id = ${org.organizationId}`
+
+    const rows = await sql<{ id: string }[]>`
+      SELECT id FROM activity_log WHERE organization_id = ${org.organizationId}
+    `
+    expect(rows).toHaveLength(0)
+  })
+
   it("is append-only", async () => {
     const org = await seedOrganization()
     const [row] = await sql<{ id: string }[]>`

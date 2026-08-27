@@ -4,6 +4,10 @@ import { revalidatePath } from "next/cache"
 
 import type { BetaMessageKey } from "@/i18n/messages"
 import {
+  anonymizeAppUser,
+  type AnonymizeRefusal,
+} from "@/lib/data/office/anonymize"
+import {
   createOfficeUser,
   setUserDisabled,
   setUserStaff,
@@ -148,12 +152,76 @@ export async function setUserDisabledAction(
   }
 }
 
+/**
+ * Anonymize an account — the terminal, irreversible act (migration 0021).
+ *
+ * BEHIND A TYPED CONFIRMATION, which is the repo's established shape for an
+ * irreversible act (see the note about organization deletion in
+ * `organizations.ts`). The operator types the account's own address; the action
+ * compares it against the address the DATABASE holds, not against a value the
+ * form also supplied. A confirmation checked against another form field is a
+ * confirmation of nothing — both halves come from the same POST.
+ *
+ * The comparison is case-insensitive and trimmed because `app_user.email` is
+ * lowercased by a DB trigger and the operator is copying from a grid, not typing
+ * a password. It is a "did you mean this row", not a secret.
+ */
+export async function anonymizeUserAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const office = await requireOffice()
+
+  const targetUserId = formUuid(formData, "userId")
+  const confirmEmail = formString(formData, "confirmEmail").toLowerCase()
+  if (targetUserId === null || confirmEmail.length === 0) {
+    return { status: "error", error: "admin.errorInvalidInput" }
+  }
+
+  const result = await anonymizeAppUser(office, targetUserId, confirmEmail)
+  if (!result.ok) {
+    return { status: "error", error: anonymizeErrorKey(result.reason) }
+  }
+
+  revalidatePath("/admin/uzivatele")
+  // Anonymization deactivates every membership and revokes every live link
+  // addressed to the old address, so both registries the office might be
+  // looking at are stale.
+  revalidatePath("/admin/odkazy")
+  revalidatePath("/admin")
+  return {
+    status: "ok",
+    message: result.alreadyAnonymized
+      ? "admin.okUserAlreadyAnonymized"
+      : "admin.okUserAnonymized",
+  }
+}
+
+function anonymizeErrorKey(reason: AnonymizeRefusal): BetaMessageKey {
+  switch (reason) {
+    case "not_found":
+      return "admin.errorNotFound"
+    case "confirmation_mismatch":
+      return "admin.errorConfirmationMismatch"
+    case "self":
+      return "admin.errorAnonymizeSelf"
+    case "last_owner":
+      return "admin.errorLastOwner"
+    case "retry":
+      return "admin.errorRetry"
+    case "rejected":
+      return "admin.errorRejected"
+  }
+}
+
 function userErrorKey(reason: OfficeUserRefusal): BetaMessageKey {
   switch (reason) {
     case "not_found":
       return "admin.errorNotFound"
     case "invalid_email":
       return "admin.errorInvalidEmail"
+    case "reserved_email":
+      return "admin.errorReservedEmail"
     case "email_taken":
       return "admin.errorEmailTaken"
     case "last_owner":

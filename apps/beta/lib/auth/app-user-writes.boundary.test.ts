@@ -36,7 +36,17 @@
  *      invisible. Local bindings taken from anything mentioning
  *      `internalAdapter` are tracked per file, and calls through them count.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
 import { join, relative, resolve } from "node:path"
 
 import ts from "typescript"
@@ -136,30 +146,38 @@ const DRIZZLE_OP_BUILDERS: Record<"values" | "set", readonly string[]> = {
  * reach the exempt code: `db/demo-seed.test.ts` asserts that no module outside
  * `scripts/` imports from `scripts/`, so a script cannot become a request path
  * by being imported into one.
+ *
+ * THE EXEMPTIONS ARE PATHS, NOT NAMES. They used to be matched on the directory
+ * BASENAME anywhere in the tree, which is a much larger hole than it looks: a
+ * `scripts/` folder next to a Server Action, or a `tests/` folder inside a route
+ * module, would have exempted request-reachable code from this fence purely by
+ * being called the right thing. Nothing in the tree is spelled that way today,
+ * which is exactly why it would have gone unnoticed. Each entry below is now the
+ * one real directory it always meant, anchored at the app root and asserted to
+ * exist — a rename fails the fence instead of silently exempting nothing.
  */
-const SKIP_DIRS = new Set([
-  "node_modules",
-  ".next",
-  "migrations",
-  "scripts",
-  "fonts",
-  "public",
-  "tests",
-])
+const SKIP_PATHS = new Set(["db/migrations", "scripts", "fonts", "tests"])
+
+/**
+ * Skipped wherever they occur, because neither is source anybody in this repo
+ * wrote and both can nest arbitrarily deep.
+ */
+const SKIP_ANYWHERE = new Set(["node_modules", ".next"])
 
 function collectProductionSources(dir: string): string[] {
   const files: string[] = []
-  const walk = (current: string): void => {
+  const walk = (current: string, prefix: string): void => {
     for (const entry of readdirSync(current)) {
-      if (SKIP_DIRS.has(entry)) continue
+      const rel = prefix === "" ? entry : `${prefix}/${entry}`
+      if (SKIP_ANYWHERE.has(entry) || SKIP_PATHS.has(rel)) continue
       const full = join(current, entry)
-      if (statSync(full).isDirectory()) walk(full)
+      if (statSync(full).isDirectory()) walk(full, rel)
       else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
         files.push(full)
       }
     }
   }
-  walk(dir)
+  walk(dir, "")
   return files
 }
 
@@ -634,10 +652,56 @@ describe("SF-3 — app_user write paths", () => {
     expect(identityWriterArguments(parse(source, "unrelated.ts"))).toEqual([])
   })
 
+  it("exempts the four real directories and nothing that merely shares a name", () => {
+    // Each exemption is a promise that a real directory is unreachable from a
+    // request. A renamed or deleted one turns the promise into a no-op nobody
+    // notices, so the promise is checked against the disk.
+    for (const path of SKIP_PATHS) {
+      expect(
+        existsSync(join(BETA_ROOT, path)),
+        `${path} still exists — an exemption for a directory that is gone is dead weight, and one for a renamed directory silently stopped exempting it`,
+      ).toBe(true)
+    }
+
+    // And the anchoring itself: a `scripts` folder somewhere inside `app/` is a
+    // request path, not operator tooling, and must be scanned. This is the
+    // basename-matching hole, reproduced on a throwaway tree.
+    const root = mkdtempSync(join(tmpdir(), "skip-paths-"))
+    mkdirSync(join(root, "scripts"), { recursive: true })
+    mkdirSync(join(root, "app", "scripts"), { recursive: true })
+    writeFileSync(
+      join(root, "scripts", "seed.ts"),
+      "export const a = 1",
+      "utf8",
+    )
+    writeFileSync(
+      join(root, "app", "scripts", "action.ts"),
+      "export const b = 2",
+      "utf8",
+    )
+
+    const collected = collectProductionSources(root).map((file) =>
+      relative(root, file).split("\\").join("/"),
+    )
+    expect(collected).toEqual(["app/scripts/action.ts"])
+
+    rmSync(root, { recursive: true, force: true })
+  })
+
   it("writes app_user through no raw SQL at all", () => {
-    // Optional quotes: `UPDATE "app_user" SET ...` is the spelling a copied
-    // psql session produces, and the unquoted-only pattern walked past it.
-    const pattern = /(insert\s+into|update)\s+"?app_user"?\b/i
+    // Every spelling of the same statement, because this pattern is the whole
+    // enforcement for the raw-SQL arm and each gap in it is a silent exemption:
+    //
+    //   quotes        `UPDATE "app_user" SET ...`     — what a copied psql session pastes
+    //   schema        `UPDATE public.app_user SET`    — what pgAdmin and most ORMs emit
+    //   both          `UPDATE "public"."app_user"`    — what pg_dump emits
+    //   ONLY          `UPDATE ONLY app_user SET`      — valid Postgres, and inheritance-aware code writes it
+    //   line breaks   `update\n  app_user\nset`       — what a formatter does to a long statement
+    //
+    // The unquoted-single-token pattern this replaces matched the first two of
+    // the five.
+    const pattern =
+      /(?:insert\s+into|update)\s+(?:only\s+)?(?:"?[a-z_]+"?\s*\.\s*)?"?app_user"?(?![\w"])/i
     const offenders = parsed
       .filter((entry) => pattern.test(entry.source))
       .map((entry) => entry.file)
@@ -650,12 +714,28 @@ describe("SF-3 — app_user write paths", () => {
     )
     expect(pattern.test(fixtures)).toBe(true)
 
-    // And it matches the quoted spelling a copied psql session produces.
-    expect(pattern.test(`UPDATE "app_user" SET is_staff = true`)).toBe(true)
-    expect(pattern.test(`INSERT INTO "app_user" (email) VALUES ($1)`)).toBe(
-      true,
-    )
-    // Without matching a different table whose name merely starts the same.
-    expect(pattern.test(`UPDATE app_user_session SET x = 1`)).toBe(false)
+    for (const statement of [
+      `UPDATE "app_user" SET is_staff = true`,
+      `INSERT INTO "app_user" (email) VALUES ($1)`,
+      `UPDATE public.app_user SET disabled_at = now()`,
+      `INSERT INTO "public"."app_user" (email) VALUES ($1)`,
+      `UPDATE ONLY app_user SET is_staff = true`,
+      `update\n  app_user\nset email_verified = true`,
+      `INSERT\n  INTO app_user (email)\n  VALUES ($1)`,
+    ]) {
+      expect(pattern.test(statement), statement).toBe(true)
+    }
+
+    // Without claiming a different table whose name merely starts the same, or
+    // a statement that only READS the one it does claim.
+    for (const innocent of [
+      `UPDATE app_user_session SET x = 1`,
+      `UPDATE "app_user_session" SET x = 1`,
+      `UPDATE public.app_user_session SET x = 1`,
+      `SELECT * FROM app_user WHERE id = $1`,
+      `DELETE FROM app_user WHERE id = $1`,
+    ]) {
+      expect(pattern.test(innocent), innocent).toBe(false)
+    }
   })
 })

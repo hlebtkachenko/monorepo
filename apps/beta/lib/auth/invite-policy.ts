@@ -227,10 +227,16 @@ export function mayDeactivate(
  * WHAT IT WOULD BE IF THE SEAT WERE A ROLE. Then this same act would be
  * reachable through `changeMemberRole` — an admin could re-point an EXISTING
  * account (a colleague's, not one they control) at a chosen payroll row without
- * anyone consuming a link. The link is the only writer of
+ * anyone consuming a link. The link is the only thing that SETS
  * `payroll_employee.app_user_id` precisely so that binding an account to a person
  * always costs a fresh, forensically-stamped, one-time credential delivered to a
  * named address.
+ *
+ * The column has exactly one other writer, and it only ever clears it:
+ * `revokeEmployeeSeat` (`lib/data/office/employee-seats.ts`), the office-side
+ * undo for a mis-binding. It takes an `OfficeScope`, not a role, and has no
+ * parameter that could name an account — so it cannot re-point anything, and
+ * the sentence above still holds where it matters.
  */
 export function mayInviteEmployeeSeat(issuer: InviteIssuer): boolean {
   return managesPeople(issuer)

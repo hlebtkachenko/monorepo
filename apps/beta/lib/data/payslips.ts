@@ -418,41 +418,43 @@ export async function uploadPayslipDocument(
 }
 
 /**
- * WITHDRAW A PAYSLIP THAT WAS FILED AGAINST THE WRONG PERSON.
+ * WITHDRAW ONE PAYSLIP FROM THE BOOK.
  *
- * The worst outcome reachable from this application, per this module's own
- * header, is a výplatní páska served to the wrong colleague.
- * `uploadPayslipDocument` stamps `payslip_employee_id` from the office's
- * matching pass, and a bulk ZIP matched by name against a register holding two
- * Nováks is exactly where that stamp goes wrong.
+ * The motivating case is a mis-assignment — this module's header calls a
+ * výplatní páska served to the wrong colleague the worst outcome reachable from
+ * this application, and a bulk ZIP matched by name against a register holding
+ * two Nováks is exactly where `payslip_employee_id` goes wrong. Until now there
+ * was no way to take one back: `softDeleteDocument` (`lib/data/documents.ts`)
+ * has been the mechanism the whole time and has had NO CALLER AT ALL.
  *
- * Until now there was no way to take it back. `softDeleteDocument`
- * (`lib/data/documents.ts`) has been the mechanism the whole time and has had
- * NO CALLER AT ALL — so the remediation existed only as a function nobody could
- * find from the surface that needs it.
+ * IT IS NAMED FOR WHAT IT CHECKS, NOT FOR WHY IT IS CALLED. An earlier name,
+ * `withdrawMisassignedPayslip`, promised an assertion this function does not
+ * make and cannot make: nothing here knows which employee the payslip SHOULD
+ * have named, and a caller withdrawing a correctly-assigned payslip (a
+ * superseded month, a bad scan) is doing something perfectly legitimate. A name
+ * that implies a precondition nobody enforces is a name that will eventually be
+ * read as a guarantee.
+ *
+ * WHAT IT DOES CHECK is `doc_type = 'payslip'`, and that is the whole reason it
+ * is a named function rather than a `softDeleteDocument` call at the call site.
+ * That function withdraws ANY document in the book, so a payroll surface wired
+ * straight to it would be a payroll surface that can delete invoices and bank
+ * statements. This door carries the narrowest authority that does the job.
  *
  * WITHDRAWAL, NOT RE-STAMPING. The tempting shape is "point the row at the
  * right employee", and it is the wrong one: a payslip already readable by the
  * wrong person is not made unread by correcting a column, the office still has
  * to tell someone, and the row is the evidence of what was served and to whom.
- * Withdrawing it and uploading again against the correct employee leaves both
- * facts in the book — one row that was wrong and was retracted, one row that is
- * right — where a mutation would leave a single row that has always looked
- * correct.
- *
- * IT REFUSES A NON-PAYSLIP, which is why this is a named function rather than a
- * `softDeleteDocument` call at the call site. That function withdraws ANY
- * document in the book, so a payroll-remediation surface wired straight to it
- * would be a payroll surface that can delete invoices and bank statements. The
- * `doc_type = 'payslip'` check makes this door carry the narrowest authority
- * that does the job.
+ * Withdrawing and re-uploading leaves both facts in the book — one row that was
+ * wrong and was retracted, one row that is right — where a mutation leaves a
+ * single row that has always looked correct.
  *
  * THE BYTES SURVIVE, deliberately. Every read in this module filters
  * `deleted_at IS NULL`, so the row leaves Výplatnice and the employee's Moje
  * mzda at once, while the object stays recoverable until an operator runs
- * `purgeOrganization`. A mis-assignment is a mistake, and mistakes get undone.
+ * `purgeOrganization`. A mistake is a mistake, and mistakes get undone.
  */
-export async function withdrawMisassignedPayslip(
+export async function withdrawPayslip(
   scope: OwnerScope,
   documentId: string,
 ): Promise<boolean> {

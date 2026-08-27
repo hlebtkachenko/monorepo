@@ -1,8 +1,12 @@
 import "server-only"
 
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull, sql } from "drizzle-orm"
 
-import { organization_membership, payroll_employee } from "@/db/schema"
+import {
+  organization_membership,
+  payroll_employee,
+  user_setup_token,
+} from "@/db/schema"
 
 import type { OfficeScope } from "../scope"
 
@@ -54,10 +58,25 @@ import { officeDb } from "./db"
  * application, only deactivated (`lib/data/office/memberships.ts`): `active =
  * false` is what `requireScope` reads, it survives the person coming back, and
  * it keeps `invited_by_user_id` as the record of who let them in — which is
- * precisely the field an incident review of a mis-bound seat wants. Migration
- * 0002's trigger also revokes that person's outstanding invitations into this
- * organization when the membership deactivates, so a revoked seat cannot walk
- * back in through a link that was already in their inbox.
+ * precisely the field an incident review of a mis-bound seat wants.
+ *
+ * AND THE OUTSTANDING INVITES GO WITH IT, IN THE SAME TRANSACTION.
+ *
+ * Migration 0002's trigger already revokes a deactivated member's outstanding
+ * links, and it is not enough here, because it keys on the PERSON and this
+ * mistake is about the SEAT. The whole reason a mis-binding happens is that a
+ * seat invite went to the wrong address — so the live token pre-bound to this
+ * `payroll_employee` is very often addressed to somebody the deactivated
+ * membership has nothing to do with. That token survives the trigger, and
+ * consuming it re-writes `app_user_id` through the one path that is allowed to
+ * (`consumeSetupToken`'s claim is `app_user_id IS NULL OR = me`, and the unbind
+ * just made it NULL again). The office would have revoked a seat and handed the
+ * next wrong human a working key to the same payslips.
+ *
+ * So every unconsumed, unrevoked token naming this employee row is revoked
+ * alongside the unbind. Expired ones are swept in too: they are already dead,
+ * and including them removes the window where a token expires between the read
+ * and the write, at the cost of nothing.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -69,6 +88,12 @@ export type SeatRevocation =
       unboundUserId: string
       /** False when the account's membership was not a `guest` seat. */
       membershipDeactivated: boolean
+      /**
+       * Unconsumed invites naming this employee row that were killed with it,
+       * expired ones included — the count that is above zero exactly when a
+       * second wrong human could otherwise have walked in.
+       */
+      revokedInvites: number
     }
   | { ok: false; reason: "unknown_employee" | "not_bound" }
 
@@ -131,10 +156,29 @@ export async function revokeEmployeeSeat(
       )
       .returning({ userId: organization_membership.user_id })
 
+    // Keyed on the EMPLOYEE ROW, not on the unbound account: the token that
+    // caused this mess is the one addressed to the wrong person, and it has no
+    // relationship to the membership deactivated above. `revoked_at` is
+    // write-once (migration 0001), so the `IS NULL` is a precondition rather
+    // than a filter for tidiness.
+    const revokedInvites = await tx
+      .update(user_setup_token)
+      .set({ revoked_at: sql`now()` })
+      .where(
+        and(
+          eq(user_setup_token.organization_id, input.organizationId),
+          eq(user_setup_token.payroll_employee_id, input.payrollEmployeeId),
+          isNull(user_setup_token.consumed_at),
+          isNull(user_setup_token.revoked_at),
+        ),
+      )
+      .returning({ id: user_setup_token.id })
+
     return {
       ok: true,
       unboundUserId,
       membershipDeactivated: deactivated.length > 0,
+      revokedInvites: revokedInvites.length,
     }
   })
 }

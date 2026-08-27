@@ -55,7 +55,7 @@ const {
   payslipDocumentsForScope,
   openPayslipFile,
   uploadPayslipDocument,
-  withdrawMisassignedPayslip,
+  withdrawPayslip,
 } = await import("./payslips")
 const { setDocumentStoreForTests } = await import("@/lib/storage/store")
 
@@ -133,12 +133,17 @@ async function seedPayrollWorld(org: TestOrganization) {
 }
 
 /**
- * ITEM-38 CARRY-IN: `softDeleteDocument` was the mechanism for a payslip
- * mis-assignment the whole time and had NO CALLER at all, so the remediation
- * for this module's own sharpest failure existed only as a function nobody
- * could find from here.
+ * ITEM-38 CARRY-IN: `softDeleteDocument` was the mechanism for undoing a
+ * payslip mis-assignment the whole time and had NO CALLER at all, so the
+ * remediation for this module's own sharpest failure existed only as a function
+ * nobody could find from here.
+ *
+ * The function is named for what it CHECKS (`doc_type = 'payslip'`) rather than
+ * for the mis-assignment that motivates it — it makes no assertion about
+ * whether the assignment was wrong, and a correctly-assigned payslip withdrawn
+ * for some other reason is a legitimate call.
  */
-describe("withdrawMisassignedPayslip", () => {
+describe("withdrawPayslip", () => {
   it("takes the payslip out of every payslip read at once", async () => {
     const { periodId, employeeId } = await seedPayrollWorld(orgA)
     const documentId = await createDocumentRow(orgA.organizationId, {
@@ -152,7 +157,7 @@ describe("withdrawMisassignedPayslip", () => {
       (await payslipDocumentsForScope(owner)).map((row) => row.id),
     ).toContain(documentId)
 
-    expect(await withdrawMisassignedPayslip(owner, documentId)).toBe(true)
+    expect(await withdrawPayslip(owner, documentId)).toBe(true)
 
     // The list AND the file door, because they are separate queries and a
     // withdrawal that only cleared the list would leave the bytes one URL away
@@ -172,7 +177,7 @@ describe("withdrawMisassignedPayslip", () => {
     })
 
     const owner = await ownerScopeOf(orgA)
-    expect(await withdrawMisassignedPayslip(owner, invoiceId)).toBe(false)
+    expect(await withdrawPayslip(owner, invoiceId)).toBe(false)
   })
 
   it("refuses a payslip id from another organization, id in hand", async () => {
@@ -183,9 +188,7 @@ describe("withdrawMisassignedPayslip", () => {
       payslipPeriodId: periodId,
     })
 
-    expect(
-      await withdrawMisassignedPayslip(await ownerScopeOf(orgA), theirs),
-    ).toBe(false)
+    expect(await withdrawPayslip(await ownerScopeOf(orgA), theirs)).toBe(false)
     // And it is still there for the book that owns it.
     expect(
       (await payslipDocumentsForScope(await ownerScopeOf(orgB))).map(
@@ -203,11 +206,11 @@ describe("withdrawMisassignedPayslip", () => {
     })
     const owner = await ownerScopeOf(orgA)
 
-    expect(await withdrawMisassignedPayslip(owner, documentId)).toBe(true)
-    expect(await withdrawMisassignedPayslip(owner, documentId)).toBe(false)
+    expect(await withdrawPayslip(owner, documentId)).toBe(true)
+    expect(await withdrawPayslip(owner, documentId)).toBe(false)
 
     for (const hostile of ["", "not-a-uuid", "' OR 1=1 --"]) {
-      expect(await withdrawMisassignedPayslip(owner, hostile)).toBe(false)
+      expect(await withdrawPayslip(owner, hostile)).toBe(false)
     }
   })
 })

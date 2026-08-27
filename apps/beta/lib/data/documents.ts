@@ -1022,7 +1022,7 @@ export async function uploadDocument(
  * which is what keeps "the office deleted it by mistake" recoverable.
  *
  * IT WITHDRAWS ANY DOCUMENT IN THE BOOK, payslips included — which is why the
- * payroll door does not call it directly. `withdrawMisassignedPayslip`
+ * payroll door does not call it directly. `withdrawPayslip`
  * (`lib/data/payslips.ts`) is the caller: it refuses a non-payslip first, so a
  * payroll-remediation surface cannot reach an invoice.
  */

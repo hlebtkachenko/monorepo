@@ -218,13 +218,23 @@ role. CI reads the account id from a GitHub Actions secret only.
 
 ## Documents (packages/storage — `S3DocumentStore`)
 
+`apps/beta` has its own, independently-fenced document store
+(`apps/beta/lib/storage/document-store-s3.ts`, opaque org-prefixed key
+`org/{organizationId}/{objectId}.{ext}` rather than the main app's
+content-addressed `documents/{workspaceId}/{sha256}.{ext}`). It reads
+`DOCUMENTS_BUCKET` and `DOCUMENTS_KMS_KEY_ID` for its own bucket/CMK, wired by
+`infra/cdk/lib/beta-app-stack.ts`, and honors the same `S3_ENDPOINT` /
+`DOCUMENTS_S3_ACCESS_KEY_ID` / `DOCUMENTS_S3_SECRET_ACCESS_KEY` local-MinIO
+override below, with identical names and precedence, so the two stores never
+drift on how a custom endpoint is configured.
+
 | Var                              | Required | Notes                                                                                                                                                                                                                                        |
 | -------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `DOCUMENTS_BUCKET`               | yes      | S3 bucket backing the `DocumentStore` (`packages/storage/src/document-store-s3.ts`). Content-addressed key convention `documents/{workspaceId}/{sha256}.{ext}`. `S3DocumentStore` throws at construction if unset.                           |
 | `DOCUMENTS_KMS_KEY_ID`           | no       | Dedicated KMS CMK id/ARN. Server-side `put` and same-key confirm/restore copies set SSE-KMS explicitly. Browser presigned POSTs intentionally omit KMS form fields and rely on the bucket's default CMK encryption. Unset locally for MinIO. |
-| `S3_ENDPOINT`                    | no       | S3-compatible endpoint override for local development. When set, forces path-style addressing. Unset in staging/production.                                                                                                                  |
-| `DOCUMENTS_S3_ACCESS_KEY_ID`     | no       | Static access id used only when `S3_ENDPOINT` is set. Preferred over the process-global AWS credential variable so MinIO credentials do not affect avatar storage or other AWS clients.                                                      |
-| `DOCUMENTS_S3_SECRET_ACCESS_KEY` | no       | Static credential paired with `DOCUMENTS_S3_ACCESS_KEY_ID`, used only for a custom endpoint. Production leaves both unset and uses the ECS task-role provider chain.                                                                         |
+| `S3_ENDPOINT`                    | no       | S3-compatible endpoint override for local development. When set, forces path-style addressing. Unset in staging/production. Also honored by `apps/beta`'s own store (above) for local MinIO preview.                                         |
+| `DOCUMENTS_S3_ACCESS_KEY_ID`     | no       | Static access id used only when `S3_ENDPOINT` is set. Preferred over the process-global AWS credential variable so MinIO credentials do not affect avatar storage or other AWS clients. Same precedence in `apps/beta`'s own store.          |
+| `DOCUMENTS_S3_SECRET_ACCESS_KEY` | no       | Static credential paired with `DOCUMENTS_S3_ACCESS_KEY_ID`, used only for a custom endpoint. Production leaves both unset and uses the ECS task-role provider chain. Same precedence in `apps/beta`'s own store.                             |
 
 Bucket purpose, lifecycle, deletion boundaries, and the pricing decision are in
 [ADR-0031](adr/0031-s3-storage-and-document-working-store.md). Implemented

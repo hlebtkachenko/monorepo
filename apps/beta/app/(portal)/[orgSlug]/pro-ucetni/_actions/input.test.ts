@@ -136,6 +136,42 @@ describe("formDecimal — money, never parsed", () => {
     })
   })
 
+  /**
+   * The regression this pins: the office types an amount the way this app
+   * itself renders it back (`formatBetaMoney` / `formatBetaAmount` emit Czech
+   * grouping), and the old `.replace(",", ".")` only ever handled the comma —
+   * a grouped figure like "150 000,50" still had a raw space in it and failed
+   * the shape regex. Both directions are asserted together on purpose: an
+   * accept-only suite would pass if the shape gate were simply deleted.
+   */
+  it("accepts Czech grouping — the format this app renders back", () => {
+    // U+00A0 and U+202F are what Intl.NumberFormat("cs-CZ") actually emits
+    // between groups; an ASCII space is what a person types.
+    expect(formDecimal(fd({ a: "150 000,50" }), "a")).toEqual({
+      ok: true,
+      value: "150000.50",
+    })
+    expect(formDecimal(fd({ a: "650 000,00" }), "a")).toEqual({
+      ok: true,
+      value: "650000.00",
+    })
+    expect(formDecimal(fd({ a: "12 345,6" }), "a")).toEqual({
+      ok: true,
+      value: "12345.6",
+    })
+    // No comma at all: grouping alone on a whole number, no decimal to guess at.
+    expect(formDecimal(fd({ a: "1 000" }), "a")).toEqual({
+      ok: true,
+      value: "1000",
+    })
+    // A dot is grouping only once a comma proves it: "1.234,56" is Czech for
+    // 1234.56, but a lone "1.234" (already covered below) stays a refusal.
+    expect(formDecimal(fd({ a: "1.234,56" }), "a")).toEqual({
+      ok: true,
+      value: "1234.56",
+    })
+  })
+
   it("treats an empty field as absent, not as zero", () => {
     // §0.4: "the office has not stated an amount" is not the same fact as
     // "nothing is owed", and only one of the two is a debt of nil.
@@ -153,12 +189,21 @@ describe("formDecimal — money, never parsed", () => {
     for (const bad of [
       "abc",
       "1.2.3",
-      "1 000",
       "1e3",
       "0.001",
       "NaN",
       "Infinity",
       "1234567890123.00",
+      // A lone dot stays a decimal point: "1.234" is ambiguous (1234 written
+      // Czech-style, or 1.234 with three decimals) and is left as a refusal
+      // rather than guessed at — see `normalizeBetaMoneyInput`.
+      "1.234",
+      // Multiple commas: not a grouped-then-decimal shape either direction.
+      "1,23,45",
+      // Over-precision written with the Czech comma, not just the dot form
+      // ("0.001" above) — the same three-decimal refusal, reached the other way.
+      "150000,555",
+      "12,5 Kč",
     ]) {
       expect(formDecimal(fd({ a: bad }), "a"), bad).toEqual({ ok: false })
     }

@@ -1,6 +1,7 @@
 import "server-only"
 
 import type { BetaLoanInstallmentPeriod, BetaLoanKind } from "@/db/schema"
+import { normalizeBetaMoneyInput } from "@/lib/format/money"
 
 /**
  * Reading a `FormData` at the Úvěry write boundary. Mirrors
@@ -69,11 +70,16 @@ export function formDate(formData: FormData, key: string): string | null {
  * column's actual precision and range (`loan_principal_nonnegative` etc.) —
  * this is a syntax gate only, so a malformed string is an ordinary form refusal
  * rather than a driver error surfacing as a 500.
+ *
+ * Czech-written grouping and decimal comma are normalised via
+ * `normalizeBetaMoneyInput` before this regex ever sees the value, not by
+ * loosening the regex itself — see that function for what it does and does
+ * not guess at.
  */
 const MONEY = /^-?\d{1,12}(\.\d{1,2})?$/
 
 export function formMoney(formData: FormData, key: string): string | null {
-  const value = formString(formData, key)
+  const value = normalizeBetaMoneyInput(formString(formData, key))
   return MONEY.test(value) ? value : null
 }
 
@@ -84,7 +90,8 @@ export function formOptionalMoney(
 ): string | null | undefined {
   const raw = formString(formData, key)
   if (raw.length === 0) return null
-  return MONEY.test(raw) ? raw : undefined
+  const value = normalizeBetaMoneyInput(raw)
+  return MONEY.test(value) ? value : undefined
 }
 
 /**

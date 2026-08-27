@@ -13,6 +13,14 @@
     "pending": "Ukládám…",
     "close": "Zavřít"
   },
+  "chyba": {
+    "title": "Něco se nepovedlo",
+    "body": "Stránku se teď nepodařilo načíst. Zkuste to prosím znovu.",
+    "retry": "Zkusit znovu",
+    "calmTitle": "Data se připravují",
+    "calmBody": "Zkuste to prosím za chvíli.",
+    "calmRetry": "Načíst znovu"
+  },
   "nav": {
     "prehled": "Přehled",
     "dokumenty": "Dokumenty",
@@ -204,6 +212,8 @@
     "uploadStateDone": "Nahráno",
     "uploadStateDuplicate": "Už nahráno",
     "uploadStateFailed": "Nepodařilo se",
+    "uploadStateProcessing": "Zpracovává se…",
+    "uploadCalmHint": "Ještě to dokončujeme. Zkuste to prosím za chvíli.",
     "uploadDuplicateOn": "Tento soubor jste už nahráli",
     "uploadDuplicateAlready": "Tento soubor už na účtu je.",
     "uploadOpenDocument": "Stáhnout soubor",
@@ -1361,7 +1371,8 @@
     "errorBusy": "Asistent je přetížený. Zkuste to prosím za chvíli.",
     "errorRefused": "Na tento dotaz asistent neodpoví. Obraťte se prosím na svou účetní.",
     "errorNetwork": "Spojení s asistentem se přerušilo. Zkuste to prosím znovu.",
-    "errorGeneric": "Dotaz se nepodařilo odeslat. Zkuste to prosím znovu."
+    "errorGeneric": "Dotaz se nepodařilo odeslat. Zkuste to prosím znovu.",
+    "errorCalm": "Odpověď se připravuje. Zkuste to prosím za chvíli."
   },
   "nastaveni": {
     "navLabel": "Nastavení",

@@ -8,7 +8,10 @@ import { cn } from "@workspace/ui/lib/utils"
 
 import { useBetaTranslations } from "@/i18n/translations"
 import type { BetaMessageKey } from "@/i18n/messages"
+import { logCalmedError } from "@/lib/demo-mode"
 import type { ChatMessageView } from "@/lib/data/projections"
+
+import { useCalmErrors } from "../../../../_components/calm-errors"
 
 /**
  * The conversation itself: transcript, composer, streamed reply (spec §2.8).
@@ -49,6 +52,26 @@ const ERROR_MESSAGE_KEY: Record<string, BetaMessageKey> = {
   tenancy_keys_forbidden: "asistent.errorGeneric",
 }
 
+/**
+ * The two sentences above that describe the MACHINE failing rather than a rule
+ * being applied — the only ones calm demo mode replaces (`lib/demo-mode.ts`).
+ *
+ * Keyed on the resolved MESSAGE rather than on the wire code, because that is
+ * where the distinction actually lives: eight different codes collapse into
+ * `errorGeneric`, and every one of them means "the send did not happen for a
+ * reason the client cannot do anything about".
+ *
+ * `errorUnavailable`, `errorBusy`, `errorRefused`, `errorDailyLimit`,
+ * `errorMonthlyBudget` and `errorTooLong` are NOT here, deliberately. Each is a
+ * product statement with an instruction in it — shorten the question, ask your
+ * accountant, try tomorrow — and each is already written in calm Czech. Hiding
+ * them would remove the only thing on screen telling the client what to do next.
+ */
+const CALMABLE_ERROR_KEYS: ReadonlySet<BetaMessageKey> = new Set([
+  "asistent.errorNetwork",
+  "asistent.errorGeneric",
+])
+
 type Turn = { id: string; role: "user" | "assistant"; content: string }
 
 export function ChatPanel({
@@ -63,6 +86,7 @@ export function ChatPanel({
   maxInputChars: number
 }) {
   const t = useBetaTranslations()
+  const calmErrors = useCalmErrors()
   const [turns, setTurns] = React.useState<Turn[]>(() =>
     initialMessages.map((m) => ({
       id: m.id,
@@ -92,7 +116,13 @@ export function ChatPanel({
     ])
 
     const fail = (code: string): void => {
-      setErrorKey(ERROR_MESSAGE_KEY[code] ?? "asistent.errorGeneric")
+      const key = ERROR_MESSAGE_KEY[code] ?? "asistent.errorGeneric"
+      // The wire code is the only thing that says WHICH failure this was, and
+      // the calmed line no longer carries it — so it goes to the log instead.
+      if (calmErrors && CALMABLE_ERROR_KEYS.has(key)) {
+        logCalmedError("asistent/chat", code)
+      }
+      setErrorKey(key)
     }
 
     try {
@@ -195,9 +225,15 @@ export function ChatPanel({
       ) : null}
 
       {errorKey ? (
-        <p role="alert" className="text-sm text-destructive">
-          {t(errorKey)}
-        </p>
+        calmErrors && CALMABLE_ERROR_KEYS.has(errorKey) ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t("asistent.errorCalm")}
+          </p>
+        ) : (
+          <p role="alert" className="text-sm text-destructive">
+            {t(errorKey)}
+          </p>
+        )
       ) : null}
 
       <div className="grid gap-2">

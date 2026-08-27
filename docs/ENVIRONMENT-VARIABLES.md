@@ -115,6 +115,51 @@ code change.
 The rule itself is one pure module, `apps/beta/lib/auth/totp-enforcement.ts` — the
 switch is read there and nowhere else, so the three doors cannot drift apart.
 
+## Beta portal — calm demo errors (apps/beta)
+
+`BETA_DEMO_CALM_ERRORS` exists for one situation: the portal being demonstrated
+live to a client, where a transient failure turning the screen red becomes the
+topic of the meeting. Switched on, three surfaces render a system failure as a
+neutral pending state instead of a destructive one, and the failure goes to the
+log rather than to the screen:
+
+- the route error boundaries (`app/error.tsx`, `app/(portal)/[orgSlug]/error.tsx`)
+  render "Data se připravují." in the neutral `Alert` variant;
+- a Dokumenty upload that failed for a **machine** reason (`network`, `server`,
+  the server's own `retry`) shows "Zpracovává se…" with its spinner instead of
+  "Nepodařilo se";
+- an Asistent send that failed to reach the provider shows "Odpověď se
+  připravuje." instead of the red transport error.
+
+**Validation is never touched.** Every field-level refusal — the family the
+`_actions/input.ts` readers produce, plus the DB-rule sentences under them —
+stays exactly as it is in both states. So do the refusals that carry an
+instruction even though a machine caused them (`uploadErrorTooLarge`,
+`uploadErrorQuota`, `uploadErrorForbidden`, `errorAresUnavailable`,
+`nastaveni.errorNotSaved`): hiding those would leave the viewer waiting for
+something that is never going to happen. Where a failure could be read either
+way, it stays visible.
+
+Every suppressed failure is logged with a single greppable `[calm-demo]` prefix
+— server-side by `apps/beta/instrumentation.ts`'s `onRequestError` (one line per
+failed render, Server Action or route handler, with method, path and route
+type), and in the browser console by the boundary and the two panels. With the
+flag unset nothing extra is logged and no rendering changes.
+
+It is **set nowhere**: not in `infra/cdk/lib/beta-app-stack.ts`, not in any
+GitHub environment, not in `apps/beta/Dockerfile`. Its intended use is a local
+demo run — `BETA_DEMO_CALM_ERRORS=true pnpm --filter beta dev` — where the
+operator watches the terminal that the client cannot see.
+
+| Var                     | Required | Notes                                                                                                                                                                                                                                         |
+| ----------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETA_DEMO_CALM_ERRORS` | no       | Exactly `true` switches calm demo mode on. Unset (the deployed state everywhere) → the portal reports failures exactly as it always has. Compared as a trimmed string; `1` / `yes` / `TRUE` do **not** enable it. Never set it in production. |
+
+The switch is read in one pure module, `apps/beta/lib/demo-mode.ts`. It is a
+server fact, so it reaches the Client Components that need it through
+`CalmErrorsProvider` in the root layout rather than through a `NEXT_PUBLIC_`
+variable — the flag is never published to the browser bundle.
+
 ## Beta portal — Asistent (apps/beta)
 
 The Asistent module (`apps/beta/lib/assistant/`, spec `.context/beta-afframe/40-beta-structure.md` §2.8) ships **dark**: none of the variables below is set anywhere — not in `infra/cdk/lib/beta-app-stack.ts`, not in any GitHub environment — and with all of them absent the module is unreachable. Two independent switches, and both default off:

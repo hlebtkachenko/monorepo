@@ -572,8 +572,10 @@ function resolveManualStartPayload(
  * AN EMPTY DRAFT IS OTHERWISE A LEGAL DRAFT: `createDraftBatch` only inserts a
  * dataset's rows `if (length > 0)`, so an empty start needs no special case at
  * the data layer — exactly the property the plan's W1 section confirms before
- * relying on it. `row_count` lands at `0` (or `1` for a bare payroll summary,
- * `batchRowCount`'s own rule), which the completeness matrix already renders
+ * relying on it. `row_count` lands at `0` for a payroll start the office has
+ * not touched yet — a bare summary with every field unstated is not a row —
+ * and only counts the summary once it (or a line) carries something
+ * (`batchRowCount`'s own rule), which the completeness matrix already renders
  * correctly (a draft with nothing published yet).
  *
  * NEVER PUBLISHES, same as the CSV fallback: the batch stays invisible to

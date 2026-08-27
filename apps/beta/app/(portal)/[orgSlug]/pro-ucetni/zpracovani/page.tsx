@@ -15,6 +15,7 @@ import { getBetaTranslations } from "@/i18n/translations-server"
 import { listQueueDocuments } from "@/lib/data/documents-office"
 import { partnersForScope } from "@/lib/data/partners"
 import { requireOwner } from "@/lib/data/scope"
+import { formatAmount } from "@/lib/format/money"
 
 import { PageHeader } from "../../../../_components/page-header"
 
@@ -112,7 +113,7 @@ export default async function ZpracovaniPage({
                     {t(STATUS_LABEL_KEY[doc.status])}
                   </Badge>
                 </TableCell>
-                <TableCell>{doc.amount ?? "—"}</TableCell>
+                <TableCell>{formatAmount(doc.amount) ?? "—"}</TableCell>
                 <TableCell>{doc.siteRef ?? "—"}</TableCell>
                 <TableCell className="max-w-48 truncate text-muted-foreground">
                   {doc.officeMessage ?? "—"}

@@ -16,7 +16,7 @@
 #     -v $(pwd)/packages/db/tests/pgtap:/tests:ro \
 #     workspace-pgtap:dev /tests/run-pgtap.sh
 
-FROM postgres:18@sha256:22c89fe0d0f507606260237fd55e51f6137f58b2d5bcf6152242b96d9fe8f9a4
+FROM postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \

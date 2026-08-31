@@ -106,7 +106,7 @@ services:
     # cerbos-config.yaml's storage.disk.watchForChanges:true. The same flag
     # is harmless in prod where /policies is baked into a content-hashed
     # image (no writes inside the running container).
-    image: ghcr.io/cerbos/cerbos:0.53.0
+    image: ghcr.io/cerbos/cerbos:0.55.0
     restart: unless-stopped
     profiles:
       - auth
@@ -146,7 +146,7 @@ services:
       - "9187:9187"
 
   mailpit:
-    image: axllent/mailpit:v1.30.4
+    image: axllent/mailpit:v1.31.0
     restart: unless-stopped
     profiles:
       - mailpit

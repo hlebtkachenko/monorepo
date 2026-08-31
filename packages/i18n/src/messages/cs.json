@@ -1597,6 +1597,21 @@
     "ossImport": "Dovozní režim",
     "ossValidFrom": "Platnost OSS od"
   },
+  "debug": {
+    "dokladAllocator": {
+      "intro": "Vyberte typ dokladu — číslo si bere z číselné řady, na kterou je napojen. Přidělení spotřebuje další číslo řady (gapless) v aktivním účetním období.",
+      "typeLabel": "Typ dokladu",
+      "typePlaceholder": "Vyberte typ dokladu",
+      "seriesLabel": "Číselná řada",
+      "periodLabel": "Účetní období",
+      "noPeriod": "Žádné otevřené období",
+      "allocate": "Přidělit číslo",
+      "allocated": "Přiděleno {designation}",
+      "allocateError": "Číslo se nepodařilo přidělit",
+      "noTypes": "Zatím žádné typy dokladů s číselnou řadou. Nasaďte výchozí nebo vytvořte na stránce Typy dokladů.",
+      "resultsHeading": "Přidělená čísla"
+    }
+  },
   "org": {
     "nav": {
       "company": "Společnost",
@@ -1607,6 +1622,7 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
+      "dokladAllocator": "Přidělení čísla dokladu",
       "accounting": "Účetnictví",
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
@@ -1635,6 +1651,7 @@
       "normalTable": "Běžná tabulka",
       "pivotTable": "Kontingenční tabulka",
       "treeTable": "Stromová tabulka",
+      "dokladAllocator": "Přidělení čísla dokladu",
       "chartOfAccounts": "Účtový rozvrh",
       "chartFramework": "Účetní osnova",
       "states": "Státy",
